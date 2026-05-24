@@ -1,0 +1,418 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #FFF8EA
+  BorderColor #2B1A0F
+  ArrowColor #2B1A0F
+}
+skinparam actor {
+  BackgroundColor #FFF8EA
+  BorderColor #2B1A0F
+}
+
+title StayHub - Sơ đồ Use Case chi tiết theo Migration
+
+actor "Admin" as Admin
+actor "Khách thuê" as Tenant
+
+rectangle "StayHub" {
+  package "Xác thực & tài khoản" {
+    usecase "Đăng nhập quản trị" as UC_AdminLogin
+    usecase "Đăng nhập bằng FaceID" as UC_FaceLogin
+    usecase "Đăng xuất quản trị" as UC_AdminLogout
+    usecase "Xem tài khoản admin" as UC_AdminProfile
+    usecase "Cập nhật tài khoản admin" as UC_UpdateAdminProfile
+    usecase "Đổi mật khẩu admin" as UC_ChangeAdminPassword
+    usecase "Đăng ký FaceID" as UC_RegisterFaceId
+    usecase "Xóa FaceID" as UC_DeleteFaceId
+    usecase "Quản lý nhật ký admin" as UC_AdminLogs
+  }
+
+  package "Quản lý khách thuê" {
+    usecase "Xem danh sách khách thuê" as UC_ListTenants
+    usecase "Xem chi tiết khách thuê" as UC_ViewTenant
+    usecase "Thêm khách thuê" as UC_CreateTenant
+    usecase "Cập nhật khách thuê" as UC_UpdateTenant
+    usecase "Khóa/Mở khóa khách thuê" as UC_ToggleTenant
+    usecase "Tra cứu khách thuê" as UC_SearchTenant
+    usecase "Quản lý giấy tờ định danh" as UC_TenantIdentity
+    usecase "Xác minh giấy tờ định danh" as UC_VerifyIdentity
+    usecase "Quản lý phương tiện khách thuê" as UC_Vehicles
+  }
+
+  package "Khu vực & tòa nhà" {
+    usecase "Xem danh sách khu vực" as UC_ListRegions
+    usecase "Thêm khu vực" as UC_CreateRegion
+    usecase "Cập nhật khu vực" as UC_UpdateRegion
+    usecase "Xóa khu vực" as UC_DeleteRegion
+    usecase "Bật/Tắt khu vực" as UC_ToggleRegion
+
+    usecase "Xem danh sách loại hình tòa nhà" as UC_ListBuildingCategories
+    usecase "Thêm loại hình tòa nhà" as UC_CreateBuildingCategory
+    usecase "Cập nhật loại hình tòa nhà" as UC_UpdateBuildingCategory
+    usecase "Xóa loại hình tòa nhà" as UC_DeleteBuildingCategory
+
+    usecase "Xem danh sách tòa nhà" as UC_ListBuildings
+    usecase "Xem chi tiết tòa nhà" as UC_ViewBuilding
+    usecase "Thêm tòa nhà" as UC_CreateBuilding
+    usecase "Cập nhật tòa nhà" as UC_UpdateBuilding
+    usecase "Xóa tòa nhà" as UC_DeleteBuilding
+    usecase "Cập nhật trạng thái tòa nhà" as UC_ToggleBuilding
+    usecase "Tìm kiếm/Lọc tòa nhà" as UC_SearchBuilding
+    usecase "Quản lý ảnh tòa nhà" as UC_BuildingImages
+  }
+
+  package "Phòng & tài sản" {
+    usecase "Xem danh sách loại phòng" as UC_ListRoomTypes
+    usecase "Thêm loại phòng" as UC_CreateRoomType
+    usecase "Cập nhật loại phòng" as UC_UpdateRoomType
+    usecase "Xóa loại phòng" as UC_DeleteRoomType
+
+    usecase "Xem danh sách phòng" as UC_ListRooms
+    usecase "Xem chi tiết phòng" as UC_ViewRoom
+    usecase "Thêm phòng" as UC_CreateRoom
+    usecase "Cập nhật phòng" as UC_UpdateRoom
+    usecase "Xóa phòng" as UC_DeleteRoom
+    usecase "Cập nhật trạng thái phòng" as UC_UpdateRoomStatus
+    usecase "Tìm kiếm/Lọc phòng" as UC_SearchRoom
+    usecase "Quản lý ảnh phòng" as UC_RoomImages
+
+    usecase "Xem mẫu tài sản" as UC_ListAssetTemplates
+    usecase "Thêm mẫu tài sản" as UC_CreateAssetTemplate
+    usecase "Cập nhật mẫu tài sản" as UC_UpdateAssetTemplate
+    usecase "Xóa mẫu tài sản" as UC_DeleteAssetTemplate
+    usecase "Quản lý tài sản trong phòng" as UC_RoomAssets
+  }
+
+  package "Dịch vụ & giá dịch vụ" {
+    usecase "Xem danh sách dịch vụ" as UC_ListServices
+    usecase "Thêm dịch vụ" as UC_CreateService
+    usecase "Cập nhật dịch vụ" as UC_UpdateService
+    usecase "Xóa dịch vụ" as UC_DeleteService
+    usecase "Bật/Tắt dịch vụ" as UC_ToggleService
+    usecase "Thiết lập giá dịch vụ theo tòa nhà" as UC_ServicePrices
+    usecase "Cập nhật hiệu lực giá dịch vụ" as UC_UpdateServicePricePeriod
+  }
+
+  package "Hợp đồng & cư trú" {
+    usecase "Xem danh sách hợp đồng" as UC_ListContracts
+    usecase "Xem chi tiết hợp đồng" as UC_ViewContract
+    usecase "Tạo hợp đồng thuê" as UC_CreateContract
+    usecase "Cập nhật hợp đồng thuê" as UC_UpdateContract
+    usecase "Kết thúc hợp đồng thuê" as UC_EndContract
+    usecase "Gia hạn hợp đồng thuê" as UC_ExtendContract
+    usecase "Quản lý file hợp đồng" as UC_ContractFiles
+    usecase "Quản lý người ở trong hợp đồng" as UC_ContractTenants
+    usecase "Thêm khách vào phòng" as UC_AddTenantToContract
+    usecase "Khách rời phòng" as UC_RemoveTenantFromContract
+    usecase "Chuyển phòng" as UC_RoomMovement
+    usecase "Ghi nhận giao dịch cọc" as UC_DepositTransactions
+    usecase "Quản lý xe theo hợp đồng" as UC_ContractVehicles
+  }
+
+  package "Điện nước & hóa đơn" {
+    usecase "Quản lý đồng hồ điện/nước" as UC_MeterDevices
+    usecase "Thêm đồng hồ" as UC_CreateMeterDevice
+    usecase "Thay thế đồng hồ" as UC_ReplaceMeterDevice
+    usecase "Khóa đồng hồ" as UC_CloseMeterDevice
+    usecase "Ghi chỉ số điện/nước" as UC_CreateMeterReading
+    usecase "Cập nhật chỉ số điện/nước" as UC_UpdateMeterReading
+    usecase "Xem lịch sử chỉ số" as UC_ListMeterReadings
+
+    usecase "Tạo hóa đơn tháng" as UC_CreateInvoice
+    usecase "Xem danh sách hóa đơn" as UC_ListInvoices
+    usecase "Xem chi tiết hóa đơn" as UC_ViewInvoice
+    usecase "Cập nhật hóa đơn" as UC_UpdateInvoice
+    usecase "Phát hành hóa đơn" as UC_IssueInvoice
+    usecase "Hủy hóa đơn" as UC_CancelInvoice
+    usecase "Quản lý chi tiết hóa đơn" as UC_InvoiceItems
+  }
+
+  package "Thanh toán & chi phí" {
+    usecase "Xem danh sách thanh toán" as UC_ListPayments
+    usecase "Ghi nhận thanh toán" as UC_CreatePayment
+    usecase "Cập nhật thanh toán" as UC_UpdatePayment
+    usecase "Xác nhận thanh toán" as UC_ConfirmPayment
+    usecase "Hủy thanh toán" as UC_CancelPayment
+    usecase "Quản lý ảnh chứng từ thanh toán" as UC_PaymentProof
+
+    usecase "Xem danh mục chi phí" as UC_ListExpenseCategories
+    usecase "Thêm danh mục chi phí" as UC_CreateExpenseCategory
+    usecase "Cập nhật danh mục chi phí" as UC_UpdateExpenseCategory
+    usecase "Xóa danh mục chi phí" as UC_DeleteExpenseCategory
+    usecase "Xem danh sách phiếu chi" as UC_ListExpenses
+    usecase "Tạo phiếu chi" as UC_CreateExpense
+    usecase "Cập nhật phiếu chi" as UC_UpdateExpense
+    usecase "Xóa phiếu chi" as UC_DeleteExpense
+    usecase "Quản lý ảnh chứng từ phiếu chi" as UC_ExpenseReceipts
+  }
+
+  package "Bảo trì" {
+    usecase "Xem danh sách yêu cầu bảo trì" as UC_ListMaintenance
+    usecase "Xem chi tiết yêu cầu bảo trì" as UC_ViewMaintenance
+    usecase "Tạo yêu cầu bảo trì" as UC_CreateMaintenance
+    usecase "Phân công xử lý bảo trì" as UC_AssignMaintenance
+    usecase "Cập nhật trạng thái bảo trì" as UC_UpdateMaintenanceStatus
+    usecase "Hoàn tất yêu cầu bảo trì" as UC_CompleteMaintenance
+    usecase "Xem nhật ký xử lý bảo trì" as UC_MaintenanceLogs
+    usecase "Gửi đánh giá bảo trì" as UC_MaintenanceFeedback
+    usecase "Xem đánh giá bảo trì" as UC_ViewMaintenanceFeedback
+  }
+
+  package "Thông báo & cấu hình" {
+    usecase "Xem danh sách thông báo" as UC_ListNotifications
+    usecase "Tạo thông báo" as UC_CreateNotification
+    usecase "Cập nhật thông báo" as UC_UpdateNotification
+    usecase "Xuất bản thông báo" as UC_PublishNotification
+    usecase "Xóa thông báo" as UC_DeleteNotification
+    usecase "Đánh dấu đã đọc thông báo" as UC_ReadNotification
+    usecase "Quản lý cấu hình hệ thống/tòa nhà" as UC_Settings
+  }
+
+  package "Báo cáo" {
+    usecase "Xem tổng quan vận hành" as UC_Dashboard
+    usecase "Xem báo cáo doanh thu" as UC_RevenueReport
+    usecase "Xem báo cáo chi phí" as UC_ExpenseReport
+    usecase "Xem báo cáo lợi nhuận" as UC_ProfitReport
+    usecase "Xem công nợ hóa đơn" as UC_DebtReport
+    usecase "Xem tình trạng lấp đầy phòng" as UC_OccupancyReport
+  }
+
+  package "Cổng khách thuê" {
+    usecase "Khách thuê đăng nhập" as UC_TenantLogin
+    usecase "Khách thuê đăng xuất" as UC_TenantLogout
+    usecase "Xem thông tin cá nhân" as UC_TenantProfile
+    usecase "Cập nhật thông tin cá nhân" as UC_UpdateTenantProfile
+    usecase "Xem phòng đang thuê" as UC_TenantCurrentRoom
+    usecase "Xem hợp đồng của tôi" as UC_MyContracts
+    usecase "Xem hóa đơn của tôi" as UC_MyInvoices
+    usecase "Gửi minh chứng thanh toán" as UC_SubmitPaymentProof
+    usecase "Xem thông báo của tôi" as UC_MyNotifications
+    usecase "Gửi yêu cầu bảo trì" as UC_SubmitMaintenance
+    usecase "Theo dõi yêu cầu bảo trì" as UC_TrackMaintenance
+    usecase "Đánh giá yêu cầu bảo trì" as UC_SubmitMaintenanceFeedback
+    usecase "Quản lý phương tiện cá nhân" as UC_TenantVehicles
+  }
+
+  package "Use case dùng chung" {
+    usecase "Kiểm tra dữ liệu đầu vào" as UC_ValidateInput
+    usecase "Xác nhận thao tác" as UC_ConfirmAction
+    usecase "Tải ảnh lên MinIO" as UC_UploadImage
+    usecase "Xóa ảnh khỏi MinIO" as UC_DeleteImage
+    usecase "Ghi nhật ký thao tác admin" as UC_WriteAdminLog
+    usecase "Cập nhật số người trong phòng" as UC_UpdateRoomOccupancy
+    usecase "Tính tiền dịch vụ" as UC_CalculateServices
+    usecase "Cập nhật trạng thái hóa đơn" as UC_UpdateInvoiceStatus
+    usecase "Gửi thông báo" as UC_SendNotification
+  }
+}
+
+Admin -- UC_AdminLogin
+Admin -- UC_AdminLogout
+Admin -- UC_AdminProfile
+Admin -- UC_UpdateAdminProfile
+Admin -- UC_ChangeAdminPassword
+Admin -- UC_RegisterFaceId
+Admin -- UC_DeleteFaceId
+Admin -- UC_AdminLogs
+Admin -- UC_ListTenants
+Admin -- UC_ViewTenant
+Admin -- UC_CreateTenant
+Admin -- UC_UpdateTenant
+Admin -- UC_ToggleTenant
+Admin -- UC_SearchTenant
+Admin -- UC_TenantIdentity
+Admin -- UC_VerifyIdentity
+Admin -- UC_Vehicles
+Admin -- UC_ListRegions
+Admin -- UC_CreateRegion
+Admin -- UC_UpdateRegion
+Admin -- UC_DeleteRegion
+Admin -- UC_ToggleRegion
+Admin -- UC_ListBuildingCategories
+Admin -- UC_CreateBuildingCategory
+Admin -- UC_UpdateBuildingCategory
+Admin -- UC_DeleteBuildingCategory
+Admin -- UC_ListBuildings
+Admin -- UC_ViewBuilding
+Admin -- UC_CreateBuilding
+Admin -- UC_UpdateBuilding
+Admin -- UC_DeleteBuilding
+Admin -- UC_ToggleBuilding
+Admin -- UC_SearchBuilding
+Admin -- UC_BuildingImages
+Admin -- UC_ListRoomTypes
+Admin -- UC_CreateRoomType
+Admin -- UC_UpdateRoomType
+Admin -- UC_DeleteRoomType
+Admin -- UC_ListRooms
+Admin -- UC_ViewRoom
+Admin -- UC_CreateRoom
+Admin -- UC_UpdateRoom
+Admin -- UC_DeleteRoom
+Admin -- UC_UpdateRoomStatus
+Admin -- UC_SearchRoom
+Admin -- UC_RoomImages
+Admin -- UC_ListAssetTemplates
+Admin -- UC_CreateAssetTemplate
+Admin -- UC_UpdateAssetTemplate
+Admin -- UC_DeleteAssetTemplate
+Admin -- UC_RoomAssets
+Admin -- UC_ListServices
+Admin -- UC_CreateService
+Admin -- UC_UpdateService
+Admin -- UC_DeleteService
+Admin -- UC_ToggleService
+Admin -- UC_ServicePrices
+Admin -- UC_UpdateServicePricePeriod
+Admin -- UC_ListContracts
+Admin -- UC_ViewContract
+Admin -- UC_CreateContract
+Admin -- UC_UpdateContract
+Admin -- UC_EndContract
+Admin -- UC_ExtendContract
+Admin -- UC_ContractFiles
+Admin -- UC_ContractTenants
+Admin -- UC_AddTenantToContract
+Admin -- UC_RemoveTenantFromContract
+Admin -- UC_RoomMovement
+Admin -- UC_DepositTransactions
+Admin -- UC_ContractVehicles
+Admin -- UC_MeterDevices
+Admin -- UC_CreateMeterDevice
+Admin -- UC_ReplaceMeterDevice
+Admin -- UC_CloseMeterDevice
+Admin -- UC_CreateMeterReading
+Admin -- UC_UpdateMeterReading
+Admin -- UC_ListMeterReadings
+Admin -- UC_CreateInvoice
+Admin -- UC_ListInvoices
+Admin -- UC_ViewInvoice
+Admin -- UC_UpdateInvoice
+Admin -- UC_IssueInvoice
+Admin -- UC_CancelInvoice
+Admin -- UC_InvoiceItems
+Admin -- UC_ListPayments
+Admin -- UC_CreatePayment
+Admin -- UC_UpdatePayment
+Admin -- UC_ConfirmPayment
+Admin -- UC_CancelPayment
+Admin -- UC_PaymentProof
+Admin -- UC_ListExpenseCategories
+Admin -- UC_CreateExpenseCategory
+Admin -- UC_UpdateExpenseCategory
+Admin -- UC_DeleteExpenseCategory
+Admin -- UC_ListExpenses
+Admin -- UC_CreateExpense
+Admin -- UC_UpdateExpense
+Admin -- UC_DeleteExpense
+Admin -- UC_ExpenseReceipts
+Admin -- UC_ListMaintenance
+Admin -- UC_ViewMaintenance
+Admin -- UC_AssignMaintenance
+Admin -- UC_UpdateMaintenanceStatus
+Admin -- UC_CompleteMaintenance
+Admin -- UC_MaintenanceLogs
+Admin -- UC_ViewMaintenanceFeedback
+Admin -- UC_ListNotifications
+Admin -- UC_CreateNotification
+Admin -- UC_UpdateNotification
+Admin -- UC_PublishNotification
+Admin -- UC_DeleteNotification
+Admin -- UC_Settings
+Admin -- UC_Dashboard
+Admin -- UC_RevenueReport
+Admin -- UC_ExpenseReport
+Admin -- UC_ProfitReport
+Admin -- UC_DebtReport
+Admin -- UC_OccupancyReport
+
+Tenant -- UC_TenantLogin
+Tenant -- UC_TenantLogout
+Tenant -- UC_TenantProfile
+Tenant -- UC_UpdateTenantProfile
+Tenant -- UC_TenantCurrentRoom
+Tenant -- UC_MyContracts
+Tenant -- UC_MyInvoices
+Tenant -- UC_SubmitPaymentProof
+Tenant -- UC_MyNotifications
+Tenant -- UC_ReadNotification
+Tenant -- UC_SubmitMaintenance
+Tenant -- UC_TrackMaintenance
+Tenant -- UC_SubmitMaintenanceFeedback
+Tenant -- UC_TenantVehicles
+Tenant -- UC_MaintenanceFeedback
+
+UC_FaceLogin ..> UC_AdminLogin : <<extend>>
+UC_RegisterFaceId ..> UC_AdminProfile : <<extend>>
+UC_DeleteFaceId ..> UC_AdminProfile : <<extend>>
+
+UC_CreateTenant ..> UC_ValidateInput : <<include>>
+UC_UpdateTenant ..> UC_ValidateInput : <<include>>
+UC_DeleteRegion ..> UC_ConfirmAction : <<include>>
+UC_DeleteBuildingCategory ..> UC_ConfirmAction : <<include>>
+UC_DeleteBuilding ..> UC_ConfirmAction : <<include>>
+UC_DeleteRoomType ..> UC_ConfirmAction : <<include>>
+UC_DeleteRoom ..> UC_ConfirmAction : <<include>>
+UC_DeleteAssetTemplate ..> UC_ConfirmAction : <<include>>
+UC_DeleteService ..> UC_ConfirmAction : <<include>>
+UC_CancelInvoice ..> UC_ConfirmAction : <<include>>
+UC_CancelPayment ..> UC_ConfirmAction : <<include>>
+UC_DeleteExpenseCategory ..> UC_ConfirmAction : <<include>>
+UC_DeleteExpense ..> UC_ConfirmAction : <<include>>
+UC_DeleteNotification ..> UC_ConfirmAction : <<include>>
+
+UC_CreateRegion ..> UC_WriteAdminLog : <<include>>
+UC_UpdateRegion ..> UC_WriteAdminLog : <<include>>
+UC_DeleteRegion ..> UC_WriteAdminLog : <<include>>
+UC_CreateBuilding ..> UC_WriteAdminLog : <<include>>
+UC_UpdateBuilding ..> UC_WriteAdminLog : <<include>>
+UC_DeleteBuilding ..> UC_WriteAdminLog : <<include>>
+UC_CreateRoom ..> UC_WriteAdminLog : <<include>>
+UC_UpdateRoom ..> UC_WriteAdminLog : <<include>>
+UC_DeleteRoom ..> UC_WriteAdminLog : <<include>>
+UC_CreateContract ..> UC_WriteAdminLog : <<include>>
+UC_UpdateContract ..> UC_WriteAdminLog : <<include>>
+UC_EndContract ..> UC_WriteAdminLog : <<include>>
+UC_CreateInvoice ..> UC_WriteAdminLog : <<include>>
+UC_CreatePayment ..> UC_WriteAdminLog : <<include>>
+UC_UpdateMaintenanceStatus ..> UC_WriteAdminLog : <<include>>
+
+UC_BuildingImages ..> UC_UploadImage : <<include>>
+UC_BuildingImages ..> UC_DeleteImage : <<include>>
+UC_RoomImages ..> UC_UploadImage : <<include>>
+UC_RoomImages ..> UC_DeleteImage : <<include>>
+UC_TenantIdentity ..> UC_UploadImage : <<include>>
+UC_RegisterFaceId ..> UC_UploadImage : <<include>>
+UC_DeleteFaceId ..> UC_DeleteImage : <<include>>
+UC_CreateMeterReading ..> UC_UploadImage : <<include>>
+UC_PaymentProof ..> UC_UploadImage : <<include>>
+UC_ExpenseReceipts ..> UC_UploadImage : <<include>>
+UC_CreateMaintenance ..> UC_UploadImage : <<include>>
+UC_SubmitMaintenance ..> UC_UploadImage : <<include>>
+UC_MaintenanceFeedback ..> UC_UploadImage : <<include>>
+UC_SubmitMaintenanceFeedback ..> UC_UploadImage : <<include>>
+
+UC_CreateContract ..> UC_UpdateRoomOccupancy : <<include>>
+UC_AddTenantToContract ..> UC_UpdateRoomOccupancy : <<include>>
+UC_RemoveTenantFromContract ..> UC_UpdateRoomOccupancy : <<include>>
+UC_RoomMovement ..> UC_UpdateRoomOccupancy : <<include>>
+UC_EndContract ..> UC_UpdateRoomOccupancy : <<include>>
+
+UC_CreateInvoice ..> UC_CalculateServices : <<include>>
+UC_CreateInvoice ..> UC_InvoiceItems : <<include>>
+UC_CreatePayment ..> UC_UpdateInvoiceStatus : <<include>>
+UC_ConfirmPayment ..> UC_UpdateInvoiceStatus : <<include>>
+UC_CancelPayment ..> UC_UpdateInvoiceStatus : <<include>>
+UC_SubmitPaymentProof ..> UC_UpdateInvoiceStatus : <<include>>
+
+UC_CreateNotification ..> UC_SendNotification : <<include>>
+UC_PublishNotification ..> UC_SendNotification : <<include>>
+UC_CreateInvoice ..> UC_SendNotification : <<include>>
+UC_IssueInvoice ..> UC_SendNotification : <<include>>
+UC_UpdateMaintenanceStatus ..> UC_SendNotification : <<include>>
+UC_CompleteMaintenance ..> UC_SendNotification : <<include>>
+
+@enduml

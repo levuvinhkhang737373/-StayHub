@@ -1,0 +1,236 @@
+services:
+  # -------------------------------------
+  # 1. DATABASE MYSQL (Dữ liệu chính của ứng dụng)
+  # -------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: laravel_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-stay_hub}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-12345678}
+      MYSQL_USER: ${DB_USERNAME:-stay_hub}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-12345678}
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - '${DB_FORWARD_PORT:-3308}:3306'
+    volumes:
+      - dbdata_new:/var/lib/mysql
+    healthcheck:
+      test: [ 'CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -p$${MYSQL_ROOT_PASSWORD} --silent' ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      laravel_network:
+        aliases:
+          - db
+
+  # -------------------------------------
+  # 2. MONGODB
+  # -------------------------------------
+  mongo:
+    image: mongo:7
+    container_name: laravel_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_DB_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD:-12345678}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_DATABASE:-stay_hub}
+    ports:
+      - '${MONGO_FORWARD_PORT:-27017}:27017'
+    volumes:
+      - mongodata:/data/db
+    healthcheck:
+      test: [ 'CMD-SHELL', 'mongosh mongodb://$${MONGO_INITDB_ROOT_USERNAME}:$${MONGO_INITDB_ROOT_PASSWORD}@127.0.0.1:27017/admin --quiet --eval "db.runCommand({ ping: 1 }).ok" | grep 1' ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      laravel_network:
+        aliases:
+          - mongo
+
+  # -------------------------------------
+  # 3. REDIS (Cache và Queue)
+  # -------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: laravel_redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_FORWARD_PORT:-6379}:6379'
+    healthcheck:
+      test: [ 'CMD', 'redis-cli', 'ping' ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      laravel_network:
+        aliases:
+          - redis
+
+  # -------------------------------------
+  # 5. MEILISEARCH
+  # -------------------------------------
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: laravel_meilisearch
+    restart: unless-stopped
+    ports:
+      - '${MEILISEARCH_PORT:-7700}:7700'
+    environment:
+      MEILI_NO_ANALYTICS: 'true'
+      MEILI_ENV: ${MEILI_ENV:-development}
+      MEILI_MASTER_KEY: ${MEILISEARCH_KEY:-12345678}
+    volumes:
+      - meili_data:/meili_data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'curl -fsS http://127.0.0.1:7700/health >/dev/null || exit 1' ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      laravel_network:
+        aliases:
+          - meilisearch
+
+  # -------------------------------------
+  # 6. MINIO (S3 Compatible Storage)
+  # -------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: laravel_minio
+    restart: unless-stopped
+    ports:
+      - '${MINIO_API_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-12345678}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-12345678}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ':9001'
+    healthcheck:
+      test: [ 'CMD-SHELL', 'curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null || exit 1' ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      laravel_network:
+        aliases:
+          - minio
+
+  # -------------------------------------
+  # 7. QDRANT (Vector Database)
+  # -------------------------------------
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: laravel_qdrant
+    restart: unless-stopped
+    ports:
+      - '${QDRANT_PORT:-6333}:6333'
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      laravel_network:
+        aliases:
+          - qdrant
+
+  qdrant-init:
+    image: curlimages/curl:latest
+    container_name: laravel_qdrant_init
+    restart: 'no'
+    depends_on:
+      - qdrant
+    command: >
+      sh -c "until curl -fsS http://qdrant:6333/ >/dev/null; do echo waiting for qdrant; sleep 2; done; curl -fsS http://qdrant:6333/collections/face_embeddings >/dev/null 2>&1 || curl -fsS -X PUT http://qdrant:6333/collections/face_embeddings -H 'Content-Type: application/json' -d '{\"vectors\":{\"size\":128,\"distance\":\"Cosine\"}}'; echo 'Qdrant collection initialized';"
+    networks:
+      - laravel_network
+
+  # -------------------------------------
+  # 8. AI SERVICE (Admin FaceID)
+  # -------------------------------------
+  ai-service:
+    build:
+      context: ../ai-service
+    container_name: stayhub_ai_service
+    restart: unless-stopped
+    ports:
+      - '${AI_SERVICE_PORT:-8001}:8000'
+    healthcheck:
+      test: [ 'CMD-SHELL', 'python -c "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\", timeout=5)"' ]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      laravel_network:
+        aliases:
+          - ai-service
+
+  # -------------------------------------
+  # 9. PHPMYADMIN (QUẢN LÝ MYSQL)
+  # -------------------------------------
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: laravel_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - '${PHPMYADMIN_PORT:-8082}:80'
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - laravel_network
+
+  # -------------------------------------
+  # 9. MONGO EXPRESS (QUẢN LÝ MONGODB)
+  # -------------------------------------
+  mongo-express:
+    image: mongo-express:latest
+    container_name: laravel_mongo_express
+    restart: unless-stopped
+    ports:
+      - '${MONGO_EXPRESS_PORT:-8081}:8081'
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_DB_USERNAME:-root}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_DB_PASSWORD:-12345678}
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_AUTH_DATABASE: admin
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_DB_USERNAME:-root}:${MONGO_DB_PASSWORD:-12345678}@mongo:27017/?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - laravel_network
+
+networks:
+  laravel_network:
+    external: true
+    name: repokytucxaphongtro_laravel_network
+
+volumes:
+  dbdata_new:
+    external: true
+    name: repokytucxaphongtro_dbdata_new
+  mongodata:
+    external: true
+    name: repokytucxaphongtro_mongodata
+  meili_data:
+    external: true
+    name: repokytucxaphongtro_meili_data
+  minio_data:
+    external: true
+    name: repokytucxaphongtro_minio_data
+  qdrant_data:
+    external: true
+    name: repokytucxaphongtro_qdrant_data

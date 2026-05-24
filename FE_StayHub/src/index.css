@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+a,
+[role='button'],
+input[type='button'],
+input[type='submit'],
+input[type='reset'],
+select,
+summary,
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+
+html {
+  font-size: 18px; 
+}
+
+
+@media screen and (max-width: 1920px) {
+  html {
+    font-size: 16px; 
+  }
+}
+
+@media screen and (max-width: 1600px) {
+  html {
+    font-size: 14px; 
+  }
+}
+
+@media screen and (max-width: 1366px) {
+  html {
+    font-size: 13px; 
+  }
+}
+
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

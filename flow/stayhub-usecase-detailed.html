@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StayHub - Use Case chi tiết</title>
+  <style>
+    body{margin:0;background:#f4efe5;font-family:Arial,Helvetica,sans-serif;color:#24170d}.page{width:1800px;margin:0 auto;padding:32px;background:linear-gradient(rgba(36,23,13,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(36,23,13,.05) 1px,transparent 1px),#fffaf1;background-size:32px 32px}h1{text-align:center;margin:0 0 8px;font-size:34px}.hint{text-align:center;margin:0 0 24px;color:#7a5b36;font-weight:700}svg{width:100%;height:auto;display:block}.system{fill:rgba(255,253,247,.75);stroke:#24170d;stroke-width:3}.module{fill:rgba(255,248,234,.82);stroke:#a98653;stroke-width:2;stroke-dasharray:8 6}.uc{fill:#fff;stroke:#24170d;stroke-width:2.5}.tenant{fill:#f1fffb;stroke:#0f766e}.shared{fill:#fff2ce;stroke-dasharray:7 5}.wire{stroke:#24170d;stroke-width:2.2;fill:none}.twire{stroke:#0f766e}.iwire,.ewire{stroke:#24170d;stroke-width:2;fill:none;stroke-dasharray:8 7;marker-end:url(#arrow)}.actor{stroke:#24170d;stroke-width:3;fill:none;stroke-linecap:round}.actorT{stroke:#0f766e}.txt{font-size:15px;font-weight:800;fill:#24170d}.title{font-size:22px;font-weight:900;fill:#24170d}.mt{font-size:18px;font-weight:900;fill:#7a4b19}.al{font-size:18px;font-weight:900;font-style:italic;fill:#24170d}.tl{fill:#0f766e}.rel{font-size:14px;font-weight:900;fill:#5b3a1f;paint-order:stroke;stroke:#fffaf1;stroke-width:5px}
+  </style>
+</head>
+<body>
+<main class="page">
+<h1>Use Case chi tiết hệ thống StayHub</h1>
+<p class="hint">Admin bên trái, Khách thuê bên phải; dây liền là actor dùng chức năng, dây nét đứt ghi đầy đủ &lt;&lt;include&gt;&gt; hoặc &lt;&lt;extend&gt;&gt;.</p>
+<svg viewBox="0 0 1740 2500" role="img" aria-label="Sơ đồ use case StayHub">
+<defs><marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth"><path d="M2,2 L10,6 L2,10 Z" fill="#24170d"/></marker></defs>
+<rect x="210" y="40" width="1320" height="2380" class="system"/><text x="870" y="84" text-anchor="middle" class="title">StayHub</text>
+<g transform="translate(70 380)"><circle cx="42" cy="20" r="18" class="actor"/><line x1="42" y1="38" x2="42" y2="92" class="actor"/><line x1="8" y1="58" x2="76" y2="58" class="actor"/><line x1="42" y1="92" x2="10" y2="138" class="actor"/><line x1="42" y1="92" x2="74" y2="138" class="actor"/><text x="42" y="174" text-anchor="middle" class="al">Admin</text></g>
+<g transform="translate(1600 1480)"><circle cx="42" cy="20" r="18" class="actor actorT"/><line x1="42" y1="38" x2="42" y2="92" class="actor actorT"/><line x1="8" y1="58" x2="76" y2="58" class="actor actorT"/><line x1="42" y1="92" x2="10" y2="138" class="actor actorT"/><line x1="42" y1="92" x2="74" y2="138" class="actor actorT"/><text x="42" y="174" text-anchor="middle" class="al tl">Khách thuê</text></g>
+
+<!-- module boxes -->
+<rect x="260" y="120" width="580" height="430" rx="18" class="module"/><text x="550" y="152" text-anchor="middle" class="mt">Xác thực & tài khoản</text>
+<rect x="900" y="120" width="560" height="430" rx="18" class="module"/><text x="1180" y="152" text-anchor="middle" class="mt">Khách thuê & định danh</text>
+<rect x="260" y="610" width="580" height="520" rx="18" class="module"/><text x="550" y="642" text-anchor="middle" class="mt">Khu vực & tòa nhà</text>
+<rect x="900" y="610" width="560" height="520" rx="18" class="module"/><text x="1180" y="642" text-anchor="middle" class="mt">Phòng & tài sản / Cổng khách thuê</text>
+<rect x="260" y="1190" width="580" height="430" rx="18" class="module"/><text x="550" y="1222" text-anchor="middle" class="mt">Dịch vụ & hợp đồng</text>
+<rect x="900" y="1190" width="560" height="430" rx="18" class="module"/><text x="1180" y="1222" text-anchor="middle" class="mt">Cọc, xe & khách thuê</text>
+<rect x="260" y="1680" width="580" height="500" rx="18" class="module"/><text x="550" y="1712" text-anchor="middle" class="mt">Điện nước & hóa đơn</text>
+<rect x="900" y="1680" width="560" height="500" rx="18" class="module"/><text x="1180" y="1712" text-anchor="middle" class="mt">Thanh toán & chi phí</text>
+<rect x="260" y="2240" width="1200" height="150" rx="18" class="module"/><text x="860" y="2272" text-anchor="middle" class="mt">Bảo trì, thông báo, cấu hình & báo cáo</text>
+
+<!-- usecase helper via ellipses/text -->
+<ellipse cx="420" cy="215" rx="120" ry="42" class="uc"/><text x="420" y="220" text-anchor="middle" class="txt">Đăng nhập admin</text>
+<ellipse cx="665" cy="215" rx="120" ry="42" class="uc"/><text x="665" y="220" text-anchor="middle" class="txt">Đăng nhập FaceID</text>
+<ellipse cx="420" cy="325" rx="120" ry="42" class="uc"/><text x="420" y="330" text-anchor="middle" class="txt">Quản lý tài khoản</text>
+<ellipse cx="665" cy="325" rx="120" ry="42" class="uc"/><text x="665" y="322" text-anchor="middle" class="txt">Đăng ký / Xóa</text><text x="665" y="340" text-anchor="middle" class="txt">FaceID</text>
+<ellipse cx="420" cy="435" rx="120" ry="42" class="uc"/><text x="420" y="440" text-anchor="middle" class="txt">Nhật ký admin</text>
+<ellipse cx="665" cy="435" rx="120" ry="42" class="uc"/><text x="665" y="440" text-anchor="middle" class="txt">Đăng xuất admin</text>
+<ellipse cx="1060" cy="215" rx="125" ry="42" class="uc"/><text x="1060" y="220" text-anchor="middle" class="txt">Quản lý khách thuê</text>
+<ellipse cx="1310" cy="215" rx="125" ry="42" class="uc"/><text x="1310" y="220" text-anchor="middle" class="txt">Tra cứu khách thuê</text>
+<ellipse cx="1060" cy="325" rx="125" ry="42" class="uc"/><text x="1060" y="322" text-anchor="middle" class="txt">Quản lý giấy tờ</text><text x="1060" y="340" text-anchor="middle" class="txt">định danh</text>
+<ellipse cx="1310" cy="325" rx="125" ry="42" class="uc"/><text x="1310" y="330" text-anchor="middle" class="txt">Xác minh định danh</text>
+<ellipse cx="1180" cy="435" rx="140" ry="42" class="uc"/><text x="1180" y="432" text-anchor="middle" class="txt">Quản lý phương tiện</text><text x="1180" y="450" text-anchor="middle" class="txt">khách thuê</text>
+
+<ellipse cx="420" cy="710" rx="120" ry="42" class="uc"/><text x="420" y="715" text-anchor="middle" class="txt">Quản lý khu vực</text>
+<ellipse cx="665" cy="710" rx="135" ry="42" class="uc"/><text x="665" y="707" text-anchor="middle" class="txt">Quản lý loại hình</text><text x="665" y="725" text-anchor="middle" class="txt">tòa nhà</text>
+<ellipse cx="420" cy="825" rx="120" ry="42" class="uc"/><text x="420" y="830" text-anchor="middle" class="txt">Quản lý tòa nhà</text>
+<ellipse cx="665" cy="825" rx="120" ry="42" class="uc"/><text x="665" y="830" text-anchor="middle" class="txt">Quản lý ảnh tòa</text>
+<ellipse cx="420" cy="940" rx="120" ry="42" class="uc"/><text x="420" y="937" text-anchor="middle" class="txt">Tìm kiếm / lọc</text><text x="420" y="955" text-anchor="middle" class="txt">tòa nhà</text>
+<ellipse cx="545" cy="1045" rx="135" ry="42" class="uc shared"/><text x="545" y="1042" text-anchor="middle" class="txt">Xác nhận thao tác</text><text x="545" y="1060" text-anchor="middle" class="txt">xóa</text>
+<ellipse cx="1060" cy="710" rx="120" ry="42" class="uc"/><text x="1060" y="715" text-anchor="middle" class="txt">Quản lý loại phòng</text>
+<ellipse cx="1310" cy="710" rx="120" ry="42" class="uc tenant"/><text x="1310" y="715" text-anchor="middle" class="txt">Khách thuê đăng nhập</text>
+<ellipse cx="1060" cy="825" rx="120" ry="42" class="uc"/><text x="1060" y="830" text-anchor="middle" class="txt">Quản lý phòng</text>
+<ellipse cx="1310" cy="825" rx="135" ry="42" class="uc tenant"/><text x="1310" y="822" text-anchor="middle" class="txt">Quản lý thông tin</text><text x="1310" y="840" text-anchor="middle" class="txt">cá nhân</text>
+<ellipse cx="1060" cy="940" rx="135" ry="42" class="uc"/><text x="1060" y="937" text-anchor="middle" class="txt">Quản lý tài sản</text><text x="1060" y="955" text-anchor="middle" class="txt">trong phòng</text>
+<ellipse cx="1310" cy="940" rx="135" ry="42" class="uc tenant"/><text x="1310" y="937" text-anchor="middle" class="txt">Xem phòng / hợp đồng</text><text x="1310" y="955" text-anchor="middle" class="txt">đang thuê</text>
+
+<ellipse cx="420" cy="1310" rx="120" ry="42" class="uc"/><text x="420" y="1315" text-anchor="middle" class="txt">Quản lý dịch vụ</text>
+<ellipse cx="665" cy="1310" rx="135" ry="42" class="uc"/><text x="665" y="1307" text-anchor="middle" class="txt">Thiết lập giá</text><text x="665" y="1325" text-anchor="middle" class="txt">dịch vụ</text>
+<ellipse cx="420" cy="1430" rx="125" ry="42" class="uc"/><text x="420" y="1435" text-anchor="middle" class="txt">Quản lý hợp đồng</text>
+<ellipse cx="665" cy="1430" rx="130" ry="42" class="uc"/><text x="665" y="1427" text-anchor="middle" class="txt">Gia hạn / kết thúc</text><text x="665" y="1445" text-anchor="middle" class="txt">hợp đồng</text>
+<ellipse cx="420" cy="1545" rx="130" ry="42" class="uc"/><text x="420" y="1542" text-anchor="middle" class="txt">Quản lý người ở</text><text x="420" y="1560" text-anchor="middle" class="txt">trong hợp đồng</text>
+<ellipse cx="665" cy="1545" rx="120" ry="42" class="uc"/><text x="665" y="1550" text-anchor="middle" class="txt">Chuyển phòng</text>
+<ellipse cx="1060" cy="1310" rx="135" ry="42" class="uc"/><text x="1060" y="1307" text-anchor="middle" class="txt">Ghi nhận giao dịch</text><text x="1060" y="1325" text-anchor="middle" class="txt">tiền cọc</text>
+<ellipse cx="1310" cy="1310" rx="135" ry="42" class="uc tenant"/><text x="1310" y="1307" text-anchor="middle" class="txt">Gửi / theo dõi</text><text x="1310" y="1325" text-anchor="middle" class="txt">bảo trì</text>
+<ellipse cx="1060" cy="1430" rx="135" ry="42" class="uc shared"/><text x="1060" y="1427" text-anchor="middle" class="txt">Kiểm tra dữ liệu</text><text x="1060" y="1445" text-anchor="middle" class="txt">đầu vào</text>
+<ellipse cx="1310" cy="1430" rx="135" ry="42" class="uc tenant"/><text x="1310" y="1435" text-anchor="middle" class="txt">Đánh giá bảo trì</text>
+<ellipse cx="1185" cy="1545" rx="145" ry="42" class="uc shared"/><text x="1185" y="1542" text-anchor="middle" class="txt">Ghi nhật ký thao tác</text><text x="1185" y="1560" text-anchor="middle" class="txt">admin</text>
+
+<ellipse cx="420" cy="1795" rx="135" ry="42" class="uc"/><text x="420" y="1792" text-anchor="middle" class="txt">Quản lý đồng hồ</text><text x="420" y="1810" text-anchor="middle" class="txt">điện/nước</text>
+<ellipse cx="665" cy="1795" rx="135" ry="42" class="uc"/><text x="665" y="1792" text-anchor="middle" class="txt">Ghi chỉ số</text><text x="665" y="1810" text-anchor="middle" class="txt">điện/nước</text>
+<ellipse cx="420" cy="1915" rx="125" ry="42" class="uc"/><text x="420" y="1920" text-anchor="middle" class="txt">Tạo hóa đơn tháng</text>
+<ellipse cx="665" cy="1915" rx="120" ry="42" class="uc"/><text x="665" y="1920" text-anchor="middle" class="txt">Quản lý hóa đơn</text>
+<ellipse cx="665" cy="2035" rx="135" ry="42" class="uc shared"/><text x="665" y="2032" text-anchor="middle" class="txt">Tính tiền dịch vụ</text><text x="665" y="2050" text-anchor="middle" class="txt">theo chỉ số</text>
+<ellipse cx="1060" cy="1795" rx="135" ry="42" class="uc"/><text x="1060" y="1792" text-anchor="middle" class="txt">Ghi nhận</text><text x="1060" y="1810" text-anchor="middle" class="txt">thanh toán</text>
+<ellipse cx="1310" cy="1795" rx="135" ry="42" class="uc tenant"/><text x="1310" y="1792" text-anchor="middle" class="txt">Gửi minh chứng</text><text x="1310" y="1810" text-anchor="middle" class="txt">thanh toán</text>
+<ellipse cx="1060" cy="1915" rx="135" ry="42" class="uc"/><text x="1060" y="1912" text-anchor="middle" class="txt">Quản lý chứng từ</text><text x="1060" y="1930" text-anchor="middle" class="txt">thanh toán</text>
+<ellipse cx="1310" cy="1915" rx="135" ry="42" class="uc tenant"/><text x="1310" y="1920" text-anchor="middle" class="txt">Xem hóa đơn</text>
+<ellipse cx="1060" cy="2035" rx="120" ry="42" class="uc"/><text x="1060" y="2040" text-anchor="middle" class="txt">Quản lý phiếu chi</text>
+<ellipse cx="1310" cy="2035" rx="145" ry="42" class="uc shared"/><text x="1310" y="2032" text-anchor="middle" class="txt">Cập nhật trạng thái</text><text x="1310" y="2050" text-anchor="middle" class="txt">hóa đơn</text>
+
+<ellipse cx="410" cy="2330" rx="135" ry="42" class="uc"/><text x="410" y="2327" text-anchor="middle" class="txt">Quản lý yêu cầu</text><text x="410" y="2345" text-anchor="middle" class="txt">bảo trì</text>
+<ellipse cx="660" cy="2330" rx="135" ry="42" class="uc"/><text x="660" y="2327" text-anchor="middle" class="txt">Phân công / cập nhật</text><text x="660" y="2345" text-anchor="middle" class="txt">bảo trì</text>
+<ellipse cx="910" cy="2330" rx="125" ry="42" class="uc"/><text x="910" y="2335" text-anchor="middle" class="txt">Quản lý thông báo</text>
+<ellipse cx="1145" cy="2330" rx="125" ry="42" class="uc"/><text x="1145" y="2335" text-anchor="middle" class="txt">Quản lý cấu hình</text>
+<ellipse cx="1360" cy="2330" rx="110" ry="42" class="uc tenant"/><text x="1360" y="2327" text-anchor="middle" class="txt">Xem thông báo</text><text x="1360" y="2345" text-anchor="middle" class="txt">của tôi</text>
+
+<!-- actor wires -->
+<path d="M146 438 L300 215 M146 438 L300 325 M146 438 L300 435 M146 438 L940 215 M146 438 L300 710 M146 438 L300 825 M146 438 L940 710 M146 438 L940 825 M146 438 L300 1310 M146 438 L300 1430 M146 438 L940 1795 M146 438 L300 1795 M146 438 L300 1915 M146 438 L300 2330 M146 438 L790 2330 M146 438 L1035 2330" class="wire"/>
+<path d="M1600 1538 L1430 710 M1600 1538 L1445 825 M1600 1538 L1445 940 M1600 1538 L1445 1310 M1600 1538 L1440 1430 M1600 1538 L1445 1795 M1600 1538 L1445 1915 M1600 1538 L1470 2330" class="wire twire"/>
+
+<!-- relations with full labels -->
+<path d="M545 215 C575 200 595 200 625 215" class="ewire"/><text x="585" y="190" text-anchor="middle" class="rel">&lt;&lt;extend&gt;&gt;</text>
+<path d="M665 367 C650 390 460 390 420 367" class="ewire"/><text x="545" y="398" text-anchor="middle" class="rel">&lt;&lt;extend&gt;&gt;</text>
+<path d="M545 825 C545 900 545 965 545 1000" class="iwire"/><text x="620" y="925" text-anchor="middle" class="rel">&lt;&lt;include&gt;&gt;</text>
+<path d="M420 1472 C550 1525 930 1545 1040 1545" class="iwire"/><text x="740" y="1516" text-anchor="middle" class="rel">&lt;&lt;include&gt;&gt;</text>
+<path d="M420 1957 C475 1988 575 2010 620 2022" class="iwire"/><text x="535" y="1980" text-anchor="middle" class="rel">&lt;&lt;include&gt;&gt;</text>
+<path d="M1060 1837 C1115 1905 1230 1985 1280 2005" class="iwire"/><text x="1200" y="1920" text-anchor="middle" class="rel">&lt;&lt;include&gt;&gt;</text>
+<path d="M1320 1285 C1120 1530 650 2240 520 2290" class="iwire"/><text x="1050" y="1845" text-anchor="middle" class="rel">&lt;&lt;include&gt;&gt;</text>
+</svg>
+</main>
+</body>
+</html>

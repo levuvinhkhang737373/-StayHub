@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+**/node_modules
+**/vendor
+BE_StayHub/storage/logs/*.log
+BE_StayHub/storage/framework/cache/*
+BE_StayHub/storage/framework/sessions/*
+BE_StayHub/storage/framework/views/*
+BE_StayHub/bootstrap/cache/*.php
+FE_StayHub/dist
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

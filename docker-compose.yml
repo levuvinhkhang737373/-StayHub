@@ -1,0 +1,118 @@
+name: be_stayhub
+
+services:
+  # -------------------------------------
+  # 1. CLOUDFLARED (Public Tunnel)
+  # -------------------------------------
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: stayhub_tunnel
+    profiles:
+      - tunnel
+    restart: unless-stopped
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run
+    networks:
+      - laravel_network
+
+  # -------------------------------------
+  # 2. LARAVEL APP (Octane + Queue)
+  # -------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        user: ${DOCKER_USER:-khang}
+        uid: ${DOCKER_UID:-1000}
+    container_name: laravel_app
+    restart: unless-stopped
+    user: "${DOCKER_UID:-1000}:${DOCKER_UID:-1000}"
+    working_dir: /var/www/html/BE_StayHub
+    volumes:
+      - type: bind
+        source: ${BACKEND_DIR:-./BE_StayHub}
+        target: /var/www/html/BE_StayHub
+      - backend_vendor:/var/www/html/BE_StayHub/vendor
+    ports:
+      - '${APP_PORT:-8000}:8000'
+    healthcheck:
+      test: [ 'CMD-SHELL', 'test -f artisan && curl -fsS http://127.0.0.1:8000/sanctum/csrf-cookie >/dev/null || exit 1' ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - laravel_network
+
+  # -------------------------------------
+  # 3. FRONTEND REACT/VITE (Nginx static)
+  # -------------------------------------
+  frontend:
+    build:
+      context: ./FE_StayHub
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}
+    container_name: stayhub_frontend
+    restart: unless-stopped
+    ports:
+      - '${FRONTEND_PORT:-3000}:80'
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test: [ 'CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://127.0.0.1/ || exit 1' ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - laravel_network
+
+  # -------------------------------------
+  # 4. NGINX
+  # -------------------------------------
+  webserver:
+    image: nginx:alpine
+    container_name: laravel_webserver
+    restart: unless-stopped
+    ports:
+      - '${NGINX_PORT:-8080}:80'
+    volumes:
+      - type: bind
+        source: ${BACKEND_DIR:-./BE_StayHub}
+        target: /var/www/html/BE_StayHub
+        read_only: true
+      - type: bind
+        source: ${NGINX_DIR:-./nginx}
+        target: /etc/nginx/conf.d
+        read_only: true
+      - type: bind
+        source: ./docker/wait-backend-mount-nginx.sh
+        target: /usr/local/bin/wait-backend-mount-nginx.sh
+        read_only: true
+    command: ["/bin/sh", "/usr/local/bin/wait-backend-mount-nginx.sh"]
+    depends_on:
+      app:
+        condition: service_started
+      frontend:
+        condition: service_started
+    healthcheck:
+      test: [ 'CMD-SHELL', 'test -f /var/www/html/BE_StayHub/artisan && wget --no-verbose --tries=1 --spider http://127.0.0.1/sanctum/csrf-cookie || exit 1' ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - laravel_network
+
+networks:
+  laravel_network:
+    external: true
+    name: repokytucxaphongtro_laravel_network
+
+volumes:
+  backend_vendor:
+    name: repokytucxaphongtro_backend_vendor
