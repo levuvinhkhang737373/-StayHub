@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y \
     default-mysql-client \
     netcat-openbsd \
     libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
@@ -30,7 +32,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. Cài đặt các extension PHP cốt lõi cho project Laravel
-RUN docker-php-ext-install \
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install \
+    gd \
     pdo \
     pdo_mysql \
     mbstring \

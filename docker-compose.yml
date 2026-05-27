@@ -1,42 +1,219 @@
 name: be_stayhub
 
+x-backend-build: &backend-build
+  context: .
+  dockerfile: Dockerfile
+  args:
+    user: ${DOCKER_USER:-khang}
+    uid: ${DOCKER_UID:-1000}
+
+x-backend-environment: &backend-environment
+  APP_USER: ${DOCKER_USER:-khang}
+  APP_UID: ${DOCKER_UID:-1000}
+  COMPOSER_CACHE_DIR: /tmp/composer-cache
+  RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+
+x-backend-volumes: &backend-volumes
+  - type: bind
+    source: ./BE_StayHub
+    target: /var/www/html/BE_StayHub
+  - type: volume
+    source: backend_vendor
+    target: /var/www/html/BE_StayHub/vendor
+  - type: volume
+    source: backend_composer_cache
+    target: /tmp/composer-cache
+
 services:
-  # -------------------------------------
-  # 1. CLOUDFLARED (Public Tunnel)
-  # -------------------------------------
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: stayhub_tunnel
-    profiles:
-      - tunnel
+  db:
+    image: mysql:8.0
+    container_name: laravel_db
     restart: unless-stopped
     environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
-    command: tunnel --no-autoupdate run
+      MYSQL_DATABASE: ${DB_DATABASE:-stay_hub}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-12345678}
+      MYSQL_USER: ${DB_USERNAME:-stay_hub}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-12345678}
+    command: --default-authentication-plugin=mysql_native_password --max_connections=500
+    ports:
+      - '${DB_FORWARD_PORT:-3308}:3306'
+    volumes:
+      - type: volume
+        source: dbdata_new
+        target: /var/lib/mysql
+    healthcheck:
+      test: [ 'CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -p$${MYSQL_ROOT_PASSWORD} --silent' ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      laravel_network:
+        aliases:
+          - db
+
+  mongo:
+    image: mongo:7
+    container_name: laravel_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_DB_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD:-12345678}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_DATABASE:-stay_hub}
+    ports:
+      - '${MONGO_FORWARD_PORT:-27017}:27017'
+    volumes:
+      - type: volume
+        source: mongodata
+        target: /data/db
+    healthcheck:
+      test: [ 'CMD-SHELL', 'mongosh mongodb://$${MONGO_INITDB_ROOT_USERNAME}:$${MONGO_INITDB_ROOT_PASSWORD}@127.0.0.1:27017/admin --quiet --eval "db.runCommand({ ping: 1 }).ok" | grep 1' ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      laravel_network:
+        aliases:
+          - mongo
+
+  redis:
+    image: redis:7-alpine
+    container_name: laravel_redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_FORWARD_PORT:-6379}:6379'
+    healthcheck:
+      test: [ 'CMD', 'redis-cli', 'ping' ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      laravel_network:
+        aliases:
+          - redis
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: laravel_meilisearch
+    restart: unless-stopped
+    ports:
+      - '${MEILISEARCH_PORT:-7700}:7700'
+    environment:
+      MEILI_NO_ANALYTICS: 'true'
+      MEILI_ENV: ${MEILI_ENV:-development}
+      MEILI_MASTER_KEY: ${MEILISEARCH_KEY:-12345678}
+    volumes:
+      - type: volume
+        source: meili_data
+        target: /meili_data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'curl -fsS http://127.0.0.1:7700/health >/dev/null || exit 1' ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      laravel_network:
+        aliases:
+          - meilisearch
+
+  minio:
+    image: minio/minio:latest
+    container_name: laravel_minio
+    restart: unless-stopped
+    ports:
+      - '${MINIO_API_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-12345678}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-12345678}
+    volumes:
+      - type: volume
+        source: minio_data
+        target: /data
+    command: server /data --console-address ':9001'
+    healthcheck:
+      test: [ 'CMD-SHELL', 'curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null || exit 1' ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      laravel_network:
+        aliases:
+          - minio
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: laravel_qdrant
+    restart: unless-stopped
+    ports:
+      - '${QDRANT_PORT:-6333}:6333'
+    volumes:
+      - type: volume
+        source: qdrant_data
+        target: /qdrant/storage
+    networks:
+      laravel_network:
+        aliases:
+          - qdrant
+
+  qdrant-init:
+    image: curlimages/curl:latest
+    container_name: laravel_qdrant_init
+    restart: 'no'
+    depends_on:
+      - qdrant
+    command: >
+      sh -c "until curl -fsS http://qdrant:6333/ >/dev/null; do echo waiting for qdrant; sleep 2; done; curl -fsS http://qdrant:6333/collections/face_embeddings >/dev/null 2>&1 || curl -fsS -X PUT http://qdrant:6333/collections/face_embeddings -H 'Content-Type: application/json' -d '{\"vectors\":{\"size\":128,\"distance\":\"Cosine\"}}'; echo 'Qdrant collection initialized';"
     networks:
       - laravel_network
 
-  # -------------------------------------
-  # 2. LARAVEL APP (Octane + Queue)
-  # -------------------------------------
-  app:
+  ai-service:
     build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        user: ${DOCKER_USER:-khang}
-        uid: ${DOCKER_UID:-1000}
-    container_name: laravel_app
+      context: ./ai-service
+    container_name: stayhub_ai_service
     restart: unless-stopped
-    user: "${DOCKER_UID:-1000}:${DOCKER_UID:-1000}"
-    working_dir: /var/www/html/BE_StayHub
+    ports:
+      - '${AI_SERVICE_PORT:-8001}:8000'
+    environment:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUNBUFFERED: '1'
     volumes:
       - type: bind
-        source: ${BACKEND_DIR:-./BE_StayHub}
-        target: /var/www/html/BE_StayHub
-      - backend_vendor:/var/www/html/BE_StayHub/vendor
+        source: ./ai-service
+        target: /app
+      - type: volume
+        source: ai_deepface_cache
+        target: /root/.deepface
+    command: [ 'uvicorn', 'main:app', '--host', '0.0.0.0', '--port', '8000', '--reload' ]
+    healthcheck:
+      test: [ 'CMD-SHELL', 'python -c "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\", timeout=5)"' ]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      laravel_network:
+        aliases:
+          - ai-service
+
+  app:
+    build: *backend-build
+    container_name: laravel_app
+    restart: unless-stopped
+    environment: *backend-environment
+    working_dir: /var/www/html/BE_StayHub
+    volumes: *backend-volumes
+    command: [ 'sh', '/usr/local/bin/start-container.sh', 'app' ]
     ports:
       - '${APP_PORT:-8000}:8000'
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: [ 'CMD-SHELL', 'test -f artisan && curl -fsS http://127.0.0.1:8000/sanctum/csrf-cookie >/dev/null || exit 1' ]
       interval: 15s
@@ -46,34 +223,64 @@ services:
     networks:
       - laravel_network
 
-  # -------------------------------------
-  # 3. FRONTEND REACT/VITE (Nginx static)
-  # -------------------------------------
+  horizon:
+    build: *backend-build
+    container_name: laravel_horizon
+    restart: unless-stopped
+    environment: *backend-environment
+    working_dir: /var/www/html/BE_StayHub
+    volumes: *backend-volumes
+    command: [ 'sh', '/usr/local/bin/start-container.sh', 'horizon' ]
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ 'CMD-SHELL', 'test -f artisan && test -f vendor/autoload.php && php artisan horizon:status | grep -qi running || exit 1' ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+    networks:
+      - laravel_network
+
   frontend:
-    build:
-      context: ./FE_StayHub
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}
+    image: node:22-alpine
     container_name: stayhub_frontend
     restart: unless-stopped
-    ports:
-      - '${FRONTEND_PORT:-3000}:80'
+    working_dir: /app
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}
+      CHOKIDAR_USEPOLLING: 'true'
+      WATCHPACK_POLLING: 'true'
+    volumes:
+      - type: bind
+        source: ./FE_StayHub
+        target: /app
+      - type: volume
+        source: frontend_node_modules
+        target: /app/node_modules
+      - type: volume
+        source: frontend_npm_cache
+        target: /root/.npm
+    command: sh -lc 'set -e; lock_hash="$$(sha256sum package-lock.json | cut -d " " -f 1)"; installed_hash="$$(cat node_modules/.package-lock.sha256 2>/dev/null || true)"; if [ ! -f node_modules/.package-lock.sha256 ] || [ "$$lock_hash" != "$$installed_hash" ]; then npm ci --prefer-offline; echo "$$lock_hash" > node_modules/.package-lock.sha256; fi; npm run dev -- --host 0.0.0.0 --port 80'
+    expose:
+      - '80'
     depends_on:
       app:
         condition: service_started
     healthcheck:
-      test: [ 'CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://127.0.0.1/ || exit 1' ]
+      test: [ 'CMD-SHELL', 'node -e "fetch(\"http://127.0.0.1:80\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"' ]
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 30s
     networks:
       - laravel_network
 
-  # -------------------------------------
-  # 4. NGINX
-  # -------------------------------------
   webserver:
     image: nginx:alpine
     container_name: laravel_webserver
@@ -82,29 +289,70 @@ services:
       - '${NGINX_PORT:-8080}:80'
     volumes:
       - type: bind
-        source: ${BACKEND_DIR:-./BE_StayHub}
-        target: /var/www/html/BE_StayHub
+        source: ./nginx/app.conf
+        target: /etc/nginx/conf.d/default.conf
         read_only: true
       - type: bind
-        source: ${NGINX_DIR:-./nginx}
-        target: /etc/nginx/conf.d
+        source: ./nginx/frontend.conf
+        target: /etc/nginx/conf.d/frontend.conf
         read_only: true
-      - type: bind
-        source: ./docker/wait-backend-mount-nginx.sh
-        target: /usr/local/bin/wait-backend-mount-nginx.sh
-        read_only: true
-    command: ["/bin/sh", "/usr/local/bin/wait-backend-mount-nginx.sh"]
     depends_on:
       app:
         condition: service_started
       frontend:
         condition: service_started
     healthcheck:
-      test: [ 'CMD-SHELL', 'test -f /var/www/html/BE_StayHub/artisan && wget --no-verbose --tries=1 --spider http://127.0.0.1/sanctum/csrf-cookie || exit 1' ]
+      test: [ 'CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://127.0.0.1/sanctum/csrf-cookie || exit 1' ]
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 20s
+    networks:
+      - laravel_network
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: laravel_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - '${PHPMYADMIN_PORT:-8082}:80'
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - laravel_network
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: laravel_mongo_express
+    restart: unless-stopped
+    ports:
+      - '${MONGO_EXPRESS_PORT:-8081}:8081'
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_DB_USERNAME:-root}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_DB_PASSWORD:-12345678}
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_AUTH_DATABASE: admin
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_DB_USERNAME:-root}:${MONGO_DB_PASSWORD:-12345678}@mongo:27017/?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - laravel_network
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: stayhub_tunnel
+    profiles:
+      - tunnel
+    restart: unless-stopped
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    command: tunnel --no-autoupdate run
     networks:
       - laravel_network
 
@@ -116,3 +364,25 @@ networks:
 volumes:
   backend_vendor:
     name: repokytucxaphongtro_backend_vendor
+  backend_composer_cache:
+    name: repokytucxaphongtro_backend_composer_cache
+  frontend_node_modules:
+  frontend_npm_cache:
+    name: repokytucxaphongtro_frontend_npm_cache
+  ai_deepface_cache:
+    name: repokytucxaphongtro_ai_deepface_cache
+  dbdata_new:
+    external: true
+    name: repokytucxaphongtro_dbdata_new
+  mongodata:
+    external: true
+    name: repokytucxaphongtro_mongodata
+  meili_data:
+    external: true
+    name: repokytucxaphongtro_meili_data
+  minio_data:
+    external: true
+    name: repokytucxaphongtro_minio_data
+  qdrant_data:
+    external: true
+    name: repokytucxaphongtro_qdrant_data

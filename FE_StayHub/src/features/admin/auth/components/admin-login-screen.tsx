@@ -1,16 +1,16 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AdminLoginForm } from './admin-login-form'
-import { ADMIN_SESSION_KEY, useAdminSession } from '../hooks/use-admin-session'
+import { useAdminSession } from '../hooks/use-admin-session'
 import type { AdminLoginResult } from '../types/admin-auth.model'
 
 export function AdminLoginScreen() {
   const navigate = useNavigate()
-  const { saveSession } = useAdminSession()
+  const { clearSession, saveSession } = useAdminSession()
 
   useEffect(() => {
-    localStorage.removeItem(ADMIN_SESSION_KEY)
-  }, [])
+    clearSession()
+  }, [clearSession])
 
   async function handleLoginSuccess(payload: AdminLoginResult) {
     saveSession(payload)

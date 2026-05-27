@@ -1,0 +1,82 @@
+import type { LucideIcon } from 'lucide-react'
+import {
+  BarChart3,
+  BedDouble,
+  Bell,
+  Boxes,
+  Building2,
+  Car,
+  CreditCard,
+  DoorOpen,
+  FileText,
+  LayoutDashboard,
+  Receipt,
+  Settings,
+  ShieldCheck,
+  Tags,
+  Users,
+  Wrench,
+  Zap,
+} from 'lucide-react'
+import { isSuperAdminRole } from '../../auth/hooks/use-admin-session'
+
+export type AdminRouteAccess = 'all' | 'superadmin'
+
+export interface AdminNavItem {
+  id: string
+  label: string
+  icon: LucideIcon
+  group?: string
+  href: string
+  access: AdminRouteAccess
+  readOnlyForAdmin?: boolean
+  disabled?: boolean
+}
+
+export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
+  { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard, href: '/admin/dashboard', access: 'all' },
+  { id: 'facilities', label: 'Khu vực & Tòa nhà', icon: Building2, group: 'Cơ sở vật chất', href: '/admin/facilities', access: 'superadmin' },
+  { id: 'asset_templates', label: 'Mẫu tài sản', icon: Boxes, group: 'Cơ sở vật chất', href: '/admin/asset-templates', access: 'all' },
+  { id: 'room_types', label: 'Loại phòng', icon: BedDouble, group: 'Cơ sở vật chất', href: '/admin/room-types', access: 'all' },
+  { id: 'rooms', label: 'Quản lý Phòng', icon: DoorOpen, group: 'Cơ sở vật chất', href: '/admin/rooms', access: 'all' },
+  { id: 'tenants', label: 'Khách thuê', icon: Users, group: 'Khách thuê & HĐ', href: '/admin/tenants', access: 'all' },
+  { id: 'contracts', label: 'Hợp đồng', icon: FileText, group: 'Khách thuê & HĐ', href: '/admin/contracts', access: 'all' },
+  { id: 'services', label: 'Danh mục dịch vụ', icon: Settings, group: 'Tài chính', href: '/admin/services', access: 'all', readOnlyForAdmin: true },
+  { id: 'expense_categories', label: 'Danh mục chi phí', icon: Tags, group: 'Tài chính', href: '/admin/expense-categories', access: 'all', readOnlyForAdmin: true },
+  { id: 'meters', label: 'Chốt điện nước', icon: Zap, group: 'Tài chính', href: '/admin/meters', access: 'all' },
+  { id: 'invoices', label: 'Phiếu thu', icon: Receipt, group: 'Tài chính', href: '/admin/invoices', access: 'all' },
+  { id: 'expenses', label: 'Phiếu chi', icon: CreditCard, group: 'Tài chính', href: '/admin/expenses', access: 'all' },
+  { id: 'financials', label: 'Báo cáo Lợi nhuận', icon: BarChart3, group: 'Tài chính', href: '/admin/financials', access: 'all' },
+  { id: 'vehicles', label: 'Bãi xe & Phương tiện', icon: Car, group: 'Vận hành', href: '/admin/vehicles', access: 'all' },
+  { id: 'maintenance', label: 'Bảo trì', icon: Wrench, group: 'Vận hành', href: '/admin/maintenance', access: 'all' },
+  { id: 'notifications', label: 'Thông báo', icon: Bell, group: 'Vận hành', href: '/admin/notifications', access: 'all' },
+  { id: 'system_users', label: 'Tài khoản admin', icon: ShieldCheck, group: 'Hệ thống', href: '/admin/system-users', access: 'superadmin' },
+  { id: 'settings', label: 'Cài đặt tòa nhà', icon: Settings, group: 'Hệ thống', href: '/admin/settings', access: 'all' },
+]
+
+export const SUPERADMIN_ROUTE_PREFIXES = [
+  '/admin/facilities',
+  '/admin/system-users',
+]
+
+export function canAccessAdminItem(item: AdminNavItem, role?: string | number | null) {
+  return item.access !== 'superadmin' || isSuperAdminRole(role)
+}
+
+export function getVisibleAdminNavItems(role?: string | number | null) {
+  return ADMIN_NAV_ITEMS.filter((item) => canAccessAdminItem(item, role))
+}
+
+export function getActiveAdminNavItem(pathname: string, items: AdminNavItem[] = ADMIN_NAV_ITEMS) {
+  return [...items]
+    .sort((left, right) => right.href.length - left.href.length)
+    .find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+}
+
+export function isSuperadminRoutePath(pathname: string) {
+  return SUPERADMIN_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+}
+
+export function getAdminRoleLabel(role?: string | number | null) {
+  return isSuperAdminRole(role) ? 'Quản trị tổng' : 'Quản trị viên'
+}

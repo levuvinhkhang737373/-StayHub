@@ -159,9 +159,19 @@ export function FacilitiesScreen() {
         }
     };
 
-    const openEditBuildingPage = (building: Building) => {
+    const openEditBuildingPage = useCallback((building: Building) => {
         navigate(`/admin/facilities/buildings/${building.id}/edit`);
-    };
+    }, [navigate]);
+
+    const closeViewBuildingModal = useCallback(() => {
+        setIsViewModalOpen(false);
+        setDetailErrorMessage(null);
+    }, []);
+
+    const editViewedBuilding = useCallback((building: Building) => {
+        openEditBuildingPage(building);
+        setIsViewModalOpen(false);
+    }, [openEditBuildingPage]);
 
     const toggleBuildingStatus = async (building: Building) => {
         const nextStatus = building.status === "active" ? 2 : 1;
@@ -239,104 +249,72 @@ export function FacilitiesScreen() {
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        onClick={() => setSelectedRegionId(isSelected ? null : region.id)}
+                        onClick={() => {
+                            if (children.length > 0) {
+                                setExpandedIds((prev) => (prev.includes(region.id) ? prev.filter((id) => id !== region.id) : [...prev, region.id]));
+                            }
+                        }}
+                        disabled={children.length === 0}
+                        aria-label={`${isExpanded ? "Thu gọn" : "Mở rộng"} khu vực ${region.name}`}
+                        aria-expanded={children.length > 0 ? isExpanded : undefined}
                         className={cn(
-                            "group flex min-w-0 flex-1 items-center justify-between rounded-2xl border px-3 py-2.5 text-left text-sm transition-all duration-200",
-                            isSelected ? "border-[#f3c56b]/35 bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" : "border-[#3d2a18]/10 bg-[#fffaf1]/70 text-[#6f6254] hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]",
+                            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1]/70 text-[#8b5e34] transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20",
+                            children.length > 0 ? "hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]" : "cursor-default opacity-40",
                         )}
-                        style={{ paddingLeft: 12 + depth * 16 }}
                     >
-                        <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
-                            <span
-                                role="button"
-                                tabIndex={0}
-                                onClick={(event) => {
-                                    event.stopPropagation();
+                        <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", isExpanded && children.length > 0 && "rotate-90")} />
+                    </button>
 
-                                    if (children.length > 0) {
-                                        setExpandedIds((prev) => (prev.includes(region.id) ? prev.filter((id) => id !== region.id) : [...prev, region.id]));
-                                    }
-                                }}
-                                onKeyDown={(event) => {
-                                    if (event.key === "Enter" || event.key === " ") {
-                                        event.preventDefault();
-                                        event.stopPropagation();
-
-                                        if (children.length > 0) {
-                                            setExpandedIds((prev) => (prev.includes(region.id) ? prev.filter((id) => id !== region.id) : [...prev, region.id]));
-                                        }
-                                    }
-                                }}
-                                className={cn("rounded-xl p-1 transition", isSelected ? "hover:bg-white/15" : "hover:bg-[#f3c56b]/20")}
-                            >
-                                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", isExpanded && children.length > 0 && "rotate-90")} />
+                    <div className="group/region relative min-w-0 flex-1">
+                        <button
+                            type="button"
+                            onClick={() => setSelectedRegionId(isSelected ? null : region.id)}
+                            className={cn(
+                                "flex w-full min-w-0 items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-sm transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 group-hover/region:pr-28 group-focus-within/region:pr-28",
+                                isSelected ? "border-[#f3c56b]/35 bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" : "border-[#3d2a18]/10 bg-[#fffaf1]/70 text-[#6f6254] hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]",
+                            )}
+                            style={{ paddingLeft: 12 + depth * 16 }}
+                            aria-pressed={isSelected}
+                        >
+                            <span className="flex min-w-0 flex-1 items-center gap-2 pr-1">
+                                <MapPin className={cn("h-4 w-4 shrink-0", isSelected ? "text-[#f3c56b]" : "text-[#a65f16]")} />
+                                <span className={cn("min-w-0 flex-1 whitespace-nowrap font-black tracking-tight group-hover/region:truncate group-focus-within/region:truncate", !region.status && "opacity-55")}>{region.name}</span>
                             </span>
-                            <MapPin className={cn("h-4 w-4 shrink-0", isSelected ? "text-[#f3c56b]" : "text-[#a65f16]")} />
-                            <span className={cn("min-w-0 flex-1 truncate font-black tracking-tight", !region.status && "opacity-55")}>{region.name}</span>
-                        </span>
+                            <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-black transition-opacity duration-150 group-hover/region:opacity-0 group-focus-within/region:opacity-0", isSelected ? "bg-white/15 text-[#fff4df]" : "bg-[#efe2cf]/80 text-[#8b5e34]")}>{buildingCount}</span>
+                        </button>
+
                         {isSuperAdmin && (
-                            <span className="flex shrink-0 items-center gap-1 opacity-100 sm:w-0 sm:overflow-hidden sm:opacity-0 sm:transition-all sm:duration-200 sm:group-hover:w-auto sm:group-hover:opacity-100">
-                                <span
-                                    role="button"
-                                    tabIndex={0}
+                            <div className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/region:pointer-events-auto group-hover/region:opacity-100 group-focus-within/region:pointer-events-auto group-focus-within/region:opacity-100">
+                                <button
+                                    type="button"
+                                    aria-label={`Sửa khu vực ${region.name}`}
                                     title="Sửa khu vực"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        editRegion(region);
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (event.key === "Enter" || event.key === " ") {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            editRegion(region);
-                                        }
-                                    }}
-                                    className={cn("rounded-xl p-1.5 transition focus:outline-none focus:ring-2 focus:ring-[#f3c56b]/35", isSelected ? "text-[#fff4df] hover:bg-white/15" : "text-[#8b5e34] hover:bg-[#f3c56b]/20 hover:text-[#24170d]")}
+                                    onClick={() => editRegion(region)}
+                                    className={cn("inline-flex h-9 w-9 items-center justify-center rounded-xl transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20", isSelected ? "text-[#f3c56b] hover:bg-[#f3c56b]/20" : "text-[#8b5e34] hover:bg-[#f3c56b]/20 hover:text-[#24170d]")}
                                 >
                                     <Pencil className="h-3.5 w-3.5" />
-                                </span>
-                                <span
-                                    role="button"
-                                    tabIndex={0}
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-label={`${region.status ? "Tạm ngưng" : "Mở hoạt động"} khu vực ${region.name}`}
                                     title={region.status ? "Tạm ngưng khu vực" : "Mở hoạt động khu vực"}
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        void toggleRegionStatus(region);
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (event.key === "Enter" || event.key === " ") {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            void toggleRegionStatus(region);
-                                        }
-                                    }}
-                                    className={cn("rounded-xl p-1.5 transition focus:outline-none focus:ring-2 focus:ring-[#f3c56b]/35", region.status ? (isSelected ? "text-emerald-200 hover:bg-white/15" : "text-emerald-700 hover:bg-emerald-50") : "text-rose-600 hover:bg-rose-50")}
+                                    onClick={() => void toggleRegionStatus(region)}
+                                    className={cn("inline-flex h-9 w-9 items-center justify-center rounded-xl transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20", region.status ? "text-emerald-700 hover:bg-emerald-50" : "text-rose-600 hover:bg-rose-50")}
                                 >
                                     <Power className="h-3.5 w-3.5" />
-                                </span>
-                                <span
-                                    role="button"
-                                    tabIndex={0}
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-label={`Xóa khu vực ${region.name}`}
                                     title="Xóa khu vực"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        void deleteRegion(region);
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (event.key === "Enter" || event.key === " ") {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            void deleteRegion(region);
-                                        }
-                                    }}
-                                    className={cn("rounded-xl p-1.5 text-rose-600 transition hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-rose-100", isSelected && "hover:bg-white/15")}
+                                    onClick={() => void deleteRegion(region)}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-rose-600 transition hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-100"
                                 >
                                     <Trash2 className="h-3.5 w-3.5" />
-                                </span>
-                            </span>
+                                </button>
+                            </div>
                         )}
-                    </button>
-                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-black", isSelected ? "bg-white/15 text-[#fff4df]" : "bg-[#efe2cf]/80 text-[#8b5e34] group-hover:bg-[#fffaf1]")}>{buildingCount}</span>
+                    </div>
                 </div>
                 {isExpanded && children.length > 0 && <div className="space-y-1 border-l border-dashed border-[#f3c56b]/55 pl-2">{children.map((child) => renderRegionNode(child, depth + 1))}</div>}
             </div>
@@ -389,7 +367,7 @@ export function FacilitiesScreen() {
 
                 <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6 2xl:grid-cols-[330px_minmax(0,1fr)]">
                     <aside className="min-w-0 space-y-4">
-                        <Panel title="Khu vực" subtitle="Lọc theo bản đồ hành chính" icon={<MapPin className="h-5 w-5" />}>
+                        <Panel title="Khu vực" subtitle="" icon={<MapPin className="h-5 w-5" />}>
                             <div className="relative mb-3">
                                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
                                 <input
@@ -472,15 +450,15 @@ export function FacilitiesScreen() {
                                     ))}
 
                                     {!isLoading && paginatedBuildings.map((building) => (
-                                        <tr key={building.id} className="group transition hover:bg-[#f3c56b]/12">
+                                        <tr key={building.id} className="group group/building transition hover:bg-[#f3c56b]/12">
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2.5">
                                                     <div className="flex h-10 w-10 overflow-hidden rounded-xl border border-[#f3c56b]/35 bg-[#fffaf1] text-[#a65f16] shadow-sm transition group-hover:scale-105">
                                                         <img src={building.primary_image?.image_url || stayHubImage} alt={building.name} onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-full w-full object-cover" />
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <p className="truncate text-[13px] font-black tracking-tight text-[#24170d]">{building.name}</p>
-                                                        <p className="mt-0.5 truncate text-[10px] font-black uppercase tracking-[0.12em] text-[#8b5e34]/60">{building.address || "Chưa cập nhật địa chỉ"}</p>
+                                                        <p className="whitespace-normal wrap-break-word text-[13px] font-black leading-snug tracking-tight text-[#24170d]">{building.name}</p>
+                                                        <p className="mt-1 whitespace-normal wrap-break-word text-[10px] font-black uppercase leading-snug tracking-[0.12em] text-[#8b5e34]/60">{building.address || "Chưa cập nhật địa chỉ"}</p>
                                                     </div>
                                                 </div>
                                             </td>
@@ -490,10 +468,10 @@ export function FacilitiesScreen() {
                                             <td className="px-4 py-3"><span className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm", statusClassNames[building.status])}>{statusLabels[building.status]}</span></td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-end gap-1.5">
-                                                    <button type="button" onClick={() => void openViewBuildingModal(building)} className="rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] p-1.5 text-[#8b5e34] transition hover:border-[#f3c56b] hover:bg-[#f3c56b]/15 hover:text-[#a65f16] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20" title="Xem chi tiết"><Eye className="h-3.5 w-3.5" /></button>
-                                                    <button type="button" onClick={() => openEditBuildingPage(building)} className="rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] p-1.5 text-[#8b5e34] transition hover:border-[#3d2a18]/25 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10" title="Chỉnh sửa"><Pencil className="h-3.5 w-3.5" /></button>
-                                                    <button type="button" disabled={statusChangingId === building.id} onClick={() => void toggleBuildingStatus(building)} className={cn("rounded-lg border p-1.5 transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-55", building.status === "active" ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100" : "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100")} title={building.status === "active" ? "Ngừng hoạt động" : "Kích hoạt"}><Power className="h-3.5 w-3.5" /></button>
-                                                    <button type="button" onClick={() => void deleteBuilding(building)} className="rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] p-1.5 text-[#8b5e34] transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100" title="Xóa"><Trash2 className="h-3.5 w-3.5" /></button>
+                                                    <button type="button" onClick={() => void openViewBuildingModal(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-[#f3c56b] hover:bg-[#f3c56b]/15 hover:text-[#a65f16] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20" title="Xem chi tiết" aria-label={`Xem chi tiết tòa nhà ${building.name}`}><Eye className="h-3.5 w-3.5" /></button>
+                                                    <button type="button" onClick={() => openEditBuildingPage(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-[#3d2a18]/25 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10" title="Chỉnh sửa" aria-label={`Chỉnh sửa tòa nhà ${building.name}`}><Pencil className="h-3.5 w-3.5" /></button>
+                                                    <button type="button" disabled={statusChangingId === building.id} onClick={() => void toggleBuildingStatus(building)} className={cn("inline-flex h-9 w-9 items-center justify-center rounded-lg border transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-55", building.status === "active" ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100" : "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100")} title={building.status === "active" ? "Ngừng hoạt động" : "Kích hoạt"} aria-label={`${building.status === "active" ? "Ngừng hoạt động" : "Kích hoạt"} tòa nhà ${building.name}`}><Power className="h-3.5 w-3.5" /></button>
+                                                    <button type="button" onClick={() => void deleteBuilding(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100" title="Xóa" aria-label={`Xóa tòa nhà ${building.name}`}><Trash2 className="h-3.5 w-3.5" /></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -556,17 +534,11 @@ export function FacilitiesScreen() {
 
                 <BuildingDetailModal
                     isOpen={isViewModalOpen}
-                    onClose={() => {
-                        setIsViewModalOpen(false);
-                        setDetailErrorMessage(null);
-                    }}
+                    onClose={closeViewBuildingModal}
                     building={viewingBuilding}
                     isLoading={isDetailLoading}
                     errorMessage={detailErrorMessage}
-                    onEdit={(building) => {
-                        openEditBuildingPage(building);
-                        setIsViewModalOpen(false);
-                    }}
+                    onEdit={editViewedBuilding}
                 />
             </div>
         </div>
@@ -608,7 +580,7 @@ function FilterPill({ label, onClear }: { label: string; onClear: () => void }) 
     return (
         <span className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/45 bg-[#f3c56b]/15 px-3 py-1.5 text-xs font-black text-[#8a4f18] shadow-sm shadow-[#a65f16]/5">
             {label}
-            <button type="button" onClick={onClear} className="rounded-full p-0.5 transition hover:bg-[#f3c56b]/25 focus:outline-none focus:ring-2 focus:ring-[#f3c56b]/35">
+            <button type="button" onClick={onClear} className="rounded-full p-0.5 transition hover:bg-[#f3c56b]/25 focus:outline-none focus:ring-2 focus:ring-[#f3c56b]/35" aria-label={`Xóa bộ lọc ${label}`}>
                 <X className="h-3 w-3" />
             </button>
         </span>

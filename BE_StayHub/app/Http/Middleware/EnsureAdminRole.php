@@ -26,7 +26,7 @@ class EnsureAdminRole
         }
 
         if ($admin->status !== Admin::STATUS_ACTIVE) {
-            return ApiResponse::responseJson(false, 'Tài khoản admin không được phép truy cập', 403, null, 403);
+            return ApiResponse::responseJson(false, 'Tài khoản của bạn đã bị khóa', 403, null, 403);
         }
 
         $allowedRoles = array_map('intval', $roles);

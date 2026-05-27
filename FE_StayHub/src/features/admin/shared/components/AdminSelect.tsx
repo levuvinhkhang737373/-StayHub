@@ -38,10 +38,6 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
   const listboxId = id ? `${id}-listbox` : undefined
 
   useEffect(() => {
-    if (isOpen) setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
-  }, [isOpen, selectedIndex])
-
-  useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       if (!wrapperRef.current?.contains(event.target as Node)) setIsOpen(false)
     }
@@ -65,14 +61,22 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
 
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      if (!isOpen) setIsOpen(true)
+      if (!isOpen) {
+        setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+        setIsOpen(true)
+        return
+      }
       moveActive(1)
       return
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault()
-      if (!isOpen) setIsOpen(true)
+      if (!isOpen) {
+        setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+        setIsOpen(true)
+        return
+      }
       moveActive(-1)
       return
     }
@@ -83,6 +87,7 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
         chooseOption(options[activeIndex])
         return
       }
+      setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
       setIsOpen(true)
       return
     }
@@ -104,7 +109,10 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
         aria-controls={listboxId}
         aria-invalid={invalid || undefined}
         aria-describedby={ariaDescribedBy}
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={() => {
+          setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+          setIsOpen((current) => !current)
+        }}
         onKeyDown={handleKeyDown}
         className={cn(
           'group flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border bg-[#fffaf1] px-4 py-3 text-left text-sm font-bold text-[#3d2a18] shadow-sm shadow-[#6b3f1d]/5 outline-none transition-all duration-200',

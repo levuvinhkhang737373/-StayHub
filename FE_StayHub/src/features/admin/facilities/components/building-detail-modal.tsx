@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import type { FC } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Clock, LayoutDashboard, MapPin, Phone, User, X } from 'lucide-react'
@@ -16,6 +17,17 @@ interface BuildingDetailModalProps {
 const stayHubImage = '/images/stayhub.png'
 
 export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onClose, building, isLoading = false, errorMessage = null, onEdit }) => {
+  useEffect(() => {
+    if (!isOpen) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   const images = building?.image_urls || []
@@ -24,7 +36,7 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="building-detail-title">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-stone-950/70 backdrop-blur-md" />
           <motion.div
             initial={{ y: 40, opacity: 0, scale: 0.98 }}
@@ -49,7 +61,7 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                   <span className="rounded-full border border-amber-200/20 bg-amber-200/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-amber-100 backdrop-blur-md">
                     Building dossier
                   </span>
-                  <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-md transition-all hover:bg-white/20 focus:outline-none focus:ring-4 focus:ring-amber-200/20">
+                  <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-md transition-all hover:bg-white/20 focus:outline-none focus:ring-4 focus:ring-amber-200/20" aria-label="Đóng chi tiết tòa nhà">
                     <X className="h-5 w-5" />
                   </button>
                 </div>
@@ -59,7 +71,7 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                     <span className="rounded-full border border-white/10 bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white backdrop-blur-md">
                       Tòa nhà
                     </span>
-                    <h2 className="mt-4 text-3xl font-black leading-tight tracking-[-0.04em] text-white sm:text-4xl">{building?.name || 'Đang tải chi tiết...'}</h2>
+                    <h2 id="building-detail-title" className="mt-4 text-3xl font-black leading-tight tracking-[-0.04em] text-white sm:text-4xl">{building?.name || 'Đang tải chi tiết...'}</h2>
                     <p className="mt-3 flex items-start gap-2 text-sm font-semibold leading-6 text-white/65">
                       <MapPin className="mt-1 h-4 w-4 shrink-0 text-amber-200" />
                       {building?.address || 'Đang tải địa chỉ...'}

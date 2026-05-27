@@ -1,6 +1,7 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios'
 import { appConfig } from '../../config/app-config'
 import type { ApiEnvelope } from '../../types/api/envelope'
+import { dispatchAdminSessionInvalidated } from './admin-session-events'
 
 export class ApiError extends Error {
   public readonly statusCode: number
@@ -15,7 +16,6 @@ export class ApiError extends Error {
 }
 
 const XSRF_COOKIE_NAME = 'XSRF-TOKEN'
-const ADMIN_SESSION_KEY = 'stayhub_admin_session'
 
 function getCookieValue(name: string): string | null {
   const cookie = document.cookie
@@ -81,8 +81,10 @@ export async function apiRequest<T>(config: AxiosRequestConfig): Promise<ApiEnve
       const payload = error.response?.data as Partial<ApiEnvelope<unknown>> | undefined
       const statusCode = error.response?.status ?? 0
 
-      if (statusCode === 401 && config.url?.startsWith('admin/')) {
-        localStorage.removeItem(ADMIN_SESSION_KEY)
+      const isLockedAdminSession = statusCode === 403 && payload?.message === 'Tài khoản của bạn đã bị khóa'
+
+      if ((statusCode === 401 || isLockedAdminSession) && config.url?.startsWith('admin/')) {
+        dispatchAdminSessionInvalidated()
         if (!window.location.pathname.startsWith('/admin/login')) {
           window.location.replace('/admin/login')
         }

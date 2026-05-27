@@ -29,28 +29,31 @@ button:disabled,
 
 
 html {
-  font-size: 18px; 
+  font-size: 16px;
 }
 
-
-@media screen and (max-width: 1920px) {
-  html {
-    font-size: 16px; 
-  }
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 94, 52, 0.35) transparent;
 }
 
-@media screen and (max-width: 1600px) {
-  html {
-    font-size: 14px; 
-  }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
 }
 
-@media screen and (max-width: 1366px) {
-  html {
-    font-size: 13px; 
-  }
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(139, 94, 52, 0.28);
+  border-radius: 999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 94, 52, 0.45);
+}
 
 .scrollbar-none::-webkit-scrollbar {
   display: none;

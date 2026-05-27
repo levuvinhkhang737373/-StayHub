@@ -34,8 +34,8 @@ class AuthController extends Controller
                 return ApiResponse::responseJson(false, 'Tên đăng nhập hoặc mật khẩu không chính xác', 401, null, 401);
             }
 
-            if (! $admin->status) {
-                return ApiResponse::responseJson(false, 'Tài khoản admin đang bị vô hiệu hóa', 403, null, 403);
+            if ($admin->status !== Admin::STATUS_ACTIVE) {
+                return ApiResponse::responseJson(false, 'Tài khoản của bạn đã bị khóa', 403, null, 403);
             }
 
             if (! Hash::check($validated['password'], $admin->password)) {
@@ -46,7 +46,7 @@ class AuthController extends Controller
             $this->writeLoginLog($request, $admin, 'login_success');
 
             return ApiResponse::responseJson(true, 'Đăng nhập admin thành công', 200, [
-                'admin' => new AdminAuthResource($admin->refresh()),
+                'admin' => new AdminAuthResource($this->authProfile($admin->refresh())),
             ], 200);
         } catch (\Exception $e) {
             report($e);
@@ -86,8 +86,8 @@ class AuthController extends Controller
                 return ApiResponse::responseJson(false, 'FaceID chưa được đăng ký hoặc đã bị xóa', 401, null, 401);
             }
 
-            if (! $admin->status) {
-                return ApiResponse::responseJson(false, 'Tài khoản admin đang bị vô hiệu hóa', 403, null, 403);
+            if ($admin->status !== Admin::STATUS_ACTIVE) {
+                return ApiResponse::responseJson(false, 'Tài khoản của bạn đã bị khóa', 403, null, 403);
             }
 
             $this->loginAdminSession($request, $admin);
@@ -105,7 +105,7 @@ class AuthController extends Controller
             );
 
             return ApiResponse::responseJson(true, 'Đăng nhập FaceID thành công', 200, [
-                'admin' => new AdminAuthResource($admin->refresh()),
+                'admin' => new AdminAuthResource($this->authProfile($admin->refresh())),
             ], 200);
         } catch (\Exception $e) {
             return $this->faceExceptionResponse($e, 'Không thể xử lý FaceID');
@@ -124,7 +124,7 @@ class AuthController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
             }
 
-            return ApiResponse::responseJson(true, 'Lấy thông tin admin hiện tại thành công', 200, new AdminAuthResource($admin), 200);
+            return ApiResponse::responseJson(true, 'Lấy thông tin admin hiện tại thành công', 200, new AdminAuthResource($this->authProfile($admin)), 200);
         } catch (\Exception $e) {
             report($e);
 
@@ -185,7 +185,7 @@ class AuthController extends Controller
             );
 
             return ApiResponse::responseJson(true, 'Đăng ký FaceID thành công', 200, [
-                'admin' => new AdminAuthResource($admin->fresh()),
+                'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
             ], 200);
         } catch (\Exception $e) {
             return $this->faceExceptionResponse($e, 'Không thể đăng ký FaceID');
@@ -236,12 +236,68 @@ class AuthController extends Controller
             );
 
             return ApiResponse::responseJson(true, 'Xóa FaceID thành công', 200, [
-                'admin' => new AdminAuthResource($admin->fresh()),
+                'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
             ], 200);
         } catch (\Exception $e) {
             report($e);
 
             return ApiResponse::responseJson(false, $e->getMessage() ?: 'Không thể xóa FaceID', 500, null, 500);
+        }
+    }
+
+    /**
+     * Đổi mật khẩu admin hiện tại.
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'current_password'          => ['required', 'string', 'min:6', 'max:255'],
+            'new_password'              => ['required', 'string', 'min:6', 'max:255', 'confirmed', 'different:current_password'],
+            'new_password_confirmation' => ['required', 'string', 'min:6', 'max:255'],
+        ], [
+            'current_password.required'          => 'Vui lòng nhập mật khẩu hiện tại.',
+            'current_password.min'               => 'Mật khẩu hiện tại tối thiểu 6 ký tự.',
+            'new_password.required'              => 'Vui lòng nhập mật khẩu mới.',
+            'new_password.min'                   => 'Mật khẩu mới tối thiểu 6 ký tự.',
+            'new_password.confirmed'             => 'Xác nhận mật khẩu mới không khớp.',
+            'new_password.different'             => 'Mật khẩu mới không được trùng mật khẩu hiện tại.',
+            'new_password_confirmation.required' => 'Vui lòng xác nhận mật khẩu mới.',
+            'new_password_confirmation.min'      => 'Xác nhận mật khẩu mới tối thiểu 6 ký tự.',
+        ]);
+
+        try {
+            $admin = $request->user('admin');
+            if (! $admin) {
+                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+            }
+
+            if (! Hash::check($validated['current_password'], $admin->password)) {
+                return ApiResponse::responseJson(false, 'Mật khẩu hiện tại không chính xác', 422, null, 422);
+            }
+
+            $admin->forceFill([
+                'password' => $validated['new_password'],
+            ])->save();
+
+            AdminActivityLogger::write(
+                $admin,
+                'change_password',
+                Admin::class,
+                $admin->id,
+                null,
+                [
+                    'changed_at' => now()->toDateTimeString(),
+                ],
+                $request
+            );
+
+            return ApiResponse::responseJson(true, 'Đổi mật khẩu admin thành công', 200, [
+                'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
+            ], 200);
+        } catch (\Exception $e) {
+            report($e);
+
+            return ApiResponse::responseJson(false, 'Hiện tại tôi không thể xử lí yêu cầu của bạn', 500, null, 500);
         }
     }
 
@@ -285,6 +341,14 @@ class AuthController extends Controller
         $request->session()->put(Auth::guard('admin')->getName(), $admin->getAuthIdentifier());
         $request->session()->put('admin_id', $admin->getAuthIdentifier());
         $request->session()->save();
+    }
+
+    private function authProfile(Admin $admin): Admin
+    {
+        $admin->loadMissing('managedBuildings:id,manager_admin_id,name,slug,status');
+        $admin->loadCount('managedBuildings');
+
+        return $admin;
     }
 
     private function writeLoginLog(Request $request, Admin $admin, string $action): void

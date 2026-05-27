@@ -19,14 +19,13 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:5173',
-        'https://stayhub.id.vn',
-        'https://api.stayhub.id.vn',
-    ],
+    'allowed_origins' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', env(
+            'CORS_ALLOWED_ORIGINS',
+            'http://localhost:5173,http://127.0.0.1:5173,https://stayhub.id.vn,https://api.stayhub.id.vn'
+        ))
+    ))),
 
     'allowed_origins_patterns' => [],
 

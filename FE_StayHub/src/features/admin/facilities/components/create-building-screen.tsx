@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Building2, ImagePlus, Save, Star, Trash2, X } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
 import { createAdminBuilding, fetchAdminBuildingDetail, fetchAdminManagers, fetchAdminRegions, updateAdminBuilding } from "../services/facilities.service";
@@ -39,6 +39,9 @@ function FieldError({ message }: { message?: string }) {
 
 export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const navigate = useNavigate();
+    const { buildingId: routeBuildingId } = useParams();
+    const numericRouteBuildingId = routeBuildingId ? Number(routeBuildingId) : undefined;
+    const resolvedBuildingId = typeof buildingId === "number" ? buildingId : Number.isFinite(numericRouteBuildingId) ? numericRouteBuildingId : undefined;
     const { session } = useAdminSession();
     const isSuperAdmin = isSuperAdminRole(session?.admin.role);
     const [regions, setRegions] = useState<AdminRegionResource[]>([]);
@@ -63,7 +66,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         total_floors: 1,
     });
 
-    const isEditMode = typeof buildingId === "number";
+    const isEditMode = typeof resolvedBuildingId === "number";
     const activeRegions = useMemo(() => regions.filter((region) => region.status), [regions]);
     const regionOptions = useMemo(() => [
         { value: "", label: "Chọn khu vực", tone: "default" as const },
@@ -81,7 +84,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         Promise.all([
             fetchAdminRegions({ per_page: 100 }),
             fetchAdminManagers(),
-            isEditMode && buildingId ? fetchAdminBuildingDetail(buildingId) : Promise.resolve(null),
+            isEditMode && resolvedBuildingId ? fetchAdminBuildingDetail(resolvedBuildingId) : Promise.resolve(null),
         ])
             .then(([regionsResponse, managersResponse, buildingResponse]) => {
                 const nextRegions = getResourceList(regionsResponse.result);
@@ -108,7 +111,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             })
             .catch((error) => setErrorMessage(error instanceof Error ? error.message : "Không thể tải dữ liệu tòa nhà."))
             .finally(() => setIsLoading(false));
-    }, [buildingId, isEditMode, isSuperAdmin]);
+    }, [isEditMode, isSuperAdmin, resolvedBuildingId]);
 
     const updateForm = (key: keyof typeof form, value: string | number) => {
         setForm((current) => ({ ...current, [key]: value }));
@@ -193,8 +196,8 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 primary_image_id: primaryImageId || undefined,
             };
 
-            if (isEditMode && buildingId) {
-                await updateAdminBuilding(buildingId, payload);
+            if (isEditMode && resolvedBuildingId) {
+                await updateAdminBuilding(resolvedBuildingId, payload);
             } else {
                 await createAdminBuilding(payload);
             }

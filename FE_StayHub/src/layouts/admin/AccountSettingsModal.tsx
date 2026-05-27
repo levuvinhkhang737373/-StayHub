@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { CheckCircle, Lock, ScanFace, Trash2, User, X } from 'lucide-react'
-import { deleteAdminFaceId, registerAdminFaceId } from '../../features/admin/auth/services/admin-auth.service'
+import { changeAdminPassword, deleteAdminFaceId, registerAdminFaceId } from '../../features/admin/auth/services/admin-auth.service'
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { cn } from '../../shared/lib/utils/cn'
-import { validateDeleteFaceIdPassword } from './account-settings.validation'
+import { validateChangePasswordForm, validateDeleteFaceIdPassword, type ChangePasswordErrors, type ChangePasswordForm } from './account-settings.validation'
 
 interface AccountSettingsModalProps {
   isOpen: boolean
@@ -13,6 +13,12 @@ interface AccountSettingsModalProps {
 }
 
 type AccountSettingsTab = 'info' | 'password' | 'face'
+
+const initialPasswordForm: ChangePasswordForm = {
+  currentPassword: '',
+  newPassword: '',
+  newPasswordConfirmation: '',
+}
 
 const tabs: Array<{ id: AccountSettingsTab; label: string; icon: React.ElementType }> = [
   { id: 'info', label: 'Thông tin cá nhân', icon: User },
@@ -29,6 +35,11 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   const [faceMessage, setFaceMessage] = useState<string | null>(null)
   const [faceError, setFaceError] = useState<string | null>(null)
   const [currentPassword, setCurrentPassword] = useState('')
+  const [passwordForm, setPasswordForm] = useState<ChangePasswordForm>(initialPasswordForm)
+  const [passwordErrors, setPasswordErrors] = useState<ChangePasswordErrors>({})
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const isFaceRegistrationOpenRef = useRef(false)
@@ -89,14 +100,12 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     }
   }, [activeTab, isCameraOpen, isOpen, startCamera, stopCamera])
 
-  useEffect(() => {
-    if (!hasRegisteredFaceId) return
-
-    isFaceRegistrationOpenRef.current = false
-    setFaceError(null)
-    setHasFaceRegistrationStarted(false)
-    setIsFaceSubmitting(false)
-  }, [hasRegisteredFaceId])
+  function resetPasswordForm() {
+    setPasswordForm(initialPasswordForm)
+    setPasswordErrors({})
+    setPasswordMessage(null)
+    setPasswordError(null)
+  }
 
   function closeModal() {
     isFaceRegistrationOpenRef.current = false
@@ -104,6 +113,7 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     setIsCameraOpen(false)
     setHasFaceRegistrationStarted(false)
     setCurrentPassword('')
+    resetPasswordForm()
     onClose()
   }
 
@@ -205,6 +215,43 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     }
   }
 
+  function updatePasswordField(field: keyof ChangePasswordForm, value: string) {
+    setPasswordForm((current) => ({ ...current, [field]: value }))
+    setPasswordErrors((current) => ({ ...current, [field]: undefined }))
+    setPasswordError(null)
+    setPasswordMessage(null)
+  }
+
+  async function handleChangePassword() {
+    const errors = validateChangePasswordForm(passwordForm)
+
+    setPasswordErrors(errors)
+    setPasswordError(null)
+    setPasswordMessage(null)
+
+    if (Object.keys(errors).length > 0) {
+      return
+    }
+
+    setIsPasswordSubmitting(true)
+
+    try {
+      const response = await changeAdminPassword({
+        current_password: passwordForm.currentPassword.trim(),
+        new_password: passwordForm.newPassword,
+        new_password_confirmation: passwordForm.newPasswordConfirmation,
+      })
+
+      saveSession(response.result)
+      setPasswordForm(initialPasswordForm)
+      setPasswordMessage(response.message)
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Đổi mật khẩu thất bại, vui lòng thử lại.')
+    } finally {
+      setIsPasswordSubmitting(false)
+    }
+  }
+
   const modal = (
     <AnimatePresence>
       {isOpen && (
@@ -280,16 +327,43 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
 
                 {activeTab === 'password' && (
                   <motion.div key="password" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
+                    {passwordError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{passwordError}</div> : null}
+                    {passwordMessage ? <div className="rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/10 px-4 py-3 text-sm font-bold text-[#0f5f59]">{passwordMessage}</div> : null}
+
                     <div>
                       <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Mật khẩu hiện tại</label>
-                      <input type="password" placeholder="••••••••" className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
+                      <input
+                        type="password"
+                        value={passwordForm.currentPassword}
+                        onChange={(event) => updatePasswordField('currentPassword', event.target.value)}
+                        placeholder="Nhập mật khẩu hiện tại"
+                        autoComplete="current-password"
+                        className={cn('w-full rounded-2xl border bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:ring-4 focus:ring-[#f3c56b]/20', passwordErrors.currentPassword ? 'border-rose-300 focus:border-rose-400' : 'border-[#3d2a18]/10 focus:border-[#f3c56b]')}
+                      />
+                      {passwordErrors.currentPassword ? <p className="mt-2 text-xs font-bold text-rose-600">{passwordErrors.currentPassword}</p> : null}
                     </div>
                     <div className="border-t border-[#3d2a18]/10 pt-4">
                       <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Mật khẩu mới</label>
-                      <input type="password" placeholder="••••••••" className="mb-5 w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
+                      <input
+                        type="password"
+                        value={passwordForm.newPassword}
+                        onChange={(event) => updatePasswordField('newPassword', event.target.value)}
+                        placeholder="Nhập mật khẩu mới"
+                        autoComplete="new-password"
+                        className={cn('w-full rounded-2xl border bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:ring-4 focus:ring-[#f3c56b]/20', passwordErrors.newPassword ? 'border-rose-300 focus:border-rose-400' : 'border-[#3d2a18]/10 focus:border-[#f3c56b]')}
+                      />
+                      {passwordErrors.newPassword ? <p className="mt-2 text-xs font-bold text-rose-600">{passwordErrors.newPassword}</p> : null}
 
-                      <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Xác nhận mật khẩu mới</label>
-                      <input type="password" placeholder="••••••••" className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
+                      <label className="mb-2 mt-5 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Xác nhận mật khẩu mới</label>
+                      <input
+                        type="password"
+                        value={passwordForm.newPasswordConfirmation}
+                        onChange={(event) => updatePasswordField('newPasswordConfirmation', event.target.value)}
+                        placeholder="Nhập lại mật khẩu mới"
+                        autoComplete="new-password"
+                        className={cn('w-full rounded-2xl border bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:ring-4 focus:ring-[#f3c56b]/20', passwordErrors.newPasswordConfirmation ? 'border-rose-300 focus:border-rose-400' : 'border-[#3d2a18]/10 focus:border-[#f3c56b]')}
+                      />
+                      {passwordErrors.newPasswordConfirmation ? <p className="mt-2 text-xs font-bold text-rose-600">{passwordErrors.newPasswordConfirmation}</p> : null}
                     </div>
                   </motion.div>
                 )}
@@ -357,9 +431,14 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
               <button type="button" onClick={closeModal} className="cursor-pointer rounded-2xl px-6 py-2.5 font-black text-[#6f6254] transition-colors hover:bg-[#efe2cf] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#3d2a18]/10">
                 Đóng
               </button>
-              {activeTab !== 'face' && (
+              {activeTab === 'info' && (
                 <button type="button" onClick={closeModal} className="flex cursor-pointer items-center gap-2 rounded-2xl bg-[#24170d] px-6 py-2.5 text-sm font-black text-[#fff4df] shadow-md shadow-[#24170d]/18 transition hover:bg-[#3d2a18] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#a65f16]/20">
                   <CheckCircle className="h-4 w-4" /> Lưu thay đổi
+                </button>
+              )}
+              {activeTab === 'password' && (
+                <button type="button" onClick={handleChangePassword} disabled={isPasswordSubmitting} className="flex cursor-pointer items-center gap-2 rounded-2xl bg-[#24170d] px-6 py-2.5 text-sm font-black text-[#fff4df] shadow-md shadow-[#24170d]/18 transition hover:bg-[#3d2a18] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#a65f16]/20 disabled:cursor-not-allowed disabled:bg-[#c8bba6] disabled:text-[#7c6d5b]">
+                  <CheckCircle className="h-4 w-4" /> {isPasswordSubmitting ? 'Đang đổi mật khẩu...' : 'Đổi mật khẩu'}
                 </button>
               )}
             </div>

@@ -132,8 +132,8 @@ export async function deleteAdminBuilding(buildingId: number) {
 }
 
 export async function fetchAdminManagers() {
-  return apiRequest<AdminManagerResource[]>({
-    url: 'admin/admins?role=1&status=1&all=1',
+  return apiRequest<{ data: AdminManagerResource[] }>({
+    url: 'admin/accounts?role=1&status=1&per_page=100',
     method: 'GET',
   })
 }

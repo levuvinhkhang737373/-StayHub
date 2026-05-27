@@ -1,0 +1,75 @@
+<?php
+
+namespace App\Http\Requests\Admin\AdminAccount;
+
+use App\Helpers\ApiResponse;
+use App\Models\Admin;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
+
+class UpdateRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        $adminId = $this->route('account');
+
+        return [
+            'username' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('admins', 'username')->ignore($adminId)],
+            'full_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('admins', 'email')->ignore($adminId)],
+            'phone' => ['sometimes', 'required', 'string', 'max:20', Rule::unique('admins', 'phone')->ignore($adminId)],
+            'password' => ['nullable', 'string', 'min:6', 'max:255'],
+            'role' => ['sometimes', 'required', 'integer', Rule::in(array_keys(Admin::ROLE_LABELS))],
+            'gender' => ['nullable', 'integer', Rule::in(array_keys(Admin::GENDER_LABELS))],
+            'address' => ['nullable', 'string', 'max:500'],
+            'avatar_url' => ['nullable', 'string', 'max:2048'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'username.required' => 'Tên đăng nhập là bắt buộc khi cập nhật.',
+            'username.string' => 'Tên đăng nhập phải là chuỗi ký tự.',
+            'username.max' => 'Tên đăng nhập không được vượt quá 255 ký tự.',
+            'username.unique' => 'Tên đăng nhập đã tồn tại.',
+            'full_name.required' => 'Họ tên admin là bắt buộc khi cập nhật.',
+            'full_name.string' => 'Họ tên admin phải là chuỗi ký tự.',
+            'full_name.max' => 'Họ tên admin không được vượt quá 255 ký tự.',
+            'email.required' => 'Email admin là bắt buộc khi cập nhật.',
+            'email.email' => 'Email admin không hợp lệ.',
+            'email.max' => 'Email admin không được vượt quá 255 ký tự.',
+            'email.unique' => 'Email admin đã tồn tại.',
+            'phone.required' => 'Số điện thoại admin là bắt buộc khi cập nhật.',
+            'phone.string' => 'Số điện thoại admin phải là chuỗi ký tự.',
+            'phone.max' => 'Số điện thoại admin không được vượt quá 20 ký tự.',
+            'phone.unique' => 'Số điện thoại admin đã tồn tại.',
+            'password.string' => 'Mật khẩu admin phải là chuỗi ký tự.',
+            'password.min' => 'Mật khẩu admin tối thiểu 6 ký tự.',
+            'password.max' => 'Mật khẩu admin không được vượt quá 255 ký tự.',
+            'role.required' => 'Vai trò admin là bắt buộc khi cập nhật.',
+            'role.integer' => 'Vai trò admin không hợp lệ.',
+            'role.in' => 'Vai trò admin không nằm trong danh sách cho phép.',
+            'gender.integer' => 'Giới tính admin không hợp lệ.',
+            'gender.in' => 'Giới tính admin không nằm trong danh sách cho phép.',
+            'address.string' => 'Địa chỉ admin phải là chuỗi ký tự.',
+            'address.max' => 'Địa chỉ admin không được vượt quá 500 ký tự.',
+            'avatar_url.string' => 'Đường dẫn ảnh đại diện phải là chuỗi ký tự.',
+            'avatar_url.max' => 'Đường dẫn ảnh đại diện không được vượt quá 2048 ký tự.',
+        ];
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        throw new HttpResponseException(
+            ApiResponse::responseJson(false, $validator->errors()->first(), 422, $validator->errors(), 422)
+        );
+    }
+}

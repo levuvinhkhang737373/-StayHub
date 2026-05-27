@@ -54,10 +54,7 @@ export function CreateRegionScreen() {
     ], [activeParentRegions]);
 
     useEffect(() => {
-        if (!isSuperAdmin) {
-            setIsLoading(false);
-            return;
-        }
+        if (!isSuperAdmin) return;
 
         const loadRegionForm = async () => {
             try {

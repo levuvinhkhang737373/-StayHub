@@ -121,7 +121,7 @@ export function AssetTemplatesScreen() {
     } finally {
       setIsLoading(false)
     }
-  }, [isSuperAdmin, keyword, selectedBuildingId, selectedStatus])
+  }, [isSuperAdmin, keyword, selectedBuildingId, selectedStatus, session?.admin.id])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

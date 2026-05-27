@@ -12,7 +12,7 @@ return [
 
     'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
         '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
+        'localhost,localhost:5173,127.0.0.1,127.0.0.1:5173,localhost:8080,127.0.0.1:8080,stayhub.id.vn,api.stayhub.id.vn,::1',
         Sanctum::currentApplicationUrlWithPort()
     ))),
 
@@ -21,8 +21,6 @@ return [
     | Sanctum Guards
     |--------------------------------------------------------------------------
     |
-    | Ưu tiên check admin trước, sau đó tenant để token/session từ cả 2 nhóm
-    | tài khoản đều có thể xác thực đúng theo provider tương ứng.
     |
     */
 

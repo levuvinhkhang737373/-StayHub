@@ -5,9 +5,14 @@ import { AdminDashboardScreen } from '../features/admin/dashboard/components/adm
 import { AssetTemplatesScreen } from '../features/admin/asset-templates/components/asset-templates-screen'
 import { CreateBuildingScreen } from '../features/admin/facilities/components/create-building-screen'
 import { RoomTypesScreen } from '../features/admin/room-types/components/room-types-screen'
+import { ExpenseCategoriesScreen } from '../features/admin/expense-categories/components/expense-categories-screen'
+import { ServicesScreen } from '../features/admin/services/components/services-screen'
+import { SettingsScreen } from '../features/admin/settings/components/settings-screen'
+import { SystemUsersScreen } from '../features/admin/system-users'
 import { CreateRegionScreen } from '../features/admin/facilities/components/create-region-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
+import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
 import { AdminLayout } from '../layouts/admin/AdminLayout'
 
 export const adminRoutes: RouteObject[] = [
@@ -29,23 +34,23 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'facilities',
-        element: <FacilitiesScreen />,
+        element: <AdminRouteGuard access="superadmin"><FacilitiesScreen /></AdminRouteGuard>,
       },
       {
         path: 'facilities/regions/create',
-        element: <CreateRegionScreen />,
+        element: <AdminRouteGuard access="superadmin"><CreateRegionScreen /></AdminRouteGuard>,
       },
       {
         path: 'facilities/regions/:regionId/edit',
-        element: <CreateRegionScreen />,
+        element: <AdminRouteGuard access="superadmin"><CreateRegionScreen /></AdminRouteGuard>,
       },
       {
         path: 'facilities/buildings/create',
-        element: <CreateBuildingScreen />,
+        element: <AdminRouteGuard access="superadmin"><CreateBuildingScreen /></AdminRouteGuard>,
       },
       {
         path: 'facilities/buildings/:buildingId/edit',
-        element: <CreateBuildingScreen />,
+        element: <AdminRouteGuard access="superadmin"><CreateBuildingScreen /></AdminRouteGuard>,
       },
       {
         path: 'asset-templates',
@@ -66,6 +71,14 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'contracts',
         element: <AdminPlaceholderScreen title="Hợp đồng" description="Theo dõi hợp đồng thuê, thời hạn, phụ lục và trạng thái hiệu lực." />,
+      },
+      {
+        path: 'services',
+        element: <ServicesScreen />,
+      },
+      {
+        path: 'expense-categories',
+        element: <ExpenseCategoriesScreen />,
       },
       {
         path: 'meters',
@@ -97,11 +110,11 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'system-users',
-        element: <AdminPlaceholderScreen title="Nhân sự & Phân quyền" description="Quản lý tài khoản nhân sự, vai trò và quyền truy cập trong hệ thống." />,
+        element: <AdminRouteGuard access="superadmin"><SystemUsersScreen /></AdminRouteGuard>,
       },
       {
         path: 'settings',
-        element: <AdminPlaceholderScreen title="Cài đặt chung" description="Thiết lập cấu hình vận hành chung cho hệ thống StayHub." />,
+        element: <SettingsScreen />,
       },
     ],
   },

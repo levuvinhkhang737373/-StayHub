@@ -1,5 +1,6 @@
 import { apiRequest, getCsrfCookie } from '../../../../shared/lib/api/api-client'
 import type {
+  AdminChangePasswordPayload,
   AdminLoginPayload,
   AdminLoginResult,
   AdminProfile,
@@ -51,6 +52,14 @@ export async function deleteAdminFaceId(currentPassword: string) {
     url: 'admin/face-id',
     method: 'DELETE',
     data: { current_password: currentPassword },
+  })
+}
+
+export async function changeAdminPassword(payload: AdminChangePasswordPayload) {
+  return apiRequest<AdminLoginResult>({
+    url: 'admin/password',
+    method: 'PATCH',
+    data: payload,
   })
 }
 

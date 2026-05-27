@@ -1,35 +1,31 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
-import { ADMIN_SESSION_KEY } from '../../features/admin/auth/hooks/use-admin-session'
-import { fetchAdminMe } from '../../features/admin/auth/services/admin-auth.service'
+import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { AdminFooter } from './AdminFooter'
+import { AdminHeader } from './AdminHeader'
 import { AdminSidebar } from './AdminSidebar'
 
 export function AdminLayout() {
-  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'guest'>(() => (localStorage.getItem(ADMIN_SESSION_KEY) ? 'checking' : 'guest'))
+  const { refreshSession } = useAdminSession()
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'guest'>('checking')
 
   useEffect(() => {
     let isMounted = true
 
     async function verifySession() {
-      try {
-        const response = await fetchAdminMe()
-        localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ admin: response.result }))
-        if (isMounted) setAuthStatus('authenticated')
-      } catch {
-        localStorage.removeItem(ADMIN_SESSION_KEY)
-        if (isMounted) setAuthStatus('guest')
+      const session = await refreshSession()
+
+      if (isMounted) {
+        setAuthStatus(session?.admin ? 'authenticated' : 'guest')
       }
     }
 
-    if (authStatus === 'checking') {
-      void verifySession()
-    }
+    void verifySession()
 
     return () => {
       isMounted = false
     }
-  }, [authStatus])
+  }, [refreshSession])
 
   if (authStatus === 'checking') {
     return (
@@ -48,6 +44,7 @@ export function AdminLayout() {
       <div className="flex min-h-screen min-w-0">
         <AdminSidebar />
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+          <AdminHeader />
           <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
             <Outlet />
           </main>

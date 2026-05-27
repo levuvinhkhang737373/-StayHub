@@ -2,8 +2,13 @@
 .gitignore
 .env
 .env.*
+!**/.env.example
+!**/.env.production.example
 **/node_modules
 **/vendor
+**/__pycache__
+**/*.pyc
+BE_StayHub/public/storage
 BE_StayHub/storage/logs/*.log
 BE_StayHub/storage/framework/cache/*
 BE_StayHub/storage/framework/sessions/*
