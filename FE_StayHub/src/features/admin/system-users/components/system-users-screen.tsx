@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, Building2, ChevronLeft, ChevronRight, Edit3, Eye, LockKeyhole, Mail, Phone, Plus, Power, RefreshCw, Search, ShieldCheck, Trash2, UserCog, X } from 'lucide-react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { ApiError, type ApiValidationErrors } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
   createAdminAccount,
@@ -85,8 +86,11 @@ const perPageOptions = [
   { value: 50, label: '50 dòng', tone: 'default' as const },
 ]
 
+const formErrorKeys: Array<keyof AdminAccountFormValues> = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'status', 'gender', 'address', 'avatar_url']
+
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
+const readOnlyInputClass = 'cursor-not-allowed border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254] focus:border-[#3d2a18]/10 focus:ring-0'
 const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function SystemUsersScreen() {
@@ -136,7 +140,7 @@ export function SystemUsersScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải tài khoản admin.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải tài khoản admin.'))
     } finally {
       setIsLoading(false)
     }
@@ -175,6 +179,20 @@ export function SystemUsersScreen() {
     setForm((current) => ({ ...current, [key]: value }))
     setErrors((current) => ({ ...current, [key]: undefined }))
     setSuccessMessage(null)
+  }
+
+  const applyApiValidationErrors = (validationErrors: ApiValidationErrors) => {
+    const nextErrors: AdminAccountFormErrors = {}
+
+    formErrorKeys.forEach((key) => {
+      const messages = validationErrors[key]
+
+      if (messages?.[0]) {
+        nextErrors[key] = messages[0]
+      }
+    })
+
+    setErrors(nextErrors)
   }
 
   const openCreateForm = () => {
@@ -224,7 +242,7 @@ export function SystemUsersScreen() {
       const response = await fetchAdminAccountDetail(account.id)
       setDetailAccount(response.result)
     } catch (error) {
-      setDetailErrorMessage(error instanceof Error ? error.message : 'Không thể tải chi tiết tài khoản admin.')
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết tài khoản admin.'))
     } finally {
       setIsDetailLoading(false)
     }
@@ -256,7 +274,7 @@ export function SystemUsersScreen() {
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length > 0) {
-      setErrorMessage('Vui lòng kiểm tra lại thông tin tài khoản admin.')
+      setErrorMessage(null)
       return
     }
 
@@ -266,7 +284,6 @@ export function SystemUsersScreen() {
       setSuccessMessage(null)
 
       const payload: AdminAccountPayload = {
-        username: form.username.trim(),
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
@@ -274,6 +291,10 @@ export function SystemUsersScreen() {
         gender: form.gender === null ? undefined : Number(form.gender),
         address: form.address.trim() || null,
         avatar_url: form.avatar_url.trim() || null,
+      }
+
+      if (!editingAccount) {
+        payload.username = form.username.trim()
       }
 
       if (editingAccount && form.password.trim()) {
@@ -292,7 +313,9 @@ export function SystemUsersScreen() {
       setIsFormOpen(false)
       await loadAccounts()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu tài khoản admin.')
+      if (error instanceof ApiError && error.validationErrors) {
+        applyApiValidationErrors(error.validationErrors)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -316,7 +339,7 @@ export function SystemUsersScreen() {
       setSuccessMessage(`${nextStatus === STATUS_ACTIVE ? 'Kích hoạt' : 'Ngừng hoạt động'} tài khoản admin thành công.`)
       await loadAccounts()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái tài khoản admin.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái tài khoản admin.'))
     } finally {
       setStatusChangingId(null)
     }
@@ -337,7 +360,7 @@ export function SystemUsersScreen() {
         await loadAccounts()
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa tài khoản admin.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa tài khoản admin.'))
     } finally {
       setDeletingId(null)
     }
@@ -563,7 +586,6 @@ export function SystemUsersScreen() {
               <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f766e]">Admin access</p>
                     <h2 className="mt-1 text-xl font-black tracking-tight text-[#24170d]">{editingAccount ? 'Cập nhật tài khoản' : 'Thêm tài khoản'}</h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -580,7 +602,7 @@ export function SystemUsersScreen() {
               <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
                 <div>
                   <label className={labelClass}>Tên đăng nhập</label>
-                  <input className={`${inputClass} ${errors.username ? inputErrorClass : ''}`} value={form.username} onChange={(event) => updateForm('username', event.target.value)} placeholder="Ví dụ: manager_a" autoComplete="off" />
+                  <input className={cn(inputClass, errors.username && inputErrorClass, editingAccount && readOnlyInputClass)} value={form.username} onChange={(event) => updateForm('username', event.target.value)} placeholder="Ví dụ: manager_a" autoComplete="off" readOnly={Boolean(editingAccount)} aria-readonly={Boolean(editingAccount)} />
                   <FieldError message={errors.username} />
                 </div>
                 <div>
@@ -775,6 +797,14 @@ function DetailTile({ label, value }: { label: string; value: string | number })
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
+}
+
+function getVisibleErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiError && (!error.statusCode || error.statusCode >= 500)) {
+    return null
+  }
+
+  return error instanceof Error ? error.message : fallback
 }
 
 function isAccountActive(account: AdminAccountResource) {

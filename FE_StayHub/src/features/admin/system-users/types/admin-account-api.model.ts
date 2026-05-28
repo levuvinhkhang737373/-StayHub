@@ -64,7 +64,7 @@ export interface AdminAccountFilters {
 }
 
 export interface AdminAccountPayload {
-  username: string
+  username?: string
   full_name: string
   email: string
   phone?: string | null

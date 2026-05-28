@@ -415,7 +415,6 @@ export function AssetTemplatesScreen() {
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black tracking-tight text-[#24170d]">{editingAssetTemplate ? 'Cập nhật mẫu tài sản' : 'Thêm mẫu tài sản'}</h2>
-                <p className="text-xs font-bold text-[#8b5e34]/60">Khai báo tên, đơn vị và phạm vi áp dụng.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form">

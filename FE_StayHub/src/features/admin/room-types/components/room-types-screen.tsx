@@ -285,7 +285,6 @@ export function RoomTypesScreen() {
                 <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
                 </div>
                 <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-[1.7rem] lg:text-3xl">Loại phòng</h1>
-                <p className="mt-1 max-w-2xl text-xs font-bold leading-5 text-[#f8e8c8]/72 sm:text-sm">Quản lý cấu hình loại phòng và giá mặc định dùng khi tạo phòng mới.</p>
               </div>
               <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm loại phòng
@@ -295,7 +294,7 @@ export function RoomTypesScreen() {
             <div className="relative mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <MetricCard label="Tổng loại" value={roomTypes.length} tone="neutral" />
               <MetricCard label="Hoạt động" value={activeRoomTypes} tone="emerald" />
-              <MetricCard label="Đang gán phòng" value={totalRooms} tone="amber" />
+              <MetricCard label="Số lượng phòng đã áp dụng" value={totalRooms} tone="amber" />
             </div>
           </div>
         </div>
@@ -331,7 +330,7 @@ export function RoomTypesScreen() {
                     <th className="px-5 py-4">Loại phòng</th>
                     <th className="px-5 py-4">Tòa nhà</th>
                     <th className="px-5 py-4">Giá mặc định</th>
-                    <th className="px-5 py-4 text-center">Số phòng</th>
+                    <th className="px-5 py-4 text-center">Số lượng phòng đang áp dụng</th>
                     <th className="px-5 py-4">Trạng thái</th>
                     <th className="px-5 py-4"><span className="flex justify-end"><span className="w-47.5 text-center">Thao tác</span></span></th>
                   </tr>

@@ -23,10 +23,12 @@ export function validateAdminAccountForm(form: AdminAccountFormValues, isEdit: b
   const address = form.address.trim()
   const avatarUrl = form.avatar_url.trim()
 
-  if (!username) {
-    errors.username = 'Vui lòng nhập tên đăng nhập.'
-  } else if (username.length > 255) {
-    errors.username = 'Tên đăng nhập tối đa 255 ký tự.'
+  if (!isEdit) {
+    if (!username) {
+      errors.username = 'Vui lòng nhập tên đăng nhập.'
+    } else if (username.length > 255) {
+      errors.username = 'Tên đăng nhập tối đa 255 ký tự.'
+    }
   }
 
   if (!fullName) {
