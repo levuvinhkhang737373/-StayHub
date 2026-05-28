@@ -131,11 +131,15 @@ class AdminAccountController extends Controller
                 }
 
                 if ($accountModel->id === $admin->id && isset($validated['role']) && (int) $validated['role'] !== Admin::ROLE_SUPER_ADMIN) {
-                    return ApiResponse::responseJson(false, 'Không thể tự hạ quyền tài khoản đang đăng nhập', 422, null, 422);
+                    $message = 'Không thể tự hạ quyền tài khoản đang đăng nhập';
+
+                    return ApiResponse::responseJson(false, $message, 422, ['role' => [$message]], 422);
                 }
 
                 if ($this->wouldRemoveLastActiveSuperAdmin($accountModel, $validated)) {
-                    return ApiResponse::responseJson(false, 'Không thể làm mất quản trị tổng hoạt động cuối cùng', 422, null, 422);
+                    $message = 'Không thể làm mất quản trị tổng hoạt động cuối cùng';
+
+                    return ApiResponse::responseJson(false, $message, 422, ['role' => [$message]], 422);
                 }
 
                 $oldData = $accountModel->toArray();
@@ -285,7 +289,9 @@ class AdminAccountController extends Controller
     private function payload(array $validated, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'gender', 'address', 'avatar_url'];
+        $fields = $isUpdate
+            ? ['full_name', 'email', 'phone', 'password', 'role', 'gender', 'address', 'avatar_url']
+            : ['username', 'full_name', 'email', 'phone', 'password', 'role', 'gender', 'address', 'avatar_url'];
 
         foreach ($fields as $field) {
             if (! array_key_exists($field, $validated)) {

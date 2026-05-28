@@ -21,7 +21,7 @@ class UpdateRequest extends FormRequest
         $adminId = $this->route('account');
 
         return [
-            'username' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('admins', 'username')->ignore($adminId)],
+            'username' => ['prohibited'],
             'full_name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('admins', 'email')->ignore($adminId)],
             'phone' => ['sometimes', 'required', 'string', 'max:20', Rule::unique('admins', 'phone')->ignore($adminId)],
@@ -36,10 +36,7 @@ class UpdateRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'username.required' => 'Tên đăng nhập là bắt buộc khi cập nhật.',
-            'username.string' => 'Tên đăng nhập phải là chuỗi ký tự.',
-            'username.max' => 'Tên đăng nhập không được vượt quá 255 ký tự.',
-            'username.unique' => 'Tên đăng nhập đã tồn tại.',
+            'username.prohibited' => 'Không được thay đổi tên đăng nhập sau khi tạo tài khoản.',
             'full_name.required' => 'Họ tên admin là bắt buộc khi cập nhật.',
             'full_name.string' => 'Họ tên admin phải là chuỗi ký tự.',
             'full_name.max' => 'Họ tên admin không được vượt quá 255 ký tự.',

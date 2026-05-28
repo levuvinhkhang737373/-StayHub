@@ -239,7 +239,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'test -f artisan && test -f vendor/autoload.php && php artisan horizon:status | grep -qi running || exit 1' ]
+      test: [ 'CMD-SHELL', 'test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
       interval: 15s
       timeout: 10s
       retries: 20
@@ -298,9 +298,9 @@ services:
         read_only: true
     depends_on:
       app:
-        condition: service_started
+        condition: service_healthy
       frontend:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: [ 'CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://127.0.0.1/sanctum/csrf-cookie || exit 1' ]
       interval: 15s
@@ -345,14 +345,24 @@ services:
       - laravel_network
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    build:
+      context: .
+      dockerfile: docker/cloudflared/Dockerfile
+    image: stayhub-cloudflared:latest
     container_name: stayhub_tunnel
     profiles:
       - tunnel
     restart: unless-stopped
     environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
-    command: tunnel --no-autoupdate run
+      CLOUDFLARED_ENV_FILE: /run/secrets/backend_env
+    command: [ '--no-autoupdate', 'tunnel', 'run' ]
+    secrets:
+      - backend_env
+    depends_on:
+      webserver:
+        condition: service_healthy
+      phpmyadmin:
+        condition: service_started
     networks:
       - laravel_network
 
@@ -360,6 +370,10 @@ networks:
   laravel_network:
     external: true
     name: repokytucxaphongtro_laravel_network
+
+secrets:
+  backend_env:
+    file: ./BE_StayHub/.env
 
 volumes:
   backend_vendor:

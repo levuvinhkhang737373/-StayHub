@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -30,16 +31,22 @@ class Tenant extends Authenticatable
         self::STATUS_STOPPED_RENTING => 'Ngừng thuê',
     ];
 
-    protected $fillable = ['full_name', 'gender', 'date_of_birth', 'phone', 'email', 'username', 'password', 'permanent_address', 'current_address', 'avatar_url', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url'];
+    protected $fillable = ['building_id', 'full_name', 'gender', 'date_of_birth', 'phone', 'email', 'username', 'password', 'permanent_address', 'current_address', 'avatar_url', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url'];
 
     protected $hidden = ['password', 'remember_token'];
 
     protected function casts(): array
     {
         return [
+            'building_id' => 'integer',
             'gender' => 'integer', 'date_of_birth' => 'date', 'status' => 'integer',
             'identity_type' => 'integer', 'password' => 'hashed',
         ];
+    }
+
+    public function building(): BelongsTo
+    {
+        return $this->belongsTo(Building::class);
     }
 
     public function representedContracts(): HasMany
