@@ -18,8 +18,8 @@ export async function fetchAdminRoomTypes(
     keyword?: string
     status?: number
     building_id?: number
-    min_price?: number
-    max_price?: number
+    only_global?: boolean
+    created_by_me?: boolean
     per_page?: number
   } = {},
 ) {

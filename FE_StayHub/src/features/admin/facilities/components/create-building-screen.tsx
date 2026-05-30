@@ -1,12 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ElementType, ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Building2, ImagePlus, Save, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, Boxes, Building2, ChevronRight, ImagePlus, MapPin, Plus, Save, Search, Settings, Star, Trash2, X, Zap } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
-import { createAdminBuilding, fetchAdminBuildingDetail, fetchAdminManagers, fetchAdminRegions, updateAdminBuilding } from "../services/facilities.service";
-import type { AdminBuildingPayload, AdminManagerResource, AdminRegionResource } from "../types/facility-api.model";
-import type { BuildingImage } from "../types/building.model";
+import { createAdminAssetTemplate, fetchAdminAssetTemplates } from "../../asset-templates/services/asset-templates.service";
+import type { AdminAssetTemplateResource } from "../../asset-templates/types/asset-template-api.model";
+import { createAdminRoomType, fetchAdminRoomTypes } from "../../room-types/services/room-types.service";
+import type { AdminRoomTypeResource } from "../../room-types/types/room-type-api.model";
+import { createAdminService, fetchAdminServices } from "../../services/services/services.service";
+import type { AdminServiceResource } from "../../services/types/service-api.model";
+import { createAdminSetting, fetchAdminSettings } from "../../settings/services/settings.service";
+import type { AdminSettingResource } from "../../settings/types/setting-api.model";
 import { AdminSelect } from "../../shared/components/AdminSelect";
-import { validateBuildingForm, type BuildingFormErrors } from "../validations/building.validation";
+import { createAdminBuilding, fetchAdminBuildingDetail, fetchAdminManagers, fetchAdminRegions, updateAdminBuilding } from "../services/facilities.service";
+import type { AdminManagerResource, AdminRegionResource } from "../types/facility-api.model";
+import type { BuildingImage } from "../types/building.model";
+import { buildBuildingPayload, createDefaultBuildingForm, getTodayIsoDate, mapBuildingDetailToForm } from "../utils/building-form.utils";
+import {
+    validateBuildingForm,
+    type BuildingAssetTemplateFormRow,
+    type BuildingFormErrors,
+    type BuildingRoomTypeFormRow,
+    type BuildingServicePriceFormRow,
+    type BuildingSettingFormRow,
+} from "../validations/building.validation";
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
     if (!result) return [];
@@ -15,10 +32,12 @@ function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[
 }
 
 const stayHubImage = "/images/stayhub.png";
-
 const inputClass = "w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900 outline-none transition focus:border-gray-900";
 const inputErrorClass = "border-rose-300 bg-rose-50 focus:border-rose-400";
 const labelClass = "mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-gray-400";
+const cardClass = "rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm";
+
+type ConfigKey = "room_types" | "asset_templates" | "service_prices" | "settings";
 
 const buildingStatusOptions = [
     { value: 1, label: "Đang hoạt động", tone: "success" as const },
@@ -32,9 +51,49 @@ const genderPolicyOptions = [
     { value: 3, label: "Nữ", tone: "default" as const },
 ];
 
+const activeStatusOptions = [
+    { value: 1, label: "Hoạt động", tone: "success" as const },
+    { value: 2, label: "Ngừng", tone: "danger" as const },
+];
+
+const servicePriceStatusOptions = [
+    { value: 1, label: "Còn hiệu lực", tone: "success" as const },
+    { value: 2, label: "Hết hiệu lực", tone: "danger" as const },
+];
+
+const assetUnitOptions = [
+    { value: 1, label: "Cái", tone: "default" as const },
+    { value: 2, label: "Bộ", tone: "default" as const },
+    { value: 3, label: "Chiếc", tone: "default" as const },
+];
+
+const serviceTypeOptions = [
+    { value: "dien", label: "Điện", tone: "warning" as const },
+    { value: "nuoc", label: "Nước", tone: "default" as const },
+    { value: "internet", label: "Internet", tone: "default" as const },
+    { value: "rac", label: "Rác", tone: "default" as const },
+    { value: "gui_xe", label: "Gửi xe", tone: "default" as const },
+    { value: "ve_sinh", label: "Vệ sinh", tone: "default" as const },
+    { value: "khac", label: "Khác", tone: "default" as const },
+];
+
+const chargeMethodOptions = [
+    { value: 1, label: "Theo chỉ số", tone: "default" as const },
+    { value: 2, label: "Theo người", tone: "default" as const },
+    { value: 3, label: "Theo phòng", tone: "default" as const },
+    { value: 4, label: "Theo xe", tone: "default" as const },
+    { value: 5, label: "Cố định", tone: "default" as const },
+];
+
 function FieldError({ message }: { message?: string }) {
     if (!message) return null;
     return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>;
+}
+
+function formatDateForDisplay(value: string) {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return value;
+    return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
 export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
@@ -46,32 +105,66 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const isSuperAdmin = isSuperAdminRole(session?.admin.role);
     const [regions, setRegions] = useState<AdminRegionResource[]>([]);
     const [managers, setManagers] = useState<AdminManagerResource[]>([]);
+    const [services, setServices] = useState<AdminServiceResource[]>([]);
+    const [roomTypeCatalog, setRoomTypeCatalog] = useState<AdminRoomTypeResource[]>([]);
+    const [assetTemplateCatalog, setAssetTemplateCatalog] = useState<AdminAssetTemplateResource[]>([]);
+    const [settingCatalog, setSettingCatalog] = useState<AdminSettingResource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isCreatingRoomType, setIsCreatingRoomType] = useState(false);
+    const [isCreatingAssetTemplate, setIsCreatingAssetTemplate] = useState(false);
+    const [isCreatingService, setIsCreatingService] = useState(false);
+    const [isCreatingSetting, setIsCreatingSetting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [errors, setErrors] = useState<BuildingFormErrors>({});
     const [imageFiles, setImageFiles] = useState<File[]>([]);
     const [existingImages, setExistingImages] = useState<BuildingImage[]>([]);
     const [deleteImageIds, setDeleteImageIds] = useState<number[]>([]);
+    const [deleteRoomTypeIds, setDeleteRoomTypeIds] = useState<number[]>([]);
+    const [deleteAssetTemplateIds, setDeleteAssetTemplateIds] = useState<number[]>([]);
+    const [deleteServicePriceIds, setDeleteServicePriceIds] = useState<number[]>([]);
+    const [deleteSettingIds, setDeleteSettingIds] = useState<number[]>([]);
     const [primaryImageId, setPrimaryImageId] = useState<number | null>(null);
     const [primaryNewImageIndex, setPrimaryNewImageIndex] = useState<number | null>(null);
-    const [form, setForm] = useState({
-        name: "",
-        address: "",
-        region_id: "",
-        manager_admin_id: "",
-        status: 1,
-        gender_policy: 1,
-        description: "",
-        total_floors: 1,
-    });
+    const [openCreateForms, setOpenCreateForms] = useState<Record<ConfigKey, boolean>>({ room_types: false, asset_templates: false, service_prices: false, settings: false });
+    const [openConfigCards, setOpenConfigCards] = useState<Record<ConfigKey, boolean>>({ room_types: true, asset_templates: false, service_prices: false, settings: false });
+    const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
+    const [regionKeyword, setRegionKeyword] = useState("");
+    const [expandedRegionIds, setExpandedRegionIds] = useState<number[]>([]);
+    const [quickRoomType, setQuickRoomType] = useState({ name: "", description: "", status: 1 });
+    const [quickAssetTemplate, setQuickAssetTemplate] = useState({ name: "", default_unit_name: 1, description: "", status: 1 });
+    const [quickService, setQuickService] = useState({ service_code: "", name: "", service_type: "khac", charge_method: 5, unit_name: "", is_required: false, is_active: true });
+    const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+    const [form, setForm] = useState(createDefaultBuildingForm);
 
     const isEditMode = typeof resolvedBuildingId === "number";
     const activeRegions = useMemo(() => regions.filter((region) => region.status), [regions]);
-    const regionOptions = useMemo(() => [
-        { value: "", label: "Chọn khu vực", tone: "default" as const },
-        ...activeRegions.map((region) => ({ value: region.id, label: region.name, tone: "default" as const })),
-    ], [activeRegions]);
+    const selectedRegion = useMemo(() => activeRegions.find((region) => region.id === Number(form.region_id)), [activeRegions, form.region_id]);
+    const normalizedRegionKeyword = regionKeyword.trim().toLowerCase();
+    const filteredRegionIds = useMemo(() => {
+        if (!normalizedRegionKeyword) return new Set(activeRegions.map((region) => region.id));
+
+        const matchedIds = new Set<number>();
+        const includeAncestors = (region: AdminRegionResource) => {
+            matchedIds.add(region.id);
+            if (!region.parent_id) return;
+            const parent = activeRegions.find((item) => item.id === region.parent_id);
+            if (parent) includeAncestors(parent);
+        };
+
+        activeRegions.forEach((region) => {
+            const haystack = [region.name, region.code, region.path, region.parent_name].filter(Boolean).join(" ").toLowerCase();
+            if (haystack.includes(normalizedRegionKeyword)) includeAncestors(region);
+        });
+
+        return matchedIds;
+    }, [activeRegions, normalizedRegionKeyword]);
+    const rootRegions = useMemo(() => {
+        const activeRegionIds = new Set(activeRegions.map((region) => region.id));
+        return activeRegions
+            .filter((region) => (!region.parent_id || !activeRegionIds.has(region.parent_id)) && filteredRegionIds.has(region.id))
+            .sort((first, second) => first.sort_order - second.sort_order || first.name.localeCompare(second.name));
+    }, [activeRegions, filteredRegionIds]);
     const managerOptions = useMemo(() => [
         { value: "", label: "Chưa phân công", tone: "warning" as const },
         ...managers.map((manager) => ({ value: manager.id, label: manager.full_name, description: manager.phone || manager.username, tone: "default" as const })),
@@ -84,30 +177,29 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         Promise.all([
             fetchAdminRegions({ per_page: 100 }),
             fetchAdminManagers(),
+            fetchAdminServices({ per_page: 100, is_active: true }),
+            fetchAdminRoomTypes({ per_page: 100, status: 1, created_by_me: true }),
+            fetchAdminAssetTemplates({ per_page: 100, status: 1 }),
+            fetchAdminSettings({ per_page: 100, only_global: true }),
             isEditMode && resolvedBuildingId ? fetchAdminBuildingDetail(resolvedBuildingId) : Promise.resolve(null),
         ])
-            .then(([regionsResponse, managersResponse, buildingResponse]) => {
+            .then(([regionsResponse, managersResponse, servicesResponse, roomTypesResponse, assetTemplatesResponse, settingsResponse, buildingResponse]) => {
                 const nextRegions = getResourceList(regionsResponse.result);
                 const nextManagers = getResourceList(managersResponse.result);
+                const nextServices = getResourceList(servicesResponse.result);
                 setRegions(nextRegions);
                 setManagers(nextManagers);
+                setServices(nextServices);
+                setRoomTypeCatalog(getResourceList(roomTypesResponse.result));
+                setAssetTemplateCatalog(getResourceList(assetTemplatesResponse.result));
+                setSettingCatalog(getResourceList(settingsResponse.result));
 
                 const building = buildingResponse?.result;
                 const nextImages = building?.images || [];
-                setExistingImages(nextImages);
+                setExistingImages(nextImages as BuildingImage[]);
                 setPrimaryImageId(building?.primary_image?.id || nextImages.find((image) => image.is_primary)?.id || null);
 
-                setForm((current) => ({
-                    ...current,
-                    name: building?.name || current.name,
-                    address: building?.address || current.address,
-                    region_id: String(building?.region_id || nextRegions.find((region) => region.status)?.id || ""),
-                    manager_admin_id: building?.manager_admin_id ? String(building.manager_admin_id) : "",
-                    status: Number(building?.status || current.status),
-                    gender_policy: Number(building?.gender_policy || current.gender_policy),
-                    description: building?.description || current.description,
-                    total_floors: building?.total_floors || current.total_floors,
-                }));
+                setForm((current) => mapBuildingDetailToForm(building, nextRegions, current));
             })
             .catch((error) => setErrorMessage(error instanceof Error ? error.message : "Không thể tải dữ liệu tòa nhà."))
             .finally(() => setIsLoading(false));
@@ -118,12 +210,20 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         setErrors((current) => ({ ...current, [key]: undefined }));
     };
 
+    const selectRegion = (region: AdminRegionResource) => {
+        updateForm("region_id", String(region.id));
+        setIsRegionPickerOpen(false);
+        setRegionKeyword("");
+    };
+
+    const toggleRegionExpansion = (regionId: number) => {
+        setExpandedRegionIds((current) => (current.includes(regionId) ? current.filter((id) => id !== regionId) : [...current, regionId]));
+    };
+
     const imagePreviewUrls = useMemo(() => imageFiles.map((file) => URL.createObjectURL(file)), [imageFiles]);
 
     useEffect(() => {
-        return () => {
-            imagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-        };
+        return () => imagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     }, [imagePreviewUrls]);
 
     const updateImages = (files: FileList | null) => {
@@ -150,15 +250,177 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         }
     };
 
-    const chooseExistingPrimary = (imageId: number) => {
-        setPrimaryImageId(imageId);
-        setPrimaryNewImageIndex(null);
+    const addRow = (key: ConfigKey, row?: BuildingRoomTypeFormRow | BuildingAssetTemplateFormRow | BuildingServicePriceFormRow | BuildingSettingFormRow) => {
+        const nextRow = row || (key === "room_types" ? { name: "", description: "", status: 1 }
+            : key === "asset_templates" ? { name: "", default_unit_name: 1, description: "", status: 1 }
+                : key === "service_prices" ? { service_id: "", price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 }
+                    : { setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+
+        setForm((current) => ({ ...current, [key]: [...(current[key] as unknown[]), nextRow] } as typeof current));
+        setErrors((current) => ({ ...current, [key]: undefined }));
     };
 
-    const chooseNewPrimary = (index: number) => {
-        if (visibleExistingImages.length > 0) return;
-        setPrimaryImageId(null);
-        setPrimaryNewImageIndex(index);
+    const removeRow = (key: ConfigKey, index: number) => {
+        const row = form[key][index] as { id?: number; rooms_count?: number; room_assets_count?: number };
+        if (key === "room_types" && row.rooms_count && row.rooms_count > 0) return;
+        if (key === "asset_templates" && row.room_assets_count && row.room_assets_count > 0) return;
+        if (row.id) {
+            if (key === "room_types") setDeleteRoomTypeIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
+            if (key === "asset_templates") setDeleteAssetTemplateIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
+            if (key === "service_prices") setDeleteServicePriceIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
+            if (key === "settings") setDeleteSettingIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
+        }
+        setForm((current) => ({ ...current, [key]: current[key].filter((_, itemIndex) => itemIndex !== index) } as typeof current));
+    };
+
+    const updateRow = (key: ConfigKey, index: number, field: string, value: string | number | boolean) => {
+        setForm((current) => {
+            const next = [...(current[key] as Array<Record<string, unknown>>)];
+            next[index] = { ...next[index], [field]: value };
+            return { ...current, [key]: next } as typeof current;
+        });
+        setErrors((current) => ({ ...current, [key]: undefined }));
+    };
+
+    const roomTypeOptions = useMemo(() => mergeRoomTypeOptions(roomTypeCatalog, form.room_types), [form.room_types, roomTypeCatalog]);
+    const assetTemplateOptions = useMemo(() => mergeAssetTemplateOptions(assetTemplateCatalog, form.asset_templates), [assetTemplateCatalog, form.asset_templates]);
+    const serviceOptions = useMemo(() => mergeServiceOptions(services, form.service_prices), [form.service_prices, services]);
+    const settingOptions = useMemo(() => mergeSettingOptions(settingCatalog, form.settings), [form.settings, settingCatalog]);
+
+    const findRoomTypeIndex = (item: AdminRoomTypeResource) => form.room_types.findIndex((row) => row.source_id === item.id || row.id === item.id || row.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+    const findAssetTemplateIndex = (item: AdminAssetTemplateResource) => form.asset_templates.findIndex((row) => row.source_id === item.id || row.id === item.id || row.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+    const findServicePriceIndex = (service: AdminServiceResource) => form.service_prices.findIndex((row) => Number(row.service_id) === service.id);
+    const findSettingIndex = (item: AdminSettingResource) => form.settings.findIndex((row) => row.source_id === item.id || row.id === item.id || row.setting_name.trim().toLowerCase() === item.setting_name.trim().toLowerCase());
+
+    const toggleRoomType = (item: AdminRoomTypeResource) => {
+        const index = findRoomTypeIndex(item);
+        if (index >= 0) {
+            removeRow("room_types", index);
+            return;
+        }
+        addRow("room_types", { source_id: item.id, name: item.name, description: item.description || "", status: Number(item.status || 1), rooms_count: 0 });
+    };
+
+    const toggleAssetTemplate = (item: AdminAssetTemplateResource) => {
+        const index = findAssetTemplateIndex(item);
+        if (index >= 0) {
+            removeRow("asset_templates", index);
+            return;
+        }
+        addRow("asset_templates", { source_id: item.id, name: item.name, default_unit_name: Number(item.default_unit_name || 1), description: item.description || "", status: Number(item.status || 1), room_assets_count: 0 });
+    };
+
+    const toggleService = (service: AdminServiceResource) => {
+        const index = findServicePriceIndex(service);
+        if (index >= 0) {
+            removeRow("service_prices", index);
+            return;
+        }
+        addRow("service_prices", { service_id: String(service.id), price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 });
+    };
+
+    const toggleSetting = (item: AdminSettingResource) => {
+        const index = findSettingIndex(item);
+        if (index >= 0) {
+            removeRow("settings", index);
+            return;
+        }
+        addRow("settings", { source_id: item.id, setting_label: item.setting_label, setting_name: item.setting_name, setting_value: item.setting_value || "", description: item.description || "", is_public: Boolean(item.is_public) });
+    };
+
+    const createQuickRoomType = async () => {
+        if (!quickRoomType.name.trim() || isCreatingRoomType) return;
+
+        try {
+            setIsCreatingRoomType(true);
+            const response = await createAdminRoomType({
+                name: quickRoomType.name.trim(),
+                description: quickRoomType.description.trim() || undefined,
+                status: Number(quickRoomType.status),
+            });
+            const roomType = response.result;
+            setRoomTypeCatalog((current) => [roomType, ...current.filter((item) => item.id !== roomType.id)]);
+            addRow("room_types", { source_id: roomType.id, name: roomType.name, description: roomType.description || "", status: Number(roomType.status || 1), rooms_count: 0 });
+            setQuickRoomType({ name: "", description: "", status: 1 });
+            setOpenCreateForms((current) => ({ ...current, room_types: false }));
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh loại phòng.");
+        } finally {
+            setIsCreatingRoomType(false);
+        }
+    };
+
+    const createQuickAssetTemplate = async () => {
+        if (!quickAssetTemplate.name.trim() || isCreatingAssetTemplate) return;
+
+        try {
+            setIsCreatingAssetTemplate(true);
+            const response = await createAdminAssetTemplate({
+                name: quickAssetTemplate.name.trim(),
+                default_unit_name: Number(quickAssetTemplate.default_unit_name),
+                description: quickAssetTemplate.description.trim() || undefined,
+                status: Number(quickAssetTemplate.status),
+            });
+            const template = response.result;
+            setAssetTemplateCatalog((current) => [template, ...current.filter((item) => item.id !== template.id)]);
+            addRow("asset_templates", { source_id: template.id, name: template.name, default_unit_name: Number(template.default_unit_name || 1), description: template.description || "", status: Number(template.status || 1), room_assets_count: 0 });
+            setQuickAssetTemplate({ name: "", default_unit_name: 1, description: "", status: 1 });
+            setOpenCreateForms((current) => ({ ...current, asset_templates: false }));
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh mẫu tài sản.");
+        } finally {
+            setIsCreatingAssetTemplate(false);
+        }
+    };
+
+    const createQuickService = async () => {
+        if (!quickService.service_code.trim() || !quickService.name.trim() || isCreatingService) return;
+
+        try {
+            setIsCreatingService(true);
+            const response = await createAdminService({
+                service_code: quickService.service_code.trim(),
+                name: quickService.name.trim(),
+                service_type: quickService.service_type,
+                charge_method: Number(quickService.charge_method),
+                unit_name: quickService.unit_name.trim() || undefined,
+                is_required: quickService.is_required,
+                is_active: quickService.is_active,
+            });
+            const service = response.result;
+            setServices((current) => [service, ...current.filter((item) => item.id !== service.id)]);
+            addRow("service_prices", { service_id: String(service.id), price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 });
+            setQuickService({ service_code: "", name: "", service_type: "khac", charge_method: 5, unit_name: "", is_required: false, is_active: true });
+            setOpenCreateForms((current) => ({ ...current, service_prices: false }));
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh dịch vụ.");
+        } finally {
+            setIsCreatingService(false);
+        }
+    };
+
+    const createQuickSetting = async () => {
+        if (!quickSetting.setting_label.trim() || !quickSetting.setting_name.trim() || isCreatingSetting) return;
+
+        try {
+            setIsCreatingSetting(true);
+            const response = await createAdminSetting({
+                setting_label: quickSetting.setting_label.trim(),
+                setting_name: quickSetting.setting_name.trim(),
+                setting_value: quickSetting.setting_value.trim() || undefined,
+                description: quickSetting.description.trim() || undefined,
+                is_public: quickSetting.is_public,
+            });
+            const setting = response.result;
+            setSettingCatalog((current) => [setting, ...current.filter((item) => item.id !== setting.id)]);
+            addRow("settings", { source_id: setting.id, setting_label: setting.setting_label, setting_name: setting.setting_name, setting_value: setting.setting_value || "", description: setting.description || "", is_public: Boolean(setting.is_public) });
+            setQuickSetting({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+            setOpenCreateForms((current) => ({ ...current, settings: false }));
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh cài đặt.");
+        } finally {
+            setIsCreatingSetting(false);
+        }
     };
 
     const submit = async () => {
@@ -176,31 +438,21 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             setIsSaving(true);
             setErrorMessage(null);
 
-            const fallbackNewPrimary = imageFiles.length > 0 && visibleExistingImages.length === 0 && primaryNewImageIndex === null ? 0 : primaryNewImageIndex;
-            const payload: AdminBuildingPayload = {
-                region_id: Number(form.region_id),
-                manager_admin_id: form.manager_admin_id ? Number(form.manager_admin_id) : undefined,
-                name: form.name.trim(),
-                address: form.address.trim() || undefined,
-                description: form.description.trim() || undefined,
-                total_floors: form.total_floors,
-                gender_policy: Number(form.gender_policy),
-                status: Number(form.status),
-                images: imageFiles,
-                image_metadata: imageFiles.map((_, index) => ({
-                    is_primary: fallbackNewPrimary === index,
-                    sort_order: visibleExistingImages.length + index,
-                    status: 1,
-                })),
-                delete_image_ids: deleteImageIds,
-                primary_image_id: primaryImageId || undefined,
-            };
+            const payload = buildBuildingPayload({
+                form,
+                imageFiles,
+                visibleExistingImages,
+                deleteImageIds,
+                primaryImageId,
+                primaryNewImageIndex,
+                deleteRoomTypeIds,
+                deleteAssetTemplateIds,
+                deleteServicePriceIds,
+                deleteSettingIds,
+            });
 
-            if (isEditMode && resolvedBuildingId) {
-                await updateAdminBuilding(resolvedBuildingId, payload);
-            } else {
-                await createAdminBuilding(payload);
-            }
+            if (isEditMode && resolvedBuildingId) await updateAdminBuilding(resolvedBuildingId, payload);
+            else await createAdminBuilding(payload);
 
             navigate("/admin/facilities");
         } catch (error) {
@@ -210,128 +462,327 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         }
     };
 
-    if (!isSuperAdmin) {
-        return <Navigate to="/admin/dashboard" replace />;
-    }
+    if (!session?.admin) return <Navigate to="/admin/login" replace />;
+    if (!isSuperAdmin) return <Navigate to="/admin/dashboard" replace />;
 
     return (
         <div className="space-y-6">
-            <div>
-                <Link to="/admin/facilities" className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
-                    <ArrowLeft className="h-4 w-4" /> Quay lại danh sách
-                </Link>
-                <h1 className="text-2xl font-black tracking-tight text-gray-900">{isEditMode ? "Chỉnh sửa Tòa nhà" : "Thêm Tòa nhà"}</h1>
-                <p className="mt-1 text-sm text-gray-500">{isEditMode ? "Cập nhật thông tin cơ bản và ảnh tòa nhà." : "Khai báo thông tin cơ bản và ảnh ban đầu cho tòa nhà."}</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <Link to="/admin/facilities" className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
+                        <ArrowLeft className="h-4 w-4" /> Quay lại danh sách
+                    </Link>
+                    <h1 className="text-2xl font-black tracking-tight text-gray-900">{isEditMode ? "Chỉnh sửa Tòa nhà" : "Thêm Tòa nhà"}</h1>
+                </div>
+                <div className="flex gap-2">
+                    <Link to="/admin/facilities" className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-500 transition hover:bg-gray-50 hover:text-gray-900">Hủy</Link>
+                    <button onClick={submit} disabled={isSaving || isLoading} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#333333] px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-xl shadow-black/10 transition hover:bg-gray-800 disabled:opacity-50">
+                        <Save className="h-4 w-4 text-white stroke-[2.8]" /> {isSaving ? "Đang lưu..." : isEditMode ? "Cập nhật" : "Lưu tòa nhà"}
+                    </button>
+                </div>
             </div>
 
             {errorMessage && <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600">{errorMessage}</div>}
 
-            <div className="rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm">
-                <div className="mb-6 flex items-center gap-3 border-b border-gray-100 pb-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 text-white"><Building2 className="h-5 w-5" /></div>
-                    <div>
-                        <h2 className="font-black text-gray-900">Thông tin tòa nhà</h2>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                    <div>
-                        <label className={labelClass}>Tên tòa nhà</label>
-                        <input className={`${inputClass} ${errors.name ? inputErrorClass : ""}`} value={form.name} aria-invalid={!!errors.name} onChange={(event) => updateForm("name", event.target.value)} />
-                        <FieldError message={errors.name} />
-                    </div>
-                    <div className="lg:col-span-2">
-                        <label className={labelClass}>Địa chỉ</label>
-                        <textarea className={`${inputClass} min-h-24 ${errors.address ? inputErrorClass : ""}`} value={form.address} aria-invalid={!!errors.address} onChange={(event) => updateForm("address", event.target.value)} />
-                        <FieldError message={errors.address} />
-                    </div>
-                    <div>
-                        <label className={labelClass}>Khu vực</label>
-                        <AdminSelect value={form.region_id} options={regionOptions} invalid={!!errors.region_id} onChange={(nextValue) => updateForm("region_id", String(nextValue))} />
-                        <FieldError message={errors.region_id} />
-                    </div>
-                    <div>
-                        <label className={labelClass}>Người quản lý</label>
-                        <AdminSelect value={form.manager_admin_id} options={managerOptions} invalid={!!errors.manager_admin_id} onChange={(nextValue) => updateForm("manager_admin_id", String(nextValue))} />
-                        <FieldError message={errors.manager_admin_id} />
-                    </div>
-                    <div>
-                        <label className={labelClass}>Tổng số tầng</label>
-                        <input type="number" min="1" max="1000" className={`${inputClass} ${errors.total_floors ? inputErrorClass : ""}`} value={form.total_floors} aria-invalid={!!errors.total_floors} onChange={(event) => updateForm("total_floors", Number(event.target.value))} />
-                        <FieldError message={errors.total_floors} />
-                    </div>
-                    <div>
-                        <label className={labelClass}>Trạng thái</label>
-                        <AdminSelect value={form.status} options={buildingStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm("status", Number(nextValue))} />
-                        <FieldError message={errors.status} />
-                    </div>
-                    <div>
-                        <label className={labelClass}>Giới tính</label>
-                        <AdminSelect value={form.gender_policy} options={genderPolicyOptions} invalid={!!errors.gender_policy} onChange={(nextValue) => updateForm("gender_policy", Number(nextValue))} />
-                        <FieldError message={errors.gender_policy} />
-                    </div>
-                    <div className="lg:col-span-2">
-                        <label className={labelClass}>Mô tả</label>
-                        <textarea className={`${inputClass} min-h-28 ${errors.description ? inputErrorClass : ""}`} value={form.description} aria-invalid={!!errors.description} onChange={(event) => updateForm("description", event.target.value)} />
-                        <FieldError message={errors.description} />
-                    </div>
-                </div>
-
-                <div className="mt-6 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-5">
-                    <div className="mb-4 flex items-center justify-between gap-4">
-                        <div>
-                            <label className={labelClass}>Ảnh tòa nhà</label>
-                            <p className="text-xs font-semibold text-gray-400">Tải tối đa 20 ảnh, định dạng JPG/PNG/WEBP, mỗi ảnh tối đa 10MB.</p>
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+                <div className="space-y-6">
+                    <section className={cardClass}>
+                        <CardHeader icon={Building2} title="Thông tin tòa nhà" description="Thông tin nhận diện, khu vực, quản lý và trạng thái vận hành." />
+                        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                            <TextField label="Tên tòa nhà" value={form.name} error={errors.name} onChange={(value) => updateForm("name", value)} />
+                            <RegionTreePicker
+                                regions={activeRegions}
+                                rootRegions={rootRegions}
+                                selectedRegion={selectedRegion}
+                                selectedRegionId={form.region_id}
+                                expandedRegionIds={expandedRegionIds}
+                                filteredRegionIds={filteredRegionIds}
+                                keyword={regionKeyword}
+                                isOpen={isRegionPickerOpen}
+                                error={errors.region_id}
+                                onKeywordChange={setRegionKeyword}
+                                onToggleOpen={() => setIsRegionPickerOpen((current) => !current)}
+                                onToggleRegion={toggleRegionExpansion}
+                                onSelect={selectRegion}
+                            />
+                            <div className="lg:col-span-2">
+                                <label className={labelClass}>Địa chỉ</label>
+                                <textarea className={`${inputClass} min-h-24 ${errors.address ? inputErrorClass : ""}`} value={form.address} aria-invalid={!!errors.address} onChange={(event) => updateForm("address", event.target.value)} />
+                                <FieldError message={errors.address} />
+                            </div>
+                            <div>
+                                <label className={labelClass}>Người quản lý</label>
+                                <AdminSelect value={form.manager_admin_id} options={managerOptions} invalid={!!errors.manager_admin_id} onChange={(nextValue) => updateForm("manager_admin_id", String(nextValue))} />
+                                <FieldError message={errors.manager_admin_id} />
+                            </div>
+                            <TextField label="Tổng số tầng" type="number" value={form.total_floors} error={errors.total_floors} onChange={(value) => updateForm("total_floors", Number(value))} />
+                            <div><label className={labelClass}>Trạng thái</label><AdminSelect value={form.status} options={buildingStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm("status", Number(nextValue))} /><FieldError message={errors.status} /></div>
+                            <div><label className={labelClass}>Giới tính</label><AdminSelect value={form.gender_policy} options={genderPolicyOptions} invalid={!!errors.gender_policy} onChange={(nextValue) => updateForm("gender_policy", Number(nextValue))} /><FieldError message={errors.gender_policy} /></div>
+                            <div className="lg:col-span-2"><label className={labelClass}>Mô tả</label><textarea className={`${inputClass} min-h-28 ${errors.description ? inputErrorClass : ""}`} value={form.description} aria-invalid={!!errors.description} onChange={(event) => updateForm("description", event.target.value)} /><FieldError message={errors.description} /></div>
                         </div>
-                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-gray-800">
-                            <ImagePlus className="h-4 w-4 text-white" />
-                            Chọn ảnh
-                            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => updateImages(event.target.files)} />
-                        </label>
-                    </div>
-                    <FieldError message={errors.images} />
-                    {visibleExistingImages.length > 0 && imagePreviewUrls.length > 0 && <p className="mt-2 px-1 text-xs font-bold text-gray-400">Ảnh mới sẽ được thêm sau ảnh hiện tại. Nếu muốn đặt ảnh mới làm ảnh chính, hãy xóa ảnh chính hiện tại trước.</p>}
+                    </section>
 
-                    {(visibleExistingImages.length > 0 || imagePreviewUrls.length > 0) && (
+                    <section className={cardClass}>
+                        <CardHeader icon={ImagePlus} title="Hình ảnh tòa nhà" description="Tải tối đa 20 ảnh, chọn ảnh chính để hiển thị ngoài danh sách." action={<label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-gray-800"><ImagePlus className="h-4 w-4 text-white" /> Chọn ảnh<input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => updateImages(event.target.files)} /></label>} />
+                        <FieldError message={errors.images} />
+                        {visibleExistingImages.length > 0 && imagePreviewUrls.length > 0 && <p className="mt-2 px-1 text-xs font-bold text-gray-400">Ảnh mới sẽ được thêm sau ảnh hiện tại. Nếu muốn đặt ảnh mới làm ảnh chính, hãy xóa ảnh chính hiện tại trước.</p>}
                         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                            {visibleExistingImages.map((image) => (
-                                <div key={image.id} className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                                    <img src={image.image_url || stayHubImage} alt="Ảnh hiện tại" onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-32 w-full object-cover" />
-                                    <div className="absolute left-2 top-2 flex gap-1">
-                                        <button type="button" onClick={() => chooseExistingPrimary(image.id)} className={`rounded-full px-2 py-1 text-[10px] font-black text-white ${primaryImageId === image.id ? "bg-amber-500" : "bg-black/60"}`}>
-                                            <Star className="mr-1 inline h-3 w-3" /> Chính
-                                        </button>
-                                    </div>
-                                    <button type="button" onClick={() => removeExistingImage(image)} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-rose-600">
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                            ))}
-                            {imagePreviewUrls.map((url, index) => (
-                                <div key={url} className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                                    <img src={url} alt={`Ảnh mới ${index + 1}`} className="h-32 w-full object-cover" />
-                                    <button type="button" onClick={() => chooseNewPrimary(index)} disabled={visibleExistingImages.length > 0} className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70 ${primaryNewImageIndex === index ? "bg-amber-500" : "bg-blue-600"}`}>
-                                        <Star className="mr-1 inline h-3 w-3" /> {primaryNewImageIndex === index ? "Chính" : "Mới"}
-                                    </button>
-                                    <button type="button" onClick={() => removeNewImage(index)} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-rose-600">
-                                        <X className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                            ))}
+                            {visibleExistingImages.map((image) => <ImageCard key={image.id} src={image.image_url || stayHubImage} isPrimary={primaryImageId === image.id} onPrimary={() => { setPrimaryImageId(image.id); setPrimaryNewImageIndex(null); }} onRemove={() => removeExistingImage(image)} />)}
+                            {imagePreviewUrls.map((url, index) => <ImageCard key={url} src={url} isPrimary={primaryNewImageIndex === index} disabledPrimary={visibleExistingImages.length > 0} primaryLabel={primaryNewImageIndex === index ? "Chính" : "Mới"} onPrimary={() => { if (visibleExistingImages.length === 0) { setPrimaryImageId(null); setPrimaryNewImageIndex(index); } }} onRemove={() => removeNewImage(index)} removeIcon="x" />)}
+                            {visibleExistingImages.length === 0 && imagePreviewUrls.length === 0 && <div className="col-span-full rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center text-sm font-bold text-gray-400">Chưa có ảnh tòa nhà.</div>}
                         </div>
-                    )}
+                    </section>
                 </div>
 
-                <div className="mt-8 flex flex-col gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:items-center sm:justify-end">
-                    <Link to="/admin/facilities" className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-6 py-3 text-sm font-black uppercase tracking-widest text-gray-500 transition hover:bg-gray-50 hover:text-gray-900">
-                        Hủy
-                    </Link>
-                    <button onClick={submit} disabled={isSaving || isLoading} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#333333] px-6 py-3 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-black/10 transition hover:bg-gray-800 disabled:opacity-50">
-                        <Save className="h-4 w-4 text-white stroke-[2.8]" />
-                        <span className="font-black text-white">{isSaving ? "Đang lưu..." : isEditMode ? "Cập nhật tòa nhà" : "Lưu tòa nhà"}</span>
-                    </button>
-                </div>
+                <aside className="space-y-6">
+                    <ConfigCard icon={Boxes} title="Loại phòng" count={form.room_types.length} isOpen={openConfigCards.room_types} error={errors.room_types} onToggle={() => setOpenConfigCards((current) => ({ ...current, room_types: !current.room_types }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, room_types: true })); setOpenCreateForms((current) => ({ ...current, room_types: !current.room_types })); }} addLabel={openCreateForms.room_types ? "Đóng" : "Tạo mới"}>
+                        <SelectionBlock title="Chọn loại phòng có sẵn" emptyText="Chưa có loại phòng mẫu để chọn.">
+                            {roomTypeOptions.map((item) => <CheckboxOption key={item.id} checked={findRoomTypeIndex(item) >= 0} title={item.name} onChange={() => toggleRoomType(item)} />)}
+                        </SelectionBlock>
+                        {openCreateForms.room_types && <QuickPanel actionLabel={isCreatingRoomType ? "Đang tạo" : "Tạo loại"} disabled={isCreatingRoomType || !quickRoomType.name.trim()} onAction={createQuickRoomType}><TextField label="Tên loại phòng" value={quickRoomType.name} onChange={(value) => setQuickRoomType((current) => ({ ...current, name: value }))} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={quickRoomType.status} options={activeStatusOptions} onChange={(value) => setQuickRoomType((current) => ({ ...current, status: Number(value) }))} /></div><TextField label="Mô tả" value={quickRoomType.description} onChange={(value) => setQuickRoomType((current) => ({ ...current, description: value }))} /></QuickPanel>}
+                        {form.room_types.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-room-${item.source_id}`} title={item.name} description="" onRemove={() => removeRow("room_types", index)} /> : <RowShell key={item.id || `room-${index}`} title={item.name || `Loại phòng ${index + 1}`} disabledRemove={!!item.rooms_count} onRemove={() => removeRow("room_types", index)}><TextField label="Tên loại phòng" value={item.name} onChange={(value) => updateRow("room_types", index, "name", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={activeStatusOptions} onChange={(value) => updateRow("room_types", index, "status", Number(value))} /></div><TextField label="Mô tả" value={item.description} onChange={(value) => updateRow("room_types", index, "description", value)} /></RowShell>) }
+                    </ConfigCard>
+
+                    <ConfigCard icon={Boxes} title="Mẫu tài sản" count={form.asset_templates.length} isOpen={openConfigCards.asset_templates} error={errors.asset_templates} onToggle={() => setOpenConfigCards((current) => ({ ...current, asset_templates: !current.asset_templates }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, asset_templates: true })); setOpenCreateForms((current) => ({ ...current, asset_templates: !current.asset_templates })); }} addLabel={openCreateForms.asset_templates ? "Đóng" : "Tạo mới"}>
+                        <SelectionBlock title="Chọn mẫu tài sản có sẵn" emptyText="Chưa có mẫu tài sản dùng chung.">
+                            {assetTemplateOptions.map((item) => <CheckboxOption key={item.id} checked={findAssetTemplateIndex(item) >= 0} title={item.name} onChange={() => toggleAssetTemplate(item)} />)}
+                        </SelectionBlock>
+                        {openCreateForms.asset_templates && <QuickPanel actionLabel={isCreatingAssetTemplate ? "Đang tạo" : "Tạo mẫu"} disabled={isCreatingAssetTemplate || !quickAssetTemplate.name.trim()} onAction={createQuickAssetTemplate}><TextField label="Tên mẫu" value={quickAssetTemplate.name} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, name: value }))} /><div className="grid grid-cols-2 gap-3"><div><label className={labelClass}>Đơn vị</label><AdminSelect value={quickAssetTemplate.default_unit_name} options={assetUnitOptions} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, default_unit_name: Number(value) }))} /></div><div><label className={labelClass}>Trạng thái</label><AdminSelect value={quickAssetTemplate.status} options={activeStatusOptions} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, status: Number(value) }))} /></div></div><TextField label="Mô tả" value={quickAssetTemplate.description} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, description: value }))} /></QuickPanel>}
+                        {form.asset_templates.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-asset-${item.source_id}`} title={item.name} description="" onRemove={() => removeRow("asset_templates", index)} /> : <RowShell key={item.id || `asset-${index}`} title={item.name || `Mẫu tài sản ${index + 1}`} disabledRemove={!!item.room_assets_count} onRemove={() => removeRow("asset_templates", index)}><TextField label="Tên mẫu" value={item.name} onChange={(value) => updateRow("asset_templates", index, "name", value)} /><div className="grid grid-cols-2 gap-3"><div><label className={labelClass}>Đơn vị</label><AdminSelect value={item.default_unit_name} options={assetUnitOptions} onChange={(value) => updateRow("asset_templates", index, "default_unit_name", Number(value))} /></div><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={activeStatusOptions} onChange={(value) => updateRow("asset_templates", index, "status", Number(value))} /></div></div><TextField label="Mô tả" value={item.description} onChange={(value) => updateRow("asset_templates", index, "description", value)} /></RowShell>)}
+                    </ConfigCard>
+
+                    <ConfigCard icon={Zap} title="Bảng giá dịch vụ" count={form.service_prices.length} isOpen={openConfigCards.service_prices} error={errors.service_prices} onToggle={() => setOpenConfigCards((current) => ({ ...current, service_prices: !current.service_prices }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, service_prices: true })); setOpenCreateForms((current) => ({ ...current, service_prices: !current.service_prices })); }} addLabel={openCreateForms.service_prices ? "Đóng" : "Tạo mới"}>
+                        <SelectionBlock title="Chọn dịch vụ có sẵn" emptyText="Chưa có dịch vụ đang hoạt động.">
+                            {serviceOptions.map((service) => <CheckboxOption key={service.id} checked={findServicePriceIndex(service) >= 0} title={service.name} onChange={() => toggleService(service)} />)}
+                        </SelectionBlock>
+                        {openCreateForms.service_prices && <QuickPanel actionLabel={isCreatingService ? "Đang tạo" : "Tạo dịch vụ"} disabled={isCreatingService || !quickService.name.trim() || !quickService.service_code.trim()} onAction={createQuickService}><div className="grid grid-cols-2 gap-3"><TextField label="Mã" value={quickService.service_code} onChange={(value) => setQuickService((current) => ({ ...current, service_code: value }))} /><TextField label="Tên dịch vụ" value={quickService.name} onChange={(value) => setQuickService((current) => ({ ...current, name: value }))} /><div><label className={labelClass}>Loại</label><AdminSelect value={quickService.service_type} options={serviceTypeOptions} onChange={(value) => setQuickService((current) => ({ ...current, service_type: String(value) }))} /></div><div><label className={labelClass}>Tính phí</label><AdminSelect value={quickService.charge_method} options={chargeMethodOptions} onChange={(value) => setQuickService((current) => ({ ...current, charge_method: Number(value) }))} /></div></div></QuickPanel>}
+                        {form.service_prices.map((item, index) => <RowShell key={item.id || `service-${item.service_id}-${index}`} title={services.find((service) => service.id === Number(item.service_id))?.name || `Bảng giá ${index + 1}`} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" type="number" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div><div><ReadOnlyField label="Hiệu lực từ" value={formatDateForDisplay(item.effective_from || getTodayIsoDate())} /><p className="mt-2 px-1 text-[11px] font-semibold text-gray-400"></p></div></RowShell>)}
+                    </ConfigCard>
+
+                    <ConfigCard icon={Settings} title="Cài đặt" count={form.settings.length} isOpen={openConfigCards.settings} error={errors.settings} onToggle={() => setOpenConfigCards((current) => ({ ...current, settings: !current.settings }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, settings: true })); setOpenCreateForms((current) => ({ ...current, settings: !current.settings })); }} addLabel={openCreateForms.settings ? "Đóng" : "Tạo mới"}>
+                        <SelectionBlock title="Chọn cài đặt có sẵn" emptyText="Chưa có cài đặt dùng chung.">
+                            {settingOptions.map((item) => <CheckboxOption key={item.id} checked={findSettingIndex(item) >= 0} title={item.setting_label} onChange={() => toggleSetting(item)} />)}
+                        </SelectionBlock>
+                        {openCreateForms.settings && <QuickPanel actionLabel={isCreatingSetting ? "Đang tạo" : "Tạo cài đặt"} disabled={isCreatingSetting || !quickSetting.setting_label.trim() || !quickSetting.setting_name.trim()} onAction={createQuickSetting}><TextField label="Tên hiển thị" value={quickSetting.setting_label} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_label: value }))} /><TextField label="Khóa" value={quickSetting.setting_name} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_name: value }))} /><TextField label="Giá trị" value={quickSetting.setting_value} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_value: value }))} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={quickSetting.is_public} onChange={(event) => setQuickSetting((current) => ({ ...current, is_public: event.target.checked }))} /> Công khai</label></QuickPanel>}
+                        {form.settings.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-setting-${item.source_id}`} title={item.setting_label} description={`${item.setting_name} `} onRemove={() => removeRow("settings", index)} /> : <RowShell key={item.id || `setting-${index}`} title={item.setting_label || `Cài đặt ${index + 1}`} onRemove={() => removeRow("settings", index)}><TextField label="Tên hiển thị" value={item.setting_label} onChange={(value) => updateRow("settings", index, "setting_label", value)} /><TextField label="Khóa" value={item.setting_name} onChange={(value) => updateRow("settings", index, "setting_name", value)} /><TextField label="Giá trị" value={item.setting_value} onChange={(value) => updateRow("settings", index, "setting_value", value)} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={item.is_public} onChange={(event) => updateRow("settings", index, "is_public", event.target.checked)} /> Công khai</label></RowShell>)}
+                    </ConfigCard>
+                </aside>
             </div>
         </div>
     );
+}
+
+function RegionTreePicker({
+    regions,
+    rootRegions,
+    selectedRegion,
+    selectedRegionId,
+    expandedRegionIds,
+    filteredRegionIds,
+    keyword,
+    isOpen,
+    error,
+    onKeywordChange,
+    onToggleOpen,
+    onToggleRegion,
+    onSelect,
+}: {
+    regions: AdminRegionResource[];
+    rootRegions: AdminRegionResource[];
+    selectedRegion?: AdminRegionResource;
+    selectedRegionId: string;
+    expandedRegionIds: number[];
+    filteredRegionIds: Set<number>;
+    keyword: string;
+    isOpen: boolean;
+    error?: string;
+    onKeywordChange: (value: string) => void;
+    onToggleOpen: () => void;
+    onToggleRegion: (regionId: number) => void;
+    onSelect: (region: AdminRegionResource) => void;
+}) {
+    const isSearching = keyword.trim() !== "";
+    const renderRegionNode = (region: AdminRegionResource, depth = 0): ReactNode => {
+        const children = regions
+            .filter((item) => item.parent_id === region.id && filteredRegionIds.has(item.id))
+            .sort((first, second) => first.sort_order - second.sort_order || first.name.localeCompare(second.name));
+        const isExpanded = isSearching || expandedRegionIds.includes(region.id);
+        const isSelected = Number(selectedRegionId) === region.id;
+
+        return (
+            <div key={region.id} className="space-y-1">
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => onToggleRegion(region.id)}
+                        disabled={children.length === 0}
+                        aria-label={`${isExpanded ? "Thu gọn" : "Mở rộng"} khu vực ${region.name}`}
+                        aria-expanded={children.length > 0 ? isExpanded : undefined}
+                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1]/80 text-[#8b5e34] transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 ${children.length > 0 ? "hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]" : "cursor-default opacity-35"}`}
+                    >
+                        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isExpanded && children.length > 0 ? "rotate-90" : ""}`} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onSelect(region)}
+                        className={`flex min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-sm transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 ${isSelected ? "border-[#f3c56b]/35 bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" : "border-[#3d2a18]/10 bg-[#fffaf1]/80 text-[#6f6254] hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]"}`}
+                        style={{ paddingLeft: 12 + depth * 16 }}
+                        aria-pressed={isSelected}
+                    >
+                        <span className="flex min-w-0 flex-1 items-center gap-2">
+                            <MapPin className={`h-4 w-4 shrink-0 ${isSelected ? "text-[#f3c56b]" : "text-[#a65f16]"}`} />
+                            <span className="min-w-0 flex-1 truncate font-black tracking-tight">{region.name}</span>
+                        </span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${isSelected ? "bg-white/15 text-[#fff4df]" : "bg-[#efe2cf]/80 text-[#8b5e34]"}`}>{region.code}</span>
+                    </button>
+                </div>
+                {isExpanded && children.length > 0 && <div className="space-y-1 border-l border-dashed border-[#f3c56b]/55 pl-2">{children.map((child) => renderRegionNode(child, depth + 1))}</div>}
+            </div>
+        );
+    };
+
+    return (
+        <div className="relative">
+            <label className={labelClass}>Khu vực</label>
+            <button
+                type="button"
+                onClick={onToggleOpen}
+                className={`${inputClass} flex min-h-12.5 items-center justify-between gap-3 text-left ${error ? inputErrorClass : ""}`}
+                aria-expanded={isOpen}
+                aria-invalid={!!error}
+            >
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                    <MapPin className="h-4 w-4 shrink-0 text-[#a65f16]" />
+                    <span className={`truncate ${selectedRegion ? "text-gray-900" : "text-gray-400"}`}>{selectedRegion ? selectedRegion.name : "Chọn khu vực"}</span>
+                </span>
+                <ChevronRight className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+            </button>
+            {isOpen && (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-3xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 shadow-2xl shadow-[#6b3f1d]/18">
+                    <div className="relative mb-3">
+                        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
+                        <input
+                            type="text"
+                            value={keyword}
+                            onChange={(event) => onKeywordChange(event.target.value)}
+                            placeholder="Tìm mã, tên, đường dẫn khu vực..."
+                            className="h-11 w-full rounded-2xl border border-[#3d2a18]/10 bg-white pl-10 pr-3 text-sm font-bold text-[#3d2a18] shadow-sm outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
+                        {rootRegions.length > 0 ? rootRegions.map((region) => renderRegionNode(region)) : <p className="rounded-2xl border border-dashed border-[#3d2a18]/10 bg-white/70 p-4 text-center text-xs font-bold text-[#8b5e34]/65">Không tìm thấy khu vực phù hợp.</p>}
+                    </div>
+                </div>
+            )}
+            <FieldError message={error} />
+        </div>
+    );
+}
+
+function CardHeader({ icon: Icon, title, description, action }: { icon: ElementType; title: string; description: string; action?: ReactNode }) {
+    return <div className="mb-6 flex items-start justify-between gap-4 border-b border-gray-100 pb-4"><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 text-white"><Icon className="h-5 w-5" /></div><div><h2 className="font-black text-gray-900">{title}</h2><p className="mt-1 text-xs font-semibold text-gray-400">{description}</p></div></div>{action}</div>;
+}
+
+function ConfigCard({ icon: Icon, title, children, onAdd, addLabel, error, count, isOpen, onToggle }: { icon: ElementType; title: string; children: ReactNode; onAdd: () => void; addLabel: string; error?: string; count: number; isOpen: boolean; onToggle: () => void }) {
+    return <section className="rounded-4xl border border-gray-100 bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-gray-900"><Icon className="h-4 w-4" /></div><span className="min-w-0"><span className="block truncate font-black text-gray-900">{title}</span><span className="mt-0.5 block text-[11px] font-bold text-gray-400">Đã chọn {count} mục</span></span></button><div className="flex shrink-0 items-center gap-2"><button type="button" onClick={onAdd} className="inline-flex items-center gap-1 rounded-2xl bg-gray-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white"><Plus className="h-3 w-3" /> {addLabel}</button><button type="button" onClick={onToggle} className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-gray-100 bg-gray-50 text-gray-500 transition hover:border-gray-300 hover:bg-white hover:text-gray-900" aria-label={`${isOpen ? "Thu gọn" : "Mở rộng"} ${title}`} aria-expanded={isOpen}><ChevronRight className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`} /></button></div></div><FieldError message={error} />{isOpen && <div className="mt-4 space-y-3">{children}</div>}</section>;
+}
+
+function mergeRoomTypeOptions(catalog: AdminRoomTypeResource[], selectedRows: BuildingRoomTypeFormRow[]) {
+    const selectedOptions = selectedRows
+        .filter((row) => row.id && row.source_id)
+        .map((row) => ({
+            id: row.source_id!,
+            name: row.name,
+            description: row.description,
+            status: row.status,
+            rooms_count: row.rooms_count,
+        } as AdminRoomTypeResource));
+
+    return mergeOptionsById(catalog, selectedOptions);
+}
+
+function mergeAssetTemplateOptions(catalog: AdminAssetTemplateResource[], selectedRows: BuildingAssetTemplateFormRow[]) {
+    const selectedOptions = selectedRows
+        .filter((row) => row.id && row.source_id)
+        .map((row) => ({
+            id: row.source_id!,
+            name: row.name,
+            default_unit_name: row.default_unit_name,
+            description: row.description,
+            status: row.status,
+            room_assets_count: row.room_assets_count,
+        } as AdminAssetTemplateResource));
+
+    return mergeOptionsById(catalog, selectedOptions);
+}
+
+function mergeServiceOptions(catalog: AdminServiceResource[], selectedRows: BuildingServicePriceFormRow[]) {
+    const selectedOptions = selectedRows
+        .filter((row) => row.service_id)
+        .map((row) => ({
+            id: Number(row.service_id),
+            service_code: "",
+            name: row.service_name || `Dịch vụ #${row.service_id}`,
+            service_type: "khac",
+            charge_method: 5,
+            is_required: false,
+            is_active: true,
+        } as AdminServiceResource));
+
+    return mergeOptionsById(catalog, selectedOptions);
+}
+
+function mergeSettingOptions(catalog: AdminSettingResource[], selectedRows: BuildingSettingFormRow[]) {
+    const selectedOptions = selectedRows
+        .filter((row) => row.id && row.source_id)
+        .map((row) => ({
+            id: row.source_id!,
+            setting_label: row.setting_label,
+            setting_name: row.setting_name,
+            setting_value: row.setting_value,
+            description: row.description,
+            is_public: row.is_public,
+        } as AdminSettingResource));
+
+    return mergeOptionsById(catalog, selectedOptions);
+}
+
+function mergeOptionsById<T extends { id: number }>(catalog: T[], selectedOptions: T[]) {
+    const selectedIds = new Set(selectedOptions.map((item) => item.id));
+    return [...selectedOptions, ...catalog.filter((item) => !selectedIds.has(item.id))];
+}
+
+function SelectionBlock({ title, emptyText, children }: { title: string; emptyText: string; children: ReactNode }) {
+    const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children);
+
+    return <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50/70 p-4"><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">{title}</p><div className="max-h-60 space-y-2 overflow-y-auto pr-1">{hasChildren ? children : <p className="text-xs font-bold text-gray-400">{emptyText}</p>}</div></div>;
+}
+
+function CheckboxOption({ checked, title, description, onChange }: { checked: boolean; title: string; description?: string; onChange: () => void }) {
+    return <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 transition ${checked ? "border-gray-900 bg-white shadow-sm" : "border-gray-100 bg-white/70 hover:border-gray-300"}`}><input type="checkbox" checked={checked} onChange={onChange} className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-gray-900">{title}</span>{description && <span className="mt-0.5 block truncate text-[11px] font-semibold text-gray-400">{description}</span>}</span></label>;
+}
+
+function QuickPanel({ children, actionLabel, disabled, onAction }: { children: ReactNode; actionLabel: string; disabled: boolean; onAction: () => void }) {
+    return <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4"><div className="space-y-3">{children}</div><button type="button" onClick={onAction} disabled={disabled} className="mt-3 w-full rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-blue-700 disabled:opacity-50">{actionLabel}</button></div>;
+}
+
+function SelectedTemplateRow({ title, description, onRemove }: { title: string; description: string; onRemove: () => void }) {
+    return <div className="flex items-center justify-between gap-3 rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4"><div className="min-w-0"><p className="truncate text-xs font-black text-gray-900">{title}</p><p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700">{description}</p></div><button type="button" onClick={onRemove} className="rounded-full p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button></div>;
+}
+
+function RowShell({ title, children, onRemove, disabledRemove = false }: { title: string; children: ReactNode; onRemove: () => void; disabledRemove?: boolean }) {
+    return <div className="rounded-3xl border border-gray-100 bg-gray-50/70 p-4"><div className="mb-3 flex items-center justify-between gap-3"><p className="text-xs font-black text-gray-900">{title}</p><button type="button" disabled={disabledRemove} onClick={onRemove} className="rounded-full p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-4 w-4" /></button></div><div className="space-y-3">{children}</div></div>;
+}
+
+function TextField({ label, value, onChange, error, type = "text", placeholder }: { label: string; value: string | number; onChange: (value: string) => void; error?: string; type?: string; placeholder?: string }) {
+    return <div><label className={labelClass}>{label}</label><input type={type} placeholder={placeholder} className={`${inputClass} ${error ? inputErrorClass : ""}`} value={value} aria-invalid={!!error} onChange={(event) => onChange(event.target.value)} /><FieldError message={error} /></div>;
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+    return <div><label className={labelClass}>{label}</label><div className={`${inputClass} bg-gray-50 text-gray-500`}>{value}</div></div>;
+}
+
+function ImageCard({ src, isPrimary, onPrimary, onRemove, disabledPrimary = false, primaryLabel = "Chính", removeIcon = "trash" }: { src: string; isPrimary: boolean; onPrimary: () => void; onRemove: () => void; disabledPrimary?: boolean; primaryLabel?: string; removeIcon?: "trash" | "x" }) {
+    return <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white"><img src={src || stayHubImage} alt="Ảnh tòa nhà" onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-32 w-full object-cover" /><button type="button" onClick={onPrimary} disabled={disabledPrimary} className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70 ${isPrimary ? "bg-amber-500" : "bg-black/60"}`}><Star className="mr-1 inline h-3 w-3" /> {primaryLabel}</button><button type="button" onClick={onRemove} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-rose-600">{removeIcon === "x" ? <X className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}</button></div>;
 }

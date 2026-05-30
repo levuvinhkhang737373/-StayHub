@@ -85,6 +85,10 @@ export function CreateRegionScreen() {
         void loadRegionForm();
     }, [editingRegionId, isEditing, isSuperAdmin]);
 
+    if (!session?.admin) {
+        return <Navigate to="/admin/login" replace />;
+    }
+
     if (!isSuperAdmin) {
         return <Navigate to="/admin/facilities" replace />;
     }
@@ -154,12 +158,8 @@ export function CreateRegionScreen() {
                                         <MapPin className="h-3.5 w-3.5" /> Khu vực StayHub
                                     </div>
                                     <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-3xl lg:text-4xl">{isEditing ? "Sửa khu vực" : "Thêm khu vực mới"}</h1>
-                                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-5 text-[#f8e8c8]/82">{isEditing ? "Cập nhật thông tin và trạng thái khu vực đang quản lý." : "Khai báo khu vực cấp 1 hoặc chọn khu vực cha để tạo khu vực cấp 2 phục vụ phân loại tòa nhà."}</p>
                                 </div>
-                                <div className="rounded-2xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 p-3 text-sm font-bold text-[#f8e8c8]/85">
-                                    <div className="flex items-center gap-2 text-[#fff4df]"><CheckCircle2 className="h-4 w-4 text-[#f3c56b]" /> Trường bắt buộc</div>
-                                    <p className="mt-1 text-xs leading-5 text-[#f8e8c8]/70">Mã khu vực và tên khu vực cần duy nhất, rõ ràng để dễ tìm kiếm và lọc dữ liệu.</p>
-                                </div>
+                               
                             </div>
                         </div>
                     </div>

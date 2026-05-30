@@ -308,23 +308,24 @@ class AuthController extends Controller
     {
         try {
             $admin = $request->user('admin');
-            if (! $admin) {
-                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+
+            if ($admin instanceof Admin) {
+                AdminActivityLogger::write(
+                    $admin,
+                    'logout',
+                    Admin::class,
+                    $admin->id,
+                    null,
+                    [
+                        'logout_at' => now(),
+                    ],
+                    $request
+                );
             }
 
-            AdminActivityLogger::write(
-                $admin,
-                'logout',
-                Admin::class,
-                $admin->id,
-                null,
-                [
-                    'logout_at' => now(),
-                ],
-                $request
-            );
-
+            // Luôn dọn sạch cả guard chuẩn và legacy admin_id để tránh khôi phục nhầm tài khoản.
             Auth::guard('admin')->logout();
+            $request->session()->forget([Auth::guard('admin')->getName(), 'admin_id']);
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
@@ -336,10 +337,10 @@ class AuthController extends Controller
 
     private function loginAdminSession(Request $request, Admin $admin): void
     {
+        // Dọn legacy admin_id trước khi đăng nhập để session chỉ còn Laravel admin guard chuẩn.
+        $request->session()->forget('admin_id');
         Auth::guard('admin')->login($admin);
         $request->session()->regenerate();
-        $request->session()->put(Auth::guard('admin')->getName(), $admin->getAuthIdentifier());
-        $request->session()->put('admin_id', $admin->getAuthIdentifier());
         $request->session()->save();
     }
 

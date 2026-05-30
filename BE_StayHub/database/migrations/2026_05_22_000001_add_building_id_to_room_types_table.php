@@ -21,7 +21,11 @@ return new class extends Migration
             $table->unique(['building_id', 'slug'], 'room_types_building_slug_unique');
         });
 
-        DB::statement('UPDATE room_types rt SET building_id = (SELECT r.building_id FROM rooms r WHERE r.room_type_id = rt.id ORDER BY r.id LIMIT 1) WHERE rt.building_id IS NULL');
+        DB::table('room_types')
+            ->whereNull('building_id')
+            ->update([
+                'building_id' => DB::raw('(SELECT rooms.building_id FROM rooms WHERE rooms.room_type_id = room_types.id ORDER BY rooms.id LIMIT 1)'),
+            ]);
     }
 
     public function down(): void

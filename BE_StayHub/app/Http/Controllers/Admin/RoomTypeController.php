@@ -232,7 +232,7 @@ class RoomTypeController extends Controller
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['name', 'building_id', 'default_price', 'description', 'status'];
+        $fields = ['name', 'building_id', 'description', 'status'];
 
         foreach ($fields as $field) {
             if (array_key_exists($field, $validated)) {
@@ -250,7 +250,7 @@ class RoomTypeController extends Controller
 
     private function columns(): array
     {
-        return ['id', 'name', 'slug', 'building_id', 'default_price', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'name', 'slug', 'building_id', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
     }
 
     private function listRelations(): array
@@ -286,9 +286,9 @@ class RoomTypeController extends Controller
                     ->orWhere('description', 'like', "%{$keyword}%");
             }))
             ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', $validated['building_id']))
+            ->when((bool) ($validated['only_global'] ?? false), fn (Builder $query): Builder => $query->whereNull('building_id'))
+            ->when((bool) ($validated['created_by_me'] ?? false), fn (Builder $query): Builder => $query->where('created_by', $admin->id))
             ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', $validated['status']))
-            ->when(isset($validated['min_price']), fn (Builder $query): Builder => $query->where('default_price', '>=', $validated['min_price']))
-            ->when(isset($validated['max_price']), fn (Builder $query): Builder => $query->where('default_price', '<=', $validated['max_price']))
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }

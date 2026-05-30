@@ -7,19 +7,14 @@ use App\Models\Admin;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureAdminRole
 {
     public function handle(Request $request, Closure $next, string ...$roles): Response|JsonResponse
     {
+        // Chỉ tin Laravel admin guard chuẩn, không dùng legacy admin_id để tránh khôi phục nhầm tài khoản.
         $admin = $request->user('admin');
-
-        if (! $admin) {
-            $adminId = $request->session()->get(Auth::guard('admin')->getName()) ?? $request->session()->get('admin_id');
-            $admin = $adminId ? Admin::query()->find($adminId) : null;
-        }
 
         if (! $admin || ! ($admin instanceof Admin)) {
             return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập với tài khoản admin', 401, null, 401);

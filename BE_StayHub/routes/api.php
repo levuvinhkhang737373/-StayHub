@@ -15,12 +15,13 @@ Route::prefix('admin')->group(function (): void {
 
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/face-login', [AuthController::class, 'faceLogin']);
+    // Logout luôn mở để dọn sạch session admin dù guard đang lệch trạng thái.
+    Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::middleware(['auth.admin'])->group(function (): void {
 
         //=========================Auth================================
         Route::get('/me', [AuthController::class, 'me']);
-        Route::post('/logout', [AuthController::class, 'logout']);
         Route::post('/face-id/register', [AuthController::class, 'registerFaceId']);
         Route::delete('/face-id', [AuthController::class, 'deleteFaceId']);
         Route::patch('/password', [AuthController::class, 'changePassword']);

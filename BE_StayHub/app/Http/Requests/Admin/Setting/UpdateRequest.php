@@ -23,7 +23,6 @@ class UpdateRequest extends FormRequest
             'setting_value' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string', 'max:500'],
             'is_public' => ['sometimes', 'required', 'boolean'],
-            'display_order' => ['sometimes', 'required', 'integer', 'min:0', 'max:999999'],
         ];
     }
 
@@ -45,10 +44,6 @@ class UpdateRequest extends FormRequest
             'description.max' => 'Mô tả cài đặt không được vượt quá 500 ký tự.',
             'is_public.required' => 'Trạng thái hiển thị của cài đặt là bắt buộc khi cập nhật.',
             'is_public.boolean' => 'Trạng thái hiển thị của cài đặt không hợp lệ.',
-            'display_order.required' => 'Thứ tự hiển thị là bắt buộc khi cập nhật.',
-            'display_order.integer' => 'Thứ tự hiển thị phải là số nguyên.',
-            'display_order.min' => 'Thứ tự hiển thị không được nhỏ hơn 0.',
-            'display_order.max' => 'Thứ tự hiển thị không được vượt quá 999999.',
         ];
     }
 

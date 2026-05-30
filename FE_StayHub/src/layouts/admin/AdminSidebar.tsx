@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { LogOut, User } from 'lucide-react'
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { logoutAdmin } from '../../features/admin/auth/services/admin-auth.service'
@@ -8,7 +7,6 @@ import { getAdminRoleLabel, getVisibleAdminNavItems } from '../../features/admin
 import { AccountSettingsModal } from './AccountSettingsModal'
 
 export function AdminSidebar() {
-  const navigate = useNavigate()
   const { clearSession, session } = useAdminSession()
   const adminName = session?.admin.full_name || 'Admin'
   const adminRole = getAdminRoleLabel(session?.admin.role)
@@ -26,7 +24,7 @@ export function AdminSidebar() {
       console.error('Admin logout failed', error)
     } finally {
       clearSession()
-      navigate('/admin/login', { replace: true })
+      window.location.replace('/admin/login')
       setIsLoggingOut(false)
     }
   }

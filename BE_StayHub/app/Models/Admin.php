@@ -60,6 +60,11 @@ class Admin extends Authenticatable
         return $this->hasMany(Region::class, 'created_by');
     }
 
+    public function createdTenants(): HasMany
+    {
+        return $this->hasMany(Tenant::class, 'created_by');
+    }
+
     public function managedBuildings(): HasMany
     {
         return $this->hasMany(Building::class, 'manager_admin_id');

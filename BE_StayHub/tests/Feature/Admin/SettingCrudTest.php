@@ -37,7 +37,6 @@ class SettingCrudTest extends TestCase
             'setting_value' => '23:00',
             'description' => 'Áp dụng toàn hệ thống',
             'is_public' => true,
-            'display_order' => 1,
         ]);
 
         $globalResponse->assertCreated()
@@ -52,7 +51,6 @@ class SettingCrudTest extends TestCase
             'setting_value' => '2000000',
             'description' => 'Áp dụng cho tòa A',
             'is_public' => false,
-            'display_order' => 2,
         ]);
 
         $createResponse->assertCreated()
@@ -76,12 +74,10 @@ class SettingCrudTest extends TestCase
             'setting_value' => '2500000',
             'description' => 'Đã cập nhật',
             'is_public' => true,
-            'display_order' => 5,
         ])->assertOk()
             ->assertJsonPath('result.setting_label', 'Tiền cọc cập nhật')
             ->assertJsonPath('result.setting_value', '2500000')
-            ->assertJsonPath('result.is_public', true)
-            ->assertJsonPath('result.display_order', 5);
+            ->assertJsonPath('result.is_public', true);
 
         $this->actingAs($admin, 'admin')->getJson("/api/admin/settings/{$settingId}")
             ->assertOk()
@@ -110,7 +106,6 @@ class SettingCrudTest extends TestCase
             'setting_name' => 'rules.main',
             'setting_value' => 'Không gây ồn sau 22h',
             'is_public' => true,
-            'display_order' => 1,
         ]);
 
         $createResponse->assertCreated()
@@ -136,7 +131,6 @@ class SettingCrudTest extends TestCase
             'setting_name' => 'rules.main',
             'setting_value' => 'Không gây ồn sau 23h',
             'is_public' => false,
-            'display_order' => 3,
         ])->assertOk()
             ->assertJsonPath('result.setting_label', 'Nội quy cập nhật')
             ->assertJsonPath('result.is_public', false);
@@ -265,7 +259,6 @@ class SettingCrudTest extends TestCase
             'setting_value' => 'Giá trị',
             'description' => 'Mô tả kiểm thử',
             'is_public' => true,
-            'display_order' => 1,
             'created_by' => $admin->id,
         ]);
     }

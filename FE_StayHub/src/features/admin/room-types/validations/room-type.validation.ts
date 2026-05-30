@@ -1,7 +1,6 @@
 export type RoomTypeFormValues = {
   name: string
   building_id: string
-  default_price: string
   description: string
   status: number
 }
@@ -16,7 +15,6 @@ interface RoomTypeValidationOptions {
 export function validateRoomTypeForm(form: RoomTypeFormValues, options: RoomTypeValidationOptions): RoomTypeFormErrors {
   const errors: RoomTypeFormErrors = {}
   const name = form.name.trim()
-  const price = Number(form.default_price)
   const description = form.description.trim()
   const buildingId = form.building_id ? Number(form.building_id) : undefined
 
@@ -32,11 +30,6 @@ export function validateRoomTypeForm(form: RoomTypeFormValues, options: RoomType
     errors.building_id = 'Tòa nhà của loại phòng không hợp lệ.'
   }
 
-  if (!form.default_price.trim()) {
-    errors.default_price = 'Vui lòng nhập giá mặc định.'
-  } else if (!Number.isFinite(price) || price < 0) {
-    errors.default_price = 'Giá mặc định phải là số lớn hơn hoặc bằng 0.'
-  }
 
   if (![1, 2].includes(Number(form.status))) {
     errors.status = 'Trạng thái loại phòng không hợp lệ.'

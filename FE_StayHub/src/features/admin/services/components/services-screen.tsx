@@ -630,6 +630,10 @@ function FieldError({ message }: { message?: string }) {
   return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
 }
 
-function formatCurrency(value: number | string | null | undefined) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value || 0))
+function formatCurrency(value: string | null | undefined) {
+  const [integerPart, decimalPart] = String(value || '0').split('.')
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  const decimalText = decimalPart && !/^0+$/.test(decimalPart) ? `,${decimalPart}` : ''
+
+  return `${formattedInteger}${decimalText} ₫`
 }

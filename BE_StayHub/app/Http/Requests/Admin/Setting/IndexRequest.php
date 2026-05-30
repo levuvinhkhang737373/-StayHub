@@ -19,6 +19,7 @@ class IndexRequest extends FormRequest
         return [
             'keyword' => ['nullable', 'string', 'max:255'],
             'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
+            'only_global' => ['nullable', 'boolean'],
             'is_public' => ['nullable', 'boolean'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
@@ -31,6 +32,7 @@ class IndexRequest extends FormRequest
             'keyword.max' => 'Từ khóa tìm kiếm cài đặt không được vượt quá 255 ký tự.',
             'building_id.integer' => 'Tòa nhà của cài đặt không hợp lệ.',
             'building_id.exists' => 'Tòa nhà của cài đặt không tồn tại.',
+            'only_global.boolean' => 'Bộ lọc cài đặt dùng chung không hợp lệ.',
             'is_public.boolean' => 'Trạng thái hiển thị của cài đặt không hợp lệ.',
             'per_page.integer' => 'Số dòng mỗi trang phải là số nguyên.',
             'per_page.min' => 'Số dòng mỗi trang phải lớn hơn hoặc bằng 1.',

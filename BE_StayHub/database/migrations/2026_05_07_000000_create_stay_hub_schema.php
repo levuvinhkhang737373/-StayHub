@@ -163,7 +163,6 @@ return new class extends Migration
             $table->id();
             $table->string('name', 150)->unique();
             $table->string('slug')->nullable()->unique();
-            $table->decimal('default_price', 15, 2);
             $table->text('description')->nullable();
             $table->unsignedTinyInteger('status')->default(1);
             $table->foreignId('created_by')->nullable()->constrained('admins')->nullOnDelete();
@@ -522,10 +521,9 @@ return new class extends Migration
             $table->string('setting_value', 500)->nullable();
             $table->string('description', 500)->nullable();
             $table->boolean('is_public')->default(true);
-            $table->unsignedInteger('display_order')->default(0);
             $table->foreignId('created_by')->constrained('admins')->restrictOnDelete();
             $table->timestamps();
-            $table->index(['building_id', 'is_public', 'display_order']);
+            $table->index(['building_id', 'is_public']);
         });
 
         Schema::create('admin_logs', function (Blueprint $table) {

@@ -129,9 +129,22 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                   <SectionTitle label="Dữ liệu liên quan" />
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <InfoStat label="Phòng" value={building?.rooms_count || 0} />
+                    <InfoStat label="Loại phòng" value={building?.room_types_count || 0} />
                     <InfoStat label="Mẫu tài sản" value={building?.asset_templates_count || 0} />
+                    <InfoStat label="Bảng giá" value={building?.service_prices_count || 0} />
+                    <InfoStat label="Cài đặt" value={building?.settings_count || 0} />
                     <InfoStat label="Thông báo" value={building?.notifications_count || 0} />
                     <InfoStat label="Chi phí" value={building?.expenses_count || 0} />
+                  </div>
+                </section>
+
+                <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/80 p-5 shadow-sm">
+                  <SectionTitle label="Cấu hình nền" />
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <PreviewGroup label="Loại phòng" items={building?.room_types?.map((item) => item.name) || []} />
+                    <PreviewGroup label="Mẫu tài sản" items={building?.asset_templates?.map((item) => item.name) || []} />
+                    <PreviewGroup label="Bảng giá" items={building?.service_prices?.map((item) => `${item.service_name || item.service?.name || 'Dịch vụ'} · ${formatMoneyText(item.price)}đ`) || []} />
+                    <PreviewGroup label="Cài đặt" items={building?.settings?.map((item) => `${item.setting_label}: ${item.setting_value || '—'}`) || []} />
                   </div>
                 </section>
 
@@ -197,4 +210,30 @@ function InfoStat({ label, value }: { label: string; value: number }) {
       <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-stone-400">{label}</p>
     </div>
   )
+}
+
+function PreviewGroup({ label, items }: { label: string; items: string[] }) {
+  const previewItems = items.slice(0, 3)
+
+  return (
+    <div className="rounded-2xl border border-stone-100 bg-stone-50/70 p-4">
+      <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">{label}</p>
+      <div className="mt-3 space-y-2">
+        {previewItems.map((item) => (
+          <p key={item} className="truncate text-xs font-black text-stone-700">{item}</p>
+        ))}
+        {previewItems.length === 0 && <p className="text-xs font-semibold text-stone-400">Chưa có dữ liệu.</p>}
+        {items.length > 3 && <p className="text-[10px] font-black text-amber-700">+{items.length - 3} mục khác</p>}
+      </div>
+    </div>
+  )
+}
+
+function formatMoneyText(value: string | null | undefined) {
+  const [integerPart, decimalPart] = String(value || '0').split('.')
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+
+  if (!decimalPart || /^0+$/.test(decimalPart)) return formattedInteger
+
+  return `${formattedInteger},${decimalPart}`
 }

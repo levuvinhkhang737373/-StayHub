@@ -20,12 +20,29 @@ function buildQuery(params: Record<string, string | number | boolean | null | un
   return queryString ? `?${queryString}` : ''
 }
 
+function normalizeFormValue(value: string | number | boolean) {
+  if (typeof value === 'boolean') return value ? '1' : '0'
+  return String(value)
+}
+
 function appendArray(formData: FormData, key: string, values: Array<string | number | boolean>) {
-  values.forEach((value) => formData.append(`${key}[]`, String(value)))
+  values.forEach((value) => formData.append(`${key}[]`, normalizeFormValue(value)))
+}
+
+function appendObjectArray(formData: FormData, key: string, values: Array<Record<string, unknown>>) {
+  values.forEach((item, index) => {
+    Object.entries(item).forEach(([itemKey, itemValue]) => {
+      if (itemValue === undefined || itemValue === null || itemValue === '') return
+      if (!['string', 'number', 'boolean'].includes(typeof itemValue)) return
+      formData.append(`${key}[${index}][${itemKey}]`, normalizeFormValue(itemValue as string | number | boolean))
+    })
+  })
 }
 
 function buildBuildingFormData(payload: AdminBuildingPayload) {
   const formData = new FormData()
+  const nestedObjectKeys = new Set(['image_metadata', 'room_types', 'asset_templates', 'service_prices', 'settings'])
+  const idArrayKeys = new Set(['delete_image_ids', 'room_type_ids', 'delete_room_type_ids', 'asset_template_ids', 'delete_asset_template_ids', 'delete_service_price_ids', 'setting_ids', 'delete_setting_ids'])
 
   Object.entries(payload).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return
@@ -35,22 +52,18 @@ function buildBuildingFormData(payload: AdminBuildingPayload) {
       return
     }
 
-    if (key === 'image_metadata' && Array.isArray(value)) {
-      value.forEach((metadata, index) => {
-        Object.entries(metadata).forEach(([metadataKey, metadataValue]) => {
-          if (metadataValue === undefined || metadataValue === null || metadataValue === '') return
-          formData.append(`image_metadata[${index}][${metadataKey}]`, String(metadataValue))
-        })
-      })
+    if (nestedObjectKeys.has(key) && Array.isArray(value)) {
+      appendObjectArray(formData, key, value as Array<Record<string, unknown>>)
       return
     }
 
-    if (key === 'delete_image_ids' && Array.isArray(value)) {
-      appendArray(formData, 'delete_image_ids', value)
+    if (idArrayKeys.has(key) && Array.isArray(value)) {
+      appendArray(formData, key, value)
       return
     }
 
-    formData.append(key, String(value))
+    if (!['string', 'number', 'boolean'].includes(typeof value)) return
+    formData.append(key, normalizeFormValue(value as string | number | boolean))
   })
 
   return formData

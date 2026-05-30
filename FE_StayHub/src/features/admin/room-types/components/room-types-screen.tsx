@@ -26,7 +26,6 @@ function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[
 const defaultForm: RoomTypeFormValues = {
   name: '',
   building_id: '',
-  default_price: '',
   description: '',
   status: 1,
 }
@@ -155,7 +154,6 @@ export function RoomTypesScreen() {
     setForm({
       name: roomType.name || '',
       building_id: roomType.building_id ? String(roomType.building_id) : '',
-      default_price: String(Number(roomType.default_price || 0)),
       description: roomType.description || '',
       status: Number(roomType.status || 1),
     })
@@ -206,7 +204,6 @@ export function RoomTypesScreen() {
       const payload = {
         name: form.name.trim(),
         building_id: form.building_id ? Number(form.building_id) : undefined,
-        default_price: Number(form.default_price),
         description: form.description.trim() || undefined,
         status: Number(form.status),
       }
@@ -324,12 +321,11 @@ export function RoomTypesScreen() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="min-w-[880px] w-full text-left">
+              <table className="min-w-190 w-full text-left">
                 <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
                     <th className="px-5 py-4">Loại phòng</th>
                     <th className="px-5 py-4">Tòa nhà</th>
-                    <th className="px-5 py-4">Giá mặc định</th>
                     <th className="px-5 py-4 text-center">Số lượng phòng đang áp dụng</th>
                     <th className="px-5 py-4">Trạng thái</th>
                     <th className="px-5 py-4"><span className="flex justify-end"><span className="w-47.5 text-center">Thao tác</span></span></th>
@@ -338,7 +334,7 @@ export function RoomTypesScreen() {
                 <tbody className="divide-y divide-[#3d2a18]/8">
                   {isLoading && Array.from({ length: 5 }).map((_, index) => (
                     <tr key={index}>
-                      <td colSpan={6} className="px-5 py-4"><div className="h-12 animate-pulse rounded-2xl bg-stone-100" /></td>
+                      <td colSpan={5} className="px-5 py-4"><div className="h-12 animate-pulse rounded-2xl bg-stone-100" /></td>
                     </tr>
                   ))}
 
@@ -358,7 +354,6 @@ export function RoomTypesScreen() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">{roomType.building_name || 'Dùng chung'}</td>
-                      <td className="px-4 py-3 text-[13px] font-black text-[#24170d] tabular-nums">{formatCurrency(roomType.default_price)}</td>
                       <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d] tabular-nums">{roomType.rooms_count ?? 0}</td>
                       <td className="px-4 py-3">
                         <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm', Number(roomType.status) === 1 ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
@@ -379,7 +374,7 @@ export function RoomTypesScreen() {
 
                   {!isLoading && roomTypes.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-5 py-20 text-center">
+                      <td colSpan={5} className="px-5 py-20 text-center">
                         <div className="mx-auto flex max-w-sm flex-col items-center">
                           <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><BedDouble className="h-9 w-9" /></div>
                           <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy loại phòng</p>
@@ -398,7 +393,7 @@ export function RoomTypesScreen() {
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black tracking-tight text-[#24170d]">{editingRoomType ? 'Cập nhật loại phòng' : 'Thêm loại phòng'}</h2>
-                <p className="text-xs font-bold text-[#8b5e34]/60">Khai báo giá mặc định cho loại phòng.</p>
+                <p className="text-xs font-bold text-[#8b5e34]/60">Khai báo thông tin loại phòng.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form">
@@ -420,11 +415,6 @@ export function RoomTypesScreen() {
                 <label className={labelClass}>Tòa nhà</label>
                 <AdminSelect value={form.building_id} options={formBuildingOptions} invalid={!!errors.building_id} onChange={(nextValue) => updateForm('building_id', String(nextValue))} />
                 <FieldError message={errors.building_id} />
-              </div>
-              <div>
-                <label className={labelClass}>Giá mặc định</label>
-                <input className={`${inputClass} ${errors.default_price ? inputErrorClass : ''}`} value={form.default_price} onChange={(event) => updateForm('default_price', event.target.value)} inputMode="numeric" placeholder="Ví dụ: 4500000" />
-                <FieldError message={errors.default_price} />
               </div>
               <div>
                 <label className={labelClass}>Trạng thái</label>
@@ -471,9 +461,8 @@ export function RoomTypesScreen() {
               {isDetailLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết loại phòng...</div>}
               {detailErrorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{detailErrorMessage}</div>}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <DetailTile label="Tòa nhà" value={detailRoomType?.building_name || 'Dùng chung'} />
-                <DetailTile label="Giá mặc định" value={formatCurrency(detailRoomType?.default_price)} />
                 <DetailTile label="Số phòng" value={detailRoomType?.rooms_count ?? 0} />
               </div>
 
@@ -529,8 +518,4 @@ function DetailTile({ label, value }: { label: string; value: string | number })
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
-}
-
-function formatCurrency(value: number | string | null | undefined) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value || 0))
 }

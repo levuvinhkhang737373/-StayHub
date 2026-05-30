@@ -17,6 +17,7 @@ export async function fetchAdminSettings(
   params: {
     keyword?: string
     building_id?: number
+    only_global?: boolean
     is_public?: boolean
     per_page?: number
   } = {},

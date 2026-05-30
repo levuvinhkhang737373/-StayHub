@@ -5,7 +5,6 @@ export type SettingFormValues = {
   setting_value: string
   description: string
   is_public: boolean
-  display_order: string
 }
 
 export type SettingFormErrors = Partial<Record<keyof SettingFormValues, string>>
@@ -24,8 +23,6 @@ export function validateSettingForm(form: SettingFormValues, options: SettingVal
   const settingName = form.setting_name.trim()
   const settingValue = form.setting_value.trim()
   const description = form.description.trim()
-  const displayOrder = form.display_order.trim()
-  const displayOrderNumber = Number(displayOrder)
 
   if (options.requireBuilding && !buildingId) {
     errors.building_id = 'Vui lòng chọn tòa nhà áp dụng.'
@@ -53,10 +50,6 @@ export function validateSettingForm(form: SettingFormValues, options: SettingVal
 
   if (description.length > 500) {
     errors.description = 'Mô tả cài đặt tối đa 500 ký tự.'
-  }
-
-  if (displayOrder && (!Number.isInteger(displayOrderNumber) || displayOrderNumber < 0 || displayOrderNumber > 999999)) {
-    errors.display_order = 'Thứ tự hiển thị phải là số nguyên từ 0 đến 999999.'
   }
 
   return errors
