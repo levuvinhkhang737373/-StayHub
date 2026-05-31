@@ -19,7 +19,6 @@ class RoomTypeResource extends JsonResource
             'slug' => $this->slug,
             'building_id' => $this->building_id,
             'building_name' => $this->whenLoaded('building', fn (): ?string => $this->building?->name),
-            'default_price' => $this->default_price === null ? null : (float) $this->default_price,
             'description' => $this->description,
             'status' => $this->status,
             'status_label' => RoomType::STATUS_LABELS[$this->status] ?? null,

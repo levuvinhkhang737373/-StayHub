@@ -31,22 +31,22 @@ class Tenant extends Authenticatable
         self::STATUS_STOPPED_RENTING => 'Ngừng thuê',
     ];
 
-    protected $fillable = ['building_id', 'full_name', 'gender', 'date_of_birth', 'phone', 'email', 'username', 'password', 'permanent_address', 'current_address', 'avatar_url', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url'];
+    protected $fillable = ['created_by', 'full_name', 'gender', 'date_of_birth', 'phone', 'email', 'username', 'password', 'permanent_address', 'current_address', 'avatar_url', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url'];
 
     protected $hidden = ['password', 'remember_token'];
 
     protected function casts(): array
     {
         return [
-            'building_id' => 'integer',
+            'created_by' => 'integer',
             'gender' => 'integer', 'date_of_birth' => 'date', 'status' => 'integer',
             'identity_type' => 'integer', 'password' => 'hashed',
         ];
     }
 
-    public function building(): BelongsTo
+    public function creator(): BelongsTo
     {
-        return $this->belongsTo(Building::class);
+        return $this->belongsTo(Admin::class, 'created_by');
     }
 
     public function representedContracts(): HasMany

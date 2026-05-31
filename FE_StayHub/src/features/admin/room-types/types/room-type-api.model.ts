@@ -4,7 +4,7 @@ export interface AdminRoomTypeRoomResource {
   building_name?: string | null
   room_number: string
   slug?: string | null
-  base_price?: number | null
+  base_price?: string | null
   max_occupants: number
   current_occupants: number
   status: number
@@ -19,7 +19,6 @@ export interface AdminRoomTypeResource {
   building_id?: number | null
   building_name?: string | null
   building?: AdminBuildingResource | null
-  default_price: number
   description?: string | null
   status: number
   status_label?: string | null
@@ -39,7 +38,6 @@ export interface AdminRoomTypeResource {
 export interface AdminRoomTypePayload {
   name: string
   building_id?: number
-  default_price: number
   description?: string
   status?: number
 }

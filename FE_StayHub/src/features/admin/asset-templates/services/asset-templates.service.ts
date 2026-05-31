@@ -17,6 +17,7 @@ export async function fetchAdminAssetTemplates(
   params: {
     keyword?: string
     building_id?: number
+    only_global?: boolean
     default_unit_name?: number
     status?: number
     per_page?: number

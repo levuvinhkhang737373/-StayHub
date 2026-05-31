@@ -11,7 +11,6 @@ export interface AdminSettingResource {
   description?: string | null
   is_public: boolean
   is_public_label?: string | null
-  display_order: number
   created_by?: number | null
   creator_name?: string | null
   creator?: {
@@ -29,5 +28,4 @@ export interface AdminSettingPayload {
   setting_value?: string
   description?: string
   is_public?: boolean
-  display_order?: number
 }

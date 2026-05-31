@@ -21,9 +21,9 @@ class IndexRequest extends FormRequest
         return [
             'keyword' => ['nullable', 'string', 'max:255'],
             'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
+            'only_global' => ['nullable', 'boolean'],
+            'created_by_me' => ['nullable', 'boolean'],
             'status' => ['nullable', 'integer', Rule::in(array_keys(RoomType::STATUS_LABELS))],
-            'min_price' => ['nullable', 'numeric', 'min:0'],
-            'max_price' => ['nullable', 'numeric', 'min:0', 'gte:min_price'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
     }
@@ -35,13 +35,10 @@ class IndexRequest extends FormRequest
             'keyword.max' => 'Từ khóa tìm kiếm loại phòng không được vượt quá 255 ký tự.',
             'building_id.integer' => 'Tòa nhà của loại phòng không hợp lệ.',
             'building_id.exists' => 'Tòa nhà của loại phòng không tồn tại.',
+            'only_global.boolean' => 'Bộ lọc loại phòng mẫu không hợp lệ.',
+            'created_by_me.boolean' => 'Bộ lọc loại phòng theo người tạo không hợp lệ.',
             'status.integer' => 'Trạng thái loại phòng không hợp lệ.',
             'status.in' => 'Trạng thái loại phòng không nằm trong danh sách cho phép.',
-            'min_price.numeric' => 'Giá nhỏ nhất phải là số.',
-            'min_price.min' => 'Giá nhỏ nhất không được nhỏ hơn 0.',
-            'max_price.numeric' => 'Giá lớn nhất phải là số.',
-            'max_price.min' => 'Giá lớn nhất không được nhỏ hơn 0.',
-            'max_price.gte' => 'Giá lớn nhất phải lớn hơn hoặc bằng giá nhỏ nhất.',
             'per_page.integer' => 'Số dòng mỗi trang phải là số nguyên.',
             'per_page.min' => 'Số dòng mỗi trang phải lớn hơn hoặc bằng 1.',
             'per_page.max' => 'Số dòng mỗi trang không được vượt quá 100.',

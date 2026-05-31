@@ -23,7 +23,6 @@ class RegisterRequest extends FormRequest
             'setting_value' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string', 'max:500'],
             'is_public' => ['nullable', 'boolean'],
-            'display_order' => ['nullable', 'integer', 'min:0', 'max:999999'],
         ];
     }
 
@@ -44,9 +43,6 @@ class RegisterRequest extends FormRequest
             'description.string' => 'Mô tả cài đặt phải là chuỗi ký tự.',
             'description.max' => 'Mô tả cài đặt không được vượt quá 500 ký tự.',
             'is_public.boolean' => 'Trạng thái hiển thị của cài đặt không hợp lệ.',
-            'display_order.integer' => 'Thứ tự hiển thị phải là số nguyên.',
-            'display_order.min' => 'Thứ tự hiển thị không được nhỏ hơn 0.',
-            'display_order.max' => 'Thứ tự hiển thị không được vượt quá 999999.',
         ];
     }
 

@@ -2,7 +2,7 @@ export interface AdminServicePriceResource {
   id: number
   building_id?: number | null
   building_name?: string | null
-  price?: number | null
+  price?: string | null
   effective_from?: string | null
   effective_to?: string | null
   status?: number | null

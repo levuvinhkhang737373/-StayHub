@@ -620,15 +620,11 @@ export function SystemUsersScreen() {
                   <input className={`${inputClass} ${errors.phone ? inputErrorClass : ''}`} value={form.phone} onChange={(event) => updateForm('phone', event.target.value)} placeholder="Nhập số điện thoại" />
                   <FieldError message={errors.phone} />
                 </div>
-                {editingAccount ? (
+                {editingAccount && (
                   <div>
                     <label className={labelClass}>Mật khẩu mới</label>
                     <input className={`${inputClass} ${errors.password ? inputErrorClass : ''}`} value={form.password} onChange={(event) => updateForm('password', event.target.value)} placeholder="Bỏ trống nếu không đổi mật khẩu" type="password" autoComplete="new-password" />
                     <FieldError message={errors.password} />
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-[#0f766e]/15 bg-[#0f766e]/10 px-4 py-3 text-xs font-black leading-5 text-[#0f5f59]">
-                    Mật khẩu sẽ được hệ thống tự tạo theo định dạng stayhub + 6 số và gửi đến email admin sau khi tạo tài khoản.
                   </div>
                 )}
                 <div>

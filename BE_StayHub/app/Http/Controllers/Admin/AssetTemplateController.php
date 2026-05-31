@@ -272,6 +272,7 @@ class AssetTemplateController extends Controller
                     ->orWhere('description', 'like', "%{$keyword}%");
             }))
             ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', $validated['building_id']))
+            ->when((bool) ($validated['only_global'] ?? false), fn (Builder $query): Builder => $query->whereNull('building_id'))
             ->when(isset($validated['default_unit_name']), fn (Builder $query): Builder => $query->where('default_unit_name', $validated['default_unit_name']))
             ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', $validated['status']))
             ->orderByDesc('created_at')

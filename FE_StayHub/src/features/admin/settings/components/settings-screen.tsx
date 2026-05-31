@@ -22,6 +22,22 @@ function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[
   return result.data || []
 }
 
+function getSafeSettingsErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback
+
+  const message = error.message.trim()
+  if (!message) return fallback
+
+  const normalizedMessage = message.toLowerCase()
+  const isSystemError = normalizedMessage.startsWith('server error')
+    || normalizedMessage.includes('sqlstate')
+    || normalizedMessage.includes('exception')
+    || normalizedMessage.includes('stack trace')
+    || normalizedMessage.includes('undefined property')
+
+  return isSystemError ? fallback : message
+}
+
 const defaultForm: SettingFormValues = {
   building_id: '',
   setting_label: '',
@@ -29,7 +45,6 @@ const defaultForm: SettingFormValues = {
   setting_value: '',
   description: '',
   is_public: true,
-  display_order: '0',
 }
 
 const publicOptions = [
@@ -108,7 +123,7 @@ export function SettingsScreen() {
         setForm((current) => ({ ...current, building_id: current.building_id || String(visibleBuildings[0].id) }))
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách cài đặt tòa nhà.')
+      setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể tải danh sách cài đặt tòa nhà.'))
     } finally {
       setIsLoading(false)
     }
@@ -163,7 +178,6 @@ export function SettingsScreen() {
       setting_value: setting.setting_value || '',
       description: setting.description || '',
       is_public: Boolean(setting.is_public),
-      display_order: String(setting.display_order ?? 0),
     })
     setErrors({})
     setErrorMessage(null)
@@ -181,7 +195,7 @@ export function SettingsScreen() {
       const response = await fetchAdminSettingDetail(setting.id)
       setDetailSetting(response.result)
     } catch (error) {
-      setDetailErrorMessage(error instanceof Error ? error.message : 'Không thể tải chi tiết cài đặt.')
+      setDetailErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể tải chi tiết cài đặt.'))
     } finally {
       setIsDetailLoading(false)
     }
@@ -221,7 +235,6 @@ export function SettingsScreen() {
         setting_value: form.setting_value.trim(),
         description: form.description.trim(),
         is_public: form.is_public,
-        display_order: form.display_order.trim() ? Number(form.display_order) : 0,
       }
 
       if (editingSetting) {
@@ -236,7 +249,7 @@ export function SettingsScreen() {
       setIsFormOpen(false)
       await loadSettings()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu cài đặt.')
+      setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể lưu cài đặt.'))
     } finally {
       setIsSaving(false)
     }
@@ -253,7 +266,7 @@ export function SettingsScreen() {
       setSuccessMessage('Xóa cài đặt thành công.')
       await loadSettings()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa cài đặt.')
+      setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể xóa cài đặt.'))
     } finally {
       setDeletingId(null)
     }
@@ -336,14 +349,13 @@ export function SettingsScreen() {
                     <th className="px-5 py-4">Tòa nhà</th>
                     <th className="px-5 py-4">Giá trị</th>
                     <th className="px-5 py-4">Hiển thị</th>
-                    <th className="px-5 py-4 text-center">Thứ tự</th>
                     <th className="px-5 py-4"><span className="flex justify-end"><span className="w-32 text-center">Thao tác</span></span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8">
                   {isLoading && Array.from({ length: 5 }).map((_, index) => (
                     <tr key={index}>
-                      <td colSpan={6} className="px-5 py-4"><div className="h-12 animate-pulse rounded-2xl bg-stone-100" /></td>
+                      <td colSpan={5} className="px-5 py-4"><div className="h-12 animate-pulse rounded-2xl bg-stone-100" /></td>
                     </tr>
                   ))}
 
@@ -372,7 +384,6 @@ export function SettingsScreen() {
                             {setting.is_public_label || (setting.is_public ? 'Công khai' : 'Không công khai')}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d] tabular-nums">{setting.display_order ?? 0}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-2.5">
                             <button type="button" aria-label={`Xem chi tiết ${setting.setting_label}`} onClick={() => void viewSetting(setting)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
@@ -386,7 +397,7 @@ export function SettingsScreen() {
 
                   {!isLoading && settings.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-5 py-20 text-center">
+                      <td colSpan={5} className="px-5 py-20 text-center">
                         <div className="mx-auto flex max-w-sm flex-col items-center">
                           <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><Settings className="h-9 w-9" /></div>
                           <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy cài đặt</p>
@@ -438,16 +449,9 @@ export function SettingsScreen() {
                   <input className={`${inputClass} ${errors.setting_value ? inputErrorClass : ''}`} value={form.setting_value} onChange={(event) => updateForm('setting_value', event.target.value)} placeholder="Ví dụ: 23:00" />
                   <FieldError message={errors.setting_value} />
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-1">
-                  <div>
-                    <label className={labelClass}>Hiển thị</label>
-                    <AdminSelect value={form.is_public ? 1 : 0} options={formPublicOptions} onChange={(nextValue) => updateForm('is_public', Number(nextValue) === 1)} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Thứ tự</label>
-                    <input className={`${inputClass} ${errors.display_order ? inputErrorClass : ''}`} value={form.display_order} onChange={(event) => updateForm('display_order', event.target.value)} inputMode="numeric" placeholder="0" />
-                    <FieldError message={errors.display_order} />
-                  </div>
+                <div>
+                  <label className={labelClass}>Hiển thị</label>
+                  <AdminSelect value={form.is_public ? 1 : 0} options={formPublicOptions} onChange={(nextValue) => updateForm('is_public', Number(nextValue) === 1)} />
                 </div>
                 <div>
                   <label className={labelClass}>Mô tả</label>
@@ -487,10 +491,9 @@ export function SettingsScreen() {
               {isDetailLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết cài đặt...</div>}
               {detailErrorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{detailErrorMessage}</div>}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <DetailTile label="Tòa nhà" value={detailSetting?.building_name || 'Dùng chung'} />
                 <DetailTile label="Hiển thị" value={detailSetting?.is_public_label || (detailSetting?.is_public ? 'Công khai' : 'Không công khai')} />
-                <DetailTile label="Thứ tự" value={detailSetting?.display_order ?? 0} />
               </div>
 
               <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">

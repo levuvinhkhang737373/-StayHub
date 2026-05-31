@@ -62,7 +62,7 @@ class StayHubDemoSeeder extends Seeder
             $services = $this->seedServices($admins);
             $this->seedServicePrices($buildings, $services);
 
-            $tenants = $this->seedTenants();
+            $tenants = $this->seedTenants($admins);
             $contracts = $this->seedContracts($admins, $rooms, $tenants);
             $this->seedContractTenants($admins, $contracts, $tenants);
 
@@ -289,16 +289,15 @@ class StayHubDemoSeeder extends Seeder
     private function seedRoomTypes(array $admins): array
     {
         $rows = [
-            'standard' => ['Phòng tiêu chuẩn', 3500000, 'Phòng đầy đủ nội thất cơ bản, phù hợp sinh viên và nhân viên văn phòng.'],
-            'premium' => ['Phòng cao cấp', 5200000, 'Phòng rộng, có cửa sổ lớn, nội thất tốt và khu bếp riêng.'],
-            'studio' => ['Căn hộ studio', 6800000, 'Studio khép kín, riêng tư, phù hợp người đi làm.'],
+            'standard' => ['Phòng tiêu chuẩn', 'Phòng đầy đủ nội thất cơ bản, phù hợp sinh viên và nhân viên văn phòng.'],
+            'premium' => ['Phòng cao cấp', 'Phòng rộng, có cửa sổ lớn, nội thất tốt và khu bếp riêng.'],
+            'studio' => ['Căn hộ studio', 'Studio khép kín, riêng tư, phù hợp người đi làm.'],
         ];
 
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
             $key => $this->upsertAndGetId('room_types', ['name' => $row[0]], [
                 'slug' => Str::slug($row[0]),
-                'default_price' => $row[1],
-                'description' => $row[2],
+                'description' => $row[1],
                 'status' => RoomType::STATUS_ACTIVE,
                 'created_by' => $admins['super'],
                 ...$this->timestamps(),
@@ -449,18 +448,19 @@ class StayHubDemoSeeder extends Seeder
         }
     }
 
-    private function seedTenants(): array
+    private function seedTenants(array $admins): array
     {
         $rows = [
-            'an' => ['Lê Hoàng An', Tenant::GENDER_MALE, '1999-04-12', '0911000001', 'an.le@example.com', 'tenant_an', '079099000001'],
-            'binh' => ['Phạm Ngọc Bình', Tenant::GENDER_FEMALE, '2001-08-21', '0911000002', 'binh.pham@example.com', 'tenant_binh', '079101000002'],
-            'chi' => ['Võ Minh Chi', Tenant::GENDER_FEMALE, '2000-12-05', '0911000003', 'chi.vo@example.com', 'tenant_chi', '079100000003'],
-            'duy' => ['Đặng Quốc Duy', Tenant::GENDER_MALE, '1998-03-18', '0911000004', 'duy.dang@example.com', 'tenant_duy', '079098000004'],
-            'em' => ['Nguyễn Thảo Em', Tenant::GENDER_FEMALE, '2002-10-30', '0911000005', 'em.nguyen@example.com', 'tenant_em', '079102000005'],
+            'an' => ['Lê Hoàng An', Tenant::GENDER_MALE, '1999-04-12', '0911000001', 'an.le@example.com', 'tenant_an', '079099000001', 'sg_central'],
+            'binh' => ['Phạm Ngọc Bình', Tenant::GENDER_FEMALE, '2001-08-21', '0911000002', 'binh.pham@example.com', 'tenant_binh', '079101000002', 'sg_central'],
+            'chi' => ['Võ Minh Chi', Tenant::GENDER_FEMALE, '2000-12-05', '0911000003', 'chi.vo@example.com', 'tenant_chi', '079100000003', 'td_garden'],
+            'duy' => ['Đặng Quốc Duy', Tenant::GENDER_MALE, '1998-03-18', '0911000004', 'duy.dang@example.com', 'tenant_duy', '079098000004', 'bc_studio'],
+            'em' => ['Nguyễn Thảo Em', Tenant::GENDER_FEMALE, '2002-10-30', '0911000005', 'em.nguyen@example.com', 'tenant_em', '079102000005', 'bc_studio'],
         ];
 
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
             $key => $this->upsertAndGetId('tenants', ['username' => $row[5]], [
+                'created_by' => $admins[$row[7]],
                 'full_name' => $row[0],
                 'gender' => $row[1],
                 'date_of_birth' => $row[2],
@@ -909,10 +909,10 @@ class StayHubDemoSeeder extends Seeder
     private function seedSettings(array $admins, array $buildings): void
     {
         $rows = [
-            [null, 'Số hotline hỗ trợ', 'support_hotline', '1900 6868', 'Hotline hiển thị cho khách thuê.', true, 1],
-            [null, 'Email hỗ trợ', 'support_email', 'support@stayhub.local', 'Email tiếp nhận hỗ trợ.', true, 2],
-            [$buildings['sg_central'], 'Giờ yên tĩnh', 'quiet_hours', '22:00 - 06:00', 'Khung giờ hạn chế tiếng ồn.', true, 3],
-            [$buildings['td_garden'], 'Ngày thu tiền phòng', 'billing_day', '05', 'Ngày chốt thanh toán hàng tháng.', true, 4],
+            [null, 'Số hotline hỗ trợ', 'support_hotline', '1900 6868', 'Hotline hiển thị cho khách thuê.', true],
+            [null, 'Email hỗ trợ', 'support_email', 'support@stayhub.local', 'Email tiếp nhận hỗ trợ.', true],
+            [$buildings['sg_central'], 'Giờ yên tĩnh', 'quiet_hours', '22:00 - 06:00', 'Khung giờ hạn chế tiếng ồn.', true],
+            [$buildings['td_garden'], 'Ngày thu tiền phòng', 'billing_day', '05', 'Ngày chốt thanh toán hàng tháng.', true],
         ];
 
         foreach ($rows as $row) {
@@ -921,7 +921,6 @@ class StayHubDemoSeeder extends Seeder
                 'setting_value' => $row[3],
                 'description' => $row[4],
                 'is_public' => $row[5] ? Setting::PUBLIC : Setting::PRIVATE,
-                'display_order' => $row[6],
                 'created_by' => $admins['super'],
                 ...$this->timestamps(),
             ]);
@@ -960,7 +959,7 @@ class StayHubDemoSeeder extends Seeder
         $this->seedRoomImages($admins, $rooms);
         $this->seedExpandedRoomAssets($assets, $rooms);
 
-        $tenants = $this->seedExpandedTenants();
+        $tenants = $this->seedExpandedTenants($admins, $rooms, $buildings);
         $contracts = $this->seedExpandedContracts($admins, $rooms, $tenants);
         $this->seedExpandedContractTenants($admins, $contracts, $tenants);
 
@@ -1073,8 +1072,17 @@ class StayHubDemoSeeder extends Seeder
         }
     }
 
-    private function seedExpandedTenants(): array
+    private function seedExpandedTenants(array $admins, array $rooms, array $buildings): array
     {
+        $buildingManagers = collect($buildings)->mapWithKeys(fn (int $buildingId, string $buildingKey): array => [
+            $buildingId => $admins[$buildingKey],
+        ]);
+        $roomManagers = DB::table('rooms')
+            ->whereIn('id', array_values($rooms))
+            ->pluck('building_id', 'id')
+            ->map(fn (int $buildingId): int => $buildingManagers[$buildingId])
+            ->all();
+        $roomIds = array_values($rooms);
         $lastNames = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Vũ', 'Đặng', 'Bùi', 'Đỗ', 'Hồ'];
         $middleNames = ['Minh', 'Hoàng', 'Gia', 'Thanh', 'Ngọc', 'Quốc', 'Tuấn', 'Thảo'];
         $firstNames = ['Anh', 'Bảo', 'Châu', 'Dũng', 'Hà', 'Khang', 'Linh', 'Mai', 'Nam', 'Phúc', 'Quỳnh', 'Sơn', 'Trang', 'Uyên', 'Vy', 'Yến'];
@@ -1085,7 +1093,10 @@ class StayHubDemoSeeder extends Seeder
             $name = $lastNames[($i - 1) % count($lastNames)] . ' ' . $middleNames[($i - 1) % count($middleNames)] . ' ' . $firstNames[($i - 1) % count($firstNames)];
             $key = 'demo_tenant_' . str_pad((string) $i, 2, '0', STR_PAD_LEFT);
 
+            $roomIndex = $i <= 30 ? $i - 1 : $i - 31;
+
             $tenants[$key] = $this->upsertAndGetId('tenants', ['username' => $key], [
+                'created_by' => $roomManagers[$roomIds[$roomIndex]],
                 'full_name' => $name,
                 'gender' => $gender,
                 'date_of_birth' => CarbonImmutable::create(1995 + ($i % 10), (($i - 1) % 12) + 1, (($i - 1) % 25) + 1)->toDateString(),
@@ -1486,7 +1497,6 @@ class StayHubDemoSeeder extends Seeder
                     'setting_value' => $setting[2],
                     'description' => 'Cấu hình riêng cho tòa mở rộng.',
                     'is_public' => Setting::PUBLIC,
-                    'display_order' => $index + 10,
                     'created_by' => $admins['super'],
                     ...$this->timestamps(),
                 ]);

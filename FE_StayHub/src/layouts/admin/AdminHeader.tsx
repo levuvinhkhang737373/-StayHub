@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { Menu, User, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
@@ -9,7 +9,6 @@ import { getActiveAdminNavItem, getAdminRoleLabel, getVisibleAdminNavItems } fro
 import { AccountSettingsModal } from './AccountSettingsModal'
 
 export function AdminHeader() {
-  const navigate = useNavigate()
   const location = useLocation()
   const { clearSession, session } = useAdminSession()
   const visibleItems = useMemo(() => getVisibleAdminNavItems(session?.admin.role), [session?.admin.role])
@@ -53,10 +52,10 @@ export function AdminHeader() {
       console.error('Admin logout failed', error)
     } finally {
       clearSession()
-      navigate('/admin/login', { replace: true })
+      window.location.replace('/admin/login')
       setIsLoggingOut(false)
     }
-  }, [clearSession, isLoggingOut, navigate])
+  }, [clearSession, isLoggingOut])
 
   const closeDrawer = useCallback(() => {
     setIsDrawerOpen(false)

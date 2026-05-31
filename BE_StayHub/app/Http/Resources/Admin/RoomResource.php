@@ -23,7 +23,7 @@ class RoomResource extends JsonResource
             'slug' => $this->slug,
             'floor' => $this->floor === null ? null : (int) $this->floor,
             'area_m2' => $this->area_m2 === null ? null : (float) $this->area_m2,
-            'base_price' => (float) $this->base_price,
+            'base_price' => $this->base_price === null ? null : (string) $this->base_price,
             'max_occupants' => (int) $this->max_occupants,
             'current_occupants' => (int) $this->current_occupants,
             'status' => $this->status,

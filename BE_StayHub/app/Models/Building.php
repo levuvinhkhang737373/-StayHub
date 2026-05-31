@@ -117,11 +117,6 @@ class Building extends Model
         return $this->hasMany(Room::class);
     }
 
-    public function tenants(): HasMany
-    {
-        return $this->hasMany(Tenant::class);
-    }
-
     public function assetTemplates(): HasMany
     {
         return $this->hasMany(AssetTemplate::class, 'building_id');

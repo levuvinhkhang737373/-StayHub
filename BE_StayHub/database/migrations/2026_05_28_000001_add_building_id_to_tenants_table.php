@@ -9,21 +9,20 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('tenants', function (Blueprint $table): void {
-            $table->foreignId('building_id')
-                ->nullable()
+            $table->foreignId('created_by')
                 ->after('id')
-                ->constrained('buildings')
-                ->nullOnDelete();
+                ->constrained('admins')
+                ->restrictOnDelete();
 
-            $table->index(['building_id', 'status']);
+            $table->index(['created_by', 'status']);
         });
     }
 
     public function down(): void
     {
         Schema::table('tenants', function (Blueprint $table): void {
-            $table->dropIndex(['building_id', 'status']);
-            $table->dropConstrainedForeignId('building_id');
+            $table->dropIndex(['created_by', 'status']);
+            $table->dropConstrainedForeignId('created_by');
         });
     }
 };

@@ -21,11 +21,11 @@ class RoomType extends Model
         self::STATUS_INACTIVE => 'Ngừng hoạt động',
     ];
 
-    protected $fillable = ['name', 'slug', 'building_id', 'default_price', 'description', 'status', 'created_by'];
+    protected $fillable = ['name', 'slug', 'building_id', 'description', 'status', 'created_by'];
 
     protected function casts(): array
     {
-        return ['building_id' => 'integer', 'default_price' => 'decimal:2', 'status' => 'integer'];
+        return ['building_id' => 'integer', 'status' => 'integer'];
     }
 
     protected function slugSourceIsDirty(): bool

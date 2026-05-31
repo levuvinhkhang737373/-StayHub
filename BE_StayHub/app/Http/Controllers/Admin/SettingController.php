@@ -188,7 +188,7 @@ class SettingController extends Controller
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public', 'display_order'];
+        $fields = ['building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public'];
 
         foreach ($fields as $field) {
             if (array_key_exists($field, $validated)) {
@@ -199,7 +199,6 @@ class SettingController extends Controller
         if (! $isUpdate) {
             $payload['created_by'] = $createdBy;
             $payload['is_public'] = $payload['is_public'] ?? Setting::PUBLIC;
-            $payload['display_order'] = $payload['display_order'] ?? 0;
         }
 
         return $payload;
@@ -207,7 +206,7 @@ class SettingController extends Controller
 
     private function columns(): array
     {
-        return ['id', 'building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public', 'display_order', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at'];
     }
 
     private function listRelations(): array
@@ -234,8 +233,8 @@ class SettingController extends Controller
                     ->orWhere('description', 'like', "%{$keyword}%");
             }))
             ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', $validated['building_id']))
+            ->when((bool) ($validated['only_global'] ?? false), fn (Builder $query): Builder => $query->whereNull('building_id'))
             ->when(array_key_exists('is_public', $validated), fn (Builder $query): Builder => $query->where('is_public', (bool) $validated['is_public']))
-            ->orderBy('display_order')
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }

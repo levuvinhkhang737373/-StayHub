@@ -30,7 +30,6 @@ class SettingDetailResource extends JsonResource
             'description' => $this->description,
             'is_public' => $isPublic,
             'is_public_label' => Setting::PUBLIC_LABELS[$isPublic] ?? null,
-            'display_order' => (int) $this->display_order,
             'created_by' => $this->created_by,
             'creator_name' => $this->whenLoaded('creator', fn (): ?string => $this->creator?->full_name),
             'creator' => $this->whenLoaded('creator', fn () => [

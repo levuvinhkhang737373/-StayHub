@@ -18,12 +18,9 @@ class UpdateRequest extends FormRequest
 
     public function rules(): array
     {
-        $roomTypeId = $this->route('room_type') ?? $this->route('roomType');
-
         return [
             'name' => ['sometimes', 'required', 'string', 'max:150'],
             'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
-            'default_price' => ['sometimes', 'required', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'status' => ['sometimes', 'required', 'integer', Rule::in(array_keys(RoomType::STATUS_LABELS))],
         ];
@@ -37,9 +34,6 @@ class UpdateRequest extends FormRequest
             'name.max' => 'Tên loại phòng không được vượt quá 150 ký tự.',
             'building_id.integer' => 'Tòa nhà của loại phòng không hợp lệ.',
             'building_id.exists' => 'Tòa nhà của loại phòng không tồn tại.',
-            'default_price.required' => 'Giá mặc định của loại phòng là bắt buộc khi cập nhật.',
-            'default_price.numeric' => 'Giá mặc định của loại phòng phải là số.',
-            'default_price.min' => 'Giá mặc định của loại phòng không được nhỏ hơn 0.',
             'description.string' => 'Mô tả loại phòng phải là chuỗi ký tự.',
             'status.required' => 'Trạng thái loại phòng là bắt buộc khi cập nhật.',
             'status.integer' => 'Trạng thái loại phòng không hợp lệ.',

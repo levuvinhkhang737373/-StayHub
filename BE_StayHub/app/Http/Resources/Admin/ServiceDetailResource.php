@@ -41,7 +41,7 @@ class ServiceDetailResource extends JsonResource
                 'id' => $price->id,
                 'building_id' => $price->building_id,
                 'building_name' => $price->relationLoaded('building') ? $price->building?->name : null,
-                'price' => $price->price === null ? null : (float) $price->price,
+                'price' => $price->price === null ? null : (string) $price->price,
                 'effective_from' => optional($price->effective_from)->toDateString(),
                 'effective_to' => optional($price->effective_to)->toDateString(),
                 'status' => $price->status,

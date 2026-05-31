@@ -10,7 +10,11 @@ interface AdminRouteGuardProps {
 
 export function AdminRouteGuard({ access, children }: AdminRouteGuardProps) {
   const location = useLocation()
-  const { session } = useAdminSession()
+  const { isAuthenticated, session } = useAdminSession()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />
+  }
 
   if (access === 'superadmin' && !isSuperAdminRole(session?.admin.role)) {
     return <Navigate to="/admin/dashboard" replace state={{ deniedFrom: location.pathname }} />

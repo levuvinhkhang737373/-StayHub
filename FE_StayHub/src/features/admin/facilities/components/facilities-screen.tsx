@@ -321,6 +321,10 @@ export function FacilitiesScreen() {
         );
     };
 
+    if (!session?.admin) {
+        return <Navigate to="/admin/login" replace />;
+    }
+
     if (!isSuperAdmin) {
         return <Navigate to="/admin/dashboard" replace />;
     }
