@@ -11,10 +11,10 @@ while [ "$count" -le "$attempts" ]; do
         exec nginx -g 'daemon off;'
     fi
 
-    echo "Backend source chưa mount sẵn cho nginx (${count}/${attempts})..."
+    echo "Backend source chÆ°a mount sáºµn cho nginx (${count}/${attempts})..."
     sleep "$delay"
     count=$((count + 1))
 done
 
-echo "Backend source vẫn chưa mount đúng cho nginx; thoát để Docker tự restart và mount lại."
+echo "Backend source váº«n chÆ°a mount Ä‘Ãºng cho nginx; thoÃ¡t Ä‘á»ƒ Docker tá»± restart vÃ  mount láº¡i."
 exit 1
