@@ -27,7 +27,7 @@ class MaintenanceController extends ChangeNotifier {
       tenantName: 'Trần Thị Bình',
       title: 'Điều hòa không lạnh',
       description: 'Điều hòa bật 16 độ nhưng chỉ có gió, không thấy mát, nghi hết gas.',
-      status: 2, // IN PROGRESS
+      status: 3, // PROCESSING / IN PROGRESS
       images: [
         'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&q=80&w=300'
       ],
@@ -42,13 +42,29 @@ class MaintenanceController extends ChangeNotifier {
       tenantName: 'Lê Hoàng Cường',
       title: 'Hỏng bóng đèn ngủ lầu 2',
       description: 'Bóng đèn ngủ bật không sáng, đã thử lay chấu cắm nhưng không được.',
-      status: 3, // RESOLVED
+      status: 4, // COMPLETED / RESOLVED
       images: [
         'https://images.unsplash.com/photo-1565814329452-e1efa11c5b89?auto=format&fit=crop&q=80&w=300',
         'https://images.unsplash.com/photo-1550985616-10810253b84d?auto=format&fit=crop&q=80&w=300'
       ],
       feedback: 'Cảm ơn admin đã cho thợ sửa nhanh chóng!',
       createdAt: '2026-05-24 20:00',
+    ),
+    MaintenanceRequest(
+      id: 4,
+      requestCode: 'SC-0004',
+      roomId: 1,
+      roomNumber: '101',
+      tenantId: 1,
+      tenantName: 'Nguyễn Văn An',
+      title: 'Hỏng ổ cắm điện phòng khách',
+      description: 'Ổ cắm điện góc tường bị lỏng và đánh lửa khi cắm phích nước.',
+      status: 4, // COMPLETED
+      images: [
+        'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&q=80&w=300',
+        'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=300'
+      ],
+      createdAt: '2026-05-25 10:00',
     ),
   ];
 
@@ -142,6 +158,6 @@ class MaintenanceController extends ChangeNotifier {
 
   /// Add Tenant Feedback (Tenant action)
   Future<bool> addFeedback(int id, String feedback) async {
-    return updateRequestStatus(id, 3, feedback: feedback); // Keep RESOLVED status
+    return updateRequestStatus(id, 4, feedback: feedback); // Keep COMPLETED status
   }
 }

@@ -5,7 +5,9 @@ import '../../controllers/dashboard_controller.dart';
 import '../../controllers/room_controller.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../controllers/contract_controller.dart';
+import '../../controllers/maintenance_controller.dart';
 import '../auth/login_screen.dart'; // import GridPainter
+import '../settings/settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,6 +17,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  int _currentIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +34,111 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Widget _buildNotificationsTab() {
+    final maintenanceController = context.watch<MaintenanceController>();
+    final requests = maintenanceController.requests;
+
+    // Filter notification items:
+    // 1. New maintenance requests (status == 1)
+    // 2. Completed requests with feedback
+    final List<Map<String, dynamic>> items = [];
+
+    for (final req in requests) {
+      if (req.status == 1) {
+        items.add({
+          'type': 'request',
+          'title': 'Yêu cầu sửa chữa mới — Phòng ${req.roomNumber}',
+          'subtitle': '${req.title}: ${req.description}',
+          'date': req.createdAt,
+          'icon': Icons.handyman_outlined,
+          'color': Colors.orange,
+        });
+      }
+      if (req.feedback != null && req.feedback!.isNotEmpty) {
+        items.add({
+          'type': 'feedback',
+          'title': 'Phản hồi mới — Phòng ${req.roomNumber}',
+          'subtitle': 'Khách ${req.tenantName}: "${req.feedback}"',
+          'date': req.createdAt,
+          'icon': Icons.rate_review_outlined,
+          'color': Colors.green,
+        });
+      }
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(child: CustomPaint(painter: GridPainter())),
+        items.isEmpty
+            ? const Center(
+                child: Text(
+                  'Không có thông báo mới nào từ khách hàng.',
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return Card(
+                    color: Colors.white,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: const BorderSide(color: Color(0xFFE4E2D7)),
+                    ),
+                    elevation: 0,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(16),
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: item['color'].withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(item['icon'], color: item['color']),
+                      ),
+                      title: Text(
+                        item['title'],
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1C1917),
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 6),
+                          Text(
+                            item['subtitle'],
+                            style: const TextStyle(
+                              color: Color(0xFF44403C),
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Thời gian: ${item['date']}',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.pushNamed(context, '/admin/maintenance');
+                      },
+                    ),
+                  );
+                },
+              ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authController = context.watch<AuthController>();
@@ -37,27 +146,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final roomController = context.watch<RoomController>();
     final invoiceController = context.watch<InvoiceController>();
     final contractController = context.watch<ContractController>();
+    final maintenanceController = context.watch<MaintenanceController>();
     
     final admin = authController.currentAdmin;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F6F0),
-      appBar: AppBar(
-        title: const Text(
-          'StayHub Command Center',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        backgroundColor: const Color(0xFF1C1917),
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: _handleLogout,
-            tooltip: 'Đăng xuất',
-          )
-        ],
-      ),
-      body: Stack(
+    // Calculate unhandled notifications count:
+    // 1. Created requests (status == 1)
+    // 2. Feedback comments
+    int notificationCount = 0;
+    for (final req in maintenanceController.requests) {
+      if (req.status == 1) notificationCount++;
+      if (req.feedback != null && req.feedback!.isNotEmpty) notificationCount++;
+    }
+
+    final List<Widget> tabs = [
+      // Tab 0: Operations grid
+      Stack(
         children: [
           // Background grid pattern
           Positioned.fill(
@@ -137,35 +241,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 12),
                         
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                title: 'PHÒNG TRỐNG',
-                                value: '${roomController.emptyRoomsCount}',
-                                icon: Icons.meeting_room_outlined,
-                                color: Colors.green,
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: _buildStatCard(
+                                  title: 'PHÒNG TRỐNG',
+                                  value: '${roomController.emptyRoomsCount}',
+                                  icon: Icons.meeting_room_outlined,
+                                  color: Colors.green,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildStatCard(
-                                title: 'HÓA ĐƠN NỢ',
-                                value: '${invoiceController.unpaidInvoicesCount}',
-                                icon: Icons.receipt_long_outlined,
-                                color: const Color(0xFFEAB308),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildStatCard(
+                                  title: 'HÓA ĐƠN NỢ',
+                                  value: '${invoiceController.unpaidInvoicesCount}',
+                                  icon: Icons.receipt_long_outlined,
+                                  color: const Color(0xFFEAB308),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildStatCard(
-                                title: 'HĐ SẮP HẾT HẠN',
-                                value: '${contractController.expiringContractsCount}',
-                                icon: Icons.gavel_outlined,
-                                color: Colors.redAccent,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildStatCard(
+                                  title: 'HĐ SẮP HẾT HẠN',
+                                  value: '${contractController.expiringContractsCount}',
+                                  icon: Icons.gavel_outlined,
+                                  color: Colors.redAccent,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 24),
 
@@ -238,13 +345,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               color: Colors.pink,
                               onTap: () => Navigator.pushNamed(context, '/admin/notifications'),
                             ),
-                            _buildMenuCard(
-                              title: 'Tài khoản',
-                              subtitle: 'Đổi mật khẩu bảo mật',
-                              icon: Icons.settings,
-                              color: const Color(0xFF78716C),
-                              onTap: () => Navigator.pushNamed(context, '/settings'),
-                            ),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -290,6 +390,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                 ),
+        ],
+      ),
+      // Tab 1: Settings Screen (embedded directly)
+      const SettingsScreen(),
+      // Tab 2: Customer Notifications
+      _buildNotificationsTab(),
+    ];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F6F0),
+      appBar: _currentIndex == 1
+          ? null
+          : AppBar(
+              title: Row(
+                children: [
+                  const Icon(
+                    Icons.home_work_rounded,
+                    color: Color(0xFFEAB308),
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _currentIndex == 0 ? 'StayHub Command Center' : 'Thông báo từ khách',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1C1917),
+              elevation: 0,
+              automaticallyImplyLeading: false,
+            ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: tabs,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        selectedItemColor: const Color(0xFFEAB308),
+        unselectedItemColor: Colors.white.withOpacity(0.6),
+        backgroundColor: const Color(0xFF1C1917),
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: [
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_outlined),
+            activeIcon: Icon(Icons.dashboard),
+            label: 'Chức năng',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Tài khoản',
+          ),
+          BottomNavigationBarItem(
+            icon: notificationCount > 0
+                ? Badge(
+                    label: Text('$notificationCount'),
+                    backgroundColor: Colors.redAccent,
+                    textColor: Colors.white,
+                    child: const Icon(Icons.notifications_outlined),
+                  )
+                : const Icon(Icons.notifications_outlined),
+            activeIcon: notificationCount > 0
+                ? Badge(
+                    label: Text('$notificationCount'),
+                    backgroundColor: Colors.redAccent,
+                    textColor: Colors.white,
+                    child: const Icon(Icons.notifications),
+                  )
+                : const Icon(Icons.notifications),
+            label: 'Thông báo',
+          ),
         ],
       ),
     );

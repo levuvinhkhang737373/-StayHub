@@ -1,4 +1,14 @@
+import 'tenant.dart';
+import 'room.dart';
+
 class Contract {
+  // Status constants matching backend:
+  static const int STATUS_DRAFT = 1;
+  static const int STATUS_ACTIVE = 2;
+  static const int STATUS_EXPIRED = 3;
+  static const int STATUS_LIQUIDATED = 4;
+  static const int STATUS_CANCELLED = 5;
+
   final int id;
   final String contractCode;
   final int roomId;
@@ -11,10 +21,14 @@ class Contract {
   final int billingCycleDay;
   final double roomPrice;
   final double depositAmount;
-  final int status; // 1: Active, 2: Expired, 3: Terminated, 4: Draft
+  final int status; // 1: Draft, 2: Active, 3: Expired, 4: Liquidated, 5: Cancelled
   final List<String>? contractFiles;
   final String? note;
   final int? createdBy;
+  final String? roomCode;
+  final String? representativeName;
+  final Tenant? representativeTenant;
+  final Room? room;
 
   Contract({
     required this.id,
@@ -33,6 +47,10 @@ class Contract {
     this.contractFiles,
     this.note,
     this.createdBy,
+    this.roomCode,
+    this.representativeName,
+    this.representativeTenant,
+    this.room,
   });
 
   // Alias fields for backward compatibility
@@ -59,12 +77,20 @@ class Contract {
       endDate: json['end_date'] as String?,
       actualEndDate: json['actual_end_date'] as String?,
       billingCycleDay: json['billing_cycle_day'] as int? ?? 1,
-      roomPrice: (json['room_price'] as num? ?? json['rental_price'] as num? ?? 0.0).toDouble(),
-      depositAmount: (json['deposit_amount'] as num? ?? 0.0).toDouble(),
-      status: json['status'] as int? ?? 1,
+      roomPrice: json['room_price'] != null
+          ? (double.tryParse(json['room_price'].toString()) ?? 0.0)
+          : (json['rental_price'] != null ? (double.tryParse(json['rental_price'].toString()) ?? 0.0) : 0.0),
+      depositAmount: json['deposit_amount'] != null ? (double.tryParse(json['deposit_amount'].toString()) ?? 0.0) : 0.0,
+      status: json['status'] as int? ?? STATUS_DRAFT,
       contractFiles: files,
       note: json['note'] as String?,
       createdBy: json['created_by'] as int?,
+      roomCode: json['room_code'] as String?,
+      representativeName: json['representative_name'] as String?,
+      representativeTenant: json['representative_tenant'] != null
+          ? Tenant.fromJson(json['representative_tenant'] as Map<String, dynamic>)
+          : null,
+      room: json['room'] != null ? Room.fromJson(json['room'] as Map<String, dynamic>) : null,
     );
   }
 
@@ -88,22 +114,29 @@ class Contract {
       'contract_files': contractFiles,
       'note': note,
       'created_by': createdBy,
+      'room_code': roomCode,
+      'representative_name': representativeName,
+      'representative_tenant': representativeTenant?.toJson(),
+      'room': room?.toJson(),
     };
   }
 
   String get statusLabel {
     switch (status) {
-      case 1:
-        return 'Hiệu lực';
-      case 2:
-        return 'Hết hạn';
-      case 3:
-        return 'Đã kết thúc';
-      case 4:
-      default:
+      case STATUS_DRAFT:
         return 'Bản nháp';
+      case STATUS_ACTIVE:
+        return 'Hiệu lực';
+      case STATUS_EXPIRED:
+        return 'Hết hạn';
+      case STATUS_LIQUIDATED:
+        return 'Đã thanh lý';
+      case STATUS_CANCELLED:
+        return 'Đã hủy';
+      default:
+        return 'Không xác định';
     }
   }
 
-  bool get isActive => status == 1;
+  bool get isActive => status == STATUS_ACTIVE;
 }

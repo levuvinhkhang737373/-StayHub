@@ -72,6 +72,52 @@ class MyApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        final isWide = mediaQuery.size.width > 500;
+        
+        // Suppress system text scaling and clamp size to mobile bounds on wide screens
+        final clampedMediaQuery = mediaQuery.copyWith(
+          // ignore: deprecated_member_use
+          textScaleFactor: 1.0,
+          size: isWide ? Size(480, mediaQuery.size.height) : mediaQuery.size,
+        );
+
+        Widget mainApp = child!;
+
+        if (isWide) {
+          mainApp = Container(
+            color: const Color(0xFF0F172A), // Dark slate background for wide screens
+            alignment: Alignment.center,
+            child: Container(
+              constraints: const BoxConstraints(
+                maxWidth: 480,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F6F0),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 30,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: child,
+              ),
+            ),
+          );
+        }
+
+        return MediaQuery(
+          data: clampedMediaQuery,
+          child: mainApp,
+        );
+      },
       home: const SplashScreen(),
       routes: {
         '/login': (_) => const LoginScreen(),

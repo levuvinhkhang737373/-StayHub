@@ -52,7 +52,7 @@ class Service {
       chargeMethod: json['charge_method'] as int? ?? 1,
       unitName: json['unit_name'] as String? ?? json['unit'] as String?,
       isRequired: json['is_required'] as bool? ?? false,
-      price: json['price'] != null ? (json['price'] as num).toDouble() : null,
+      price: json['price'] != null ? double.tryParse(json['price'].toString()) : null,
       status: resolvedStatus,
       description: json['description'] as String?,
       createdBy: json['created_by'] as int?,

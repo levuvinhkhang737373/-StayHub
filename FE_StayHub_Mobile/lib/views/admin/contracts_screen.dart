@@ -376,9 +376,11 @@ class _ContractsScreenState extends State<ContractsScreen> {
 
   Widget _buildStatusBadge(Contract contract) {
     Color color = Colors.grey;
-    if (contract.status == 1) color = Colors.green; // Active
-    if (contract.status == 2) color = const Color(0xFFEAB308); // Expired
-    if (contract.status == 3) color = Colors.redAccent; // Terminated
+    if (contract.status == 2) color = Colors.green; // Active
+    if (contract.status == 3) color = const Color(0xFFEAB308); // Expired
+    if (contract.status == 4) color = Colors.redAccent; // Liquidated
+    if (contract.status == 5) color = Colors.grey; // Cancelled
+    if (contract.status == 1) color = Colors.grey; // Draft
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

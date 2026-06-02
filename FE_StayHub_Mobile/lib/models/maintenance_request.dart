@@ -1,4 +1,11 @@
 class MaintenanceRequest {
+  // Status constants matching backend:
+  static const int STATUS_CREATED = 1;
+  static const int STATUS_RECEIVED = 2;
+  static const int STATUS_PROCESSING = 3;
+  static const int STATUS_COMPLETED = 4;
+  static const int STATUS_CANCELLED = 5;
+
   final int id;
   final String requestCode;
   final int roomId;
@@ -7,7 +14,7 @@ class MaintenanceRequest {
   final String? tenantName;
   final String title;
   final String description;
-  final int status; // 1: Pending, 2: In Progress, 3: Resolved, 4: Cancelled
+  final int status; // 1: Created, 2: Received, 3: Processing, 4: Completed, 5: Cancelled
   final List<String>? images;
   final int? assignedTo;
   final String? receivedAt;
@@ -55,7 +62,7 @@ class MaintenanceRequest {
       tenantName: json['tenant_name'] as String?,
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
-      status: json['status'] as int? ?? 1,
+      status: json['status'] as int? ?? STATUS_CREATED,
       images: imagesList,
       assignedTo: json['assigned_to'] as int?,
       receivedAt: json['received_at'] as String?,
@@ -87,15 +94,18 @@ class MaintenanceRequest {
 
   String get statusLabel {
     switch (status) {
-      case 1:
-        return 'Chưa xử lý';
-      case 2:
-        return 'Đang sửa chữa';
-      case 3:
+      case STATUS_CREATED:
+        return 'Mới tạo';
+      case STATUS_RECEIVED:
+        return 'Đã tiếp nhận';
+      case STATUS_PROCESSING:
+        return 'Đang xử lý';
+      case STATUS_COMPLETED:
         return 'Đã hoàn thành';
-      case 4:
-      default:
+      case STATUS_CANCELLED:
         return 'Đã hủy';
+      default:
+        return 'Không xác định';
     }
   }
 }

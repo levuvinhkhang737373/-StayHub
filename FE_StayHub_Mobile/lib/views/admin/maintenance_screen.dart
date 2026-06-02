@@ -26,26 +26,28 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  DropdownButtonFormField<int>(
-                    initialValue: selectedStatus,
-                    decoration: const InputDecoration(labelText: 'Trạng thái xử lý', border: OutlineInputBorder()),
-                    items: const [
-                      DropdownMenuItem(value: 1, child: Text('Chưa xử lý')),
-                      DropdownMenuItem(value: 2, child: Text('Đang sửa chữa')),
-                      DropdownMenuItem(value: 3, child: Text('Đã hoàn thành')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        setStateDialog(() {
-                          selectedStatus = val;
-                        });
-                      }
-                    },
-                  ),
+                    DropdownButtonFormField<int>(
+                      initialValue: selectedStatus,
+                      decoration: const InputDecoration(labelText: 'Trạng thái xử lý', border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 1, child: Text('Mới tạo')),
+                        DropdownMenuItem(value: 2, child: Text('Đã tiếp nhận')),
+                        DropdownMenuItem(value: 3, child: Text('Đang xử lý')),
+                        DropdownMenuItem(value: 4, child: Text('Đã hoàn thành')),
+                        DropdownMenuItem(value: 5, child: Text('Đã hủy')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setStateDialog(() {
+                            selectedStatus = val;
+                          });
+                        }
+                      },
+                    ),
                   const SizedBox(height: 16),
                   
                   // After Photo capture simulation (Required if resolved)
-                  if (selectedStatus == 3) ...[
+                  if (selectedStatus == 4) ...[
                     const Text('ẢNH MINH CHỨNG HOÀN THÀNH', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
                     const SizedBox(height: 8),
                     InkWell(
@@ -89,14 +91,14 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                 ),
                 TextButton(
                   onPressed: () async {
-                    if (selectedStatus == 3 && !hasAfterPhoto) {
+                    if (selectedStatus == 4 && !hasAfterPhoto) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Vui lòng chụp ảnh minh chứng hoàn thành!'), backgroundColor: Colors.redAccent),
                       );
                       return;
                     }
 
-                    final afterImg = selectedStatus == 3 ? 'https://images.unsplash.com/photo-1550985616-10810253b84d?auto=format&fit=crop&q=80&w=300' : null;
+                    final afterImg = selectedStatus == 4 ? 'https://images.unsplash.com/photo-1550985616-10810253b84d?auto=format&fit=crop&q=80&w=300' : null;
                     final success = await context.read<MaintenanceController>().updateRequestStatus(
                       request.id,
                       selectedStatus,
@@ -240,7 +242,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                             ],
 
                             // Actions
-                            if (request.status != 3) ...[
+                            if (request.status != 4 && request.status != 5) ...[
                               const Divider(height: 24, color: Color(0xFFE4E2D7)),
                               ElevatedButton.icon(
                                 onPressed: () => _updateRequestStatus(request),
@@ -267,9 +269,11 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
 
   Widget _buildStatusBadge(int status, String label) {
     Color color = Colors.grey;
-    if (status == 1) color = Colors.redAccent;
-    if (status == 2) color = const Color(0xFFEAB308);
-    if (status == 3) color = Colors.green;
+    if (status == 1) color = Colors.redAccent;          // Mới tạo
+    if (status == 2) color = Colors.blueAccent;         // Đã tiếp nhận
+    if (status == 3) color = const Color(0xFFEAB308);   // Đang xử lý
+    if (status == 4) color = Colors.green;              // Đã hoàn thành
+    if (status == 5) color = Colors.grey;               // Đã hủy
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

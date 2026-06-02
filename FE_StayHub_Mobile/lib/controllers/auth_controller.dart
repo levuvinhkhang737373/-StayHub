@@ -71,28 +71,7 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    // Mock Login Bypass for Admin
-    if (isLoggingAsAdmin && username.trim() == 'admin' && password == '123456') {
-      await Future.delayed(const Duration(milliseconds: 600)); // Simulate delay
-      _currentAdmin = Admin(
-        id: 1,
-        username: 'admin',
-        fullName: 'Quản lý Tòa nhà',
-        email: 'admin@stayhub.id.vn',
-        phone: '0987654321',
-        role: 1,
-        status: 1,
-        gender: 1,
-        address: 'Thành phố Hồ Chí Minh',
-      );
-      _currentRole = 'admin';
-      _currentTenant = null;
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    }
-
-    // Mock Login Bypass for Tenant
+    // Mock Login Bypass for Tenant (since backend doesn't support tenant yet)
     if (!isLoggingAsAdmin && username.trim() == 'tenant' && password == '123456') {
       await Future.delayed(const Duration(milliseconds: 600)); // Simulate delay
       _currentTenant = Tenant(
@@ -122,7 +101,13 @@ class AuthController extends ChangeNotifier {
     if (isLoggingAsAdmin) {
       try {
         await _apiService.init();
-        await _apiService.getCsrfCookie();
+        try {
+          await _apiService.getCsrfCookie();
+        } catch (e) {
+          // Fail-silent for CSRF cookie fetching since mobile app doesn't always need it
+          // and login is excluded from CSRF checks in Laravel backend anyway.
+          debugPrint('CSRF Cookie retrieval failed/skipped: $e');
+        }
 
         final response = await _apiService.post<Map<String, dynamic>>(
           '/admin/login',

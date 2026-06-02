@@ -4,6 +4,8 @@ import '../../controllers/auth_controller.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../controllers/maintenance_controller.dart';
 import '../auth/login_screen.dart'; // import GridPainter
+import '../settings/settings_screen.dart';
+import 'tenant_chat_screen.dart';
 
 class TenantDashboardScreen extends StatefulWidget {
   const TenantDashboardScreen({super.key});
@@ -13,12 +15,7 @@ class TenantDashboardScreen extends StatefulWidget {
 }
 
 class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
-  Future<void> _handleLogout() async {
-    final success = await context.read<AuthController>().logout();
-    if (success && mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
-  }
+  int _currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -34,25 +31,11 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
     final unpaidInvoices = tenantInvoices.where((i) => i.isUnpaid).toList();
 
     final tenantRequests = maintenanceController.getRequestsForRoom(roomNumber);
-    final activeRequests = tenantRequests.where((r) => r.status != 3).toList();
+    final activeRequests = tenantRequests.where((r) => r.status != 4 && r.status != 5).toList();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F6F0),
-      appBar: AppBar(
-        title: const Text(
-          'StayHub Tenant Center',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        backgroundColor: const Color(0xFF1C1917),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: _handleLogout,
-            tooltip: 'Đăng xuất',
-          )
-        ],
-      ),
-      body: Stack(
+    final List<Widget> tabs = [
+      // Tab 0: Home / Ops Center
+      Stack(
         children: [
           Positioned.fill(child: CustomPaint(painter: GridPainter())),
           RefreshIndicator(
@@ -164,26 +147,29 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 1.0),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildDashboardStatCard(
-                          title: 'HÓA ĐƠN CHƯA CHI',
-                          value: '${unpaidInvoices.length}',
-                          icon: Icons.receipt_long_outlined,
-                          color: unpaidInvoices.isNotEmpty ? const Color(0xFFEAB308) : Colors.green,
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _buildDashboardStatCard(
+                            title: 'HÓA ĐƠN CHƯA CHI',
+                            value: '${unpaidInvoices.length}',
+                            icon: Icons.receipt_long_outlined,
+                            color: unpaidInvoices.isNotEmpty ? const Color(0xFFEAB308) : Colors.green,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildDashboardStatCard(
-                          title: 'YÊU CẦU ĐANG XỬ LÝ',
-                          value: '${activeRequests.length}',
-                          icon: Icons.build_circle_outlined,
-                          color: activeRequests.isNotEmpty ? Colors.blueAccent : Colors.grey,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildDashboardStatCard(
+                            title: 'YÊU CẦU ĐANG XỬ LÝ',
+                            value: '${activeRequests.length}',
+                            icon: Icons.build_circle_outlined,
+                            color: activeRequests.isNotEmpty ? Colors.blueAccent : Colors.grey,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 20),
 
@@ -215,20 +201,6 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
                         color: const Color(0xFFEAB308),
                         onTap: () => Navigator.pushNamed(context, '/tenant/maintenance'),
                       ),
-                      _buildMenuShortcutCard(
-                        title: 'Thông báo',
-                        subtitle: 'Xem thông báo mới',
-                        icon: Icons.campaign_rounded,
-                        color: const Color(0xFF78716C),
-                        onTap: () => Navigator.pushNamed(context, '/tenant/notifications'),
-                      ),
-                      _buildMenuShortcutCard(
-                        title: 'Thông tin cá nhân',
-                        subtitle: 'Đổi mật khẩu & Profile',
-                        icon: Icons.person,
-                        color: Colors.blueAccent,
-                        onTap: () => Navigator.pushNamed(context, '/settings'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -259,6 +231,66 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+      // Tab 1: Settings Screen
+      const SettingsScreen(),
+      // Tab 2: Notifications Feed
+      const TenantNotificationScreen(),
+    ];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F6F0),
+      appBar: _currentIndex != 0
+          ? null
+          : AppBar(
+              title: Row(
+                children: const [
+                  Icon(
+                    Icons.home_work_rounded,
+                    color: Color(0xFFEAB308),
+                    size: 24,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'StayHub Tenant Center',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1C1917),
+              automaticallyImplyLeading: false,
+            ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: tabs,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        selectedItemColor: const Color(0xFFEAB308),
+        unselectedItemColor: Colors.white.withOpacity(0.6),
+        backgroundColor: const Color(0xFF1C1917),
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_outlined),
+            activeIcon: Icon(Icons.dashboard),
+            label: 'Chức năng',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Tài khoản',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications_outlined),
+            activeIcon: Icon(Icons.notifications),
+            label: 'Thông báo',
           ),
         ],
       ),

@@ -43,7 +43,7 @@ class FacilityController extends ChangeNotifier {
           code: 'KV-HCM',
           name: 'Khu vực TP. Hồ Chí Minh',
           slug: 'tp-ho-chi-minh',
-          status: 1,
+          isActive: true,
           description: 'Các tòa nhà khu vực phía Nam',
         ),
         Region(
@@ -51,7 +51,7 @@ class FacilityController extends ChangeNotifier {
           code: 'KV-HN',
           name: 'Khu vực Hà Nội',
           slug: 'ha-noi',
-          status: 1,
+          isActive: true,
           description: 'Các tòa nhà khu vực phía Bắc',
         ),
       ];

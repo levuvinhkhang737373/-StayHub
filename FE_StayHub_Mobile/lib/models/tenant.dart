@@ -17,6 +17,8 @@ class Tenant {
   final String identityNumber;
   final String? frontImageUrl;
   final String? backImageUrl;
+  final int? createdBy;
+  final bool? identityVerified;
 
   Tenant({
     required this.id,
@@ -37,6 +39,8 @@ class Tenant {
     required this.identityNumber,
     this.frontImageUrl,
     this.backImageUrl,
+    this.createdBy,
+    this.identityVerified,
   });
 
   factory Tenant.fromJson(Map<String, dynamic> json) {
@@ -59,6 +63,8 @@ class Tenant {
       identityNumber: json['identity_number'] as String? ?? '',
       frontImageUrl: json['front_image_url'] as String?,
       backImageUrl: json['back_image_url'] as String?,
+      createdBy: json['created_by'] as int?,
+      identityVerified: json['identity_verified'] as bool?,
     );
   }
 
@@ -82,6 +88,8 @@ class Tenant {
       'identity_number': identityNumber,
       'front_image_url': frontImageUrl,
       'back_image_url': backImageUrl,
+      'created_by': createdBy,
+      'identity_verified': identityVerified,
     };
   }
 

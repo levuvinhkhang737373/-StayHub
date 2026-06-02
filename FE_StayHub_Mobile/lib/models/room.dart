@@ -1,3 +1,6 @@
+import 'building.dart';
+import 'room_type.dart';
+
 class Room {
   final int id;
   final int buildingId;
@@ -13,6 +16,9 @@ class Room {
   final String? description;
   final int? createdBy;
   final String? buildingName;
+  final String? roomTypeName;
+  final Building? building;
+  final RoomType? roomType;
 
   Room({
     required this.id,
@@ -29,6 +35,9 @@ class Room {
     this.description,
     this.createdBy,
     this.buildingName,
+    this.roomTypeName,
+    this.building,
+    this.roomType,
   });
 
   factory Room.fromJson(Map<String, dynamic> json) {
@@ -36,17 +45,20 @@ class Room {
       id: json['id'] as int,
       buildingId: json['building_id'] as int,
       roomTypeId: json['room_type_id'] as int? ?? 1,
-      roomNumber: json['room_number'] as String? ?? json['room_number'] as String, // handles possible string keys
+      roomNumber: json['room_number'] as String? ?? '',
       slug: json['slug'] as String?,
       floor: json['floor'] as int?,
-      areaM2: json['area_m2'] != null ? (json['area_m2'] as num).toDouble() : null,
-      basePrice: (json['base_price'] as num? ?? 0.0).toDouble(),
+      areaM2: json['area_m2'] != null ? double.tryParse(json['area_m2'].toString()) : null,
+      basePrice: json['base_price'] != null ? (double.tryParse(json['base_price'].toString()) ?? 0.0) : 0.0,
       maxOccupants: json['max_occupants'] as int? ?? 4,
       currentOccupants: json['current_occupants'] as int? ?? 0,
       status: json['status'] as int? ?? 1,
       description: json['description'] as String?,
       createdBy: json['created_by'] as int?,
       buildingName: json['building_name'] as String?,
+      roomTypeName: json['room_type_name'] as String?,
+      building: json['building'] != null ? Building.fromJson(json['building'] as Map<String, dynamic>) : null,
+      roomType: json['room_type'] != null ? RoomType.fromJson(json['room_type'] as Map<String, dynamic>) : null,
     );
   }
 
@@ -66,6 +78,9 @@ class Room {
       'description': description,
       'created_by': createdBy,
       'building_name': buildingName,
+      'room_type_name': roomTypeName,
+      'building': building?.toJson(),
+      'room_type': roomType?.toJson(),
     };
   }
 

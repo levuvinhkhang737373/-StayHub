@@ -15,7 +15,7 @@ class ContractController extends ChangeNotifier {
       billingCycleDay: 5,
       roomPrice: 3500000,
       depositAmount: 3500000,
-      status: 1, // ACTIVE (Expiring soon)
+      status: 2, // ACTIVE (Expiring soon)
     ),
     InvoiceContract(
       id: 2,
@@ -29,7 +29,7 @@ class ContractController extends ChangeNotifier {
       billingCycleDay: 5,
       roomPrice: 3500000,
       depositAmount: 3500000,
-      status: 1, // ACTIVE
+      status: 2, // ACTIVE
     ),
     InvoiceContract(
       id: 3,
@@ -43,7 +43,7 @@ class ContractController extends ChangeNotifier {
       billingCycleDay: 5,
       roomPrice: 3800000,
       depositAmount: 3800000,
-      status: 2, // EXPIRED
+      status: 3, // EXPIRED
     ),
   ];
 
@@ -84,7 +84,7 @@ class ContractController extends ChangeNotifier {
       billingCycleDay: 5,
       roomPrice: rentalPrice,
       depositAmount: depositAmount,
-      status: 1, // ACTIVE
+      status: 2, // ACTIVE
     );
 
     _mockContracts.insert(0, newContract);
@@ -134,7 +134,7 @@ class ContractController extends ChangeNotifier {
         billingCycleDay: old.billingCycleDay,
         roomPrice: old.roomPrice,
         depositAmount: old.depositAmount,
-        status: 1, // Reset to ACTIVE
+        status: 2, // Reset to ACTIVE
       );
       _isLoading = false;
       notifyListeners();
@@ -167,7 +167,7 @@ class ContractController extends ChangeNotifier {
         billingCycleDay: old.billingCycleDay,
         roomPrice: old.roomPrice,
         depositAmount: old.depositAmount,
-        status: 3, // TERMINATED
+        status: 4, // TERMINATED / LIQUIDATED
       );
       _isLoading = false;
       notifyListeners();

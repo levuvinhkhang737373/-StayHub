@@ -33,8 +33,19 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
       appBar: AppBar(
-        title: const Text('Thông Báo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Row(
+          children: const [
+            Icon(
+              Icons.home_work_rounded,
+              color: Color(0xFFEAB308),
+              size: 24,
+            ),
+            SizedBox(width: 8),
+            Text('Thông Báo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
         backgroundColor: const Color(0xFF1C1917),
+        automaticallyImplyLeading: false,
       ),
       body: Stack(
         children: [

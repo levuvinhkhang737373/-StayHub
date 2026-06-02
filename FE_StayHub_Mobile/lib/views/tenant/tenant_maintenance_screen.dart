@@ -280,7 +280,7 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
                                   style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Color(0xFF1C1917)),
                                 ),
                               ),
-                            ] else if (req.status == 3) ...[
+                            ] else if (req.status == 4) ...[
                               const Divider(height: 24, color: Color(0xFFE4E2D7)),
                               OutlinedButton.icon(
                                 onPressed: () => _showFeedbackDialog(req.id),
@@ -312,9 +312,11 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
 
   Widget _buildStatusBadge(int status, String label) {
     Color color = Colors.grey;
-    if (status == 1) color = const Color(0xFFEAB308); // Pending
-    if (status == 2) color = Colors.blueAccent; // In Progress
-    if (status == 3) color = Colors.green; // Resolved
+    if (status == 1) color = Colors.redAccent;          // Mới tạo
+    if (status == 2) color = Colors.blueAccent;         // Đã tiếp nhận
+    if (status == 3) color = const Color(0xFFEAB308);   // Đang xử lý
+    if (status == 4) color = Colors.green;              // Đã hoàn thành
+    if (status == 5) color = Colors.grey;               // Đã hủy
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

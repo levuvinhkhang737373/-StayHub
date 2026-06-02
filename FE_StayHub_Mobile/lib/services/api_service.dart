@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
@@ -72,18 +73,20 @@ class ApiService {
   Future<void> init() async {
     if (_initialized) return;
 
-    final appDocDir = await getApplicationDocumentsDirectory();
-    final cookiePath = '${appDocDir.path}/.cookies/';
-    
-    // Create the directory if it doesn't exist
-    await Directory(cookiePath).create(recursive: true);
+    if (!kIsWeb) {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final cookiePath = '${appDocDir.path}/.cookies/';
+      
+      // Create the directory if it doesn't exist
+      await Directory(cookiePath).create(recursive: true);
 
-    _cookieJar = PersistCookieJar(
-      storage: FileStorage(cookiePath),
-      ignoreExpires: true,
-    );
+      _cookieJar = PersistCookieJar(
+        storage: FileStorage(cookiePath),
+        ignoreExpires: true,
+      );
 
-    _dio.interceptors.add(CookieManager(_cookieJar));
+      _dio.interceptors.add(CookieManager(_cookieJar));
+    }
     
     // Custom interceptor to log and handle unauthorized errors
     _dio.interceptors.add(InterceptorsWrapper(
@@ -259,6 +262,8 @@ class ApiService {
 
   /// Clear all stored session cookies (logout helper)
   Future<void> clearCookies() async {
-    await _cookieJar.deleteAll();
+    if (_initialized && !kIsWeb) {
+      await _cookieJar.deleteAll();
+    }
   }
 }

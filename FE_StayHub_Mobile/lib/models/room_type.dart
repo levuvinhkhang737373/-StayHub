@@ -1,49 +1,40 @@
-class Region {
+class RoomType {
   final int id;
-  final int? parentId;
-  final String code;
+  final int? buildingId;
+  final String? buildingName;
   final String name;
-  final String? path;
   final String? slug;
-  final bool isActive;
   final String? description;
+  final int status; // 1: Active, 2: Inactive
+  final int? roomsCount;
   final int? createdBy;
   final String? createdAt;
   final String? updatedAt;
 
-  Region({
+  RoomType({
     required this.id,
-    this.parentId,
-    required this.code,
+    this.buildingId,
+    this.buildingName,
     required this.name,
-    this.path,
     this.slug,
-    required this.isActive,
     this.description,
+    required this.status,
+    this.roomsCount,
     this.createdBy,
     this.createdAt,
     this.updatedAt,
   });
 
-  int get status => isActive ? 1 : 2;
-
-  factory Region.fromJson(Map<String, dynamic> json) {
-    bool active = true;
-    if (json['is_active'] != null) {
-      active = json['is_active'] as bool;
-    } else if (json['status'] != null) {
-      active = (json['status'] as int) == 1;
-    }
-
-    return Region(
+  factory RoomType.fromJson(Map<String, dynamic> json) {
+    return RoomType(
       id: json['id'] as int,
-      parentId: json['parent_id'] as int?,
-      code: json['code'] as String? ?? '',
+      buildingId: json['building_id'] as int?,
+      buildingName: json['building_name'] as String?,
       name: json['name'] as String? ?? '',
-      path: json['path'] as String?,
       slug: json['slug'] as String?,
-      isActive: active,
       description: json['description'] as String?,
+      status: json['status'] as int? ?? 1,
+      roomsCount: json['rooms_count'] as int?,
       createdBy: json['created_by'] as int?,
       createdAt: json['created_at'] as String?,
       updatedAt: json['updated_at'] as String?,
@@ -53,17 +44,22 @@ class Region {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'parent_id': parentId,
-      'code': code,
+      'building_id': buildingId,
+      'building_name': buildingName,
       'name': name,
-      'path': path,
       'slug': slug,
-      'is_active': isActive,
-      'status': status,
       'description': description,
+      'status': status,
+      'rooms_count': roomsCount,
       'created_by': createdBy,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };
   }
+
+  String get statusLabel {
+    return status == 1 ? 'Hoạt động' : 'Ngừng hoạt động';
+  }
+
+  bool get isActive => status == 1;
 }
