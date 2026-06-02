@@ -49,11 +49,12 @@ wait_for_project_mount() {
             return 0
         fi
 
-        echo "Backend source chưa sẵn sàng, đợi WSL/Docker ổn định (${count}/${attempts})..."
+        echo "Backend source chÆ°a sáºµn sÃ ng, Ä‘á»£i WSL/Docker á»•n Ä‘á»‹nh (${count}/${attempts})..."
         sleep "$delay"
         count=$((count + 1))
     done
 
+<<<<<<< HEAD
     if has_laravel_source "$IMAGE_FALLBACK_DIR"; then
         echo "Bind mount backend chưa đủ file Laravel; dùng source fallback trong image để container vẫn healthy."
         activate_app_dir "$IMAGE_FALLBACK_DIR"
@@ -63,6 +64,9 @@ wait_for_project_mount() {
     echo "Backend source vẫn chưa đầy đủ file Laravel cần thiết và image fallback không tồn tại."
     echo "Kiểm tra bind mount ./BE_StayHub -> $SOURCE_APP_DIR hoặc rebuild image backend."
     ls -la "$SOURCE_APP_DIR" 2>/dev/null || true
+=======
+    echo "Backend source váº«n chÆ°a Ä‘áº§y Ä‘á»§ file Laravel cáº§n thiáº¿t; thoÃ¡t Ä‘á»ƒ Docker tá»± restart."
+>>>>>>> origin/featVehicles
     exit 1
 }
 
@@ -128,12 +132,12 @@ acquire_composer_install_lock() {
         esac
 
         if [ "$created_at" -gt 0 ] && [ "$now" -gt 0 ] && [ $((now - created_at)) -gt "$ttl" ]; then
-            echo "Lock Composer quá hạn, mở khóa để cài lại dependencies..."
+            echo "Lock Composer quÃ¡ háº¡n, má»Ÿ khÃ³a Ä‘á»ƒ cÃ i láº¡i dependencies..."
             release_composer_install_lock
             continue
         fi
 
-        echo "Composer đang được container khác xử lý, đợi hoàn tất..."
+        echo "Composer Ä‘ang Ä‘Æ°á»£c container khÃ¡c xá»­ lÃ½, Ä‘á»£i hoÃ n táº¥t..."
         sleep 2
     done
 
@@ -159,9 +163,9 @@ ensure_composer_dependencies() {
     trap 'release_composer_install_lock' EXIT INT TERM
 
     if needs_composer_install; then
-        echo "Composer vendor đang thiếu hoặc lệch composer.lock, cài lại dependencies..."
+        echo "Composer vendor Ä‘ang thiáº¿u hoáº·c lá»‡ch composer.lock, cÃ i láº¡i dependencies..."
         if ! composer_install; then
-            echo "Composer install lỗi do vendor/cache cũ, làm sạch vendor rồi cài lại..."
+            echo "Composer install lá»—i do vendor/cache cÅ©, lÃ m sáº¡ch vendor rá»“i cÃ i láº¡i..."
             clear_vendor_contents
             composer clear-cache || true
             composer_install

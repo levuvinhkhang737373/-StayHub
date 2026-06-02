@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TenantController;
+use App\Http\Controllers\Admin\VehicleController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin')->group(function (): void {
@@ -60,6 +61,9 @@ Route::prefix('admin')->group(function (): void {
         //=========================Tenants================================
         Route::patch('tenants/{tenant}/status', [TenantController::class, 'updateStatus']);
         Route::apiResource('tenants', TenantController::class);
+        //=========================Vehicles================================
+        Route::patch('vehicles/{vehicle}/status', [VehicleController::class, 'updateStatus']);
+        Route::apiResource('vehicles', VehicleController::class);
 
         //=========================Contracts================================
     });
