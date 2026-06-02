@@ -307,7 +307,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
             $table->unsignedTinyInteger('vehicle_type')->default(1);
-            $table->string('license_plate', 30)->nullable()->unique();
+            $table->string('license_plate', 30)->unique();
             $table->string('brand', 100)->nullable();
             $table->string('color', 50)->nullable();
             $table->boolean('is_active')->default(true);

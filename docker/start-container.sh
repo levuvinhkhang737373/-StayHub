@@ -1,21 +1,51 @@
 #!/bin/sh
 set -e
 
-APP_DIR=/var/www/html/BE_StayHub
+SOURCE_APP_DIR=${SOURCE_APP_DIR:-/var/www/html/BE_StayHub}
+RUNTIME_APP_DIR=${RUNTIME_APP_DIR:-/var/www/current-backend}
+IMAGE_FALLBACK_DIR=${IMAGE_FALLBACK_DIR:-/opt/stayhub-backend}
+APP_DIR="$SOURCE_APP_DIR"
 APP_USER="${APP_USER:-${DOCKER_USER:-khang}}"
 COMPOSER_LOCK_HASH_FILE=vendor/.composer-lock.sha256
 COMPOSER_INSTALL_LOCK_DIR=storage/framework/composer-install.lock
 
-export APP_USER
-cd "$APP_DIR"
+export APP_USER APP_DIR SOURCE_APP_DIR RUNTIME_APP_DIR IMAGE_FALLBACK_DIR
+mkdir -p "$SOURCE_APP_DIR" "$(dirname "$RUNTIME_APP_DIR")"
+cd "$SOURCE_APP_DIR"
+
+has_laravel_source() {
+    dir="${1:-$APP_DIR}"
+
+    [ -f "$dir/artisan" ] && [ -f "$dir/composer.json" ] && [ -f "$dir/composer.lock" ] && [ -d "$dir/app" ] && [ -d "$dir/routes" ]
+}
+
+activate_app_dir() {
+    source_dir="$1"
+
+    # Runtime path là symlink nội bộ container, tách khỏi bind mount để tránh lỗi mount rỗng sau khi mở máy.
+    case "$RUNTIME_APP_DIR" in
+        ''|'/'|'/var'|'/var/www'|'/var/www/html'|"$SOURCE_APP_DIR"|"$IMAGE_FALLBACK_DIR")
+            echo "RUNTIME_APP_DIR không an toàn: $RUNTIME_APP_DIR"
+            exit 1
+            ;;
+    esac
+
+    rm -rf "$RUNTIME_APP_DIR"
+    ln -s "$source_dir" "$RUNTIME_APP_DIR"
+    chown -h "$APP_USER:$APP_USER" "$RUNTIME_APP_DIR" 2>/dev/null || true
+    APP_DIR="$RUNTIME_APP_DIR"
+    export APP_DIR
+    cd "$APP_DIR"
+}
 
 wait_for_project_mount() {
     attempts="${PROJECT_MOUNT_ATTEMPTS:-60}"
-    delay="${PROJECT_MOUNT_DELAY:-2}"
+    delay="${PROJECT_MOUNT_DELAY:-1}"
     count=1
 
     while [ "$count" -le "$attempts" ]; do
-        if [ -f artisan ] && [ -f composer.json ] && [ -f composer.lock ] && [ -d app ] && [ -d routes ]; then
+        if has_laravel_source "$SOURCE_APP_DIR"; then
+            activate_app_dir "$SOURCE_APP_DIR"
             return 0
         fi
 
@@ -24,7 +54,15 @@ wait_for_project_mount() {
         count=$((count + 1))
     done
 
-    echo "Backend source vẫn chưa đầy đủ file Laravel cần thiết; thoát để Docker tự restart."
+    if has_laravel_source "$IMAGE_FALLBACK_DIR"; then
+        echo "Bind mount backend chưa đủ file Laravel; dùng source fallback trong image để container vẫn healthy."
+        activate_app_dir "$IMAGE_FALLBACK_DIR"
+        return 0
+    fi
+
+    echo "Backend source vẫn chưa đầy đủ file Laravel cần thiết và image fallback không tồn tại."
+    echo "Kiểm tra bind mount ./BE_StayHub -> $SOURCE_APP_DIR hoặc rebuild image backend."
+    ls -la "$SOURCE_APP_DIR" 2>/dev/null || true
     exit 1
 }
 
@@ -207,8 +245,8 @@ start_octane_supervisor() {
     exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
 }
 
-wait_for_project_mount
 ensure_runtime_user
+wait_for_project_mount
 prepare_writable_directories
 ensure_composer_dependencies
 ensure_app_key

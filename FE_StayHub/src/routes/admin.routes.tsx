@@ -9,6 +9,7 @@ import { ExpenseCategoriesScreen } from '../features/admin/expense-categories/co
 import { ServicesScreen } from '../features/admin/services/components/services-screen'
 import { SettingsScreen } from '../features/admin/settings/components/settings-screen'
 import { SystemUsersScreen } from '../features/admin/system-users'
+import { TenantsScreen } from '../features/admin/tenants'
 import { CreateRegionScreen } from '../features/admin/facilities/components/create-region-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
@@ -66,7 +67,7 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'tenants',
-        element: <AdminPlaceholderScreen title="Khách thuê" description="Quản lý hồ sơ khách thuê, thông tin liên hệ và trạng thái lưu trú." />,
+        element: <TenantsScreen />,
       },
       {
         path: 'contracts',

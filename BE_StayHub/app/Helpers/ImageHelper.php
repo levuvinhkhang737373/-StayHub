@@ -4,6 +4,7 @@ namespace App\Helpers;
 
 use GdImage;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -64,6 +65,94 @@ class ImageHelper
         }
 
         return rtrim(config('app.url'), '/').self::normalizeStoredPath($path);
+    }
+
+    /**
+     * Lưu ảnh lên disk S3/MinIO ở chế độ private để chỉ xem qua link ký tạm thời.
+     */
+    public static function storeOnDisk(UploadedFile $image, string $folder, string $disk = 's3'): string
+    {
+        self::ensureValidImage($image);
+
+        $folder = trim(str_replace('\\', '/', $folder), '/');
+        $fileName = self::makeFileName($image);
+        $path = $folder.'/'.$fileName;
+        $stream = fopen($image->getRealPath(), 'rb');
+
+        if ($stream === false) {
+            throw new RuntimeException('Không thể đọc file ảnh để tải lên MinIO.');
+        }
+
+        try {
+            $stored = Storage::disk($disk)->put($path, $stream, 'private');
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+
+        if (! $stored) {
+            throw new RuntimeException('Không thể lưu ảnh lên MinIO.');
+        }
+
+        return $path;
+    }
+
+    public static function deleteFromDisk(?string $path, string $disk = 's3'): bool
+    {
+        if (blank($path) || filter_var($path, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        return Storage::disk($disk)->delete(ltrim((string) $path, '/'));
+    }
+
+    public static function urlFromDisk(?string $path, string $disk = 's3'): ?string
+    {
+        if (blank($path)) {
+            return null;
+        }
+
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        if (self::isLocalUploadPath($path)) {
+            return self::load($path);
+        }
+
+        return Storage::disk($disk)->url(ltrim((string) $path, '/'));
+    }
+
+    /**
+     * Tạo link xem ảnh MinIO có chữ ký và chỉ tồn tại trong thời gian cấu hình.
+     */
+    public static function temporaryUrlFromDisk(?string $path, string $disk = 's3', int $minutes = 5): ?string
+    {
+        if (blank($path)) {
+            return null;
+        }
+
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        if (self::isLocalUploadPath($path)) {
+            return self::load($path);
+        }
+
+        $minutes = max(1, $minutes);
+        $normalizedPath = ltrim((string) $path, '/');
+        $cacheNonce = Str::random(16);
+
+        return Storage::disk(self::temporaryDiskName($disk))->temporaryUrl(
+            $normalizedPath,
+            now()->addMinutes($minutes),
+            [
+                'ResponseCacheControl' => 'private, max-age='.($minutes * 60).', must-revalidate, stayhub-nonce='.$cacheNonce,
+                'ResponseContentDisposition' => 'inline; filename="'.self::makeTemporaryFileName($normalizedPath).'"',
+            ]
+        );
     }
 
     public static function compress(string $filePath, int $quality = 95, int $maxWidth = 2560): bool
@@ -135,6 +224,25 @@ class ImageHelper
         $path = preg_replace('#^uploads/#', 'upload/', $path);
 
         return self::normalizePath($path);
+    }
+
+    private static function isLocalUploadPath(string $path): bool
+    {
+        $path = ltrim(str_replace('\\', '/', $path), '/');
+
+        return str_starts_with($path, 'upload/');
+    }
+
+    private static function makeTemporaryFileName(string $path): string
+    {
+        return str_replace('"', '', basename($path));
+    }
+
+    private static function temporaryDiskName(string $disk): string
+    {
+        $temporaryDisk = $disk.'_temporary';
+
+        return config('filesystems.disks.'.$temporaryDisk) ? $temporaryDisk : $disk;
     }
 
     private static function ensureValidImage(UploadedFile $image): void

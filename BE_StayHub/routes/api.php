@@ -9,13 +9,13 @@ use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\TenantController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin')->group(function (): void {
 
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/face-login', [AuthController::class, 'faceLogin']);
-    // Logout luôn mở để dọn sạch session admin dù guard đang lệch trạng thái.
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::middleware(['auth.admin'])->group(function (): void {
@@ -56,6 +56,10 @@ Route::prefix('admin')->group(function (): void {
         //=========================Admin Accounts================================
         Route::patch('accounts/{account}/status', [AdminAccountController::class, 'updateStatus']);
         Route::apiResource('accounts', AdminAccountController::class);
+
+        //=========================Tenants================================
+        Route::patch('tenants/{tenant}/status', [TenantController::class, 'updateStatus']);
+        Route::apiResource('tenants', TenantController::class);
 
         //=========================Contracts================================
     });

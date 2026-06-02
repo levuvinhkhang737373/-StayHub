@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, MapPin, Save } from "lucide-react";
+import { ArrowLeft, MapPin, Save } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
 import { createAdminRegion, fetchAdminRegionDetail, fetchAdminRegions, updateAdminRegion } from "../services/facilities.service";
 import type { AdminRegionPayload, AdminRegionResource } from "../types/facility-api.model";

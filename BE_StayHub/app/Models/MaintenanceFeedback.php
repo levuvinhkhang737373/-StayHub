@@ -10,6 +10,9 @@ class MaintenanceFeedback extends Model
 {
     use HasFactory;
 
+    /** Bắt buộc khai báo đúng bảng vì Laravel không tự pluralize được từ "feedback". */
+    protected $table = 'maintenance_feedbacks';
+
     protected $fillable = ['maintenance_request_id', 'tenant_id', 'rating', 'images', 'comment'];
 
     protected function casts(): array

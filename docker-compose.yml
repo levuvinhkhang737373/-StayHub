@@ -12,6 +12,8 @@ x-backend-environment: &backend-environment
   APP_UID: ${DOCKER_UID:-1000}
   COMPOSER_CACHE_DIR: /tmp/composer-cache
   RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+  PROJECT_MOUNT_ATTEMPTS: ${PROJECT_MOUNT_ATTEMPTS:-60}
+  PROJECT_MOUNT_DELAY: ${PROJECT_MOUNT_DELAY:-1}
 
 x-backend-volumes: &backend-volumes
   - type: bind
@@ -217,11 +219,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'test -f artisan && curl -fsS http://127.0.0.1:8000/sanctum/csrf-cookie >/dev/null || exit 1' ]
+      test: [ 'CMD-SHELL', 'cd /var/www/current-backend && test -f artisan && test -f vendor/autoload.php && curl -fsS http://127.0.0.1:8000/up >/dev/null || exit 1' ]
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - laravel_network
 
@@ -241,11 +243,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
+      test: [ 'CMD-SHELL', 'cd /var/www/current-backend && test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
       interval: 15s
       timeout: 10s
       retries: 20
-      start_period: 120s
+      start_period: 180s
     networks:
       - laravel_network
 
@@ -301,7 +303,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 60s
     networks:
       - laravel_network
 
