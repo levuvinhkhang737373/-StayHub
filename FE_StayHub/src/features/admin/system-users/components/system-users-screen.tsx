@@ -155,6 +155,7 @@ export function SystemUsersScreen() {
   }, [loadAccounts])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1)
   }, [keyword, selectedRole, selectedStatus, perPage])
 

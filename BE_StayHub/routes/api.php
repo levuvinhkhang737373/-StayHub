@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminAccountController;
 use App\Http\Controllers\Admin\AssetTemplateController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
+use App\Http\Controllers\Admin\MeterController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
 use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\RoomTypeController;
@@ -46,6 +47,10 @@ Route::prefix('admin')->group(function (): void {
         //=========================Services================================
         Route::patch('services/{service}/status', [ServiceController::class, 'updateStatus']);
         Route::apiResource('services', ServiceController::class);
+
+        //=========================Meter Devices================================
+        Route::patch('meter-devices/{meterDevice}/status', [MeterController::class, 'updateStatus']);
+        Route::apiResource('meter-devices', MeterController::class);
 
         //=========================Expense Categories================================
         Route::patch('expense-categories/{expenseCategory}/status', [ExpenseCategoryController::class, 'updateStatus']);

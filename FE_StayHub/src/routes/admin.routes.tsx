@@ -6,6 +6,7 @@ import { AssetTemplatesScreen } from '../features/admin/asset-templates/componen
 import { CreateBuildingScreen } from '../features/admin/facilities/components/create-building-screen'
 import { RoomTypesScreen } from '../features/admin/room-types/components/room-types-screen'
 import { ExpenseCategoriesScreen } from '../features/admin/expense-categories/components/expense-categories-screen'
+import { MetersScreen } from '../features/admin/meters/components/meters-screen'
 import { ServicesScreen } from '../features/admin/services/components/services-screen'
 import { SettingsScreen } from '../features/admin/settings/components/settings-screen'
 import { SystemUsersScreen } from '../features/admin/system-users'
@@ -83,7 +84,7 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'meters',
-        element: <AdminPlaceholderScreen title="Chốt điện nước" description="Ghi nhận chỉ số điện nước định kỳ và đối soát dữ liệu tiêu thụ." />,
+        element: <MetersScreen />,
       },
       {
         path: 'invoices',
