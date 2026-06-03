@@ -450,7 +450,7 @@ export function TenantsScreen() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1240px] text-left">
+              <table className="w-full min-w-[1160px] text-left">
                 <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
                     <th className="px-5 py-4">Khách thuê</th>
@@ -458,16 +458,15 @@ export function TenantsScreen() {
                     <th className="px-5 py-4">Giấy tờ</th>
                     <th className="px-5 py-4">Trạng thái</th>
                     <th className="px-5 py-4">Tòa nhà</th>
-                    <th className="px-5 py-4">Phòng</th>
+                    <th className="whitespace-nowrap px-5 py-4">Phòng</th>
                     <th className="px-5 py-4 text-center">Phương tiện</th>
-                    <th className="px-5 py-4">Cập nhật</th>
                     <th className="px-5 py-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
                   {isLoading && Array.from({ length: 5 }).map((_, index) => (
                     <tr key={index}>
-                      <td colSpan={9} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
+                      <td colSpan={8} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
                     </tr>
                   ))}
 
@@ -478,7 +477,7 @@ export function TenantsScreen() {
                       <tr key={tenant.id} className="group transition hover:bg-[#f3c56b]/10">
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
-                            <img src={tenant.avatar_url || DEFAULT_AVATAR_URL} alt={tenant.full_name || tenant.username} onError={handleImageFallback} className="h-11 w-11 shrink-0 rounded-2xl border border-[#f3c56b]/35 object-cover shadow-sm transition group-hover:-translate-y-0.5 group-hover:scale-105" />
+                            <TenantAvatar tenant={tenant} />
                             <div className="min-w-0">
                               <p className="truncate text-sm font-black tracking-tight text-[#24170d]">{tenant.full_name || tenant.username}</p>
                               <p className="mt-0.5 text-xs font-bold text-[#8b5e34]/70">@{tenant.username}</p>
@@ -506,10 +505,9 @@ export function TenantsScreen() {
                           <div className="flex items-center gap-2 text-xs font-black text-[#0f5f59]"><Building2 className="h-4 w-4" /> {getTenantBuildingName(tenant)}</div>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="flex items-center gap-2 text-xs font-black text-[#8a4f18]"><DoorOpen className="h-4 w-4" /> {getTenantRoomNumber(tenant)}</div>
+                          <div className="flex items-center gap-2 whitespace-nowrap text-xs font-black text-[#8a4f18]"><DoorOpen className="h-4 w-4 shrink-0" /> {getTenantRoomNumber(tenant)}</div>
                         </td>
                         <td className="px-5 py-4 text-center"><CountBadge value={tenant.vehicles_count ?? 0} /></td>
-                        <td className="px-5 py-4"><span className="text-xs font-bold text-[#8b5e34]/75">{formatDateTime(tenant.updated_at)}</span></td>
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-end gap-2">
                             <button type="button" onClick={() => void viewTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label={`Xem chi tiết khách thuê ${tenant.username}`}><Eye className="h-5 w-5" /></button>
@@ -524,7 +522,7 @@ export function TenantsScreen() {
 
                   {!isLoading && tenants.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-5 py-20 text-center">
+                      <td colSpan={8} className="px-5 py-20 text-center">
                         <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-8">
                           <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><UserRound className="h-9 w-9" /></div>
                           <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy khách thuê</p>
@@ -594,12 +592,6 @@ export function TenantsScreen() {
               </div>
 
               <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
-                <div>
-                  <label className={labelClass}>Tòa nhà / phòng đang ở</label>
-                  <AdminSelect value={form.room_id} options={roomSelectOptions} invalid={!!errors.room_id} disabled={isRoomOptionsLoading || roomSelectOptions.length === 0} placeholder={isRoomOptionsLoading ? 'Đang tải danh sách phòng...' : 'Chọn tòa nhà và phòng'} onChange={(nextValue) => updateForm('room_id', Number(nextValue))} />
-                  <FieldError message={errors.room_id || (roomSelectOptions.length === 0 && !isRoomOptionsLoading ? 'Chưa có phòng hợp lệ trong phạm vi quyền quản lý.' : undefined)} />
-                </div>
-
                 <div>
                   <label className={labelClass}>Tên đăng nhập</label>
                   <input className={cn(inputClass, errors.username && inputErrorClass)} value={form.username} onChange={(event) => updateForm('username', event.target.value)} placeholder="Ví dụ: tenant_nguyenvana" autoComplete="off" />
@@ -757,6 +749,29 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
 
 function CountBadge({ value }: { value: number }) {
   return <span className="inline-flex min-w-10 items-center justify-center rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-3 py-1 text-xs font-black text-[#6f6254] shadow-sm tabular-nums">{value}</span>
+}
+
+function TenantAvatar({ tenant }: { tenant: AdminTenantResource }) {
+  const avatarUrl = tenant.avatar_url?.trim()
+  const [loadedAvatarUrl, setLoadedAvatarUrl] = useState<string | null>(null)
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoadedAvatarUrl(null)
+    setFailedAvatarUrl(null)
+  }, [avatarUrl])
+
+  const hasRemoteAvatar = Boolean(avatarUrl && avatarUrl !== DEFAULT_AVATAR_URL && avatarUrl !== failedAvatarUrl)
+  const avatarAlt = tenant.full_name || tenant.username
+
+  return (
+    <span className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-[#f3c56b]/35 bg-[#efe2cf] shadow-sm transition group-hover:-translate-y-0.5 group-hover:scale-105">
+      <img src={DEFAULT_AVATAR_URL} alt={avatarAlt} width={44} height={44} decoding="async" className="h-full w-full object-cover" />
+      {hasRemoteAvatar && (
+        <img src={avatarUrl} alt="" aria-hidden="true" width={44} height={44} loading="lazy" decoding="async" onLoad={() => setLoadedAvatarUrl(avatarUrl || null)} onError={() => setFailedAvatarUrl(avatarUrl || null)} className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-200', loadedAvatarUrl === avatarUrl ? 'opacity-100' : 'opacity-0')} />
+      )}
+    </span>
+  )
 }
 
 function handleImageFallback(event: SyntheticEvent<HTMLImageElement>) {

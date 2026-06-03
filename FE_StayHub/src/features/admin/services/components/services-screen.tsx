@@ -332,7 +332,6 @@ export function ServicesScreen() {
                   <Zap className="h-3.5 w-3.5" /> Services
                 </div>
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Danh mục dịch vụ</h1>
-                <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-[#f8e8c8]/75">Quản lý dịch vụ điện, nước, internet, rác, gửi xe và cấu hình cách tính phí cho hóa đơn.</p>
               </div>
               {isSuperAdmin && (
                 <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
