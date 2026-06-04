@@ -594,11 +594,7 @@ export function TenantsScreen() {
               </div>
 
               <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
-                <div>
-                  <label className={labelClass}>Tòa nhà / phòng đang ở</label>
-                  <AdminSelect value={form.room_id} options={roomSelectOptions} invalid={!!errors.room_id} disabled={isRoomOptionsLoading || roomSelectOptions.length === 0} placeholder={isRoomOptionsLoading ? 'Đang tải danh sách phòng...' : 'Chọn tòa nhà và phòng'} onChange={(nextValue) => updateForm('room_id', Number(nextValue))} />
-                  <FieldError message={errors.room_id || (roomSelectOptions.length === 0 && !isRoomOptionsLoading ? 'Chưa có phòng hợp lệ trong phạm vi quyền quản lý.' : undefined)} />
-                </div>
+
 
                 <div>
                   <label className={labelClass}>Tên đăng nhập</label>

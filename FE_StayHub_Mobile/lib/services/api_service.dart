@@ -91,8 +91,15 @@ class ApiService {
     // Custom interceptor to log and handle unauthorized errors
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
-        // Automatically inject CSRF token from cookies if present
+        // Force sending credentials (cookies) in web environment
+        options.extra['withCredentials'] = true;
         return handler.next(options);
+      },
+      onResponse: (response, handler) {
+        if (response.data != null) {
+          response.data = _mapLocalhost(response.data);
+        }
+        return handler.next(response);
       },
       onError: (DioException e, handler) async {
         if (e.response?.statusCode == 419) {
@@ -266,4 +273,62 @@ class ApiService {
       await _cookieJar.deleteAll();
     }
   }
+
+  /// Get current session cookies and CSRF token to pass to external clients (like WebSocket)
+  Future<Map<String, String>> getAuthHeaders() async {
+    final Map<String, String> headers = {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    };
+
+    if (_initialized && !kIsWeb) {
+      final uri = Uri.parse(AppConfig.apiOrigin);
+      final cookies = await _cookieJar.loadForRequest(uri);
+      if (cookies.isNotEmpty) {
+        final cookieString = cookies.map((c) => '${c.name}=${c.value}').join('; ');
+        headers['Cookie'] = cookieString;
+
+        // Find XSRF-TOKEN if present to bypass CSRF checks
+        try {
+          final xsrfCookie = cookies.firstWhere(
+            (c) => c.name == 'XSRF-TOKEN',
+          );
+          if (xsrfCookie.value.isNotEmpty) {
+            headers['X-XSRF-TOKEN'] = Uri.decodeComponent(xsrfCookie.value);
+          }
+        } catch (_) {
+          // XSRF-TOKEN not found
+        }
+      }
+    }
+
+    return headers;
+  }
+}
+
+dynamic _mapLocalhost(dynamic data) {
+  if (data is String) {
+    if (data.startsWith('http://localhost:8080')) {
+      return data.replaceFirst('http://localhost:8080', AppConfig.apiOrigin);
+    }
+    if (data.startsWith('http://127.0.0.1:8080')) {
+      return data.replaceFirst('http://127.0.0.1:8080', AppConfig.apiOrigin);
+    }
+    return data;
+  } else if (data is Map<String, dynamic>) {
+    final Map<String, dynamic> mapped = {};
+    data.forEach((key, value) {
+      mapped[key] = _mapLocalhost(value);
+    });
+    return mapped;
+  } else if (data is Map) {
+    final Map<String, dynamic> mapped = {};
+    data.forEach((key, value) {
+      mapped[key.toString()] = _mapLocalhost(value);
+    });
+    return mapped;
+  } else if (data is List) {
+    return data.map((item) => _mapLocalhost(item)).toList();
+  }
+  return data;
 }

@@ -19,10 +19,10 @@ class AdminScope
         return $admin->role === Admin::ROLE_BUILDING_MANAGER;
     }
 
-    // public static function isTechnician(Admin $admin): bool
-    // {
-    //     return $admin->role === Admin::ROLE_TECHNICIAN;
-    // }
+    public static function isTechnician(Admin $admin): bool
+    {
+        return $admin->role === Admin::ROLE_TECHNICIAN;
+    }
 
     /**
      * Lấy danh sách ID tòa nhà admin đang quản lý.

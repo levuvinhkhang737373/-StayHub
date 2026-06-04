@@ -16,6 +16,14 @@ class EnsureTenantGuard
     {
         $tenant = $request->user('tenant');
 
+        \Illuminate\Support\Facades\Log::info('EnsureTenantGuard Check:', [
+            'has_tenant' => !is_null($tenant),
+            'tenant_id' => $tenant ? $tenant->id : null,
+            'session_id' => $request->session() ? $request->session()->getId() : null,
+            'cookies' => $request->cookies->all(),
+            'headers' => $request->headers->all(),
+        ]);
+
         if (! $tenant || ! ($tenant instanceof Tenant)) {
             return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập với tài khoản tenant', 401, null, 401);
         }

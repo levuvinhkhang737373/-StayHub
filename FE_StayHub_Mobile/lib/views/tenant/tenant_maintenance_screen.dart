@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
 import '../../controllers/auth_controller.dart';
 import '../../controllers/maintenance_controller.dart';
 import '../auth/login_screen.dart'; // import GridPainter
@@ -12,10 +14,35 @@ class TenantMaintenanceScreen extends StatefulWidget {
 }
 
 class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
+  XFile? _selectedImage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MaintenanceController>().fetchRequests();
+    });
+  }
+
+  void _pickImage(StateSetter setModalState) async {
+    final ImagePicker picker = ImagePicker();
+    try {
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (image != null) {
+        setModalState(() {
+          _selectedImage = image;
+        });
+      }
+    } catch (e) {
+      debugPrint('Lỗi chọn ảnh: $e');
+    }
+  }
+
   void _showAddRequestDialog() {
     final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController();
     final descController = TextEditingController();
+    _selectedImage = null; // Clear previous selection
 
     showModalBottomSheet(
       context: context,
@@ -25,107 +52,116 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            top: 24,
-            left: 24,
-            right: 24,
-          ),
-          child: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Báo cáo Sự cố Sửa chữa',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  TextFormField(
-                    controller: titleController,
-                    style: const TextStyle(color: Color(0xFF1C1917)),
-                    decoration: const InputDecoration(
-                      labelText: 'Tiêu đề / Tên sự cố',
-                      border: OutlineInputBorder(),
-                      hintText: 'Ví dụ: Hỏng vòi nước, Điều hòa chảy nước',
-                    ),
-                    validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập tiêu đề' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  TextFormField(
-                    controller: descController,
-                    maxLines: 4,
-                    style: const TextStyle(color: Color(0xFF1C1917)),
-                    decoration: const InputDecoration(
-                      labelText: 'Mô tả chi tiết',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                      hintText: 'Mô tả rõ hiện tượng hư hỏng để kỹ thuật viên chuẩn bị dụng cụ.',
-                    ),
-                    validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập mô tả' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Mock camera upload widget (FaceID and camera dependencies removed)
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F6F0),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE4E2D7)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.photo_camera, color: Color(0xFF1C1917)),
-                        SizedBox(width: 12),
-                        Text(
-                          'Đã đính kèm ảnh minh chứng sự cố',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1C1917)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  ElevatedButton(
-                    onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      
-                      final authController = context.read<AuthController>();
-                      final roomNumber = authController.currentTenant?.roomNumber ?? '101';
-                      
-                      final success = await context.read<MaintenanceController>().createRequest(
-                            roomNumber: roomNumber,
-                            title: titleController.text.trim(),
-                            description: descController.text.trim(),
-                          );
-
-                      if (success && mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Gửi yêu cầu sửa chữa thành công!'), backgroundColor: Colors.green),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1C1917),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('GỬI YÊU CẦU', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(height: 32),
-                ],
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                top: 24,
+                left: 24,
+                right: 24,
               ),
-            ),
-          ),
+              child: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Báo cáo Sự cố Sửa chữa',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      TextFormField(
+                        controller: titleController,
+                        style: const TextStyle(color: Color(0xFF1C1917)),
+                        decoration: const InputDecoration(
+                          labelText: 'Tiêu đề / Tên sự cố',
+                          border: OutlineInputBorder(),
+                          hintText: 'Ví dụ: Hỏng vòi nước, Điều hòa chảy nước',
+                        ),
+                        validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập tiêu đề' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      TextFormField(
+                        controller: descController,
+                        maxLines: 4,
+                        style: const TextStyle(color: Color(0xFF1C1917)),
+                        decoration: const InputDecoration(
+                          labelText: 'Mô tả chi tiết',
+                          border: OutlineInputBorder(),
+                          alignLabelWithHint: true,
+                          hintText: 'Mô tả rõ hiện tượng hư hỏng để kỹ thuật viên chuẩn bị dụng cụ.',
+                        ),
+                        validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập mô tả' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      InkWell(
+                        onTap: () => _pickImage(setModalState),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7F6F0),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE4E2D7)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.photo_camera, color: Color(0xFF1C1917)),
+                              const SizedBox(width: 12),
+                              Text(
+                                _selectedImage == null
+                                    ? 'Đính kèm ảnh minh chứng sự cố'
+                                    : 'Đã chọn: ${path.basename(_selectedImage!.path)}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1C1917)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (!formKey.currentState!.validate()) return;
+                          
+                          final authController = context.read<AuthController>();
+                          final roomNumber = authController.currentTenant?.roomNumber ?? '101';
+                          
+                          final success = await context.read<MaintenanceController>().createRequest(
+                                roomNumber: roomNumber,
+                                title: titleController.text.trim(),
+                                description: descController.text.trim(),
+                                imageFile: _selectedImage,
+                              );
+
+                          if (success && mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Gửi yêu cầu sửa chữa thành công!'), backgroundColor: Colors.green),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1C1917),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('GỬI YÊU CẦU', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );

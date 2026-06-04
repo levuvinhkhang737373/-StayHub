@@ -43,7 +43,7 @@ class Tenant extends Authenticatable
         self::IDENTITY_TYPE_PASSPORT => 'Hộ chiếu',
     ];
 
-    protected $fillable = ['created_by', 'full_name', 'gender', 'date_of_birth', 'phone', 'email', 'username', 'password', 'permanent_address', 'current_address', 'avatar_url', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url'];
+    protected $fillable = ['created_by', 'room_id', 'full_name', 'gender', 'date_of_birth', 'phone', 'email', 'username', 'password', 'permanent_address', 'current_address', 'avatar_url', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -91,6 +91,11 @@ class Tenant extends Authenticatable
     public function creator(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'created_by');
+    }
+
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(Room::class);
     }
 
     public function representedContracts(): HasMany

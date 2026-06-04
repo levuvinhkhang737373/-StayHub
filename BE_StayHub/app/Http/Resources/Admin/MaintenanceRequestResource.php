@@ -27,7 +27,7 @@ class MaintenanceRequestResource extends JsonResource
             'description' => $this->description,
             'status' => $this->status,
             'status_label' => MaintenanceRequest::STATUS_LABELS[$this->status] ?? null,
-            'images' => $this->images ?? [],
+            'images' => array_map(fn ($image) => \App\Helpers\ImageHelper::temporaryUrlFromDisk($image), $this->images ?? []),
             'assigned_to' => $this->assigned_to,
             'assignee_name' => $this->whenLoaded('assignee', fn (): ?string => $this->assignee?->full_name),
             'received_at' => optional($this->received_at)->toDateTimeString(),

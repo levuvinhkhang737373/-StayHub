@@ -40,6 +40,8 @@ dependencies:
   provider: ^6.1.1
   path_provider: ^2.1.1
   path: ^1.8.3
+  dart_pusher_channels: ^1.1.3
+  image_picker: ^1.0.7
 
 dev_dependencies:
   flutter_test:

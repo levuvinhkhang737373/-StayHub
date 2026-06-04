@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../controllers/maintenance_controller.dart';
+import '../../controllers/notification_controller.dart';
+import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import '../settings/settings_screen.dart';
 import 'tenant_chat_screen.dart';
@@ -18,12 +20,36 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
   int _currentIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<NotificationController>().fetchNotifications(isAdmin: false);
+      context.read<MaintenanceController>().fetchRequests();
+
+      // Lắng nghe thông báo thời gian thực từ WebSocket cho Tenant
+      final authController = context.read<AuthController>();
+      final tenantId = authController.currentTenant?.id;
+      if (tenantId != null) {
+        context.read<WebSocketService>().subscribeToTenantNotifications(tenantId, (notification) {
+          if (mounted) {
+            context.read<NotificationController>().fetchNotifications(isAdmin: false);
+            // Đồng thời làm mới danh sách sửa chữa vì có thể có cập nhật trạng thái từ admin
+            context.read<MaintenanceController>().fetchRequests();
+          }
+        });
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final authController = context.watch<AuthController>();
     final tenant = authController.currentTenant;
 
     final invoiceController = context.watch<InvoiceController>();
     final maintenanceController = context.watch<MaintenanceController>();
+    final notificationController = context.watch<NotificationController>();
+    final unreadNotificationsCount = notificationController.unreadCount;
 
     // Get mock data bound to this tenant (Room 101)
     final roomNumber = tenant?.roomNumber ?? '101';
@@ -276,20 +302,34 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
             _currentIndex = index;
           });
         },
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Icon(Icons.dashboard_outlined),
             activeIcon: Icon(Icons.dashboard),
             label: 'Chức năng',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
             label: 'Tài khoản',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_outlined),
-            activeIcon: Icon(Icons.notifications),
+            icon: unreadNotificationsCount > 0
+                ? Badge(
+                    label: Text('$unreadNotificationsCount'),
+                    backgroundColor: Colors.redAccent,
+                    textColor: Colors.white,
+                    child: const Icon(Icons.notifications_outlined),
+                  )
+                : const Icon(Icons.notifications_outlined),
+            activeIcon: unreadNotificationsCount > 0
+                ? Badge(
+                    label: Text('$unreadNotificationsCount'),
+                    backgroundColor: Colors.redAccent,
+                    textColor: Colors.white,
+                    child: const Icon(Icons.notifications),
+                  )
+                : const Icon(Icons.notifications),
             label: 'Thông báo',
           ),
         ],

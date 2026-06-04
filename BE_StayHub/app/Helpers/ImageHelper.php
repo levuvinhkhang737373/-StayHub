@@ -72,6 +72,10 @@ class ImageHelper
      */
     public static function storeOnDisk(UploadedFile $image, string $folder, string $disk = 's3'): string
     {
+        if (config('filesystems.default') === 'local' || $disk === 'local') {
+            return self::create($image, $folder);
+        }
+
         self::ensureValidImage($image);
 
         $folder = trim(str_replace('\\', '/', $folder), '/');

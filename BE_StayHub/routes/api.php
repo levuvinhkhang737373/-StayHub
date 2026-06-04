@@ -11,6 +11,11 @@ use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\VehicleController;
+use App\Http\Controllers\Admin\MaintenanceRequestController as AdminMaintenanceController;
+use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
+use App\Http\Controllers\Tenant\AuthController as TenantAuthController;
+use App\Http\Controllers\Tenant\MaintenanceRequestController as TenantMaintenanceController;
+use App\Http\Controllers\Tenant\NotificationController as TenantNotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin')->group(function (): void {
@@ -65,6 +70,35 @@ Route::prefix('admin')->group(function (): void {
         Route::patch('vehicles/{vehicle}/status', [VehicleController::class, 'updateStatus']);
         Route::apiResource('vehicles', VehicleController::class);
 
+        //=========================Maintenance Requests====================
+        Route::patch('maintenance-requests/{id}/assign', [AdminMaintenanceController::class, 'assign']);
+        Route::patch('maintenance-requests/{id}/status', [AdminMaintenanceController::class, 'updateStatus']);
+        Route::apiResource('maintenance-requests', AdminMaintenanceController::class)->only(['index', 'show']);
+
+        //=========================Notifications===========================
+        Route::apiResource('notifications', AdminNotificationController::class);
+
         //=========================Contracts================================
+    });
+});
+
+//=========================Tenant API Group=========================
+Route::prefix('tenant')->group(function (): void {
+    // Các route công khai cho tenant
+    Route::post('/login', [TenantAuthController::class, 'login']);
+
+    // Các route bảo vệ bằng middleware auth.tenant
+    Route::middleware(['auth.tenant'])->group(function (): void {
+        Route::get('/me', [TenantAuthController::class, 'me']);
+        Route::post('/logout', [TenantAuthController::class, 'logout']);
+
+        //=========================Maintenance=========================
+        Route::post('maintenance-requests/{id}/feedback', [TenantMaintenanceController::class, 'feedback']);
+        Route::apiResource('maintenance-requests', TenantMaintenanceController::class)->only(['index', 'store', 'show']);
+
+        //=========================Notifications=======================
+        Route::get('notifications', [TenantNotificationController::class, 'index']);
+        Route::post('notifications/{id}/read', [TenantNotificationController::class, 'read']);
+        Route::post('notifications/read-all', [TenantNotificationController::class, 'readAll']);
     });
 });
