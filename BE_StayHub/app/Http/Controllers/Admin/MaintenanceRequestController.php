@@ -180,7 +180,6 @@ class MaintenanceRequestController extends Controller
                     'building_id' => $maintenance->room?->building_id,
                     'status' => \App\Models\Notification::STATUS_SENT,
                     'published_at' => now(),
-                    'created_by' => $admin->id,
                 ]);
 
                 return [
@@ -293,7 +292,6 @@ class MaintenanceRequestController extends Controller
                     'building_id' => $maintenance->room?->building_id,
                     'status' => \App\Models\Notification::STATUS_SENT,
                     'published_at' => now(),
-                    'created_by' => $admin->id,
                 ]);
 
                 return [

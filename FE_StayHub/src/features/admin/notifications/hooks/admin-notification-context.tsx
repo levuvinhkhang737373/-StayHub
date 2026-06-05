@@ -4,7 +4,7 @@ import Pusher from 'pusher-js'
 import axios from 'axios'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useAdminSession } from '../../auth/hooks/use-admin-session'
+import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { appConfig } from '../../../../shared/config/app-config'
 
 if (typeof window !== 'undefined') {
@@ -162,23 +162,69 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       console.log('WS: Received MaintenanceRequestCreated', event)
       const request = event.request
       if (request) {
-        addNotification({
-          title: 'Yêu cầu bảo trì mới',
-          description: `Phòng ${request.room_number ?? '?'}: ${request.title ?? ''} — ${request.description ?? ''}`,
-          link: '/admin/maintenance',
-          type: 'maintenance',
-        })
+        const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
+        const managedBuildings = session?.admin?.managed_buildings || []
+        const isManagerOfBuilding = managedBuildings.some(b => Number(b.id) === Number(request.building_id))
+
+        if (isSuperAdmin || isManagerOfBuilding) {
+          addNotification({
+            title: 'Yêu cầu bảo trì mới',
+            description: `Phòng ${request.room_number ?? '?'}: ${request.title ?? ''} — ${request.description ?? ''}`,
+            link: '/admin/maintenance',
+            type: 'maintenance',
+          })
+        }
         
         // Dispatch custom event to notify React components (like MaintenanceScreen)
         window.dispatchEvent(new CustomEvent('maintenance-created'))
       }
     })
 
+    channel.listen('.MaintenanceRequestAssigned', (event: any) => {
+      console.log('WS: Received MaintenanceRequestAssigned', event)
+      window.dispatchEvent(new CustomEvent('maintenance-created'))
+    })
+
+    channel.listen('.MaintenanceRequestProcessing', (event: any) => {
+      console.log('WS: Received MaintenanceRequestProcessing', event)
+      window.dispatchEvent(new CustomEvent('maintenance-created'))
+    })
+
+    channel.listen('.MaintenanceRequestCompleted', (event: any) => {
+      console.log('WS: Received MaintenanceRequestCompleted', event)
+      window.dispatchEvent(new CustomEvent('maintenance-created'))
+    })
+
+    channel.listen('.MaintenanceFeedbackCreated', (event: any) => {
+      console.log('WS: Received MaintenanceFeedbackCreated', event)
+      const feedback = event.feedback
+      if (feedback) {
+        const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
+        const managedBuildings = session?.admin?.managed_buildings || []
+        const isManagerOfBuilding = managedBuildings.some(b => Number(b.id) === Number(feedback.building_id))
+
+        if (isSuperAdmin || isManagerOfBuilding) {
+          const commentText = feedback.comment?.trim() ? `phản hồi: "${feedback.comment}"` : 'gửi phản hồi (không có nội dung)'
+          addNotification({
+            title: 'Phản hồi bảo trì mới',
+            description: `Phòng ${feedback.room_number ?? '?'}: Khách ${feedback.tenant_name ?? 'không rõ'} ${commentText}`,
+            link: '/admin/maintenance',
+            type: 'maintenance',
+          })
+        }
+        window.dispatchEvent(new CustomEvent('maintenance-created'))
+      }
+    })
+
     return () => {
       channel.stopListening('.MaintenanceRequestCreated')
+      channel.stopListening('.MaintenanceRequestAssigned')
+      channel.stopListening('.MaintenanceRequestProcessing')
+      channel.stopListening('.MaintenanceRequestCompleted')
+      channel.stopListening('.MaintenanceFeedbackCreated')
       echoInstance.disconnect()
     }
-  }, [adminId, addNotification])
+  }, [adminId, session, addNotification])
 
   const markAsRead = (id: string) => {
     const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n))

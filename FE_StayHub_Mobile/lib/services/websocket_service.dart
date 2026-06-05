@@ -13,7 +13,7 @@ class WebSocketService extends ChangeNotifier {
   
   // Track active channel subscriptions and event streams
   final Map<String, dynamic> _activeChannels = {};
-  final Map<String, StreamSubscription> _eventSubscriptions = {};
+  final Map<String, dynamic> _eventSubscriptions = {};
   
   bool _isConnected = false;
   bool get isConnected => _isConnected;
@@ -105,35 +105,47 @@ class WebSocketService extends ChangeNotifier {
         successSubscription?.cancel();
       });
       
-      // Bind to 'MaintenanceRequestCreated' event broadcast by backend
-      final subscription = channel.bind('MaintenanceRequestCreated').listen((event) {
-        debugPrint('WS Event: MaintenanceRequestCreated -> ${event.data}');
-        if (_onAdminMaintenanceCallback != null) {
-          _onAdminMaintenanceCallback!();
-        }
-        
-        Map<String, dynamic>? parsedData;
-        try {
-          final rawData = event.data;
-          if (rawData != null) {
-            if (rawData is String) {
-              parsedData = jsonDecode(rawData) as Map<String, dynamic>;
-            } else if (rawData is Map) {
-              parsedData = Map<String, dynamic>.from(rawData);
-            }
+      // Bind to all relevant maintenance events broadcast by backend
+      final List<StreamSubscription> subscriptions = [];
+      final maintenanceEvents = [
+        'MaintenanceRequestCreated',
+        'MaintenanceRequestAssigned',
+        'MaintenanceRequestProcessing',
+        'MaintenanceRequestCompleted',
+        'MaintenanceFeedbackCreated',
+      ];
+
+      for (final eventName in maintenanceEvents) {
+        final subscription = channel.bind(eventName).listen((event) {
+          debugPrint('WS Event: $eventName -> ${event.data}');
+          if (_onAdminMaintenanceCallback != null) {
+            _onAdminMaintenanceCallback!();
           }
-        } catch (e) {
-          debugPrint('WS Error decoding JSON: $e');
-        }
+          
+          Map<String, dynamic>? parsedData;
+          try {
+            final rawData = event.data;
+            if (rawData != null) {
+              if (rawData is String) {
+                parsedData = jsonDecode(rawData) as Map<String, dynamic>;
+              } else if (rawData is Map) {
+                parsedData = Map<String, dynamic>.from(rawData);
+              }
+            }
+          } catch (e) {
+            debugPrint('WS Error decoding JSON: $e');
+          }
 
-        // Broadcast event locally
-        _notificationStreamController.add({
-          'type': 'maintenance_created',
-          'data': parsedData ?? event.data,
+          // Broadcast event locally
+          _notificationStreamController.add({
+            'type': 'maintenance_created',
+            'data': parsedData ?? event.data,
+          });
         });
-      });
+        subscriptions.add(subscription);
+      }
 
-      _eventSubscriptions[channelName] = subscription;
+      _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
       debugPrint('WS: Subscribed to private channel $channelName successfully!');
     } catch (e) {
@@ -225,7 +237,15 @@ class WebSocketService extends ChangeNotifier {
     final subscription = _eventSubscriptions.remove(channelName);
     
     if (subscription != null) {
-      await subscription.cancel();
+      if (subscription is List) {
+        for (final sub in subscription) {
+          if (sub is StreamSubscription) {
+            await sub.cancel();
+          }
+        }
+      } else if (subscription is StreamSubscription) {
+        await subscription.cancel();
+      }
     }
     
     if (channel != null && _client != null) {
@@ -244,7 +264,15 @@ class WebSocketService extends ChangeNotifier {
 
     // Cancel subscriptions
     for (final sub in _eventSubscriptions.values) {
-      await sub.cancel();
+      if (sub is List) {
+        for (final item in sub) {
+          if (item is StreamSubscription) {
+            await item.cancel();
+          }
+        }
+      } else if (sub is StreamSubscription) {
+        await sub.cancel();
+      }
     }
     _eventSubscriptions.clear();
     _activeChannels.clear();

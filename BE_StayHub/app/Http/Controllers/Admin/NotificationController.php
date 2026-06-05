@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\ApiResponse;
+use App\Helpers\AdminScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Notification\StoreRequest;
 use App\Http\Requests\Admin\Notification\UpdateRequest;
@@ -28,6 +29,19 @@ class NotificationController extends Controller
 
             // Nạp quan hệ để tránh N+1
             $notifications = Notification::query()
+                ->where(function ($q) use ($admin) {
+                    $q->whereNotNull('created_by')
+                      ->orWhere(function ($sub) use ($admin) {
+                          $sub->whereIn('title', ['Yêu cầu sửa chữa mới', 'Phản hồi mới từ khách thuê']);
+                          if (! AdminScope::isSuperAdmin($admin)) {
+                              $sub->whereIn('building_id', function ($db) use ($admin) {
+                                  $db->select('id')
+                                     ->from('buildings')
+                                     ->where('manager_admin_id', $admin->id);
+                              });
+                          }
+                      });
+                })
                 ->with(['building', 'room', 'tenant', 'creator'])
                 ->when($request->filled('status'), function ($q) use ($request) {
                     $q->where('status', $request->integer('status'));

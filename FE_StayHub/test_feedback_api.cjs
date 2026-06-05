@@ -1,5 +1,4 @@
 const http = require('http');
-const WebSocket = require('ws');
 
 async function makeRequest(url, method, headers = {}, body = null) {
   return new Promise((resolve, reject) => {
@@ -17,6 +16,7 @@ async function makeRequest(url, method, headers = {}, body = null) {
 
     if (body) {
       if (typeof body === 'string') {
+        options.headers['Content-Type'] = 'application/json';
         options.headers['Content-Length'] = Buffer.byteLength(body);
       } else {
         const bodyStr = new URLSearchParams(body).toString();
@@ -52,7 +52,7 @@ async function makeRequest(url, method, headers = {}, body = null) {
 }
 
 async function run() {
-  console.log('--- STARTING WS LISTENER TEST ---');
+  console.log('--- STARTING FEEDBACK SUBMISSION TEST ---');
   try {
     // 1. Get CSRF Cookie
     console.log('1. Fetching CSRF cookie...');
@@ -67,8 +67,8 @@ async function run() {
       }
     });
 
-    // 2. Log in as admin
-    console.log('2. Logging in as admin...');
+    // 2. Log in as tenant_an
+    console.log('2. Logging in as tenant...');
     const loginHeaders = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
@@ -79,72 +79,53 @@ async function run() {
     }
     
     const loginRes = await makeRequest(
-      'http://localhost:8000/api/admin/login',
+      'http://localhost:8000/api/tenant/login',
       'POST',
       loginHeaders,
       JSON.stringify({
-        username: 'admin',
+        username: 'tenant_an',
         password: '12345678'
       })
     );
+
+    console.log(`Login Response Code: ${loginRes.statusCode}`);
+    console.log(`Login Response: ${loginRes.body}`);
 
     const loginCookies = loginRes.headers['set-cookie'] || [];
     if (loginCookies.length > 0) {
       cookieStr = loginCookies.map(c => c.split(';')[0]).join('; ');
     }
 
-    // 3. Connect to WebSocket
-    console.log('3. Connecting to Reverb WebSocket...');
-    const ws = new WebSocket('ws://localhost:8009/app/rhtxfafogu4wbww3eufp?protocol=7&client=js&version=7.0.6&flash=false');
-
-    ws.on('open', () => {
-      console.log('WS Connection Opened.');
-    });
-
-    ws.on('message', async (data) => {
-      const msg = JSON.parse(data.toString());
-      console.log('WS Received:', JSON.stringify(msg, null, 2));
-
-      // If we receive pusher:connection_established, we subscribe
-      if (msg.event === 'pusher:connection_established') {
-        const socketId = JSON.parse(msg.data).socket_id;
-        console.log(`Socket ID: ${socketId}`);
-
-        console.log('4. Requesting auth for private-admin-maintenance...');
-        const authRes = await makeRequest(
-          'http://localhost:8000/broadcasting/auth',
-          'POST',
-          {
-            'Accept': 'application/json',
-            'Cookie': cookieStr
-          },
-          {
-            socket_id: socketId,
-            channel_name: 'private-admin-maintenance'
-          }
-        );
-
-        console.log(`Auth Response (${authRes.statusCode}): ${authRes.body}`);
-        const authData = JSON.parse(authRes.body);
-
-        console.log('5. Sending subscribe frame...');
-        ws.send(JSON.stringify({
-          event: 'pusher:subscribe',
-          data: {
-            channel: 'private-admin-maintenance',
-            auth: authData.auth
-          }
-        }));
+    // Find XSRF token in response cookies
+    loginCookies.forEach(c => {
+      if (c.startsWith('XSRF-TOKEN=')) {
+        xsrfToken = decodeURIComponent(c.split(';')[0].split('=')[1]);
       }
     });
 
-    ws.on('error', (err) => {
-      console.error('WS Error:', err);
-    });
+    // 3. Post Feedback for Request ID 84
+    console.log('3. Posting feedback...');
+    const feedbackHeaders = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Cookie': cookieStr
+    };
+    if (xsrfToken) {
+      feedbackHeaders['X-XSRF-TOKEN'] = xsrfToken;
+    }
 
-    ws.on('close', () => {
-      console.log('WS Connection Closed.');
-    });
+    const feedbackRes = await makeRequest(
+      'http://localhost:8000/api/tenant/maintenance-requests/84/feedback',
+      'POST',
+      feedbackHeaders,
+      JSON.stringify({
+        rating: 4,
+        comment: 'Dịch vụ tạm ổn!'
+      })
+    );
+
+    console.log(`Feedback Response Code: ${feedbackRes.statusCode}`);
+    console.log(`Feedback Response: ${feedbackRes.body}`);
 
   } catch (err) {
     console.error('Error in script:', err);

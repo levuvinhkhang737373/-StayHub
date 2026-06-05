@@ -12,6 +12,7 @@ import {
   Edit3
 } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
+import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { fetchAdminTenants } from '../../tenants/services/tenants.service'
@@ -47,6 +48,7 @@ const targetTypeLabels: Record<number, string> = {
   2: 'Theo tòa nhà',
   3: 'Theo phòng',
   4: 'Theo khách thuê',
+  5: 'Ban quản lý',
 }
 
 const statusLabels: Record<number, string> = {
@@ -95,6 +97,9 @@ const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p
 const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function NotificationsScreen() {
+  const { session } = useAdminSession()
+  const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
+
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedTargetType, setSelectedTargetType] = useState('')
   const [selectedBuildingId, setSelectedBuildingId] = useState('')
@@ -104,7 +109,7 @@ export function NotificationsScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-
+ 
   // Drawer / Form state
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingNotification, setEditingNotification] = useState<AdminNotificationResource | null>(null)
@@ -132,24 +137,43 @@ export function NotificationsScreen() {
     }))
   }, [tenants])
 
-  // Map rooms to select options (derived from tenants who have rooms)
-  const roomSelectOptions = useMemo(() => {
+  const allowedTargetOptions = useMemo(() => {
+    const options = [
+      { value: 2, label: 'Theo tòa nhà / phòng' },
+      { value: 4, label: 'Theo khách thuê' },
+    ]
+    if (isSuperAdmin) {
+      options.unshift({ value: 1, label: 'Tất cả (Toàn hệ thống)' })
+    }
+    return options
+  }, [isSuperAdmin])
+
+  const handleBuildingChange = (val: string | number) => {
+    setTargetBuildingId(String(val))
+    setTargetRoomId('')
+  }
+
+  // Filter rooms belonging to targetBuildingId
+  const filteredRoomSelectOptions = useMemo(() => {
+    if (!targetBuildingId) return []
     const seenRoomIds = new Set<number>()
-    const options: Array<{ value: number; label: string; tone: 'default' }> = []
+    const options: Array<{ value: string; label: string; tone: 'default' }> = [
+      { value: '', label: 'Tất cả phòng (Mặc định gửi cả tòa nhà)', tone: 'default' as const }
+    ]
 
     tenants.forEach((t) => {
-      if (t.room_id && !seenRoomIds.has(t.room_id)) {
+      if (t.room_id && String(t.building_id) === targetBuildingId && !seenRoomIds.has(t.room_id)) {
         seenRoomIds.add(t.room_id)
         options.push({
-          value: t.room_id,
-          label: `Phòng ${t.room_number || 'N/A'} (${t.building_name || 'N/A'})`,
+          value: String(t.room_id),
+          label: `Phòng ${t.room_number || 'N/A'}`,
           tone: 'default' as const
         })
       }
     })
 
     return options
-  }, [tenants])
+  }, [tenants, targetBuildingId])
 
   // Metrics
   const metrics = useMemo(() => {
@@ -210,6 +234,12 @@ export function NotificationsScreen() {
   }, [loadNotifications])
 
   useEffect(() => {
+    if (buildings.length === 1 && !targetBuildingId && isFormOpen) {
+      setTargetBuildingId(String(buildings[0].id))
+    }
+  }, [buildings, targetBuildingId, isFormOpen])
+
+  useEffect(() => {
     function handleMaintenanceCreated() {
       console.log('WS Event: Refreshing admin notifications list')
       void loadNotifications()
@@ -226,7 +256,7 @@ export function NotificationsScreen() {
     setTitle('')
     setContent('')
     setNotifType(3)
-    setTargetType(1)
+    setTargetType(isSuperAdmin ? 1 : 2)
     setTargetBuildingId('')
     setTargetRoomId('')
     setTargetTenantId('')
@@ -246,7 +276,7 @@ export function NotificationsScreen() {
     setTitle(notif.title)
     setContent(notif.content)
     setNotifType(notif.notification_type)
-    setTargetType(notif.target_type)
+    setTargetType(notif.target_type === 3 ? 2 : notif.target_type)
     setTargetBuildingId(notif.building_id ? String(notif.building_id) : '')
     setTargetRoomId(notif.room_id ? String(notif.room_id) : '')
     setTargetTenantId(notif.tenant_id ? String(notif.tenant_id) : '')
@@ -268,11 +298,6 @@ export function NotificationsScreen() {
       return
     }
 
-    if (targetType === 3 && !targetRoomId) {
-      alert('Vui lòng chọn phòng mục tiêu.')
-      return
-    }
-
     if (targetType === 4 && !targetTenantId) {
       alert('Vui lòng chọn khách thuê mục tiêu.')
       return
@@ -286,9 +311,9 @@ export function NotificationsScreen() {
       title: title.trim(),
       content: content.trim(),
       notification_type: notifType,
-      target_type: targetType,
+      target_type: (targetType === 2 && targetRoomId) ? 3 : targetType,
       building_id: targetType === 2 ? Number(targetBuildingId) : null,
-      room_id: targetType === 3 ? Number(targetRoomId) : null,
+      room_id: (targetType === 2 && targetRoomId) ? Number(targetRoomId) : null,
       tenant_id: targetType === 4 ? Number(targetTenantId) : null,
       status: status
     }
@@ -544,32 +569,34 @@ export function NotificationsScreen() {
                   <label className={labelClass}>Đối tượng mục tiêu</label>
                   <AdminSelect 
                     value={targetType} 
-                    options={targetOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))} 
+                    options={allowedTargetOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))} 
                     onChange={(val) => { setTargetType(Number(val)); setTargetBuildingId(''); setTargetRoomId(''); setTargetTenantId('') }} 
                   />
                 </div>
 
                 {/* Conditional Fields */}
                 {targetType === 2 && (
-                  <div>
-                    <label className={labelClass}>Chọn tòa nhà</label>
-                    <AdminSelect 
-                      value={targetBuildingId} 
-                      options={buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const }))} 
-                      onChange={(val) => setTargetBuildingId(String(val))} 
-                    />
-                  </div>
-                )}
+                  <div className="space-y-4">
+                    <div>
+                      <label className={labelClass}>Chọn tòa nhà</label>
+                      <AdminSelect 
+                        value={targetBuildingId} 
+                        options={[{ value: '', label: 'Chọn tòa nhà mục tiêu', tone: 'default' as const }, ...buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const }))]} 
+                        onChange={(val) => handleBuildingChange(String(val))} 
+                      />
+                    </div>
 
-                {targetType === 3 && (
-                  <div>
-                    <label className={labelClass}>Chọn phòng nhận tin</label>
-                    <AdminSelect 
-                      value={targetRoomId} 
-                      options={roomSelectOptions} 
-                      onChange={(val) => setTargetRoomId(String(val))} 
-                      placeholder="Chọn phòng mục tiêu"
-                    />
+                    {targetBuildingId && (
+                      <div>
+                        <label className={labelClass}>Chọn phòng nhận tin (Không bắt buộc)</label>
+                        <AdminSelect 
+                          value={targetRoomId} 
+                          options={filteredRoomSelectOptions} 
+                          onChange={(val) => setTargetRoomId(String(val))} 
+                          placeholder="Mặc định gửi cả tòa nhà"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 

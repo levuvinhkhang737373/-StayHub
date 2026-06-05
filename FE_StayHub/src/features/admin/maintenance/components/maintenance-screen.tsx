@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { 
-  ArrowLeft, 
-  Wrench, 
-  Eye, 
-  UserPlus, 
-  Settings, 
-  RefreshCw, 
-  Search, 
-  X, 
-  CheckCircle2, 
-  Clock, 
-  AlertTriangle, 
-  User, 
+import {
+  ArrowLeft,
+  Wrench,
+  Eye,
+  UserPlus,
+  Settings,
+  RefreshCw,
+  Search,
+  X,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  User,
   Image as ImageIcon,
   Building
 } from 'lucide-react'
@@ -29,7 +29,7 @@ import {
   assignMaintenanceStaff,
   updateMaintenanceStatus
 } from '../services/maintenance.service'
-import type { 
+import type {
   AdminMaintenanceRequestResource
 } from '../types/maintenance-api.model'
 
@@ -134,7 +134,7 @@ export function MaintenanceScreen() {
         building_id: selectedBuildingId ? Number(selectedBuildingId) : undefined,
         room_number: roomNumber.trim() || undefined,
       })
-      
+
       // Parse requests from paginated result
       if (response.result && Array.isArray(response.result)) {
         setRequests(response.result)
@@ -272,9 +272,9 @@ export function MaintenanceScreen() {
                   Quản lý Bảo trì & Sửa chữa
                 </h1>
               </div>
-              <button 
-                type="button" 
-                onClick={() => void loadRequests()} 
+              <button
+                type="button"
+                onClick={() => void loadRequests()}
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]"
               >
                 <RefreshCw className="h-4 w-4 stroke-[2.8]" /> Làm mới
@@ -305,16 +305,16 @@ export function MaintenanceScreen() {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-                <input 
-                  type="text" 
-                  value={keyword} 
-                  onChange={(event) => setKeyword(event.target.value)} 
-                  placeholder="Tìm theo mã sự cố, tên phòng, mô tả hoặc tên khách..." 
-                  className={`${inputClass} pl-11 pr-28`} 
+                <input
+                  type="text"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder="Tìm theo mã sự cố, tên phòng, mô tả hoặc tên khách..."
+                  className={`${inputClass} pl-11 pr-28`}
                 />
-                <button 
-                  type="button" 
-                  onClick={clearFilters} 
+                <button
+                  type="button"
+                  onClick={clearFilters}
                   className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20"
                 >
                   <X className="h-3.5 w-3.5" /> Xóa lọc
@@ -324,11 +324,11 @@ export function MaintenanceScreen() {
                 "grid w-full gap-3 lg:ml-auto",
                 isSuperAdmin ? "sm:grid-cols-3 lg:w-2xl" : "sm:grid-cols-2 lg:w-xl"
               )}>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={roomNumber}
                   onChange={(e) => setRoomNumber(e.target.value)}
-                  placeholder="Số phòng..." 
+                  placeholder="Số phòng..."
                   className={inputClass}
                 />
                 {isSuperAdmin && (
@@ -360,8 +360,8 @@ export function MaintenanceScreen() {
             ) : (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {requests.map((req) => (
-                  <div 
-                    key={req.id} 
+                  <div
+                    key={req.id}
                     className="group relative flex flex-col justify-between overflow-hidden rounded-[1.75rem] border border-[#3d2a18]/10 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-[#f3c56b]/40"
                   >
                     {/* Top Section */}
@@ -403,10 +403,10 @@ export function MaintenanceScreen() {
                     {req.images && req.images.length > 0 && (
                       <div className="flex gap-2 overflow-x-auto pb-3 mb-4">
                         {req.images.map((img, idx) => (
-                          <img 
-                            key={idx} 
-                            src={img} 
-                            alt={`evidence-${idx}`} 
+                          <img
+                            key={idx}
+                            src={img}
+                            alt={`evidence-${idx}`}
                             onClick={() => setLightboxImage(img)}
                             className="h-12 w-12 rounded-xl object-cover border border-[#3d2a18]/10 cursor-zoom-in hover:scale-105 transition"
                           />
@@ -416,24 +416,24 @@ export function MaintenanceScreen() {
 
                     {/* Action buttons */}
                     <div className="flex gap-2 border-t border-[#3d2a18]/5 pt-3">
-                      <button 
-                        type="button" 
-                        onClick={() => void openDetail(req)} 
+                      <button
+                        type="button"
+                        onClick={() => void openDetail(req)}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59]"
                         title="Xem chi tiết"
                       >
                         <Eye className="h-4.5 w-4.5" />
                       </button>
-                      <button 
-                        type="button" 
-                        onClick={() => { setAssigningRequest(req); setSelectedStaffId(req.assigned_to ? String(req.assigned_to) : '') }} 
+                      <button
+                        type="button"
+                        onClick={() => { setAssigningRequest(req); setSelectedStaffId(req.assigned_to ? String(req.assigned_to) : '') }}
                         className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 text-xs font-black text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
                       >
                         <UserPlus className="h-4 w-4" /> Phân công
                       </button>
-                      <button 
-                        type="button" 
-                        onClick={() => { setUpdatingRequest(req); setNewStatus(req.status) }} 
+                      <button
+                        type="button"
+                        onClick={() => { setUpdatingRequest(req); setNewStatus(req.status) }}
                         className="ml-auto inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-3 text-xs font-black text-[#fff4df] shadow-sm transition hover:bg-[#3d2a18]"
                       >
                         <Settings className="h-4 w-4" /> Trạng thái
@@ -450,9 +450,9 @@ export function MaintenanceScreen() {
       {/* LIGHTBOX FOR IMAGES */}
       {lightboxImage && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
-          <button 
-            type="button" 
-            onClick={() => setLightboxImage(null)} 
+          <button
+            type="button"
+            onClick={() => setLightboxImage(null)}
             className="absolute right-6 top-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition"
           >
             <X className="h-6 w-6" />
@@ -474,9 +474,9 @@ export function MaintenanceScreen() {
                   <span className="text-xs font-black bg-[#f3c56b]/20 px-2 py-0.5 rounded text-[#f3c56b] tabular-nums">{detailRequest.request_code}</span>
                 </h2>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setIsDetailOpen(false)} 
+              <button
+                type="button"
+                onClick={() => setIsDetailOpen(false)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20"
               >
                 <X className="h-5 w-5" />
@@ -522,20 +522,12 @@ export function MaintenanceScreen() {
                   {/* Feedback Section */}
                   {detailRequest.feedbacks && detailRequest.feedbacks.length > 0 && (
                     <section className="rounded-[1.5rem] border border-[#3d2a18]/12 bg-emerald-50/50 p-4 border-emerald-200">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-800">Đánh giá phản hồi từ khách thuê</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-800">Phản hồi từ khách thuê</p>
                       {detailRequest.feedbacks.map((f) => (
-                        <div key={f.id} className="mt-2 space-y-2">
-                          <div className="flex items-center gap-1.5">
-                            {Array.from({ length: 5 }).map((_, idx) => (
-                              <span key={idx} className={cn('text-lg', idx < f.rating ? 'text-amber-500' : 'text-stone-300')}>★</span>
-                            ))}
-                            <span className="text-xs text-stone-500 font-bold ml-1">({f.rating}/5)</span>
-                          </div>
-                          {f.comment && (
-                            <p className="text-sm italic text-stone-700 bg-white/80 p-3 rounded-xl border border-stone-200">
-                              "{f.comment}"
-                            </p>
-                          )}
+                        <div key={f.id} className="mt-2">
+                          <p className="text-sm italic text-stone-700 bg-white/80 p-3 rounded-xl border border-stone-200">
+                            "{f.comment || 'gửi phản hồi (không có nội dung)'}"
+                          </p>
                         </div>
                       ))}
                     </section>
@@ -573,18 +565,18 @@ export function MaintenanceScreen() {
                 </>
               )}
             </div>
-            
+
             <div className="p-4 bg-stone-100 border-t border-[#3d2a18]/10 flex gap-2 justify-end">
-              <button 
-                type="button" 
-                onClick={() => { setAssigningRequest(detailRequest); setSelectedStaffId(detailRequest.assigned_to ? String(detailRequest.assigned_to) : '') }} 
+              <button
+                type="button"
+                onClick={() => { setAssigningRequest(detailRequest); setSelectedStaffId(detailRequest.assigned_to ? String(detailRequest.assigned_to) : '') }}
                 className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#3d2a18]/10 bg-white px-4 text-sm font-black text-[#8b5e34]"
               >
                 <UserPlus className="h-4.5 w-4.5" /> Phân công nhân viên
               </button>
-              <button 
-                type="button" 
-                onClick={() => { setUpdatingRequest(detailRequest); setNewStatus(detailRequest.status) }} 
+              <button
+                type="button"
+                onClick={() => { setUpdatingRequest(detailRequest); setNewStatus(detailRequest.status) }}
                 className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-4 text-sm font-black text-[#fff4df]"
               >
                 <Settings className="h-4.5 w-4.5" /> Cập nhật trạng thái
@@ -610,25 +602,25 @@ export function MaintenanceScreen() {
             <div className="space-y-4">
               <div>
                 <label className={labelClass}>Chọn nhân viên xử lý</label>
-                <AdminSelect 
-                  value={selectedStaffId} 
-                  options={adminUsers.map((a) => ({ value: a.id, label: `${a.full_name} (${a.phone || 'Không có số'})`, tone: 'default' as const }))} 
-                  onChange={(val) => setSelectedStaffId(String(val))} 
+                <AdminSelect
+                  value={selectedStaffId}
+                  options={adminUsers.map((a) => ({ value: a.id, label: `${a.full_name} (${a.phone || 'Không có số'})`, tone: 'default' as const }))}
+                  onChange={(val) => setSelectedStaffId(String(val))}
                 />
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button 
-                  type="button" 
-                  onClick={() => setAssigningRequest(null)} 
+                <button
+                  type="button"
+                  onClick={() => setAssigningRequest(null)}
                   className="flex-1 h-12 rounded-xl border border-[#3d2a18]/10 text-sm font-black text-[#8b5e34] bg-white transition hover:bg-stone-50"
                 >
                   HỦY
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   disabled={isAssigning || !selectedStaffId}
-                  onClick={() => void handleAssignSubmit()} 
+                  onClick={() => void handleAssignSubmit()}
                   className="flex-1 h-12 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-lg transition hover:bg-[#3d2a18] disabled:opacity-60"
                 >
                   {isAssigning ? 'Đang giao...' : 'PHÂN CÔNG'}
@@ -655,16 +647,16 @@ export function MaintenanceScreen() {
             <div className="space-y-4">
               <div>
                 <label className={labelClass}>Chọn trạng thái mới</label>
-                <AdminSelect 
-                  value={newStatus} 
-                  options={statusChangeOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))} 
-                  onChange={(val) => setNewStatus(Number(val))} 
+                <AdminSelect
+                  value={newStatus}
+                  options={statusChangeOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))}
+                  onChange={(val) => setNewStatus(Number(val))}
                 />
               </div>
 
               <div>
                 <label className={labelClass}>Ghi chú xử lý</label>
-                <textarea 
+                <textarea
                   value={updateNote}
                   onChange={(e) => setUpdateNote(e.target.value)}
                   placeholder="Ghi chú chi tiết công việc hoặc lý do cập nhật trạng thái..."
@@ -677,8 +669,8 @@ export function MaintenanceScreen() {
                 <div>
                   <label className={labelClass}>Ảnh minh chứng sau khi hoàn thành sửa chữa</label>
                   <div className="relative flex min-h-12 w-full items-center justify-between rounded-2xl border border-dashed border-[#3d2a18]/20 bg-white px-4 py-2 text-stone-700">
-                    <input 
-                      type="file" 
+                    <input
+                      type="file"
                       accept="image/*"
                       onChange={(e) => {
                         if (e.target.files && e.target.files.length > 0) {
@@ -694,8 +686,8 @@ export function MaintenanceScreen() {
                       </span>
                     </div>
                     {afterImageFile && (
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); setAfterImageFile(null) }}
                         className="h-6 w-6 rounded bg-rose-50 text-rose-600 flex items-center justify-center font-black text-xs hover:bg-rose-100 z-10"
                       >
@@ -707,17 +699,17 @@ export function MaintenanceScreen() {
               )}
 
               <div className="flex gap-3 pt-2">
-                <button 
-                  type="button" 
-                  onClick={() => setUpdatingRequest(null)} 
+                <button
+                  type="button"
+                  onClick={() => setUpdatingRequest(null)}
                   className="flex-1 h-12 rounded-xl border border-[#3d2a18]/10 text-sm font-black text-[#8b5e34] bg-white transition hover:bg-stone-50"
                 >
                   HỦY
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   disabled={isUpdatingStatus || (newStatus === 4 && !afterImageFile)}
-                  onClick={() => void handleStatusSubmit()} 
+                  onClick={() => void handleStatusSubmit()}
                   className="flex-1 h-12 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-lg transition hover:bg-[#3d2a18] disabled:opacity-60"
                 >
                   {isUpdatingStatus ? 'Đang cập nhật...' : 'CẬP NHẬT'}

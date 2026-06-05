@@ -25,6 +25,10 @@ class NotificationSent implements ShouldBroadcast
     {
         $channels = [];
 
+        if ($this->notification->target_type === Notification::TARGET_TYPE_ADMIN) {
+            return [];
+        }
+
         if ($this->notification->target_type === Notification::TARGET_TYPE_TENANT) {
             $channels[] = new PrivateChannel('tenant.' . $this->notification->tenant_id);
         } elseif ($this->notification->target_type === Notification::TARGET_TYPE_ROOM) {

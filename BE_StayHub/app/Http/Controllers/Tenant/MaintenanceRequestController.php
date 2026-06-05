@@ -227,14 +227,33 @@ class MaintenanceRequestController extends Controller
                 }
 
                 // Lưu phản hồi
-                return MaintenanceFeedback::query()->create([
+                $fb = MaintenanceFeedback::query()->create([
                     'maintenance_request_id' => $maintenance->id,
                     'tenant_id' => $tenant->id,
                     'rating' => $request->input('rating'),
                     'comment' => $request->input('comment'),
                     'images' => $uploadedFeedbackPaths,
                 ]);
+
+                // Tạo thông báo lưu vào database cho Ban quản lý (TARGET_TYPE_ADMIN)
+                $commentText = $fb->comment ? ": \"{$fb->comment}\"" : " (không có nội dung)";
+                \App\Models\Notification::query()->create([
+                    'title' => 'Phản hồi mới từ khách thuê',
+                    'content' => "Khách thuê '{$tenant->full_name}' đã gửi phản hồi cho yêu cầu '{$maintenance->title}'{$commentText}",
+                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_MAINTENANCE,
+                    'target_type' => \App\Models\Notification::TARGET_TYPE_ADMIN,
+                    'tenant_id' => $tenant->id,
+                    'room_id' => $maintenance->room_id,
+                    'building_id' => $maintenance->room?->building_id,
+                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'published_at' => now(),
+                ]);
+
+                return $fb;
             });
+
+            // Phát sự kiện real-time tới Admin đối với mọi phản hồi (feedback)
+            broadcast(new \App\Events\MaintenanceFeedbackCreated($feedback));
 
             return ApiResponse::responseJson(true, 'Gửi phản hồi thành công', 201, $feedback, 201);
 
