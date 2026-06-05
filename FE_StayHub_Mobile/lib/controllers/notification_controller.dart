@@ -115,4 +115,57 @@ class NotificationController extends ChangeNotifier {
     _notifications.insert(0, notification);
     notifyListeners();
   }
+
+  /// Gửi thông báo từ phía Admin/Super Admin
+  Future<bool> sendNotification({
+    required String title,
+    required String content,
+    required int notificationType,
+    required int targetType,
+    int? tenantId,
+    int? buildingId,
+    int? roomId,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final Map<String, dynamic> payload = {
+        'title': title,
+        'content': content,
+        'notification_type': notificationType,
+        'target_type': targetType,
+        'status': 2, // 2: SENT (Gửi ngay)
+      };
+
+      if (tenantId != null) payload['tenant_id'] = tenantId;
+      if (buildingId != null) payload['building_id'] = buildingId;
+      if (roomId != null) payload['room_id'] = roomId;
+
+      final response = await _apiService.post<dynamic>(
+        '/admin/notifications',
+        data: payload,
+        fromJsonT: (json) => json,
+      );
+
+      if (response.status) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = 'Lỗi gửi thông báo: $e';
+      }
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
 }

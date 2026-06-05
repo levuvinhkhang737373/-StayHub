@@ -21,6 +21,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
   StreamSubscription? _debugSubscription;
+  final Set<String> _readNotificationKeys = {};
 
   @override
   void initState() {
@@ -68,38 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Widget _buildNotificationsTab() {
-    final maintenanceController = context.watch<MaintenanceController>();
-    final requests = maintenanceController.requests;
-
-    // Filter notification items:
-    // 1. New maintenance requests (status == 1)
-    // 2. Completed requests with feedback
-    final List<Map<String, dynamic>> items = [];
-
-    for (final req in requests) {
-      if (req.status == 1) {
-        items.add({
-          'type': 'request',
-          'title': 'Yêu cầu sửa chữa mới — Phòng ${req.roomNumber}',
-          'subtitle': '${req.title}: ${req.description}',
-          'date': req.createdAt,
-          'icon': Icons.handyman_outlined,
-          'color': Colors.orange,
-        });
-      }
-      if (req.feedback != null && req.feedback!.isNotEmpty) {
-        items.add({
-          'type': 'feedback',
-          'title': 'Phản hồi mới — Phòng ${req.roomNumber}',
-          'subtitle': 'Khách ${req.tenantName}: "${req.feedback}"',
-          'date': req.createdAt,
-          'icon': Icons.rate_review_outlined,
-          'color': Colors.green,
-        });
-      }
-    }
-
+  Widget _buildNotificationsTab(List<Map<String, dynamic>> items) {
     return RefreshIndicator(
       color: const Color(0xFF1C1917),
       onRefresh: () => context.read<MaintenanceController>().fetchAdminRequests(),
@@ -127,56 +97,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
+                    final isRead = item['isRead'] as bool;
                     return Card(
-                      color: Colors.white,
+                      color: isRead ? Colors.white : const Color(0xFFFFFBEB), // Highlight unread
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
-                        side: const BorderSide(color: Color(0xFFE4E2D7)),
+                        side: BorderSide(
+                          color: isRead ? const Color(0xFFE4E2D7) : const Color(0xFFFDE68A),
+                          width: isRead ? 1.0 : 1.5,
+                        ),
                       ),
                       elevation: 0,
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(16),
-                        leading: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: item['color'].withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(item['icon'], color: item['color']),
-                        ),
-                        title: Text(
-                          item['title'],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1C1917),
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 6),
-                            Text(
-                              item['subtitle'],
-                              style: const TextStyle(
-                                color: Color(0xFF44403C),
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Thời gian: ${item['date']}',
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: InkWell(
                         onTap: () {
+                          if (!isRead) {
+                            setState(() {
+                              _readNotificationKeys.add(item['key'] as String);
+                            });
+                          }
                           Navigator.pushNamed(context, '/admin/maintenance');
                         },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        isRead ? Icons.campaign_outlined : Icons.campaign_rounded,
+                                        color: isRead ? Colors.grey : const Color(0xFFEAB308),
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      if (!isRead)
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.redAccent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  Text(
+                                    item['date'],
+                                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item['title'],
+                                style: TextStyle(
+                                  fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
+                                  fontSize: 15,
+                                  color: const Color(0xFF1C1917),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item['subtitle'],
+                                style: const TextStyle(fontSize: 13, color: Color(0xFF44403C), height: 1.4),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -197,14 +189,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     final admin = authController.currentAdmin;
 
-    // Calculate unhandled notifications count:
-    // 1. Created requests (status == 1)
-    // 2. Feedback comments
-    int notificationCount = 0;
+    // Filter notification items:
+    // 1. New maintenance requests (status == 1)
+    // 2. Completed requests with feedback
+    final List<Map<String, dynamic>> items = [];
+
     for (final req in maintenanceController.requests) {
-      if (req.status == 1) notificationCount++;
-      if (req.feedback != null && req.feedback!.isNotEmpty) notificationCount++;
+      if (req.status == 1) {
+        final key = 'req_status_1_${req.id}';
+        items.add({
+          'key': key,
+          'type': 'request',
+          'title': 'Yêu cầu sửa chữa mới — Phòng ${req.roomNumber}',
+          'subtitle': '${req.title}: ${req.description}',
+          'date': req.createdAt,
+          'icon': Icons.handyman_outlined,
+          'color': Colors.orange,
+          'isRead': _readNotificationKeys.contains(key),
+        });
+      }
+      if (req.feedback != null && req.feedback!.isNotEmpty) {
+        final key = 'req_feedback_${req.id}';
+        items.add({
+          'key': key,
+          'type': 'feedback',
+          'title': 'Phản hồi mới — Phòng ${req.roomNumber}',
+          'subtitle': 'Khách ${req.tenantName}: "${req.feedback}"',
+          'date': req.createdAt,
+          'icon': Icons.rate_review_outlined,
+          'color': Colors.green,
+          'isRead': _readNotificationKeys.contains(key),
+        });
+      }
     }
+
+    int notificationCount = items.where((item) => !item['isRead']).length;
 
     final List<Widget> tabs = [
       // Tab 0: Operations grid
@@ -442,7 +461,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Tab 1: Settings Screen (embedded directly)
       const SettingsScreen(),
       // Tab 2: Customer Notifications
-      _buildNotificationsTab(),
+      _buildNotificationsTab(items),
     ];
 
     return Scaffold(
@@ -450,6 +469,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: _currentIndex == 1
           ? null
           : AppBar(
+              actions: [
+                if (_currentIndex == 2 && items.any((item) => !item['isRead']))
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        for (final item in items) {
+                          _readNotificationKeys.add(item['key'] as String);
+                        }
+                      });
+                    },
+                    icon: const Icon(Icons.done_all, color: Color(0xFFEAB308), size: 18),
+                    label: const Text(
+                      'Đọc tất cả',
+                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+              ],
               title: Row(
                 children: [
                   const Icon(
