@@ -7,9 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class TenantRoomOptionResource extends JsonResource
 {
-    /**
-     * Dữ liệu phòng gọn nhẹ dùng cho form gán khách thuê.
-     */
+    
     public function toArray(Request $request): array
     {
         return [

@@ -479,12 +479,12 @@ class TenantController extends Controller
 
     private function listColumns(): array
     {
-        return ['id', 'created_by', 'username', 'full_name', 'phone', 'email', 'avatar_url', 'date_of_birth', 'gender', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url', 'created_at', 'updated_at'];
+        return ['id', 'created_by', 'building_id', 'username', 'full_name', 'phone', 'email', 'avatar_url', 'date_of_birth', 'gender', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url', 'created_at', 'updated_at'];
     }
 
     private function detailColumns(): array
     {
-        return ['id', 'created_by', 'username', 'full_name', 'phone', 'email', 'avatar_url', 'date_of_birth', 'gender', 'permanent_address', 'current_address', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url', 'created_at', 'updated_at'];
+        return ['id', 'created_by', 'building_id', 'username', 'full_name', 'phone', 'email', 'avatar_url', 'date_of_birth', 'gender', 'permanent_address', 'current_address', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url', 'created_at', 'updated_at'];
     }
 
     private function currentContractTenantQuery(HasMany $query): HasMany
@@ -501,6 +501,7 @@ class TenantController extends Controller
     {
         return [
             'creator:id,username,full_name,email,role',
+            'building:id,name,slug,status',
             'contractTenants' => fn (HasMany $query): HasMany => $this->currentContractTenantQuery($query),
             'contractTenants.contract:id,room_id,status,start_date,end_date',
             'contractTenants.contract.room:id,building_id,room_number,slug,status',
@@ -512,6 +513,7 @@ class TenantController extends Controller
     {
         return [
             'creator:id,username,full_name,email,phone,role,status',
+            'building:id,name,slug,status',
             'contractTenants' => fn (HasMany $query): HasMany => $this->currentContractTenantQuery($query),
             'contractTenants.contract:id,room_id,status,start_date,end_date',
             'contractTenants.contract.room:id,building_id,room_number,slug,status',

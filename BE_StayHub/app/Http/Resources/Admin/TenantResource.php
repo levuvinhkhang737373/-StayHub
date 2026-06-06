@@ -10,9 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class TenantResource extends JsonResource
 {
-    /**
-     * Dữ liệu khách thuê tối ưu cho danh sách.
-     */
+   
     public function toArray(Request $request): array
     {
         $currentRoom = $this->currentRoomPayload();
@@ -22,8 +20,8 @@ class TenantResource extends JsonResource
             'created_by' => $this->created_by,
             'room_id' => $currentRoom['room_id'] ?? null,
             'room_number' => $currentRoom['room_number'] ?? null,
-            'building_id' => $currentRoom['building_id'] ?? null,
-            'building_name' => $currentRoom['building_name'] ?? null,
+            'building_id' => $currentRoom['building_id'] ?? $this->building_id,
+            'building_name' => $currentRoom['building_name'] ?? ($this->relationLoaded('building') ? $this->building?->name : null),
             'current_room' => $currentRoom,
             'creator' => $this->whenLoaded('creator', fn () => [
                 'id' => $this->creator?->id,
