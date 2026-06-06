@@ -19,6 +19,7 @@ class RegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'building_id' => ['required', 'integer', Rule::exists('buildings', 'id')],
             'full_name' => ['required', 'string', 'max:150'],
             'gender' => ['nullable', 'integer', Rule::in(array_keys(Tenant::GENDER_LABELS))],
             'date_of_birth' => ['required', 'date', 'before_or_equal:today'],
@@ -41,6 +42,9 @@ class RegisterRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'building_id.required' => 'Tòa nhà là bắt buộc.',
+            'building_id.integer' => 'Tòa nhà không hợp lệ.',
+            'building_id.exists' => 'Tòa nhà không tồn tại.',
             'full_name.required' => 'Họ tên khách thuê là bắt buộc.',
             'full_name.string' => 'Họ tên khách thuê phải là chuỗi ký tự.',
             'full_name.max' => 'Họ tên khách thuê không được vượt quá 150 ký tự.',

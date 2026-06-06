@@ -265,7 +265,7 @@ export function ExpenseCategoriesScreen() {
                 <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
                 </Link>
-              
+
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Danh mục chi phí</h1>
               </div>
               {isSuperAdmin && (
@@ -290,11 +290,7 @@ export function ExpenseCategoriesScreen() {
           </div>
         )}
 
-        {!isSuperAdmin && (
-          <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800 shadow-sm">
-            Bạn đang xem danh mục chi phí ở chế độ chỉ đọc. Chỉ quản trị tổng được thêm, sửa, xóa hoặc đổi trạng thái danh mục.
-          </div>
-        )}
+
 
         <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">

@@ -58,15 +58,15 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'asset-templates',
-        element: <AssetTemplatesScreen />,
+        element: <AdminRouteGuard access="superadmin"><AssetTemplatesScreen /></AdminRouteGuard>,
       },
       {
         path: 'room-types',
-        element: <RoomTypesScreen />,
+        element: <AdminRouteGuard access="superadmin"><RoomTypesScreen /></AdminRouteGuard>,
       },
       {
         path: 'rooms',
-        element: <AdminPlaceholderScreen title="Quản lý Phòng" description="Quản lý danh sách phòng, trạng thái phòng và cấu hình vận hành phòng." />,
+        element: <AdminRouteGuard access="superadmin"><AdminPlaceholderScreen title="Quản lý Phòng" description="Quản lý danh sách phòng, trạng thái phòng và cấu hình vận hành phòng." /></AdminRouteGuard>,
       },
       {
         path: 'tenants',

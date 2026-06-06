@@ -80,13 +80,6 @@ const typeOptions = [
   { value: 5, label: 'Khác' },
 ]
 
-const targetOptions = [
-  { value: 1, label: 'Tất cả' },
-  { value: 2, label: 'Theo tòa nhà' },
-  { value: 3, label: 'Theo phòng' },
-  { value: 4, label: 'Theo khách thuê' },
-]
-
 const statusOptions = [
   { value: 1, label: 'Bản nháp' },
   { value: 2, label: 'Gửi ngay' },

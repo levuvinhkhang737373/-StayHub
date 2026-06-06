@@ -129,8 +129,8 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                   <SectionTitle label="Dữ liệu liên quan" />
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <InfoStat label="Phòng" value={building?.rooms_count || 0} />
-                    <InfoStat label="Loại phòng" value={building?.room_types_count || 0} />
-                    <InfoStat label="Mẫu tài sản" value={building?.asset_templates_count || 0} />
+                    
+                    
                     <InfoStat label="Bảng giá" value={building?.service_prices_count || 0} />
                     <InfoStat label="Cài đặt" value={building?.settings_count || 0} />
                     <InfoStat label="Thông báo" value={building?.notifications_count || 0} />
@@ -141,8 +141,8 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                 <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/80 p-5 shadow-sm">
                   <SectionTitle label="Cấu hình nền" />
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <PreviewGroup label="Loại phòng" items={building?.room_types?.map((item) => item.name) || []} />
-                    <PreviewGroup label="Mẫu tài sản" items={building?.asset_templates?.map((item) => item.name) || []} />
+                    
+                    
                     <PreviewGroup label="Bảng giá" items={building?.service_prices?.map((item) => `${item.service_name || item.service?.name || 'Dịch vụ'} · ${formatMoneyText(item.price)}đ`) || []} />
                     <PreviewGroup label="Cài đặt" items={building?.settings?.map((item) => `${item.setting_label}: ${item.setting_value || '—'}`) || []} />
                   </div>

@@ -17,7 +17,7 @@ x-backend-environment: &backend-environment
 
 x-backend-volumes: &backend-volumes
   - type: bind
-    source: ${PWD}/BE_StayHub
+    source: ./BE_StayHub
     target: /var/www/html/BE_StayHub
   - type: volume
     source: backend_vendor
@@ -282,7 +282,7 @@ services:
       WATCHPACK_POLLING: 'true'
     volumes:
       - type: bind
-        source: ${PWD}/FE_StayHub
+        source: ./FE_StayHub
         target: /app
       - type: volume
         source: frontend_node_modules
@@ -390,7 +390,7 @@ networks:
 
 secrets:
   backend_env:
-    file: ${PWD}/BE_StayHub/.env
+    file: ./BE_StayHub/.env
 
 volumes:
   backend_vendor:

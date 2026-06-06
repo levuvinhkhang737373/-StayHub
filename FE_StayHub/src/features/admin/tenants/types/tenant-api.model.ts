@@ -70,11 +70,13 @@ export interface AdminTenantFilters {
   status?: number
   gender?: number
   identity_type?: number
+  building_id?: number
   page?: number
   per_page?: number
 }
 
 export interface AdminTenantPayload {
+  building_id?: number
   username?: string
   full_name?: string
   email?: string

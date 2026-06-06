@@ -369,7 +369,6 @@ export function SettingsScreen() {
                             </div>
                             <div className="min-w-0">
                               <p className="truncate text-[13px] font-black tracking-tight text-[#24170d]">{setting.setting_label}</p>
-                              <p className="truncate text-xs font-bold text-[#8b5e34]/70">{setting.setting_name}</p>
                             </div>
                           </div>
                         </td>

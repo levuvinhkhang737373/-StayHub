@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasUniqueSlug;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AssetTemplate extends Model
@@ -31,17 +31,13 @@ class AssetTemplate extends Model
         self::STATUS_INACTIVE => 'Ngừng hoạt động',
     ];
 
-    protected $fillable = ['name', 'slug', 'building_id', 'default_unit_name', 'description', 'status', 'created_by'];
+    protected $fillable = ['name', 'slug', 'default_unit_name', 'description', 'status', 'created_by'];
 
     protected function casts(): array
     {
-        return ['building_id' => 'integer', 'default_unit_name' => 'integer', 'status' => 'integer'];
+        return ['default_unit_name' => 'integer', 'status' => 'integer'];
     }
 
-    public function building(): BelongsTo
-    {
-        return $this->belongsTo(Building::class, 'building_id');
-    }
 
     public function roomAssets(): HasMany
     {

@@ -20,7 +20,6 @@ class UpdateRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'required', 'string', 'max:150'],
-            'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
             'description' => ['nullable', 'string'],
             'status' => ['sometimes', 'required', 'integer', Rule::in(array_keys(RoomType::STATUS_LABELS))],
         ];
@@ -32,8 +31,6 @@ class UpdateRequest extends FormRequest
             'name.required' => 'Tên loại phòng là bắt buộc khi cập nhật.',
             'name.string' => 'Tên loại phòng phải là chuỗi ký tự.',
             'name.max' => 'Tên loại phòng không được vượt quá 150 ký tự.',
-            'building_id.integer' => 'Tòa nhà của loại phòng không hợp lệ.',
-            'building_id.exists' => 'Tòa nhà của loại phòng không tồn tại.',
             'description.string' => 'Mô tả loại phòng phải là chuỗi ký tự.',
             'status.required' => 'Trạng thái loại phòng là bắt buộc khi cập nhật.',
             'status.integer' => 'Trạng thái loại phòng không hợp lệ.',

@@ -36,9 +36,9 @@ export interface AdminNavItem {
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard, href: '/admin/dashboard', access: 'all' },
   { id: 'facilities', label: 'Khu vực & Tòa nhà', icon: Building2, group: 'Cơ sở vật chất', href: '/admin/facilities', access: 'superadmin' },
-  { id: 'asset_templates', label: 'Mẫu tài sản', icon: Boxes, group: 'Cơ sở vật chất', href: '/admin/asset-templates', access: 'all' },
-  { id: 'room_types', label: 'Loại phòng', icon: BedDouble, group: 'Cơ sở vật chất', href: '/admin/room-types', access: 'all' },
-  { id: 'rooms', label: 'Quản lý Phòng', icon: DoorOpen, group: 'Cơ sở vật chất', href: '/admin/rooms', access: 'all' },
+  { id: 'asset_templates', label: 'Mẫu tài sản', icon: Boxes, group: 'Cơ sở vật chất', href: '/admin/asset-templates', access: 'superadmin' },
+  { id: 'room_types', label: 'Loại phòng', icon: BedDouble, group: 'Cơ sở vật chất', href: '/admin/room-types', access: 'superadmin' },
+  { id: 'rooms', label: 'Quản lý Phòng', icon: DoorOpen, group: 'Cơ sở vật chất', href: '/admin/rooms', access: 'superadmin' },
   { id: 'tenants', label: 'Khách thuê', icon: Users, group: 'Khách thuê & HĐ', href: '/admin/tenants', access: 'all' },
   { id: 'contracts', label: 'Hợp đồng', icon: FileText, group: 'Khách thuê & HĐ', href: '/admin/contracts', access: 'all' },
   { id: 'services', label: 'Danh mục dịch vụ', icon: Settings, group: 'Tài chính', href: '/admin/services', access: 'superadmin' },
@@ -56,6 +56,9 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
 
 export const SUPERADMIN_ROUTE_PREFIXES = [
   '/admin/facilities',
+  '/admin/asset-templates',
+  '/admin/room-types',
+  '/admin/rooms',
   '/admin/services',
   '/admin/system-users',
 ]

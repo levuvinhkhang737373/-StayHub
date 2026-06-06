@@ -14,10 +14,8 @@ use App\Http\Requests\Admin\Building\UpdateRequest;
 use App\Http\Resources\Admin\BuildingDetailResource;
 use App\Http\Resources\Admin\BuildingResource;
 use App\Models\Admin;
-use App\Models\AssetTemplate;
 use App\Models\Building;
 use App\Models\BuildingImage;
-use App\Models\RoomType;
 use App\Models\ServicePrice;
 use App\Models\Setting;
 use Illuminate\Database\Eloquent\Builder;
@@ -264,8 +262,6 @@ class BuildingController extends Controller
     private function syncBuildingConfiguration(Building $building, array $validated, Admin $admin): void
     {
         foreach ([
-            fn (): ?JsonResponse => $this->syncRoomTypes($building, $validated, $admin),
-            fn (): ?JsonResponse => $this->syncAssetTemplates($building, $validated, $admin),
             fn (): ?JsonResponse => $this->syncServicePrices($building, $validated),
             fn (): ?JsonResponse => $this->syncSettings($building, $validated, $admin),
         ] as $sync) {
@@ -280,18 +276,6 @@ class BuildingController extends Controller
     private function buildingSyncPreflightPayload(array $validated): array
     {
         return [
-            'room_type_ids' => $this->ids($validated['room_type_ids'] ?? []),
-            'delete_room_type_ids' => $this->ids($validated['delete_room_type_ids'] ?? []),
-            'room_types' => collect($validated['room_types'] ?? [])
-                ->filter(fn ($roomType): bool => is_array($roomType))
-                ->map(fn (array $roomType): array => [
-                    'id' => isset($roomType['id']) ? (int) $roomType['id'] : null,
-                    'name' => trim((string) ($roomType['name'] ?? '')),
-                ])
-                ->values()
-                ->all(),
-            'asset_template_ids' => $this->ids($validated['asset_template_ids'] ?? []),
-            'delete_asset_template_ids' => $this->ids($validated['delete_asset_template_ids'] ?? []),
             'service_price_ids' => $this->ids(collect($validated['service_prices'] ?? [])
                 ->filter(fn ($servicePrice): bool => is_array($servicePrice))
                 ->pluck('id')
@@ -313,14 +297,6 @@ class BuildingController extends Controller
     private function preflightBuildingSync(array $payload, ?int $buildingId): ?JsonResponse
     {
         $checks = [];
-
-        if (($payload['delete_room_type_ids'] ?? []) !== [] || ($payload['room_type_ids'] ?? []) !== [] || ($payload['room_types'] ?? []) !== []) {
-            $checks['room_types'] = static fn (): ?array => self::preflightRoomTypes($payload, $buildingId);
-        }
-
-        if (($payload['delete_asset_template_ids'] ?? []) !== [] || ($payload['asset_template_ids'] ?? []) !== []) {
-            $checks['asset_templates'] = static fn (): ?array => self::preflightAssetTemplates($payload, $buildingId);
-        }
 
         if ($buildingId && ($payload['service_price_ids'] ?? []) !== []) {
             $checks['service_prices'] = static fn (): ?array => self::preflightServicePrices($payload, $buildingId);
@@ -372,99 +348,6 @@ class BuildingController extends Controller
         return app()->bound(DispatchesTasks::class) || app()->bound(SwooleServer::class);
     }
 
-    private static function preflightRoomTypes(array $payload, ?int $buildingId): ?array
-    {
-        $deleteIds = $payload['delete_room_type_ids'] ?? [];
-
-        if ($buildingId && $deleteIds !== []) {
-            $hasBlockedRoomType = RoomType::query()
-                ->where('building_id', $buildingId)
-                ->whereIn('id', $deleteIds)
-                ->withCount('rooms')
-                ->get()
-                ->contains(fn (RoomType $roomType): bool => (int) $roomType->rooms_count > 0);
-
-            if ($hasBlockedRoomType) {
-                return self::preflightError('Không thể xóa loại phòng đang được gán cho phòng');
-            }
-        }
-
-        $selectedNames = RoomType::query()
-            ->whereIn('id', $payload['room_type_ids'] ?? [])
-            ->whereNull('building_id')
-            ->pluck('name')
-            ->map(fn ($name): string => self::normalizedPreflightName($name))
-            ->filter()
-            ->values();
-
-        $existingRoomTypes = $buildingId
-            ? RoomType::query()
-                ->where('building_id', $buildingId)
-                ->when($deleteIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $deleteIds))
-                ->get(['id', 'name'])
-            : collect();
-
-        if (self::hasDuplicatedPreflightNames($selectedNames->all()) || $existingRoomTypes->contains(fn (RoomType $roomType): bool => $selectedNames->contains(self::normalizedPreflightName($roomType->name)))) {
-            return self::preflightError('Tên loại phòng đã tồn tại trong tòa nhà này');
-        }
-
-        $inlineRoomTypes = collect($payload['room_types'] ?? [])
-            ->reject(fn (array $roomType): bool => $roomType['id'] && in_array((int) $roomType['id'], $deleteIds, true))
-            ->map(fn (array $roomType): array => [
-                'id' => $roomType['id'] ? (int) $roomType['id'] : null,
-                'name' => self::normalizedPreflightName($roomType['name']),
-            ])
-            ->filter(fn (array $roomType): bool => $roomType['name'] !== '')
-            ->values();
-
-        if ($inlineRoomTypes->contains(fn (array $roomType): bool => $selectedNames->contains($roomType['name']) || $existingRoomTypes->contains(fn (RoomType $existingRoomType): bool => (int) $existingRoomType->id !== $roomType['id'] && self::normalizedPreflightName($existingRoomType->name) === $roomType['name']))) {
-            return self::preflightError('Tên loại phòng đã tồn tại trong tòa nhà này');
-        }
-
-        return null;
-    }
-
-    private static function preflightAssetTemplates(array $payload, ?int $buildingId): ?array
-    {
-        $deleteIds = $payload['delete_asset_template_ids'] ?? [];
-
-        if ($buildingId && $deleteIds !== []) {
-            $hasBlockedAssetTemplate = AssetTemplate::query()
-                ->where('building_id', $buildingId)
-                ->whereIn('id', $deleteIds)
-                ->withCount('roomAssets')
-                ->get()
-                ->contains(fn (AssetTemplate $assetTemplate): bool => (int) $assetTemplate->room_assets_count > 0);
-
-            if ($hasBlockedAssetTemplate) {
-                return self::preflightError('Không thể xóa mẫu tài sản đang được gán cho phòng');
-            }
-        }
-
-        $selectedNames = AssetTemplate::query()
-            ->whereIn('id', $payload['asset_template_ids'] ?? [])
-            ->whereNull('building_id')
-            ->pluck('name')
-            ->map(fn ($name): string => self::normalizedPreflightName($name))
-            ->filter()
-            ->values();
-
-        $existingNames = $buildingId
-            ? AssetTemplate::query()
-                ->where('building_id', $buildingId)
-                ->when($deleteIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $deleteIds))
-                ->pluck('name')
-                ->map(fn ($name): string => self::normalizedPreflightName($name))
-                ->filter()
-                ->values()
-            : collect();
-
-        if (self::hasDuplicatedPreflightNames($selectedNames->all()) || $selectedNames->contains(fn (string $name): bool => $existingNames->contains($name))) {
-            return self::preflightError('Tên mẫu tài sản đã tồn tại trong tòa nhà này');
-        }
-
-        return null;
-    }
 
     private static function preflightServicePrices(array $payload, ?int $buildingId): ?array
     {
@@ -600,124 +483,6 @@ class BuildingController extends Controller
         }
     }
 
-    private function syncRoomTypes(Building $building, array $validated, Admin $admin): ?JsonResponse
-    {
-        $deleteIds = $this->ids($validated['delete_room_type_ids'] ?? []);
-
-        if ($deleteIds !== []) {
-            $blockedRoomType = $building->roomTypes()->whereIn('id', $deleteIds)->withCount('rooms')->get()->first(fn (RoomType $roomType): bool => (int) $roomType->rooms_count > 0);
-
-            if ($blockedRoomType) {
-                return ApiResponse::responseJson(false, 'Không thể xóa loại phòng đang được gán cho phòng', 422, null, 422);
-            }
-
-            $building->roomTypes()->whereIn('id', $deleteIds)->delete();
-        }
-
-        foreach (RoomType::query()->whereIn('id', $this->ids($validated['room_type_ids'] ?? []))->whereNull('building_id')->lockForUpdate()->get() as $roomType) {
-            if ($this->roomTypeNameExists($building, $roomType->name)) {
-                return ApiResponse::responseJson(false, 'Tên loại phòng đã tồn tại trong tòa nhà này', 422, null, 422);
-            }
-
-            $roomType->forceFill([
-                'building_id' => $building->id,
-                'created_by' => $roomType->created_by ?: $admin->id,
-            ])->save();
-        }
-
-        foreach ($validated['room_types'] ?? [] as $roomTypeData) {
-            $roomTypeId = isset($roomTypeData['id']) ? (int) $roomTypeData['id'] : null;
-
-            if ($roomTypeId && in_array($roomTypeId, $deleteIds, true)) {
-                continue;
-            }
-
-            $name = trim((string) $roomTypeData['name']);
-
-            if ($this->roomTypeNameExists($building, $name, $roomTypeId)) {
-                return ApiResponse::responseJson(false, 'Tên loại phòng đã tồn tại trong tòa nhà này', 422, null, 422);
-            }
-
-            $payload = [
-                'name' => $name,
-                'description' => $roomTypeData['description'] ?? null,
-                'status' => $roomTypeData['status'] ?? RoomType::STATUS_ACTIVE,
-            ];
-
-            if ($roomTypeId) {
-                $roomType = $building->roomTypes()->whereKey($roomTypeId)->lockForUpdate()->first();
-
-                if (! $roomType) {
-                    return ApiResponse::responseJson(false, 'Không tìm thấy loại phòng trong tòa nhà này', 404, null, 404);
-                }
-
-                $roomType->fill($payload)->save();
-
-                continue;
-            }
-
-            $building->roomTypes()->create($payload + ['created_by' => $admin->id]);
-        }
-
-        return null;
-    }
-
-    private function syncAssetTemplates(Building $building, array $validated, Admin $admin): ?JsonResponse
-    {
-        $deleteIds = $this->ids($validated['delete_asset_template_ids'] ?? []);
-
-        if ($deleteIds !== []) {
-            $blockedAssetTemplate = $building->assetTemplates()->whereIn('id', $deleteIds)->withCount('roomAssets')->get()->first(fn (AssetTemplate $assetTemplate): bool => (int) $assetTemplate->room_assets_count > 0);
-
-            if ($blockedAssetTemplate) {
-                return ApiResponse::responseJson(false, 'Không thể xóa mẫu tài sản đang được gán cho phòng', 422, null, 422);
-            }
-
-            $building->assetTemplates()->whereIn('id', $deleteIds)->delete();
-        }
-
-        foreach (AssetTemplate::query()->whereIn('id', $this->ids($validated['asset_template_ids'] ?? []))->whereNull('building_id')->lockForUpdate()->get() as $assetTemplate) {
-            if ($building->assetTemplates()->where('name', $assetTemplate->name)->exists()) {
-                return ApiResponse::responseJson(false, 'Tên mẫu tài sản đã tồn tại trong tòa nhà này', 422, null, 422);
-            }
-
-            $assetTemplate->forceFill([
-                'building_id' => $building->id,
-                'created_by' => $assetTemplate->created_by ?: $admin->id,
-            ])->save();
-        }
-
-        foreach ($validated['asset_templates'] ?? [] as $assetTemplateData) {
-            $assetTemplateId = isset($assetTemplateData['id']) ? (int) $assetTemplateData['id'] : null;
-
-            if ($assetTemplateId && in_array($assetTemplateId, $deleteIds, true)) {
-                continue;
-            }
-
-            $payload = [
-                'name' => trim((string) $assetTemplateData['name']),
-                'default_unit_name' => $assetTemplateData['default_unit_name'] ?? AssetTemplate::UNIT_PIECE,
-                'description' => $assetTemplateData['description'] ?? null,
-                'status' => $assetTemplateData['status'] ?? AssetTemplate::STATUS_ACTIVE,
-            ];
-
-            if ($assetTemplateId) {
-                $assetTemplate = $building->assetTemplates()->whereKey($assetTemplateId)->lockForUpdate()->first();
-
-                if (! $assetTemplate) {
-                    return ApiResponse::responseJson(false, 'Không tìm thấy mẫu tài sản trong tòa nhà này', 404, null, 404);
-                }
-
-                $assetTemplate->fill($payload)->save();
-
-                continue;
-            }
-
-            $building->assetTemplates()->create($payload + ['created_by' => $admin->id]);
-        }
-
-        return null;
-    }
 
     private function syncServicePrices(Building $building, array $validated): ?JsonResponse
     {
@@ -903,15 +668,20 @@ class BuildingController extends Controller
             $building->settings()->whereIn('id', $deleteIds)->delete();
         }
 
-        foreach (Setting::query()->whereIn('id', $this->ids($validated['setting_ids'] ?? []))->whereNull('building_id')->lockForUpdate()->get() as $setting) {
+        foreach (Setting::query()->whereIn('id', $this->ids($validated['setting_ids'] ?? []))->lockForUpdate()->get() as $setting) {
             if ($this->settingNameExists($building, $setting->setting_name)) {
                 return ApiResponse::responseJson(false, 'Khóa cài đặt đã tồn tại trong tòa nhà này', 422, null, 422);
             }
 
-            $setting->forceFill([
+            Setting::query()->create([
                 'building_id' => $building->id,
+                'setting_label' => $setting->setting_label,
+                'setting_name' => $setting->setting_name,
+                'setting_value' => $setting->setting_value,
+                'description' => $setting->description,
+                'is_public' => $setting->is_public,
                 'created_by' => $setting->created_by ?: $admin->id,
-            ])->save();
+            ]);
         }
 
         foreach ($validated['settings'] ?? [] as $settingData) {
@@ -1028,14 +798,6 @@ class BuildingController extends Controller
         return $integer.'.'.$decimal;
     }
 
-    private function roomTypeNameExists(Building $building, string $name, ?int $ignoreId = null): bool
-    {
-        return $building->roomTypes()
-            ->where('name', $name)
-            ->when($ignoreId !== null, fn (Builder $query): Builder => $query->whereKeyNot($ignoreId))
-            ->exists();
-    }
-
     private function settingNameExists(Building $building, string $settingName, ?int $ignoreId = null): bool
     {
         return $building->settings()
@@ -1067,8 +829,6 @@ class BuildingController extends Controller
             'primaryImage:id,building_id,image_path,is_primary,sort_order,status,uploaded_by,created_at,updated_at',
             'images:id,building_id,image_path,is_primary,sort_order,status,uploaded_by,created_at,updated_at',
             'images.uploader:id,full_name',
-            'roomTypes' => fn ($query) => $query->select('id', 'name', 'slug', 'building_id', 'description', 'status', 'created_by', 'created_at', 'updated_at')->withCount('rooms')->orderBy('name'),
-            'assetTemplates' => fn ($query) => $query->select('id', 'name', 'slug', 'building_id', 'default_unit_name', 'description', 'status', 'created_by', 'created_at', 'updated_at')->withCount('roomAssets')->orderBy('name'),
             'servicePrices' => fn ($query) => $query->select('id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status', 'created_at', 'updated_at')->with('service:id,name,slug,charge_method,unit_name,is_required,is_active,created_by,created_at,updated_at')->orderByDesc('effective_from')->orderByDesc('id'),
             'settings' => fn ($query) => $query->select('id', 'building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at')->orderBy('setting_name'),
             'settings.creator:id,full_name',
@@ -1077,12 +837,12 @@ class BuildingController extends Controller
 
     private function counts(): array
     {
-        return ['images', 'rooms', 'roomTypes', 'assetTemplates', 'servicePrices', 'settings', 'notifications', 'expenses'];
+        logger("counts: " . json_encode(['images', 'rooms', 'servicePrices', 'settings', 'notifications', 'expenses'])); return ['images', 'rooms', 'servicePrices', 'settings', 'notifications', 'expenses'];
     }
 
     private function deleteBlockingCounts(): array
     {
-        return ['rooms', 'roomTypes', 'assetTemplates', 'servicePrices', 'settings', 'notifications', 'expenses'];
+        return ['rooms', 'servicePrices', 'settings', 'notifications', 'expenses'];
     }
 
     private function hasDeleteBlockingData(Building $building): bool

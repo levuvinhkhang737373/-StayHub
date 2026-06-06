@@ -20,7 +20,6 @@ class IndexRequest extends FormRequest
     {
         return [
             'keyword' => ['nullable', 'string', 'max:255'],
-            'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
             'only_global' => ['nullable', 'boolean'],
             'created_by_me' => ['nullable', 'boolean'],
             'status' => ['nullable', 'integer', Rule::in(array_keys(RoomType::STATUS_LABELS))],
@@ -33,8 +32,6 @@ class IndexRequest extends FormRequest
         return [
             'keyword.string' => 'Từ khóa tìm kiếm loại phòng phải là chuỗi ký tự.',
             'keyword.max' => 'Từ khóa tìm kiếm loại phòng không được vượt quá 255 ký tự.',
-            'building_id.integer' => 'Tòa nhà của loại phòng không hợp lệ.',
-            'building_id.exists' => 'Tòa nhà của loại phòng không tồn tại.',
             'only_global.boolean' => 'Bộ lọc loại phòng mẫu không hợp lệ.',
             'created_by_me.boolean' => 'Bộ lọc loại phòng theo người tạo không hợp lệ.',
             'status.integer' => 'Trạng thái loại phòng không hợp lệ.',

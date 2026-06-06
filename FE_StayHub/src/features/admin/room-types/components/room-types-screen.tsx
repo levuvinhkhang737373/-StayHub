@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, BedDouble, Edit3, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react'
-import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { cn } from '../../../../shared/lib/utils/cn'
-import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
-import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import {
   createAdminRoomType,
@@ -25,7 +22,6 @@ function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[
 
 const defaultForm: RoomTypeFormValues = {
   name: '',
-  building_id: '',
   description: '',
   status: 1,
 }
@@ -51,12 +47,8 @@ const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:
 const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function RoomTypesScreen() {
-  const { session } = useAdminSession()
-  const isSuperAdmin = isSuperAdminRole(session?.admin.role)
   const [keyword, setKeyword] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
-  const [selectedBuildingId, setSelectedBuildingId] = useState('')
-  const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [roomTypes, setRoomTypes] = useState<AdminRoomTypeResource[]>([])
   const [editingRoomType, setEditingRoomType] = useState<AdminRoomTypeResource | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -72,48 +64,24 @@ export function RoomTypesScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
 
-  const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
-  const filterBuildingOptions = useMemo(() => [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions], [buildingOptions])
-  const formBuildingOptions = useMemo(() => isSuperAdmin ? [{ value: '', label: 'Dùng chung toàn hệ thống', tone: 'warning' as const }, ...buildingOptions] : buildingOptions, [buildingOptions, isSuperAdmin])
-  const allowedBuildingIds = useMemo(() => buildings.map((building) => building.id), [buildings])
-
   const loadRoomTypes = useCallback(async () => {
     setIsLoading(true)
     setErrorMessage(null)
 
     try {
-      const [roomTypeResponse, buildingResponse] = await Promise.all([
-        fetchAdminRoomTypes({
-          keyword: keyword.trim() || undefined,
-          building_id: selectedBuildingId ? Number(selectedBuildingId) : undefined,
-          status: selectedStatus ? Number(selectedStatus) : undefined,
-          per_page: 100,
-        }),
-        fetchAdminBuildings({ per_page: 100 }),
-      ])
-
-      const buildingList = getResourceList(buildingResponse.result)
-      const visibleBuildings = isSuperAdmin
-        ? buildingList
-        : buildingList.filter((building) => Number(building.manager_admin_id) === Number(session?.admin.id))
-      const nextAllowedBuildingIds = new Set(visibleBuildings.map((building) => Number(building.id)))
-      const nextRoomTypes = getResourceList(roomTypeResponse.result).filter((roomType) => {
-        if (isSuperAdmin || !roomType.building_id) return true
-        return nextAllowedBuildingIds.has(Number(roomType.building_id))
+      const roomTypeResponse = await fetchAdminRoomTypes({
+        keyword: keyword.trim() || undefined,
+        status: selectedStatus ? Number(selectedStatus) : undefined,
+        per_page: 100,
       })
 
-      setRoomTypes(nextRoomTypes)
-      setBuildings(visibleBuildings)
-
-      if (!isSuperAdmin && visibleBuildings.length === 1) {
-        setForm((current) => ({ ...current, building_id: current.building_id || String(visibleBuildings[0].id) }))
-      }
+      setRoomTypes(getResourceList(roomTypeResponse.result))
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách loại phòng.')
     } finally {
       setIsLoading(false)
     }
-  }, [isSuperAdmin, keyword, selectedBuildingId, selectedStatus, session?.admin.id])
+  }, [keyword, selectedStatus])
 
 
   useEffect(() => {
@@ -134,7 +102,7 @@ export function RoomTypesScreen() {
 
   const openCreateForm = () => {
     setEditingRoomType(null)
-    setForm({ ...defaultForm, building_id: !isSuperAdmin && buildings.length === 1 ? String(buildings[0].id) : selectedBuildingId })
+    setForm({ ...defaultForm })
     setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -143,7 +111,7 @@ export function RoomTypesScreen() {
 
   const resetForm = () => {
     setEditingRoomType(null)
-    setForm({ ...defaultForm, building_id: !isSuperAdmin && buildings.length === 1 ? String(buildings[0].id) : '' })
+    setForm({ ...defaultForm })
     setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -153,7 +121,6 @@ export function RoomTypesScreen() {
     setEditingRoomType(roomType)
     setForm({
       name: roomType.name || '',
-      building_id: roomType.building_id ? String(roomType.building_id) : '',
       description: roomType.description || '',
       status: Number(roomType.status || 1),
     })
@@ -188,7 +155,7 @@ export function RoomTypesScreen() {
   const submit = async () => {
     if (isSaving) return
 
-    const nextErrors = validateRoomTypeForm(form, { allowedBuildingIds, requireBuilding: !isSuperAdmin })
+    const nextErrors = validateRoomTypeForm(form)
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length > 0) {
@@ -203,7 +170,6 @@ export function RoomTypesScreen() {
 
       const payload = {
         name: form.name.trim(),
-        building_id: form.building_id ? Number(form.building_id) : undefined,
         description: form.description.trim() || undefined,
         status: Number(form.status),
       }
@@ -260,7 +226,6 @@ export function RoomTypesScreen() {
 
   const clearFilters = () => {
     setKeyword('')
-    setSelectedBuildingId('')
     setSelectedStatus('')
   }
 
@@ -313,8 +278,7 @@ export function RoomTypesScreen() {
                     <X className="h-3.5 w-3.5" /> Xóa lọc
                   </button>
                 </div>
-                <div className="grid w-full gap-3 sm:grid-cols-2 lg:ml-auto lg:w-lg">
-                  <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} onChange={(nextValue) => setSelectedBuildingId(String(nextValue))} />
+                <div className="grid w-full gap-3 sm:grid-cols-1 lg:ml-auto lg:w-64">
                   <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => setSelectedStatus(String(nextValue))} />
                 </div>
               </div>
@@ -325,7 +289,6 @@ export function RoomTypesScreen() {
                 <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
                     <th className="px-5 py-4">Loại phòng</th>
-                    <th className="px-5 py-4">Tòa nhà</th>
                     <th className="px-5 py-4 text-center">Số lượng phòng đang áp dụng</th>
                     <th className="px-5 py-4">Trạng thái</th>
                     <th className="px-5 py-4"><span className="flex justify-end"><span className="w-47.5 text-center">Thao tác</span></span></th>
@@ -339,7 +302,6 @@ export function RoomTypesScreen() {
                   ))}
 
                   {!isLoading && roomTypes.map((roomType) => {
-                    const canMutateRoomType = isSuperAdmin || Boolean(roomType.building_id)
 
                     return (
                     <tr key={roomType.id} className="group transition hover:bg-[#f3c56b]/12">
@@ -353,7 +315,6 @@ export function RoomTypesScreen() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">{roomType.building_name || 'Dùng chung'}</td>
                       <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d] tabular-nums">{roomType.rooms_count ?? 0}</td>
                       <td className="px-4 py-3">
                         <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm', Number(roomType.status) === 1 ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
@@ -363,9 +324,9 @@ export function RoomTypesScreen() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2.5">
                           <button type="button" onClick={() => void viewRoomType(roomType)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
-                          <button type="button" disabled={!canMutateRoomType} onClick={() => editRoomType(roomType)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title={canMutateRoomType ? 'Chỉnh sửa' : 'Chỉ superadmin được sửa loại phòng dùng chung'}><Edit3 className="h-5 w-5" /></button>
-                          <button type="button" disabled={statusChangingId === roomType.id || !canMutateRoomType} onClick={() => void toggleRoomTypeStatus(roomType)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-55', Number(roomType.status) === 1 ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100')} title={canMutateRoomType ? (Number(roomType.status) === 1 ? 'Ngừng hoạt động' : 'Kích hoạt') : 'Chỉ superadmin được đổi trạng thái loại phòng dùng chung'}><Power className="h-5 w-5" /></button>
-                          <button type="button" disabled={!canMutateRoomType} onClick={() => void removeRoomType(roomType)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title={canMutateRoomType ? 'Xóa' : 'Chỉ superadmin được xóa loại phòng dùng chung'}><Trash2 className="h-5 w-5" /></button>
+                          <button type="button" onClick={() => editRoomType(roomType)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title={'Chỉnh sửa'}><Edit3 className="h-5 w-5" /></button>
+                          <button type="button" disabled={statusChangingId === roomType.id} onClick={() => void toggleRoomTypeStatus(roomType)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-55', Number(roomType.status) === 1 ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100')} title={Number(roomType.status) === 1 ? 'Ngừng hoạt động' : 'Kích hoạt'}><Power className="h-5 w-5" /></button>
+                          <button type="button" onClick={() => void removeRoomType(roomType)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title={'Xóa'}><Trash2 className="h-5 w-5" /></button>
                         </div>
                       </td>
                     </tr>
@@ -412,11 +373,6 @@ export function RoomTypesScreen() {
                 <FieldError message={errors.name} />
               </div>
               <div>
-                <label className={labelClass}>Tòa nhà</label>
-                <AdminSelect value={form.building_id} options={formBuildingOptions} invalid={!!errors.building_id} onChange={(nextValue) => updateForm('building_id', String(nextValue))} />
-                <FieldError message={errors.building_id} />
-              </div>
-              <div>
                 <label className={labelClass}>Trạng thái</label>
                 <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
                 <FieldError message={errors.status} />
@@ -461,8 +417,7 @@ export function RoomTypesScreen() {
               {isDetailLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết loại phòng...</div>}
               {detailErrorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{detailErrorMessage}</div>}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <DetailTile label="Tòa nhà" value={detailRoomType?.building_name || 'Dùng chung'} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-1">
                 <DetailTile label="Số phòng" value={detailRoomType?.rooms_count ?? 0} />
               </div>
 

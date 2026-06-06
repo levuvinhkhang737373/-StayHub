@@ -296,7 +296,7 @@ class TenantController extends Controller
     private function payload(array $validated, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['full_name', 'gender', 'date_of_birth', 'phone', 'email', 'username', 'password', 'permanent_address', 'current_address', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url'];
+        $fields = ['building_id', 'full_name', 'gender', 'date_of_birth', 'phone', 'email', 'username', 'password', 'permanent_address', 'current_address', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url'];
 
         if (! $isUpdate) {
             $fields[] = 'created_by';
@@ -331,6 +331,7 @@ class TenantController extends Controller
             ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', (int) $validated['status']))
             ->when(isset($validated['gender']), fn (Builder $query): Builder => $query->where('gender', (int) $validated['gender']))
             ->when(isset($validated['identity_type']), fn (Builder $query): Builder => $query->where('identity_type', (int) $validated['identity_type']))
+            ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', (int) $validated['building_id']))
             ->when(AdminScope::isSuperAdmin($admin) && isset($validated['created_by']), fn (Builder $query): Builder => $query->where('created_by', (int) $validated['created_by']))
             ->orderByDesc('created_at')
             ->orderByDesc('id');
@@ -345,7 +346,7 @@ class TenantController extends Controller
 
         $builder = Tenant::search($keyword);
 
-        foreach (['status', 'gender', 'identity_type'] as $field) {
+        foreach (['status', 'gender', 'identity_type', 'building_id'] as $field) {
             if (isset($validated[$field])) {
                 $builder->where($field, (int) $validated[$field]);
             }

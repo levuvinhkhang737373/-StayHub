@@ -20,7 +20,6 @@ class UpdateRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'required', 'string', 'max:150'],
-            'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
             'default_unit_name' => ['nullable', 'integer', Rule::in(array_keys(AssetTemplate::UNIT_LABELS))],
             'description' => ['nullable', 'string'],
             'status' => ['nullable', 'integer', Rule::in(array_keys(AssetTemplate::STATUS_LABELS))],
@@ -34,8 +33,6 @@ class UpdateRequest extends FormRequest
             'name.required' => 'Tên mẫu tài sản là bắt buộc khi cập nhật.',
             'name.string' => 'Tên mẫu tài sản phải là chuỗi ký tự.',
             'name.max' => 'Tên mẫu tài sản không được vượt quá 150 ký tự.',
-            'building_id.integer' => 'Tòa nhà của mẫu tài sản không hợp lệ.',
-            'building_id.exists' => 'Tòa nhà của mẫu tài sản không tồn tại.',
             'default_unit_name.integer' => 'Đơn vị mặc định của mẫu tài sản không hợp lệ.',
             'default_unit_name.in' => 'Đơn vị mặc định của mẫu tài sản không nằm trong danh sách cho phép.',
             'description.string' => 'Mô tả mẫu tài sản phải là chuỗi ký tự.',

@@ -62,7 +62,7 @@ class StayHubDemoSeeder extends Seeder
             $services = $this->seedServices($admins);
             $this->seedServicePrices($buildings, $services);
 
-            $tenants = $this->seedTenants($admins);
+            $tenants = $this->seedTenants($admins, $buildings);
             $contracts = $this->seedContracts($admins, $rooms, $tenants);
             $this->seedContractTenants($admins, $contracts, $tenants);
 
@@ -354,15 +354,15 @@ class StayHubDemoSeeder extends Seeder
     private function seedAssetTemplates(array $admins, array $buildings): array
     {
         $rows = [
-            'aircon' => ['Máy lạnh', AssetTemplate::UNIT_UNIT, null],
-            'fridge' => ['Tủ lạnh', AssetTemplate::UNIT_UNIT, null],
-            'bed' => ['Giường', AssetTemplate::UNIT_UNIT, null],
-            'wardrobe' => ['Tủ quần áo', AssetTemplate::UNIT_UNIT, null],
-            'desk' => ['Bàn học', AssetTemplate::UNIT_UNIT, $buildings['sg_central']],
+            'aircon' => ['Máy lạnh', AssetTemplate::UNIT_UNIT],
+            'fridge' => ['Tủ lạnh', AssetTemplate::UNIT_UNIT],
+            'bed' => ['Giường', AssetTemplate::UNIT_UNIT],
+            'wardrobe' => ['Tủ quần áo', AssetTemplate::UNIT_UNIT],
+            'desk' => ['Bàn học', AssetTemplate::UNIT_UNIT],
         ];
 
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
-            $key => $this->upsertAndGetId('asset_templates', ['name' => $row[0], 'building_id' => $row[2]], [
+            $key => $this->upsertAndGetId('asset_templates', ['name' => $row[0]], [
                 'slug' => Str::slug($row[0]),
                 'default_unit_name' => $row[1],
                 'description' => 'Danh mục tài sản mẫu dùng khi bàn giao phòng.',
@@ -447,7 +447,7 @@ class StayHubDemoSeeder extends Seeder
         }
     }
 
-    private function seedTenants(array $admins): array
+    private function seedTenants(array $admins, array $buildings): array
     {
         $rows = [
             'an' => ['Lê Hoàng An', Tenant::GENDER_MALE, '1999-04-12', '0911000001', 'an.le@example.com', 'tenant_an', '079099000001', 'sg_central'],
@@ -459,6 +459,7 @@ class StayHubDemoSeeder extends Seeder
 
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
             $key => $this->upsertAndGetId('tenants', ['username' => $row[5]], [
+                'building_id' => $buildings[$row[7]],
                 'created_by' => $admins[$row[7]],
                 'full_name' => $row[0],
                 'gender' => $row[1],
@@ -630,9 +631,7 @@ class StayHubDemoSeeder extends Seeder
         ];
 
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
-            $key => $this->upsertAndGetId('meter_devices', ['meter_code' => $row[2]], [
-                'room_id' => $row[0],
-                'service_id' => $row[1],
+            $key => $this->upsertAndGetId('meter_devices', ['room_id' => $row[0], 'service_id' => $row[1]], [
                 'meter_type' => $row[3],
                 'initial_reading' => $row[4],
                 'installed_at' => '2026-05-01',
@@ -1076,9 +1075,11 @@ class StayHubDemoSeeder extends Seeder
         $buildingManagers = collect($buildings)->mapWithKeys(fn (int $buildingId, string $buildingKey): array => [
             $buildingId => $admins[$buildingKey],
         ]);
-        $roomManagers = DB::table('rooms')
+        $roomBuildings = DB::table('rooms')
             ->whereIn('id', array_values($rooms))
             ->pluck('building_id', 'id')
+            ->all();
+        $roomManagers = collect($roomBuildings)
             ->map(fn (int $buildingId): int => $buildingManagers[$buildingId])
             ->all();
         $roomIds = array_values($rooms);
@@ -1095,6 +1096,7 @@ class StayHubDemoSeeder extends Seeder
             $roomIndex = $i <= 30 ? $i - 1 : $i - 31;
 
             $tenants[$key] = $this->upsertAndGetId('tenants', ['username' => $key], [
+                'building_id' => $roomBuildings[$roomIds[$roomIndex]],
                 'created_by' => $roomManagers[$roomIds[$roomIndex]],
                 'full_name' => $name,
                 'gender' => $gender,
@@ -1245,9 +1247,7 @@ class StayHubDemoSeeder extends Seeder
         foreach ($rooms as $key => $roomId) {
             $upperKey = strtoupper(str_replace('_', '-', $key));
 
-            $meters[$key . '_electric'] = $this->upsertAndGetId('meter_devices', ['meter_code' => 'DIEN-EX-' . $upperKey], [
-                'room_id' => $roomId,
-                'service_id' => $services['electric'],
+            $meters[$key . '_electric'] = $this->upsertAndGetId('meter_devices', ['room_id' => $roomId, 'service_id' => $services['electric']], [
                 'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
                 'initial_reading' => 700 + (crc32($key) % 500),
                 'installed_at' => '2026-05-01',
@@ -1259,9 +1259,7 @@ class StayHubDemoSeeder extends Seeder
                 ...$this->timestamps(),
             ]);
 
-            $meters[$key . '_water'] = $this->upsertAndGetId('meter_devices', ['meter_code' => 'NUOC-EX-' . $upperKey], [
-                'room_id' => $roomId,
-                'service_id' => $services['water'],
+            $meters[$key . '_water'] = $this->upsertAndGetId('meter_devices', ['room_id' => $roomId, 'service_id' => $services['water']], [
                 'meter_type' => MeterDevice::METER_TYPE_WATER,
                 'initial_reading' => 150 + (crc32($key) % 120),
                 'installed_at' => '2026-05-01',

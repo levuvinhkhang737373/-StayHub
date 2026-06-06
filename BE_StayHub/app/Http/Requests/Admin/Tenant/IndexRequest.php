@@ -23,6 +23,7 @@ class IndexRequest extends FormRequest
             'status' => ['nullable', 'integer', Rule::in(array_keys(Tenant::STATUS_LABELS))],
             'gender' => ['nullable', 'integer', Rule::in(array_keys(Tenant::GENDER_LABELS))],
             'identity_type' => ['nullable', 'integer', Rule::in(array_keys(Tenant::IDENTITY_TYPE_LABELS))],
+            'building_id' => ['nullable', 'integer', Rule::exists('buildings', 'id')],
             'created_by' => ['nullable', 'integer', Rule::exists('admins', 'id')],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],

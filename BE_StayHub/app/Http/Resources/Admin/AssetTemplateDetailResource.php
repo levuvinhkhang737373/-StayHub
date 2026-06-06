@@ -12,8 +12,6 @@ class AssetTemplateDetailResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'building_id' => $this->building_id,
-            'building' => new BuildingResource($this->whenLoaded('building')),
             'name' => $this->name,
             'slug' => $this->slug,
             'default_unit_name' => $this->default_unit_name,

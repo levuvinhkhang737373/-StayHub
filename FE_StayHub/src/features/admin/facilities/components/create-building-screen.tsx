@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ElementType, ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Boxes, Building2, ChevronRight, ImagePlus, MapPin, Plus, Save, Search, Settings, Star, Trash2, X, Zap } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, ImagePlus, MapPin, Plus, Save, Search, Settings, Star, Trash2, X, Zap } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
-import { createAdminAssetTemplate, fetchAdminAssetTemplates } from "../../asset-templates/services/asset-templates.service";
-import type { AdminAssetTemplateResource } from "../../asset-templates/types/asset-template-api.model";
-import { createAdminRoomType, fetchAdminRoomTypes } from "../../room-types/services/room-types.service";
-import type { AdminRoomTypeResource } from "../../room-types/types/room-type-api.model";
 import { createAdminService, fetchAdminServices } from "../../services/services/services.service";
 import type { AdminServiceResource } from "../../services/types/service-api.model";
 import { createAdminSetting, fetchAdminSettings } from "../../settings/services/settings.service";
@@ -18,9 +14,7 @@ import type { BuildingImage } from "../types/building.model";
 import { buildBuildingPayload, createDefaultBuildingForm, getTodayIsoDate, mapBuildingDetailToForm } from "../utils/building-form.utils";
 import {
     validateBuildingForm,
-    type BuildingAssetTemplateFormRow,
     type BuildingFormErrors,
-    type BuildingRoomTypeFormRow,
     type BuildingServicePriceFormRow,
     type BuildingSettingFormRow,
 } from "../validations/building.validation";
@@ -37,7 +31,7 @@ const inputErrorClass = "border-rose-300 bg-rose-50 focus:border-rose-400";
 const labelClass = "mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-gray-400";
 const cardClass = "rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm";
 
-type ConfigKey = "room_types" | "asset_templates" | "service_prices" | "settings";
+type ConfigKey = "service_prices" | "settings";
 
 const buildingStatusOptions = [
     { value: 1, label: "Đang hoạt động", tone: "success" as const },
@@ -51,21 +45,12 @@ const genderPolicyOptions = [
     { value: 3, label: "Nữ", tone: "default" as const },
 ];
 
-const activeStatusOptions = [
-    { value: 1, label: "Hoạt động", tone: "success" as const },
-    { value: 2, label: "Ngừng", tone: "danger" as const },
-];
 
 const servicePriceStatusOptions = [
     { value: 1, label: "Còn hiệu lực", tone: "success" as const },
     { value: 2, label: "Hết hiệu lực", tone: "danger" as const },
 ];
 
-const assetUnitOptions = [
-    { value: 1, label: "Cái", tone: "default" as const },
-    { value: 2, label: "Bộ", tone: "default" as const },
-    { value: 3, label: "Chiếc", tone: "default" as const },
-];
 
 
 const chargeMethodOptions = [
@@ -103,13 +88,9 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [regions, setRegions] = useState<AdminRegionResource[]>([]);
     const [managers, setManagers] = useState<AdminManagerResource[]>([]);
     const [services, setServices] = useState<AdminServiceResource[]>([]);
-    const [roomTypeCatalog, setRoomTypeCatalog] = useState<AdminRoomTypeResource[]>([]);
-    const [assetTemplateCatalog, setAssetTemplateCatalog] = useState<AdminAssetTemplateResource[]>([]);
     const [settingCatalog, setSettingCatalog] = useState<AdminSettingResource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isCreatingRoomType, setIsCreatingRoomType] = useState(false);
-    const [isCreatingAssetTemplate, setIsCreatingAssetTemplate] = useState(false);
     const [isCreatingService, setIsCreatingService] = useState(false);
     const [isCreatingSetting, setIsCreatingSetting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -117,19 +98,15 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [imageFiles, setImageFiles] = useState<File[]>([]);
     const [existingImages, setExistingImages] = useState<BuildingImage[]>([]);
     const [deleteImageIds, setDeleteImageIds] = useState<number[]>([]);
-    const [deleteRoomTypeIds, setDeleteRoomTypeIds] = useState<number[]>([]);
-    const [deleteAssetTemplateIds, setDeleteAssetTemplateIds] = useState<number[]>([]);
     const [deleteServicePriceIds, setDeleteServicePriceIds] = useState<number[]>([]);
     const [deleteSettingIds, setDeleteSettingIds] = useState<number[]>([]);
     const [primaryImageId, setPrimaryImageId] = useState<number | null>(null);
     const [primaryNewImageIndex, setPrimaryNewImageIndex] = useState<number | null>(null);
-    const [openCreateForms, setOpenCreateForms] = useState<Record<ConfigKey, boolean>>({ room_types: false, asset_templates: false, service_prices: false, settings: false });
-    const [openConfigCards, setOpenConfigCards] = useState<Record<ConfigKey, boolean>>({ room_types: true, asset_templates: false, service_prices: false, settings: false });
+    const [openCreateForms, setOpenCreateForms] = useState<Record<ConfigKey, boolean>>({ service_prices: false, settings: false });
+    const [openConfigCards, setOpenConfigCards] = useState<Record<ConfigKey, boolean>>({ service_prices: true, settings: false });
     const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
     const [regionKeyword, setRegionKeyword] = useState("");
     const [expandedRegionIds, setExpandedRegionIds] = useState<number[]>([]);
-    const [quickRoomType, setQuickRoomType] = useState({ name: "", description: "", status: 1 });
-    const [quickAssetTemplate, setQuickAssetTemplate] = useState({ name: "", default_unit_name: 1, description: "", status: 1 });
     const [quickService, setQuickService] = useState({ name: "", charge_method: 5, unit_name: "", is_required: false, is_active: true });
     const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
     const [form, setForm] = useState(createDefaultBuildingForm);
@@ -175,20 +152,17 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             fetchAdminRegions({ per_page: 100 }),
             fetchAdminManagers(),
             fetchAdminServices({ per_page: 100, is_active: true, created_by_role: 2 }),
-            fetchAdminRoomTypes({ per_page: 100, status: 1, created_by_me: true }),
-            fetchAdminAssetTemplates({ per_page: 100, status: 1 }),
+
             fetchAdminSettings({ per_page: 100, only_global: true }),
             isEditMode && resolvedBuildingId ? fetchAdminBuildingDetail(resolvedBuildingId) : Promise.resolve(null),
         ])
-            .then(([regionsResponse, managersResponse, servicesResponse, roomTypesResponse, assetTemplatesResponse, settingsResponse, buildingResponse]) => {
+            .then(([regionsResponse, managersResponse, servicesResponse, settingsResponse, buildingResponse]) => {
                 const nextRegions = getResourceList(regionsResponse.result);
                 const nextManagers = getResourceList(managersResponse.result);
                 const nextServices = getResourceList(servicesResponse.result);
                 setRegions(nextRegions);
                 setManagers(nextManagers);
                 setServices(nextServices);
-                setRoomTypeCatalog(getResourceList(roomTypesResponse.result));
-                setAssetTemplateCatalog(getResourceList(assetTemplatesResponse.result));
                 setSettingCatalog(getResourceList(settingsResponse.result));
 
                 const building = buildingResponse?.result;
@@ -288,11 +262,9 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         }
     };
 
-    const addRow = (key: ConfigKey, row?: BuildingRoomTypeFormRow | BuildingAssetTemplateFormRow | BuildingServicePriceFormRow | BuildingSettingFormRow) => {
-        const nextRow = row || (key === "room_types" ? { name: "", description: "", status: 1 }
-            : key === "asset_templates" ? { name: "", default_unit_name: 1, description: "", status: 1 }
-                : key === "service_prices" ? { service_id: "", price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 }
-                    : { setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+    const addRow = (key: ConfigKey, row?: BuildingServicePriceFormRow | BuildingSettingFormRow) => {
+        const nextRow = row || (key === "service_prices" ? { service_id: "", price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 }
+            : { setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
 
         setForm((current) => ({ ...current, [key]: [...(current[key] as unknown[]), nextRow] } as typeof current));
         setErrors((current) => ({ ...current, [key]: undefined }));
@@ -300,11 +272,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
 
     const removeRow = (key: ConfigKey, index: number) => {
         const row = form[key][index] as { id?: number; rooms_count?: number; room_assets_count?: number };
-        if (key === "room_types" && row.rooms_count && row.rooms_count > 0) return;
-        if (key === "asset_templates" && row.room_assets_count && row.room_assets_count > 0) return;
         if (row.id) {
-            if (key === "room_types") setDeleteRoomTypeIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
-            if (key === "asset_templates") setDeleteAssetTemplateIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
             if (key === "service_prices") setDeleteServicePriceIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
             if (key === "settings") setDeleteSettingIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
         }
@@ -320,33 +288,13 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         setErrors((current) => ({ ...current, [key]: undefined }));
     };
 
-    const roomTypeOptions = useMemo(() => mergeRoomTypeOptions(roomTypeCatalog, form.room_types), [form.room_types, roomTypeCatalog]);
-    const assetTemplateOptions = useMemo(() => mergeAssetTemplateOptions(assetTemplateCatalog, form.asset_templates), [assetTemplateCatalog, form.asset_templates]);
     const serviceOptions = useMemo(() => mergeServiceOptions(services, form.service_prices), [form.service_prices, services]);
     const settingOptions = useMemo(() => mergeSettingOptions(settingCatalog, form.settings), [form.settings, settingCatalog]);
 
-    const findRoomTypeIndex = (item: AdminRoomTypeResource) => form.room_types.findIndex((row) => row.source_id === item.id || row.id === item.id || row.name.trim().toLowerCase() === item.name.trim().toLowerCase());
-    const findAssetTemplateIndex = (item: AdminAssetTemplateResource) => form.asset_templates.findIndex((row) => row.source_id === item.id || row.id === item.id || row.name.trim().toLowerCase() === item.name.trim().toLowerCase());
     const findServicePriceIndex = (service: AdminServiceResource) => form.service_prices.findIndex((row) => Number(row.service_id) === service.id);
     const findSettingIndex = (item: AdminSettingResource) => form.settings.findIndex((row) => row.source_id === item.id || row.id === item.id || row.setting_name.trim().toLowerCase() === item.setting_name.trim().toLowerCase());
 
-    const toggleRoomType = (item: AdminRoomTypeResource) => {
-        const index = findRoomTypeIndex(item);
-        if (index >= 0) {
-            removeRow("room_types", index);
-            return;
-        }
-        addRow("room_types", { source_id: item.id, name: item.name, description: item.description || "", status: Number(item.status || 1), rooms_count: 0 });
-    };
 
-    const toggleAssetTemplate = (item: AdminAssetTemplateResource) => {
-        const index = findAssetTemplateIndex(item);
-        if (index >= 0) {
-            removeRow("asset_templates", index);
-            return;
-        }
-        addRow("asset_templates", { source_id: item.id, name: item.name, default_unit_name: Number(item.default_unit_name || 1), description: item.description || "", status: Number(item.status || 1), room_assets_count: 0 });
-    };
 
     const toggleService = (service: AdminServiceResource) => {
         if (isRequiredService(service)) return;
@@ -367,50 +315,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         addRow("settings", { source_id: item.id, setting_label: item.setting_label, setting_name: item.setting_name, setting_value: item.setting_value || "", description: item.description || "", is_public: Boolean(item.is_public) });
     };
 
-    const createQuickRoomType = async () => {
-        if (!quickRoomType.name.trim() || isCreatingRoomType) return;
 
-        try {
-            setIsCreatingRoomType(true);
-            const response = await createAdminRoomType({
-                name: quickRoomType.name.trim(),
-                description: quickRoomType.description.trim() || undefined,
-                status: Number(quickRoomType.status),
-            });
-            const roomType = response.result;
-            setRoomTypeCatalog((current) => [roomType, ...current.filter((item) => item.id !== roomType.id)]);
-            addRow("room_types", { source_id: roomType.id, name: roomType.name, description: roomType.description || "", status: Number(roomType.status || 1), rooms_count: 0 });
-            setQuickRoomType({ name: "", description: "", status: 1 });
-            setOpenCreateForms((current) => ({ ...current, room_types: false }));
-        } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh loại phòng.");
-        } finally {
-            setIsCreatingRoomType(false);
-        }
-    };
-
-    const createQuickAssetTemplate = async () => {
-        if (!quickAssetTemplate.name.trim() || isCreatingAssetTemplate) return;
-
-        try {
-            setIsCreatingAssetTemplate(true);
-            const response = await createAdminAssetTemplate({
-                name: quickAssetTemplate.name.trim(),
-                default_unit_name: Number(quickAssetTemplate.default_unit_name),
-                description: quickAssetTemplate.description.trim() || undefined,
-                status: Number(quickAssetTemplate.status),
-            });
-            const template = response.result;
-            setAssetTemplateCatalog((current) => [template, ...current.filter((item) => item.id !== template.id)]);
-            addRow("asset_templates", { source_id: template.id, name: template.name, default_unit_name: Number(template.default_unit_name || 1), description: template.description || "", status: Number(template.status || 1), room_assets_count: 0 });
-            setQuickAssetTemplate({ name: "", default_unit_name: 1, description: "", status: 1 });
-            setOpenCreateForms((current) => ({ ...current, asset_templates: false }));
-        } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh mẫu tài sản.");
-        } finally {
-            setIsCreatingAssetTemplate(false);
-        }
-    };
 
     const createQuickService = async () => {
         if (!quickService.name.trim() || isCreatingService) return;
@@ -482,8 +387,6 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 deleteImageIds,
                 primaryImageId,
                 primaryNewImageIndex,
-                deleteRoomTypeIds,
-                deleteAssetTemplateIds,
                 deleteServicePriceIds,
                 deleteSettingIds,
             });
@@ -572,22 +475,6 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 </div>
 
                 <aside className="space-y-6">
-                    <ConfigCard icon={Boxes} title="Loại phòng" count={form.room_types.length} isOpen={openConfigCards.room_types} error={errors.room_types} onToggle={() => setOpenConfigCards((current) => ({ ...current, room_types: !current.room_types }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, room_types: true })); setOpenCreateForms((current) => ({ ...current, room_types: !current.room_types })); }} addLabel={openCreateForms.room_types ? "Đóng" : "Tạo mới"}>
-                        <SelectionBlock title="Chọn loại phòng có sẵn" emptyText="Chưa có loại phòng mẫu để chọn.">
-                            {roomTypeOptions.map((item) => <CheckboxOption key={item.id} checked={findRoomTypeIndex(item) >= 0} title={item.name} onChange={() => toggleRoomType(item)} />)}
-                        </SelectionBlock>
-                        {openCreateForms.room_types && <QuickPanel actionLabel={isCreatingRoomType ? "Đang tạo" : "Tạo loại"} disabled={isCreatingRoomType || !quickRoomType.name.trim()} onAction={createQuickRoomType}><TextField label="Tên loại phòng" value={quickRoomType.name} onChange={(value) => setQuickRoomType((current) => ({ ...current, name: value }))} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={quickRoomType.status} options={activeStatusOptions} onChange={(value) => setQuickRoomType((current) => ({ ...current, status: Number(value) }))} /></div><TextField label="Mô tả" value={quickRoomType.description} onChange={(value) => setQuickRoomType((current) => ({ ...current, description: value }))} /></QuickPanel>}
-                        {form.room_types.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-room-${item.source_id}`} title={item.name} description="" onRemove={() => removeRow("room_types", index)} /> : <RowShell key={item.id || `room-${index}`} title={item.name || `Loại phòng ${index + 1}`} disabledRemove={!!item.rooms_count} onRemove={() => removeRow("room_types", index)}><TextField label="Tên loại phòng" value={item.name} onChange={(value) => updateRow("room_types", index, "name", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={activeStatusOptions} onChange={(value) => updateRow("room_types", index, "status", Number(value))} /></div><TextField label="Mô tả" value={item.description} onChange={(value) => updateRow("room_types", index, "description", value)} /></RowShell>) }
-                    </ConfigCard>
-
-                    <ConfigCard icon={Boxes} title="Mẫu tài sản" count={form.asset_templates.length} isOpen={openConfigCards.asset_templates} error={errors.asset_templates} onToggle={() => setOpenConfigCards((current) => ({ ...current, asset_templates: !current.asset_templates }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, asset_templates: true })); setOpenCreateForms((current) => ({ ...current, asset_templates: !current.asset_templates })); }} addLabel={openCreateForms.asset_templates ? "Đóng" : "Tạo mới"}>
-                        <SelectionBlock title="Chọn mẫu tài sản có sẵn" emptyText="Chưa có mẫu tài sản dùng chung.">
-                            {assetTemplateOptions.map((item) => <CheckboxOption key={item.id} checked={findAssetTemplateIndex(item) >= 0} title={item.name} onChange={() => toggleAssetTemplate(item)} />)}
-                        </SelectionBlock>
-                        {openCreateForms.asset_templates && <QuickPanel actionLabel={isCreatingAssetTemplate ? "Đang tạo" : "Tạo mẫu"} disabled={isCreatingAssetTemplate || !quickAssetTemplate.name.trim()} onAction={createQuickAssetTemplate}><TextField label="Tên mẫu" value={quickAssetTemplate.name} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, name: value }))} /><div className="grid grid-cols-2 gap-3"><div><label className={labelClass}>Đơn vị</label><AdminSelect value={quickAssetTemplate.default_unit_name} options={assetUnitOptions} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, default_unit_name: Number(value) }))} /></div><div><label className={labelClass}>Trạng thái</label><AdminSelect value={quickAssetTemplate.status} options={activeStatusOptions} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, status: Number(value) }))} /></div></div><TextField label="Mô tả" value={quickAssetTemplate.description} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, description: value }))} /></QuickPanel>}
-                        {form.asset_templates.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-asset-${item.source_id}`} title={item.name} description="" onRemove={() => removeRow("asset_templates", index)} /> : <RowShell key={item.id || `asset-${index}`} title={item.name || `Mẫu tài sản ${index + 1}`} disabledRemove={!!item.room_assets_count} onRemove={() => removeRow("asset_templates", index)}><TextField label="Tên mẫu" value={item.name} onChange={(value) => updateRow("asset_templates", index, "name", value)} /><div className="grid grid-cols-2 gap-3"><div><label className={labelClass}>Đơn vị</label><AdminSelect value={item.default_unit_name} options={assetUnitOptions} onChange={(value) => updateRow("asset_templates", index, "default_unit_name", Number(value))} /></div><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={activeStatusOptions} onChange={(value) => updateRow("asset_templates", index, "status", Number(value))} /></div></div><TextField label="Mô tả" value={item.description} onChange={(value) => updateRow("asset_templates", index, "description", value)} /></RowShell>)}
-                    </ConfigCard>
-
                     <ConfigCard icon={Zap} title="Bảng giá dịch vụ" count={form.service_prices.length} isOpen={openConfigCards.service_prices} error={errors.service_prices} onToggle={() => setOpenConfigCards((current) => ({ ...current, service_prices: !current.service_prices }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, service_prices: true })); setOpenCreateForms((current) => ({ ...current, service_prices: !current.service_prices })); }} addLabel={openCreateForms.service_prices ? "Đóng" : "Tạo mới"}>
                         <SelectionBlock title="Chọn dịch vụ có sẵn" emptyText="Chưa có dịch vụ đang hoạt động.">
                             {serviceOptions.map((service) => {
@@ -730,35 +617,6 @@ function CardHeader({ icon: Icon, title, description, action }: { icon: ElementT
 
 function ConfigCard({ icon: Icon, title, children, onAdd, addLabel, error, count, isOpen, onToggle }: { icon: ElementType; title: string; children: ReactNode; onAdd: () => void; addLabel: string; error?: string; count: number; isOpen: boolean; onToggle: () => void }) {
     return <section className="rounded-4xl border border-gray-100 bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-gray-900"><Icon className="h-4 w-4" /></div><span className="min-w-0"><span className="block truncate font-black text-gray-900">{title}</span><span className="mt-0.5 block text-[11px] font-bold text-gray-400">Đã chọn {count} mục</span></span></button><div className="flex shrink-0 items-center gap-2"><button type="button" onClick={onAdd} className="inline-flex items-center gap-1 rounded-2xl bg-gray-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white"><Plus className="h-3 w-3" /> {addLabel}</button><button type="button" onClick={onToggle} className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-gray-100 bg-gray-50 text-gray-500 transition hover:border-gray-300 hover:bg-white hover:text-gray-900" aria-label={`${isOpen ? "Thu gọn" : "Mở rộng"} ${title}`} aria-expanded={isOpen}><ChevronRight className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`} /></button></div></div><FieldError message={error} />{isOpen && <div className="mt-4 space-y-3">{children}</div>}</section>;
-}
-
-function mergeRoomTypeOptions(catalog: AdminRoomTypeResource[], selectedRows: BuildingRoomTypeFormRow[]) {
-    const selectedOptions = selectedRows
-        .filter((row) => row.id && row.source_id)
-        .map((row) => ({
-            id: row.source_id!,
-            name: row.name,
-            description: row.description,
-            status: row.status,
-            rooms_count: row.rooms_count,
-        } as AdminRoomTypeResource));
-
-    return mergeOptionsById(catalog, selectedOptions);
-}
-
-function mergeAssetTemplateOptions(catalog: AdminAssetTemplateResource[], selectedRows: BuildingAssetTemplateFormRow[]) {
-    const selectedOptions = selectedRows
-        .filter((row) => row.id && row.source_id)
-        .map((row) => ({
-            id: row.source_id!,
-            name: row.name,
-            default_unit_name: row.default_unit_name,
-            description: row.description,
-            status: row.status,
-            room_assets_count: row.room_assets_count,
-        } as AdminAssetTemplateResource));
-
-    return mergeOptionsById(catalog, selectedOptions);
 }
 
 function mergeServiceOptions(catalog: AdminServiceResource[], selectedRows: BuildingServicePriceFormRow[]) {

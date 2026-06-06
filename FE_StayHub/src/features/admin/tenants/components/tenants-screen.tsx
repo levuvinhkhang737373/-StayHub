@@ -14,6 +14,8 @@ import {
 } from '../services/tenants.service'
 import type { AdminPaginationMeta, AdminPaginator, AdminTenantPayload, AdminTenantResource } from '../types/tenant-api.model'
 import { validateTenantForm, type TenantFormErrors, type TenantFormValues } from '../validations/tenant.validation'
+import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
+import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 
 type AdminTenantsResult = AdminPaginator<AdminTenantResource> | AdminTenantResource[]
 type AdminTenantsResponse = Omit<Awaited<ReturnType<typeof fetchAdminTenants>>, 'result'> & {
@@ -46,6 +48,7 @@ const IDENTITY_TYPE_CMND = 2
 const IDENTITY_TYPE_PASSPORT = 3
 
 const defaultForm: TenantFormValues = {
+  building_id: '',
   username: '',
   full_name: '',
   email: '',
@@ -95,13 +98,17 @@ const perPageOptions = [
   { value: 50, label: '50 dòng', tone: 'default' as const },
 ]
 
-const formErrorKeys: Array<keyof TenantFormValues> = ['username', 'full_name', 'email', 'phone', 'date_of_birth', 'gender', 'status', 'identity_type', 'identity_number', 'permanent_address', 'current_address', 'front_image', 'back_image', 'delete_front_image', 'delete_back_image']
+const formErrorKeys: Array<keyof TenantFormValues> = ['building_id', 'username', 'full_name', 'email', 'phone', 'date_of_birth', 'gender', 'status', 'identity_type', 'identity_number', 'permanent_address', 'current_address', 'front_image', 'back_image', 'delete_front_image', 'delete_back_image']
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
 const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function TenantsScreen() {
+  const { session } = useAdminSession()
+  const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session])
+  const defaultBuildingId = session?.admin?.managed_buildings?.[0]?.id
+
   const [keyword, setKeyword] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedGender, setSelectedGender] = useState('')
@@ -124,6 +131,19 @@ export function TenantsScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [buildingOptions, setBuildingOptions] = useState<{ value: string | number; label: string; tone: 'default' }[]>([])
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetchAdminBuildings().then((response) => {
+        const list = response.result || []
+        setBuildingOptions([
+          { value: '', label: 'Chọn tòa nhà', tone: 'default' },
+          ...list.map(b => ({ value: b.id, label: b.name, tone: 'default' as const }))
+        ])
+      }).catch(console.error)
+    }
+  }, [isSuperAdmin])
 
   const loadTenants = useCallback(async () => {
     setIsLoading(true)
@@ -135,6 +155,7 @@ export function TenantsScreen() {
         status: selectedStatus === '' ? undefined : Number(selectedStatus),
         gender: selectedGender === '' ? undefined : Number(selectedGender),
         identity_type: selectedIdentityType === '' ? undefined : Number(selectedIdentityType),
+        building_id: defaultBuildingId,
         page: currentPage,
         per_page: perPage,
       })
@@ -217,6 +238,7 @@ export function TenantsScreen() {
   const editTenant = (tenant: AdminTenantResource) => {
     setEditingTenant(tenant)
     setForm({
+      building_id: tenant.building_id || '',
       username: tenant.username || '',
       full_name: tenant.full_name || '',
       email: tenant.email || '',
@@ -277,7 +299,7 @@ export function TenantsScreen() {
   const submit = async () => {
     if (isSaving) return
 
-    const nextErrors = validateTenantForm(form)
+    const nextErrors = validateTenantForm(form, isSuperAdmin)
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length > 0) {
@@ -291,6 +313,7 @@ export function TenantsScreen() {
       setSuccessMessage(null)
 
       const payload: AdminTenantPayload = {
+        building_id: isSuperAdmin ? (form.building_id ? Number(form.building_id) : undefined) : defaultBuildingId,
         username: form.username.trim(),
         full_name: form.full_name.trim(),
         email: form.email.trim(),
@@ -590,6 +613,13 @@ export function TenantsScreen() {
               </div>
 
               <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
+                {isSuperAdmin && (
+                  <div>
+                    <label className={labelClass}>Tòa nhà <span className="text-rose-500">*</span></label>
+                    <AdminSelect value={form.building_id} options={buildingOptions} invalid={!!errors.building_id} onChange={(nextValue) => updateForm('building_id', nextValue)} />
+                    <FieldError message={errors.building_id} />
+                  </div>
+                )}
                 <div>
                   <label className={labelClass}>Tên đăng nhập</label>
                   <input className={cn(inputClass, errors.username && inputErrorClass)} value={form.username} onChange={(event) => updateForm('username', event.target.value)} placeholder="Ví dụ: tenant_nguyenvana" autoComplete="off" />

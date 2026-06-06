@@ -14,7 +14,7 @@ interface AdminNavListProps {
 
 export const AdminNavList = memo(function AdminNavList({ items, variant, onNavigate }: AdminNavListProps) {
   const location = useLocation()
-  const { unreadCount } = useAdminNotifications()
+  useAdminNotifications()
   const activeItem = useMemo(() => getActiveAdminNavItem(location.pathname, items), [items, location.pathname])
   const groupedItems = useMemo(() => {
     return items.reduce<Record<string, AdminNavItem[]>>((acc, item) => {

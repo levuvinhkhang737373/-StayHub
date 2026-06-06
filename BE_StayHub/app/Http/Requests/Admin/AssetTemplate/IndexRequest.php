@@ -20,7 +20,6 @@ class IndexRequest extends FormRequest
     {
         return [
             'keyword' => ['nullable', 'string', 'max:255'],
-            'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
             'only_global' => ['nullable', 'boolean'],
             'default_unit_name' => ['nullable', 'integer', Rule::in(array_keys(AssetTemplate::UNIT_LABELS))],
             'status' => ['nullable', 'integer', Rule::in(array_keys(AssetTemplate::STATUS_LABELS))],
@@ -33,8 +32,6 @@ class IndexRequest extends FormRequest
         return [
             'keyword.string' => 'Từ khóa tìm kiếm mẫu tài sản phải là chuỗi ký tự.',
             'keyword.max' => 'Từ khóa tìm kiếm mẫu tài sản không được vượt quá 255 ký tự.',
-            'building_id.integer' => 'Tòa nhà của mẫu tài sản không hợp lệ.',
-            'building_id.exists' => 'Tòa nhà của mẫu tài sản không tồn tại.',
             'only_global.boolean' => 'Bộ lọc mẫu tài sản dùng chung không hợp lệ.',
             'default_unit_name.integer' => 'Đơn vị mặc định của mẫu tài sản không hợp lệ.',
             'default_unit_name.in' => 'Đơn vị mặc định của mẫu tài sản không nằm trong danh sách cho phép.',

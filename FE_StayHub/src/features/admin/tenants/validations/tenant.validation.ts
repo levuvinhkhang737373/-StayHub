@@ -1,4 +1,5 @@
 export type TenantFormValues = {
+  building_id?: number | ''
   username: string
   full_name: string
   email: string
@@ -21,8 +22,13 @@ export type TenantFormErrors = Partial<Record<keyof TenantFormValues, string>>
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-export function validateTenantForm(form: TenantFormValues): TenantFormErrors {
+export function validateTenantForm(form: TenantFormValues, isSuperAdmin = false): TenantFormErrors {
   const errors: TenantFormErrors = {}
+  
+  if (isSuperAdmin && !form.building_id) {
+    errors.building_id = 'Vui lòng chọn tòa nhà.'
+  }
+
   const username = form.username.trim()
   const fullName = form.full_name.trim()
   const email = form.email.trim()

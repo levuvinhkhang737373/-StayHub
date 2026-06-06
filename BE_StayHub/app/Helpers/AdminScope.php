@@ -71,7 +71,10 @@ class AdminScope
         if (self::isBuildingManager($admin)) {
             return $query->where(function (Builder $tenantQuery) use ($admin): void {
                 $tenantQuery
-                    ->whereHas('contractTenants.contract.room.building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('manager_admin_id', $admin->id))
+                    ->whereIn('building_id', Building::query()
+                        ->select('id')
+                        ->where('manager_admin_id', $admin->id))
+                    ->orWhereHas('contractTenants.contract.room.building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('manager_admin_id', $admin->id))
                     ->orWhereHas('representedContracts.room.building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('manager_admin_id', $admin->id));
             });
         }

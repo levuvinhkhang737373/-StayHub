@@ -204,7 +204,6 @@ return new class extends Migration
             $table->id();
             $table->string('name', 150);
             $table->string('slug')->nullable();
-            $table->foreignId('building_id')->nullable()->constrained('buildings')->nullOnDelete();
             $table->unsignedTinyInteger('default_unit_name')->nullable()->default(1);
             $table->text('description')->nullable();
             $table->unsignedTinyInteger('status')->default(1);
