@@ -1,9 +1,7 @@
 class Service {
   final int id;
-  final String serviceCode;
   final String name;
   final String? slug;
-  final String serviceType;
   final int chargeMethod;
   final String? unitName;
   final bool isRequired;
@@ -16,10 +14,8 @@ class Service {
 
   Service({
     required this.id,
-    required this.serviceCode,
     required this.name,
     this.slug,
-    required this.serviceType,
     required this.chargeMethod,
     this.unitName,
     required this.isRequired,
@@ -45,10 +41,8 @@ class Service {
 
     return Service(
       id: json['id'] as int,
-      serviceCode: json['service_code'] as String? ?? '',
       name: json['name'] as String,
       slug: json['slug'] as String?,
-      serviceType: json['service_type'] as String? ?? 'other',
       chargeMethod: json['charge_method'] as int? ?? 1,
       unitName: json['unit_name'] as String? ?? json['unit'] as String?,
       isRequired: json['is_required'] as bool? ?? false,
@@ -64,10 +58,8 @@ class Service {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'service_code': serviceCode,
       'name': name,
       'slug': slug,
-      'service_type': serviceType,
       'charge_method': chargeMethod,
       'unit_name': unitName,
       'is_required': isRequired,

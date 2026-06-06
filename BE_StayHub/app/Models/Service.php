@@ -19,24 +19,6 @@ class Service extends Model
     public const CHARGE_METHOD_BY_VEHICLE = 4;
     public const CHARGE_METHOD_FIXED = 5;
 
-    public const SERVICE_TYPE_ELECTRIC = 'dien';
-    public const SERVICE_TYPE_WATER = 'nuoc';
-    public const SERVICE_TYPE_INTERNET = 'internet';
-    public const SERVICE_TYPE_TRASH = 'rac';
-    public const SERVICE_TYPE_PARKING = 'gui_xe';
-    public const SERVICE_TYPE_CLEANING = 've_sinh';
-    public const SERVICE_TYPE_OTHER = 'khac';
-
-    public const SERVICE_TYPE_LABELS = [
-        self::SERVICE_TYPE_ELECTRIC => 'Điện',
-        self::SERVICE_TYPE_WATER => 'Nước',
-        self::SERVICE_TYPE_INTERNET => 'Internet',
-        self::SERVICE_TYPE_TRASH => 'Rác',
-        self::SERVICE_TYPE_PARKING => 'Gửi xe',
-        self::SERVICE_TYPE_CLEANING => 'Vệ sinh',
-        self::SERVICE_TYPE_OTHER => 'Khác',
-    ];
-
     public const CHARGE_METHOD_LABELS = [
         self::CHARGE_METHOD_BY_METER => 'Theo chỉ số',
         self::CHARGE_METHOD_BY_PERSON => 'Theo người',
@@ -61,7 +43,7 @@ class Service extends Model
         self::INACTIVE => 'Ngừng hoạt động',
     ];
 
-    protected $fillable = ['service_code', 'name', 'slug', 'service_type', 'charge_method', 'unit_name', 'is_required', 'is_active', 'created_by'];
+    protected $fillable = ['name', 'slug', 'charge_method', 'unit_name', 'is_required', 'is_active', 'created_by'];
 
     protected function casts(): array
     {

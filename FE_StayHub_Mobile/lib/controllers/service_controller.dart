@@ -33,12 +33,11 @@ class ServiceController extends ChangeNotifier {
         _errorMessage = response.message;
       }
     } catch (e) {
-      // API Offline Fallback
       _services = [
-        Service(id: 1, serviceCode: 'DV-DIEN', name: 'Điện sinh hoạt', unitName: 'kWh', price: 3500, status: 1, serviceType: 'meter', chargeMethod: 1, isRequired: true, description: 'Chỉ số công tơ điện đầu phòng'),
-        Service(id: 2, serviceCode: 'DV-NUOC', name: 'Nước sạch', unitName: 'm3', price: 18000, status: 1, serviceType: 'meter', chargeMethod: 1, isRequired: true, description: 'Chỉ số đồng hồ nước sạch'),
-        Service(id: 3, serviceCode: 'DV-NET', name: 'Internet cáp quang', unitName: 'Phòng', price: 100000, status: 1, serviceType: 'fixed', chargeMethod: 2, isRequired: false, description: 'Đường truyền internet tốc độ cao'),
-        Service(id: 4, serviceCode: 'DV-RAC', name: 'Phí dịch vụ chung', unitName: 'Người', price: 50000, status: 1, serviceType: 'fixed', chargeMethod: 3, isRequired: true, description: 'Vệ sinh, rác thải, thang máy'),
+        Service(id: 1, slug: 'dien-sinh-hoat', name: 'Điện sinh hoạt', unitName: 'kWh', price: 3500, status: 1, chargeMethod: 1, isRequired: true, description: 'Chỉ số công tơ điện đầu phòng'),
+        Service(id: 2, slug: 'nuoc-sinh-hoat', name: 'Nước sạch', unitName: 'm3', price: 18000, status: 1, chargeMethod: 1, isRequired: true, description: 'Chỉ số đồng hồ nước sạch'),
+        Service(id: 3, slug: 'internet', name: 'Internet cáp quang', unitName: 'Phòng', price: 100000, status: 1, chargeMethod: 2, isRequired: false, description: 'Đường truyền internet tốc độ cao'),
+        Service(id: 4, slug: 'phi-rac', name: 'Phí dịch vụ chung', unitName: 'Người', price: 50000, status: 1, chargeMethod: 3, isRequired: true, description: 'Vệ sinh, rác thải, thang máy'),
       ];
     }
 

@@ -2,7 +2,7 @@
 FROM php:8.3-cli
 
 # 2. Khai báo biến user để đồng bộ với máy Host
-ARG user=khang
+ARG user=martyr
 ARG uid=1000
 
 ENV COMPOSER_ALLOW_SUPERUSER=1

@@ -67,15 +67,6 @@ const assetUnitOptions = [
     { value: 3, label: "Chiếc", tone: "default" as const },
 ];
 
-const serviceTypeOptions = [
-    { value: "dien", label: "Điện", tone: "warning" as const },
-    { value: "nuoc", label: "Nước", tone: "default" as const },
-    { value: "internet", label: "Internet", tone: "default" as const },
-    { value: "rac", label: "Rác", tone: "default" as const },
-    { value: "gui_xe", label: "Gửi xe", tone: "default" as const },
-    { value: "ve_sinh", label: "Vệ sinh", tone: "default" as const },
-    { value: "khac", label: "Khác", tone: "default" as const },
-];
 
 const chargeMethodOptions = [
     { value: 1, label: "Theo chỉ số", tone: "default" as const },
@@ -98,6 +89,12 @@ function formatDateForDisplay(value: string) {
 
 export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const navigate = useNavigate();
+
+    const isRequiredService = (service?: AdminServiceResource | null) => {
+        if (!service) return false;
+        const slug = String(service.slug || "").toLowerCase().trim();
+        return slug.includes("dien") || slug.includes("nuoc");
+    };
     const { buildingId: routeBuildingId } = useParams();
     const numericRouteBuildingId = routeBuildingId ? Number(routeBuildingId) : undefined;
     const resolvedBuildingId = typeof buildingId === "number" ? buildingId : Number.isFinite(numericRouteBuildingId) ? numericRouteBuildingId : undefined;
@@ -133,7 +130,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [expandedRegionIds, setExpandedRegionIds] = useState<number[]>([]);
     const [quickRoomType, setQuickRoomType] = useState({ name: "", description: "", status: 1 });
     const [quickAssetTemplate, setQuickAssetTemplate] = useState({ name: "", default_unit_name: 1, description: "", status: 1 });
-    const [quickService, setQuickService] = useState({ service_code: "", name: "", service_type: "khac", charge_method: 5, unit_name: "", is_required: false, is_active: true });
+    const [quickService, setQuickService] = useState({ name: "", charge_method: 5, unit_name: "", is_required: false, is_active: true });
     const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
     const [form, setForm] = useState(createDefaultBuildingForm);
 
@@ -177,7 +174,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         Promise.all([
             fetchAdminRegions({ per_page: 100 }),
             fetchAdminManagers(),
-            fetchAdminServices({ per_page: 100, is_active: true }),
+            fetchAdminServices({ per_page: 100, is_active: true, created_by_role: 2 }),
             fetchAdminRoomTypes({ per_page: 100, status: 1, created_by_me: true }),
             fetchAdminAssetTemplates({ per_page: 100, status: 1 }),
             fetchAdminSettings({ per_page: 100, only_global: true }),
@@ -199,11 +196,52 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 setExistingImages(nextImages as BuildingImage[]);
                 setPrimaryImageId(building?.primary_image?.id || nextImages.find((image) => image.is_primary)?.id || null);
 
-                setForm((current) => mapBuildingDetailToForm(building, nextRegions, current));
+                setForm((current) => {
+                    const mappedForm = mapBuildingDetailToForm(building, nextRegions, current);
+                    // Ensure dien/nuoc are in service_prices
+                    const existingServiceIds = new Set(mappedForm.service_prices.map(p => Number(p.service_id)));
+                    const missingRequiredServices = nextServices.filter(s => isRequiredService(s) && !existingServiceIds.has(s.id));
+                    
+                    if (missingRequiredServices.length > 0) {
+                        const newPrices = missingRequiredServices.map(s => ({
+                            service_id: String(s.id),
+                            service_name: s.name,
+                            price: "0",
+                            effective_from: getTodayIsoDate(),
+                            effective_to: "",
+                            status: 1
+                        }));
+                        mappedForm.service_prices = [...mappedForm.service_prices, ...newPrices];
+                    }
+                    return mappedForm;
+                });
             })
             .catch((error) => setErrorMessage(error instanceof Error ? error.message : "Không thể tải dữ liệu tòa nhà."))
             .finally(() => setIsLoading(false));
     }, [isEditMode, isSuperAdmin, resolvedBuildingId]);
+
+    useEffect(() => {
+        if (!services.length) return;
+        
+        const existingServiceIds = new Set(form.service_prices.map(p => Number(p.service_id)));
+        const missingRequiredServices = services.filter(s => isRequiredService(s) && !existingServiceIds.has(s.id));
+        
+        if (missingRequiredServices.length > 0) {
+            const newPrices = missingRequiredServices.map(s => ({
+                service_id: String(s.id),
+                service_name: s.name,
+                price: "0",
+                effective_from: getTodayIsoDate(),
+                effective_to: "",
+                status: 1
+            }));
+            
+            setForm(current => ({
+                ...current,
+                service_prices: [...current.service_prices, ...newPrices]
+            }));
+        }
+    }, [services, form.service_prices]);
 
     const updateForm = (key: keyof typeof form, value: string | number) => {
         setForm((current) => ({ ...current, [key]: value }));
@@ -311,12 +349,13 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     };
 
     const toggleService = (service: AdminServiceResource) => {
+        if (isRequiredService(service)) return;
         const index = findServicePriceIndex(service);
         if (index >= 0) {
             removeRow("service_prices", index);
             return;
         }
-        addRow("service_prices", { service_id: String(service.id), price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 });
+        addRow("service_prices", { service_id: String(service.id), service_name: service.name, price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 });
     };
 
     const toggleSetting = (item: AdminSettingResource) => {
@@ -374,14 +413,12 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     };
 
     const createQuickService = async () => {
-        if (!quickService.service_code.trim() || !quickService.name.trim() || isCreatingService) return;
+        if (!quickService.name.trim() || isCreatingService) return;
 
         try {
             setIsCreatingService(true);
             const response = await createAdminService({
-                service_code: quickService.service_code.trim(),
                 name: quickService.name.trim(),
-                service_type: quickService.service_type,
                 charge_method: Number(quickService.charge_method),
                 unit_name: quickService.unit_name.trim() || undefined,
                 is_required: quickService.is_required,
@@ -390,7 +427,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             const service = response.result;
             setServices((current) => [service, ...current.filter((item) => item.id !== service.id)]);
             addRow("service_prices", { service_id: String(service.id), price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 });
-            setQuickService({ service_code: "", name: "", service_type: "khac", charge_method: 5, unit_name: "", is_required: false, is_active: true });
+            setQuickService({ name: "", charge_method: 5, unit_name: "", is_required: false, is_active: true });
             setOpenCreateForms((current) => ({ ...current, service_prices: false }));
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh dịch vụ.");
@@ -553,10 +590,17 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
 
                     <ConfigCard icon={Zap} title="Bảng giá dịch vụ" count={form.service_prices.length} isOpen={openConfigCards.service_prices} error={errors.service_prices} onToggle={() => setOpenConfigCards((current) => ({ ...current, service_prices: !current.service_prices }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, service_prices: true })); setOpenCreateForms((current) => ({ ...current, service_prices: !current.service_prices })); }} addLabel={openCreateForms.service_prices ? "Đóng" : "Tạo mới"}>
                         <SelectionBlock title="Chọn dịch vụ có sẵn" emptyText="Chưa có dịch vụ đang hoạt động.">
-                            {serviceOptions.map((service) => <CheckboxOption key={service.id} checked={findServicePriceIndex(service) >= 0} title={service.name} onChange={() => toggleService(service)} />)}
+                            {serviceOptions.map((service) => {
+                                const isRequired = isRequiredService(service);
+                                return <CheckboxOption key={service.id} checked={findServicePriceIndex(service) >= 0} title={service.name} disabled={isRequired} onChange={() => toggleService(service)} />;
+                            })}
                         </SelectionBlock>
-                        {openCreateForms.service_prices && <QuickPanel actionLabel={isCreatingService ? "Đang tạo" : "Tạo dịch vụ"} disabled={isCreatingService || !quickService.name.trim() || !quickService.service_code.trim()} onAction={createQuickService}><div className="grid grid-cols-2 gap-3"><TextField label="Mã" value={quickService.service_code} onChange={(value) => setQuickService((current) => ({ ...current, service_code: value }))} /><TextField label="Tên dịch vụ" value={quickService.name} onChange={(value) => setQuickService((current) => ({ ...current, name: value }))} /><div><label className={labelClass}>Loại</label><AdminSelect value={quickService.service_type} options={serviceTypeOptions} onChange={(value) => setQuickService((current) => ({ ...current, service_type: String(value) }))} /></div><div><label className={labelClass}>Tính phí</label><AdminSelect value={quickService.charge_method} options={chargeMethodOptions} onChange={(value) => setQuickService((current) => ({ ...current, charge_method: Number(value) }))} /></div></div></QuickPanel>}
-                        {form.service_prices.map((item, index) => <RowShell key={item.id || `service-${item.service_id}-${index}`} title={services.find((service) => service.id === Number(item.service_id))?.name || `Bảng giá ${index + 1}`} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" type="number" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div><div><ReadOnlyField label="Hiệu lực từ" value={formatDateForDisplay(item.effective_from || getTodayIsoDate())} /><p className="mt-2 px-1 text-[11px] font-semibold text-gray-400"></p></div></RowShell>)}
+                        {openCreateForms.service_prices && <QuickPanel actionLabel={isCreatingService ? "Đang tạo" : "Tạo dịch vụ"} disabled={isCreatingService || !quickService.name.trim()} onAction={createQuickService}><div className="grid grid-cols-2 gap-3"><TextField label="Tên dịch vụ" value={quickService.name} onChange={(value) => setQuickService((current) => ({ ...current, name: value }))} /><div><label className={labelClass}>Tính phí</label><AdminSelect value={quickService.charge_method} options={chargeMethodOptions} onChange={(value) => setQuickService((current) => ({ ...current, charge_method: Number(value) }))} /></div></div></QuickPanel>}
+                        {form.service_prices.map((item, index) => {
+                            const service = services.find((s) => s.id === Number(item.service_id));
+                            const isRequired = isRequiredService(service);
+                            return <RowShell key={item.id || `service-${item.service_id}-${index}`} title={service?.name || item.service_name || `Bảng giá ${index + 1}`} disabledRemove={isRequired} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" type="number" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div><div><ReadOnlyField label="Hiệu lực từ" value={formatDateForDisplay(item.effective_from || getTodayIsoDate())} /><p className="mt-2 px-1 text-[11px] font-semibold text-gray-400"></p></div></RowShell>;
+                        })}
                     </ConfigCard>
 
                     <ConfigCard icon={Settings} title="Cài đặt" count={form.settings.length} isOpen={openConfigCards.settings} error={errors.settings} onToggle={() => setOpenConfigCards((current) => ({ ...current, settings: !current.settings }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, settings: true })); setOpenCreateForms((current) => ({ ...current, settings: !current.settings })); }} addLabel={openCreateForms.settings ? "Đóng" : "Tạo mới"}>
@@ -719,12 +763,10 @@ function mergeAssetTemplateOptions(catalog: AdminAssetTemplateResource[], select
 
 function mergeServiceOptions(catalog: AdminServiceResource[], selectedRows: BuildingServicePriceFormRow[]) {
     const selectedOptions = selectedRows
-        .filter((row) => row.service_id)
+        .filter((row) => row.service_id && row.service_name)
         .map((row) => ({
             id: Number(row.service_id),
-            service_code: "",
-            name: row.service_name || `Dịch vụ #${row.service_id}`,
-            service_type: "khac",
+            name: row.service_name || "",
             charge_method: 5,
             is_required: false,
             is_active: true,
@@ -759,8 +801,8 @@ function SelectionBlock({ title, emptyText, children }: { title: string; emptyTe
     return <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50/70 p-4"><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">{title}</p><div className="max-h-60 space-y-2 overflow-y-auto pr-1">{hasChildren ? children : <p className="text-xs font-bold text-gray-400">{emptyText}</p>}</div></div>;
 }
 
-function CheckboxOption({ checked, title, description, onChange }: { checked: boolean; title: string; description?: string; onChange: () => void }) {
-    return <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 transition ${checked ? "border-gray-900 bg-white shadow-sm" : "border-gray-100 bg-white/70 hover:border-gray-300"}`}><input type="checkbox" checked={checked} onChange={onChange} className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-gray-900">{title}</span>{description && <span className="mt-0.5 block truncate text-[11px] font-semibold text-gray-400">{description}</span>}</span></label>;
+function CheckboxOption({ checked, title, description, disabled, onChange }: { checked: boolean; title: string; description?: string; disabled?: boolean; onChange: () => void }) {
+    return <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 transition ${checked ? "border-gray-900 bg-white shadow-sm" : "border-gray-100 bg-white/70 hover:border-gray-300"} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}><input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-gray-900">{title}</span>{description && <span className="mt-0.5 block truncate text-[11px] font-semibold text-gray-400">{description}</span>}</span></label>;
 }
 
 function QuickPanel({ children, actionLabel, disabled, onAction }: { children: ReactNode; actionLabel: string; disabled: boolean; onAction: () => void }) {

@@ -293,9 +293,7 @@ export function SettingsScreen() {
                 <Link to="/admin/dashboard" className="mb-1 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
                 </Link>
-                <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
-                  <Settings className="h-3.5 w-3.5" /> Building settings
-                </div>
+              
                 <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-[1.7rem] lg:text-3xl">Cài đặt tòa nhà</h1>
               </div>
               <button type="button" disabled={!hasManagedBuildings} onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55">

@@ -41,7 +41,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'rooms', label: 'Quản lý Phòng', icon: DoorOpen, group: 'Cơ sở vật chất', href: '/admin/rooms', access: 'all' },
   { id: 'tenants', label: 'Khách thuê', icon: Users, group: 'Khách thuê & HĐ', href: '/admin/tenants', access: 'all' },
   { id: 'contracts', label: 'Hợp đồng', icon: FileText, group: 'Khách thuê & HĐ', href: '/admin/contracts', access: 'all' },
-  { id: 'services', label: 'Danh mục dịch vụ', icon: Settings, group: 'Tài chính', href: '/admin/services', access: 'all', readOnlyForAdmin: true },
+  { id: 'services', label: 'Danh mục dịch vụ', icon: Settings, group: 'Tài chính', href: '/admin/services', access: 'superadmin' },
   { id: 'expense_categories', label: 'Danh mục chi phí', icon: Tags, group: 'Tài chính', href: '/admin/expense-categories', access: 'all', readOnlyForAdmin: true },
   { id: 'meters', label: 'Chốt điện nước', icon: Zap, group: 'Tài chính', href: '/admin/meters', access: 'all' },
   { id: 'invoices', label: 'Phiếu thu', icon: Receipt, group: 'Tài chính', href: '/admin/invoices', access: 'all' },
@@ -56,6 +56,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
 
 export const SUPERADMIN_ROUTE_PREFIXES = [
   '/admin/facilities',
+  '/admin/services',
   '/admin/system-users',
 ]
 

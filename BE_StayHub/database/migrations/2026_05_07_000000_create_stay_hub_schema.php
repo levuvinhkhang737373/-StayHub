@@ -226,10 +226,8 @@ return new class extends Migration
 
         Schema::create('services', function (Blueprint $table) {
             $table->id();
-            $table->string('service_code', 50)->unique();
             $table->string('name');
             $table->string('slug')->nullable()->unique();
-            $table->string('service_type');
             $table->unsignedTinyInteger('charge_method')->default(1);
             $table->string('unit_name', 50)->nullable();
             $table->boolean('is_required')->default(false);
@@ -345,7 +343,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('room_id')->constrained('rooms')->restrictOnDelete();
             $table->foreignId('service_id')->constrained('services')->restrictOnDelete();
-            $table->string('meter_code', 100)->nullable()->unique();
             $table->unsignedTinyInteger('meter_type')->default(1);
             $table->decimal('initial_reading', 12, 2);
             $table->date('installed_at')->nullable();

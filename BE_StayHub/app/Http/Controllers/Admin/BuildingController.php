@@ -27,6 +27,10 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Octane\Contracts\DispatchesTasks;
+use Laravel\Octane\Facades\Octane;
+use Swoole\Http\Server as SwooleServer;
+use Throwable;
 
 class BuildingController extends Controller
 {
@@ -61,22 +65,16 @@ class BuildingController extends Controller
                 return ApiResponse::responseJson(false, 'Chỉ super admin mới được tạo tòa nhà', 403, null, 403);
             }
 
+            $preflightError = $this->preflightBuildingSync($this->buildingSyncPreflightPayload($validated), null);
+
+            if ($preflightError) {
+                return $preflightError;
+            }
+
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $building = Building::query()->create($this->payload($validated, $admin));
 
-                foreach ([
-                    fn (): ?JsonResponse => $this->syncRoomTypes($building, $validated, $admin),
-                    fn (): ?JsonResponse => $this->syncAssetTemplates($building, $validated, $admin),
-                    fn (): ?JsonResponse => $this->syncServicePrices($building, $validated),
-                    fn (): ?JsonResponse => $this->syncSettings($building, $validated, $admin),
-                ] as $sync) {
-                    $errorResponse = $sync();
-
-                    if ($errorResponse) {
-                        throw new HttpResponseException($errorResponse);
-                    }
-                }
-
+                $this->syncBuildingConfiguration($building, $validated, $admin);
                 $this->syncBuildingImages($building, $validated, $request, $admin);
                 $this->loadBuildingDetail($building);
 
@@ -126,6 +124,16 @@ class BuildingController extends Controller
 
             if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
                 return ApiResponse::responseJson(false, 'Chỉ super admin mới được cập nhật tòa nhà', 403, null, 403);
+            }
+
+            if (! Building::query()->whereKey($building)->exists()) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy tòa nhà', 404, null, 404);
+            }
+
+            $preflightError = $this->preflightBuildingSync($this->buildingSyncPreflightPayload($validated), $building);
+
+            if ($preflightError) {
+                return $preflightError;
             }
 
             $response = DB::transaction(function () use ($validated, $building, $admin, $request): JsonResponse {
@@ -249,6 +257,12 @@ class BuildingController extends Controller
 
     private function syncBuildingUpdateConfiguration(Building $building, array $validated, Request $request, Admin $admin): void
     {
+        $this->syncBuildingConfiguration($building, $validated, $admin);
+        $this->syncBuildingImages($building, $validated, $request, $admin);
+    }
+
+    private function syncBuildingConfiguration(Building $building, array $validated, Admin $admin): void
+    {
         foreach ([
             fn (): ?JsonResponse => $this->syncRoomTypes($building, $validated, $admin),
             fn (): ?JsonResponse => $this->syncAssetTemplates($building, $validated, $admin),
@@ -261,8 +275,285 @@ class BuildingController extends Controller
                 throw new HttpResponseException($errorResponse);
             }
         }
+    }
 
-        $this->syncBuildingImages($building, $validated, $request, $admin);
+    private function buildingSyncPreflightPayload(array $validated): array
+    {
+        return [
+            'room_type_ids' => $this->ids($validated['room_type_ids'] ?? []),
+            'delete_room_type_ids' => $this->ids($validated['delete_room_type_ids'] ?? []),
+            'room_types' => collect($validated['room_types'] ?? [])
+                ->filter(fn ($roomType): bool => is_array($roomType))
+                ->map(fn (array $roomType): array => [
+                    'id' => isset($roomType['id']) ? (int) $roomType['id'] : null,
+                    'name' => trim((string) ($roomType['name'] ?? '')),
+                ])
+                ->values()
+                ->all(),
+            'asset_template_ids' => $this->ids($validated['asset_template_ids'] ?? []),
+            'delete_asset_template_ids' => $this->ids($validated['delete_asset_template_ids'] ?? []),
+            'service_price_ids' => $this->ids(collect($validated['service_prices'] ?? [])
+                ->filter(fn ($servicePrice): bool => is_array($servicePrice))
+                ->pluck('id')
+                ->all()),
+            'delete_service_price_ids' => $this->ids($validated['delete_service_price_ids'] ?? []),
+            'setting_ids' => $this->ids($validated['setting_ids'] ?? []),
+            'delete_setting_ids' => $this->ids($validated['delete_setting_ids'] ?? []),
+            'settings' => collect($validated['settings'] ?? [])
+                ->filter(fn ($setting): bool => is_array($setting))
+                ->map(fn (array $setting): array => [
+                    'id' => isset($setting['id']) ? (int) $setting['id'] : null,
+                    'setting_name' => trim((string) ($setting['setting_name'] ?? '')),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function preflightBuildingSync(array $payload, ?int $buildingId): ?JsonResponse
+    {
+        $checks = [];
+
+        if (($payload['delete_room_type_ids'] ?? []) !== [] || ($payload['room_type_ids'] ?? []) !== [] || ($payload['room_types'] ?? []) !== []) {
+            $checks['room_types'] = static fn (): ?array => self::preflightRoomTypes($payload, $buildingId);
+        }
+
+        if (($payload['delete_asset_template_ids'] ?? []) !== [] || ($payload['asset_template_ids'] ?? []) !== []) {
+            $checks['asset_templates'] = static fn (): ?array => self::preflightAssetTemplates($payload, $buildingId);
+        }
+
+        if ($buildingId && ($payload['service_price_ids'] ?? []) !== []) {
+            $checks['service_prices'] = static fn (): ?array => self::preflightServicePrices($payload, $buildingId);
+        }
+
+        if (($payload['setting_ids'] ?? []) !== [] || ($payload['settings'] ?? []) !== []) {
+            $checks['settings'] = static fn (): ?array => self::preflightSettings($payload, $buildingId);
+        }
+
+        $error = collect($this->runBuildingPreflightChecks($checks))->first(fn ($result): bool => is_array($result));
+
+        if (! $error) {
+            return null;
+        }
+
+        return ApiResponse::responseJson(
+            false,
+            (string) $error['message'],
+            (int) ($error['error_code'] ?? 422),
+            $error['data'] ?? null,
+            (int) ($error['http_code'] ?? 422)
+        );
+    }
+
+    private function runBuildingPreflightChecks(array $checks): array
+    {
+        if ($checks === []) {
+            return [];
+        }
+
+        if ($this->canDispatchOctaneTasks()) {
+            try {
+                $results = Octane::concurrently($checks, 3000);
+
+                if (! in_array(false, $results, true)) {
+                    return $results;
+                }
+            } catch (Throwable) {
+            }
+        }
+
+        return collect($checks)
+            ->mapWithKeys(fn (callable $check, string $key): array => [$key => $check()])
+            ->all();
+    }
+
+    private function canDispatchOctaneTasks(): bool
+    {
+        return app()->bound(DispatchesTasks::class) || app()->bound(SwooleServer::class);
+    }
+
+    private static function preflightRoomTypes(array $payload, ?int $buildingId): ?array
+    {
+        $deleteIds = $payload['delete_room_type_ids'] ?? [];
+
+        if ($buildingId && $deleteIds !== []) {
+            $hasBlockedRoomType = RoomType::query()
+                ->where('building_id', $buildingId)
+                ->whereIn('id', $deleteIds)
+                ->withCount('rooms')
+                ->get()
+                ->contains(fn (RoomType $roomType): bool => (int) $roomType->rooms_count > 0);
+
+            if ($hasBlockedRoomType) {
+                return self::preflightError('Không thể xóa loại phòng đang được gán cho phòng');
+            }
+        }
+
+        $selectedNames = RoomType::query()
+            ->whereIn('id', $payload['room_type_ids'] ?? [])
+            ->whereNull('building_id')
+            ->pluck('name')
+            ->map(fn ($name): string => self::normalizedPreflightName($name))
+            ->filter()
+            ->values();
+
+        $existingRoomTypes = $buildingId
+            ? RoomType::query()
+                ->where('building_id', $buildingId)
+                ->when($deleteIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $deleteIds))
+                ->get(['id', 'name'])
+            : collect();
+
+        if (self::hasDuplicatedPreflightNames($selectedNames->all()) || $existingRoomTypes->contains(fn (RoomType $roomType): bool => $selectedNames->contains(self::normalizedPreflightName($roomType->name)))) {
+            return self::preflightError('Tên loại phòng đã tồn tại trong tòa nhà này');
+        }
+
+        $inlineRoomTypes = collect($payload['room_types'] ?? [])
+            ->reject(fn (array $roomType): bool => $roomType['id'] && in_array((int) $roomType['id'], $deleteIds, true))
+            ->map(fn (array $roomType): array => [
+                'id' => $roomType['id'] ? (int) $roomType['id'] : null,
+                'name' => self::normalizedPreflightName($roomType['name']),
+            ])
+            ->filter(fn (array $roomType): bool => $roomType['name'] !== '')
+            ->values();
+
+        if ($inlineRoomTypes->contains(fn (array $roomType): bool => $selectedNames->contains($roomType['name']) || $existingRoomTypes->contains(fn (RoomType $existingRoomType): bool => (int) $existingRoomType->id !== $roomType['id'] && self::normalizedPreflightName($existingRoomType->name) === $roomType['name']))) {
+            return self::preflightError('Tên loại phòng đã tồn tại trong tòa nhà này');
+        }
+
+        return null;
+    }
+
+    private static function preflightAssetTemplates(array $payload, ?int $buildingId): ?array
+    {
+        $deleteIds = $payload['delete_asset_template_ids'] ?? [];
+
+        if ($buildingId && $deleteIds !== []) {
+            $hasBlockedAssetTemplate = AssetTemplate::query()
+                ->where('building_id', $buildingId)
+                ->whereIn('id', $deleteIds)
+                ->withCount('roomAssets')
+                ->get()
+                ->contains(fn (AssetTemplate $assetTemplate): bool => (int) $assetTemplate->room_assets_count > 0);
+
+            if ($hasBlockedAssetTemplate) {
+                return self::preflightError('Không thể xóa mẫu tài sản đang được gán cho phòng');
+            }
+        }
+
+        $selectedNames = AssetTemplate::query()
+            ->whereIn('id', $payload['asset_template_ids'] ?? [])
+            ->whereNull('building_id')
+            ->pluck('name')
+            ->map(fn ($name): string => self::normalizedPreflightName($name))
+            ->filter()
+            ->values();
+
+        $existingNames = $buildingId
+            ? AssetTemplate::query()
+                ->where('building_id', $buildingId)
+                ->when($deleteIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $deleteIds))
+                ->pluck('name')
+                ->map(fn ($name): string => self::normalizedPreflightName($name))
+                ->filter()
+                ->values()
+            : collect();
+
+        if (self::hasDuplicatedPreflightNames($selectedNames->all()) || $selectedNames->contains(fn (string $name): bool => $existingNames->contains($name))) {
+            return self::preflightError('Tên mẫu tài sản đã tồn tại trong tòa nhà này');
+        }
+
+        return null;
+    }
+
+    private static function preflightServicePrices(array $payload, ?int $buildingId): ?array
+    {
+        if (! $buildingId) {
+            return null;
+        }
+
+        $deleteIds = $payload['delete_service_price_ids'] ?? [];
+        $servicePriceIds = collect($payload['service_price_ids'] ?? [])
+            ->reject(fn (int $servicePriceId): bool => in_array($servicePriceId, $deleteIds, true))
+            ->values()
+            ->all();
+
+        if ($servicePriceIds === []) {
+            return null;
+        }
+
+        $hasExpiredServicePrice = ServicePrice::query()
+            ->where('building_id', $buildingId)
+            ->whereIn('id', $servicePriceIds)
+            ->where(fn (Builder $query): Builder => $query->where('status', ServicePrice::STATUS_EXPIRED)->orWhereNotNull('effective_to'))
+            ->exists();
+
+        return $hasExpiredServicePrice
+            ? self::preflightError('Không thể cập nhật bảng giá dịch vụ đã hết hiệu lực')
+            : null;
+    }
+
+    private static function preflightSettings(array $payload, ?int $buildingId): ?array
+    {
+        $deleteIds = $payload['delete_setting_ids'] ?? [];
+        $selectedNames = Setting::query()
+            ->whereIn('id', $payload['setting_ids'] ?? [])
+            ->whereNull('building_id')
+            ->pluck('setting_name')
+            ->map(fn ($settingName): string => self::normalizedPreflightName($settingName))
+            ->filter()
+            ->values();
+
+        $existingSettings = $buildingId
+            ? Setting::query()
+                ->where('building_id', $buildingId)
+                ->when($deleteIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $deleteIds))
+                ->get(['id', 'setting_name'])
+            : collect();
+
+        if (self::hasDuplicatedPreflightNames($selectedNames->all()) || $existingSettings->contains(fn (Setting $setting): bool => $selectedNames->contains(self::normalizedPreflightName($setting->setting_name)))) {
+            return self::preflightError('Khóa cài đặt đã tồn tại trong tòa nhà này');
+        }
+
+        $inlineSettings = collect($payload['settings'] ?? [])
+            ->reject(fn (array $setting): bool => $setting['id'] && in_array((int) $setting['id'], $deleteIds, true))
+            ->map(fn (array $setting): array => [
+                'id' => $setting['id'] ? (int) $setting['id'] : null,
+                'setting_name' => self::normalizedPreflightName($setting['setting_name']),
+            ])
+            ->filter(fn (array $setting): bool => $setting['setting_name'] !== '')
+            ->values();
+
+        if ($inlineSettings->contains(fn (array $setting): bool => $selectedNames->contains($setting['setting_name']) || $existingSettings->contains(fn (Setting $existingSetting): bool => (int) $existingSetting->id !== $setting['id'] && self::normalizedPreflightName($existingSetting->setting_name) === $setting['setting_name']))) {
+            return self::preflightError('Khóa cài đặt đã tồn tại trong tòa nhà này');
+        }
+
+        return null;
+    }
+
+    private static function normalizedPreflightName(mixed $value): string
+    {
+        return mb_strtolower(trim((string) $value));
+    }
+
+    private static function hasDuplicatedPreflightNames(array $names): bool
+    {
+        $normalizedNames = collect($names)
+            ->map(fn ($name): string => self::normalizedPreflightName($name))
+            ->filter()
+            ->values();
+
+        return $normalizedNames->count() !== $normalizedNames->unique()->count();
+    }
+
+    private static function preflightError(string $message, int $statusCode = 422): array
+    {
+        return [
+            'message' => $message,
+            'error_code' => $statusCode,
+            'data' => null,
+            'http_code' => $statusCode,
+        ];
     }
 
     private function syncBuildingImages(Building $building, array $validated, Request $request, Admin $admin): void
@@ -778,7 +1069,7 @@ class BuildingController extends Controller
             'images.uploader:id,full_name',
             'roomTypes' => fn ($query) => $query->select('id', 'name', 'slug', 'building_id', 'description', 'status', 'created_by', 'created_at', 'updated_at')->withCount('rooms')->orderBy('name'),
             'assetTemplates' => fn ($query) => $query->select('id', 'name', 'slug', 'building_id', 'default_unit_name', 'description', 'status', 'created_by', 'created_at', 'updated_at')->withCount('roomAssets')->orderBy('name'),
-            'servicePrices' => fn ($query) => $query->select('id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status', 'created_at', 'updated_at')->with('service:id,service_code,name,slug,service_type,charge_method,unit_name,is_required,is_active,created_by,created_at,updated_at')->orderByDesc('effective_from')->orderByDesc('id'),
+            'servicePrices' => fn ($query) => $query->select('id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status', 'created_at', 'updated_at')->with('service:id,name,slug,charge_method,unit_name,is_required,is_active,created_by,created_at,updated_at')->orderByDesc('effective_from')->orderByDesc('id'),
             'settings' => fn ($query) => $query->select('id', 'building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at')->orderBy('setting_name'),
             'settings.creator:id,full_name',
         ];

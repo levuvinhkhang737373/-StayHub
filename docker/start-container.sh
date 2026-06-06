@@ -54,7 +54,6 @@ wait_for_project_mount() {
         count=$((count + 1))
     done
 
-<<<<<<< HEAD
     if has_laravel_source "$IMAGE_FALLBACK_DIR"; then
         echo "Bind mount backend chưa đủ file Laravel; dùng source fallback trong image để container vẫn healthy."
         activate_app_dir "$IMAGE_FALLBACK_DIR"
@@ -64,9 +63,6 @@ wait_for_project_mount() {
     echo "Backend source vẫn chưa đầy đủ file Laravel cần thiết và image fallback không tồn tại."
     echo "Kiểm tra bind mount ./BE_StayHub -> $SOURCE_APP_DIR hoặc rebuild image backend."
     ls -la "$SOURCE_APP_DIR" 2>/dev/null || true
-=======
-    echo "Backend source váº«n chÆ°a Ä‘áº§y Ä‘á»§ file Laravel cáº§n thiáº¿t; thoÃ¡t Ä‘á»ƒ Docker tá»± restart."
->>>>>>> origin/featVehicles
     exit 1
 }
 

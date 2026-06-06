@@ -22,24 +22,12 @@ function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[
 }
 
 const defaultForm: ServiceFormValues = {
-  service_code: '',
   name: '',
-  service_type: 'dien',
   charge_method: 1,
   unit_name: '',
   is_required: false,
   is_active: true,
 }
-
-const serviceTypeOptions = [
-  { value: 'dien', label: 'Điện', tone: 'warning' as const },
-  { value: 'nuoc', label: 'Nước', tone: 'success' as const },
-  { value: 'internet', label: 'Internet', tone: 'default' as const },
-  { value: 'rac', label: 'Rác', tone: 'default' as const },
-  { value: 'gui_xe', label: 'Gửi xe', tone: 'default' as const },
-  { value: 've_sinh', label: 'Vệ sinh', tone: 'default' as const },
-  { value: 'khac', label: 'Khác', tone: 'default' as const },
-]
 
 const chargeMethodOptions = [
   { value: 1, label: 'Theo chỉ số', description: 'Điện, nước qua công tơ', tone: 'warning' as const },
@@ -71,28 +59,16 @@ const formStatusOptions = [
   { value: 0, label: 'Ngừng hoạt động', tone: 'danger' as const },
 ]
 
-const filterServiceTypeOptions = [{ value: '', label: 'Tất cả loại dịch vụ', tone: 'default' as const }, ...serviceTypeOptions]
 const filterChargeMethodOptions = [{ value: '', label: 'Tất cả cách tính phí', tone: 'default' as const }, ...chargeMethodOptions]
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
 const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
-const serviceTypeToneClassNames: Record<string, string> = {
-  dien: 'border-amber-200 bg-amber-50 text-amber-700',
-  nuoc: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-  internet: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-  rac: 'border-lime-200 bg-lime-50 text-lime-700',
-  gui_xe: 'border-orange-200 bg-orange-50 text-orange-700',
-  ve_sinh: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  khac: 'border-stone-200 bg-stone-50 text-stone-600',
-}
-
 export function ServicesScreen() {
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin.role)
   const [keyword, setKeyword] = useState('')
-  const [selectedServiceType, setSelectedServiceType] = useState('')
   const [selectedChargeMethod, setSelectedChargeMethod] = useState('')
   const [selectedRequired, setSelectedRequired] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
@@ -118,7 +94,6 @@ export function ServicesScreen() {
     try {
       const response = await fetchAdminServices({
         keyword: keyword.trim() || undefined,
-        service_type: selectedServiceType || undefined,
         charge_method: selectedChargeMethod ? Number(selectedChargeMethod) : undefined,
         is_required: selectedRequired === '' ? undefined : selectedRequired === '1',
         is_active: selectedStatus === '' ? undefined : selectedStatus === '1',
@@ -131,7 +106,7 @@ export function ServicesScreen() {
     } finally {
       setIsLoading(false)
     }
-  }, [keyword, selectedChargeMethod, selectedRequired, selectedServiceType, selectedStatus])
+  }, [keyword, selectedChargeMethod, selectedRequired, selectedStatus])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -144,7 +119,7 @@ export function ServicesScreen() {
   const activeServices = useMemo(() => services.filter((item) => item.is_active).length, [services])
   const requiredServices = useMemo(() => services.filter((item) => item.is_required).length, [services])
   const relatedRecords = useMemo(() => services.reduce((sum, item) => sum + Number(item.prices_count || 0) + Number(item.meter_devices_count || 0) + Number(item.invoice_items_count || 0), 0), [services])
-  const hasActiveFilters = Boolean(keyword.trim() || selectedServiceType || selectedChargeMethod || selectedRequired || selectedStatus)
+  const hasActiveFilters = Boolean(keyword.trim() || selectedChargeMethod || selectedRequired || selectedStatus)
 
   const updateForm = (key: keyof ServiceFormValues, value: string | number | boolean) => {
     setForm((current) => ({ ...current, [key]: value }))
@@ -172,9 +147,7 @@ export function ServicesScreen() {
   const editService = (service: AdminServiceResource) => {
     setEditingService(service)
     setForm({
-      service_code: service.service_code || '',
       name: service.name || '',
-      service_type: service.service_type || 'dien',
       charge_method: Number(service.charge_method || 1),
       unit_name: service.unit_name || '',
       is_required: Boolean(service.is_required),
@@ -240,9 +213,7 @@ export function ServicesScreen() {
       setSuccessMessage(null)
 
       const payload = {
-        service_code: form.service_code.trim(),
         name: form.name.trim(),
-        service_type: form.service_type,
         charge_method: Number(form.charge_method),
         unit_name: form.unit_name.trim() || undefined,
         is_required: Boolean(form.is_required),
@@ -304,7 +275,6 @@ export function ServicesScreen() {
 
   const clearFilters = () => {
     setKeyword('')
-    setSelectedServiceType('')
     setSelectedChargeMethod('')
     setSelectedRequired('')
     setSelectedStatus('')
@@ -328,9 +298,7 @@ export function ServicesScreen() {
                 <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
                 </Link>
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#f3c56b]">
-                  <Zap className="h-3.5 w-3.5" /> Services
-                </div>
+               
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Danh mục dịch vụ</h1>
               </div>
               {isSuperAdmin && (
@@ -358,15 +326,14 @@ export function ServicesScreen() {
         <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-              <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(11rem,13rem)_minmax(12rem,14rem)_minmax(11rem,13rem)_minmax(11rem,13rem)]">
+              <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(12rem,14rem)_minmax(11rem,13rem)_minmax(11rem,13rem)]">
                 <div className="relative min-w-0">
                   <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-                  <input type="text" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm mã, tên hoặc đơn vị tính dịch vụ..." className={`${inputClass} pl-11 pr-28`} />
+                  <input type="text" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm tên hoặc đơn vị tính dịch vụ..." className={`${inputClass} pl-11 pr-28`} />
                   <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 disabled:cursor-not-allowed disabled:opacity-45">
                     <X className="h-3.5 w-3.5" /> Xóa lọc
                   </button>
                 </div>
-                <AdminSelect value={selectedServiceType} options={filterServiceTypeOptions} onChange={(nextValue) => setSelectedServiceType(String(nextValue))} />
                 <AdminSelect value={selectedChargeMethod} options={filterChargeMethodOptions} onChange={(nextValue) => setSelectedChargeMethod(String(nextValue))} />
                 <AdminSelect value={selectedRequired} options={requiredOptions} onChange={(nextValue) => setSelectedRequired(String(nextValue))} />
                 <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => setSelectedStatus(String(nextValue))} />
@@ -378,7 +345,6 @@ export function ServicesScreen() {
                 <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
                     <th className="px-5 py-4">Dịch vụ</th>
-                    <th className="px-5 py-4">Loại</th>
                     <th className="px-5 py-4">Cách tính phí</th>
                     <th className="px-5 py-4">Đơn vị</th>
                     <th className="px-5 py-4 text-center">Bắt buộc</th>
@@ -390,7 +356,7 @@ export function ServicesScreen() {
                 <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
                   {isLoading && Array.from({ length: 5 }).map((_, index) => (
                     <tr key={index}>
-                      <td colSpan={8} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
+                      <td colSpan={7} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
                     </tr>
                   ))}
 
@@ -408,11 +374,6 @@ export function ServicesScreen() {
                               <p className="truncate text-sm font-black tracking-tight text-[#24170d]">{service.name}</p>
                             </div>
                           </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', serviceTypeToneClassNames[service.service_type || 'khac'] || serviceTypeToneClassNames.khac)}>
-                            {service.service_type_label || service.service_type}
-                          </span>
                         </td>
                         <td className="px-5 py-4">
                           <span className="text-sm font-black text-[#3d2a18]">{service.charge_method_label || service.charge_method}</span>
@@ -455,7 +416,7 @@ export function ServicesScreen() {
 
                   {!isLoading && services.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-5 py-20 text-center">
+                      <td colSpan={7} className="px-5 py-20 text-center">
                         <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-8">
                           <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><Zap className="h-9 w-9" /></div>
                           <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy dịch vụ</p>
@@ -494,26 +455,14 @@ export function ServicesScreen() {
 
               <div className="space-y-4 p-5">
                 <div>
-                  <label className={labelClass}>Mã dịch vụ</label>
-                  <input className={`${inputClass} ${errors.service_code ? inputErrorClass : ''}`} value={form.service_code} onChange={(event) => updateForm('service_code', event.target.value)} placeholder="Ví dụ: SV-DIEN" />
-                  <FieldError message={errors.service_code} />
-                </div>
-                <div>
                   <label className={labelClass}>Tên dịch vụ</label>
                   <input className={`${inputClass} ${errors.name ? inputErrorClass : ''}`} value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Ví dụ: Điện sinh hoạt" />
                   <FieldError message={errors.name} />
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-1">
-                  <div>
-                    <label className={labelClass}>Loại dịch vụ</label>
-                    <AdminSelect value={form.service_type} options={serviceTypeOptions} invalid={!!errors.service_type} onChange={(nextValue) => updateForm('service_type', String(nextValue))} />
-                    <FieldError message={errors.service_type} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Cách tính phí</label>
-                    <AdminSelect value={form.charge_method} options={chargeMethodOptions} invalid={!!errors.charge_method} onChange={(nextValue) => updateForm('charge_method', Number(nextValue))} />
-                    <FieldError message={errors.charge_method} />
-                  </div>
+                <div>
+                  <label className={labelClass}>Cách tính phí</label>
+                  <AdminSelect value={form.charge_method} options={chargeMethodOptions} invalid={!!errors.charge_method} onChange={(nextValue) => updateForm('charge_method', Number(nextValue))} />
+                  <FieldError message={errors.charge_method} />
                 </div>
                 <div>
                   <label className={labelClass}>Đơn vị tính</label>
@@ -553,7 +502,6 @@ export function ServicesScreen() {
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Service detail</p>
                   <h2 id="service-detail-title" className="mt-2 text-2xl font-black tracking-tight">{detailService?.name || 'Đang tải chi tiết...'}</h2>
-                  <p className="mt-1 text-xs font-black uppercase tracking-[0.18em] text-[#f8e8c8]/72">{detailService?.service_code}</p>
                 </div>
                 <button type="button" onClick={closeServiceDetail} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết dịch vụ">
                   <X className="h-5 w-5" />
@@ -565,8 +513,7 @@ export function ServicesScreen() {
               {isDetailLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết dịch vụ...</div>}
               {detailErrorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{detailErrorMessage}</div>}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                <DetailTile label="Loại dịch vụ" value={detailService?.service_type_label || detailService?.service_type || '—'} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <DetailTile label="Cách tính" value={detailService?.charge_method_label || detailService?.charge_method || '—'} />
                 <DetailTile label="Đơn vị" value={detailService?.unit_name || 'Chưa khai báo'} />
                 <DetailTile label="Trạng thái" value={detailService?.is_active_label || (detailService?.is_active ? 'Hoạt động' : 'Ngừng hoạt động')} />

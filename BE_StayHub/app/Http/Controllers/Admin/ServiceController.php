@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Helpers\AdminActivityLogger;
@@ -36,7 +35,7 @@ class ServiceController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách dịch vụ', 200, ServiceResource::collection($services), 200);
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
 
@@ -63,7 +62,7 @@ class ServiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
 
@@ -88,7 +87,7 @@ class ServiceController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết dịch vụ', 200, new ServiceDetailResource($serviceModel), 200);
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
 
@@ -122,7 +121,7 @@ class ServiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
 
@@ -156,7 +155,7 @@ class ServiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
 
@@ -190,14 +189,14 @@ class ServiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
 
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['service_code', 'name', 'service_type', 'charge_method', 'unit_name', 'is_required', 'is_active'];
+        $fields  = ['name', 'charge_method', 'unit_name', 'is_required', 'is_active'];
 
         foreach ($fields as $field) {
             if (array_key_exists($field, $validated)) {
@@ -206,9 +205,9 @@ class ServiceController extends Controller
         }
 
         if (! $isUpdate) {
-            $payload['created_by'] = $createdBy;
+            $payload['created_by']  = $createdBy;
             $payload['is_required'] = $payload['is_required'] ?? Service::REQUIRED_NO;
-            $payload['is_active'] = $payload['is_active'] ?? Service::ACTIVE;
+            $payload['is_active']   = $payload['is_active'] ?? Service::ACTIVE;
         }
 
         return $payload;
@@ -216,7 +215,7 @@ class ServiceController extends Controller
 
     private function columns(): array
     {
-        return ['id', 'service_code', 'name', 'slug', 'service_type', 'charge_method', 'unit_name', 'is_required', 'is_active', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'name', 'slug', 'charge_method', 'unit_name', 'is_required', 'is_active', 'created_by', 'created_at', 'updated_at'];
     }
 
     private function listRelations(): array
@@ -232,7 +231,7 @@ class ServiceController extends Controller
 
         return [
             'creator:id,full_name',
-            'prices' => fn (Builder $query): Builder => AdminScope::applyBuildingScope($query->select('id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'), $admin),
+            'prices' => fn($query) => AdminScope::applyBuildingScope($query->select('id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'), $admin),
             'prices.building:id,name,slug',
         ];
     }
@@ -244,9 +243,9 @@ class ServiceController extends Controller
         }
 
         return [
-            'prices' => fn (Builder $query): Builder => AdminScope::applyBuildingScope($query, $admin),
-            'meterDevices' => fn (Builder $query): Builder => $query->whereHas('room', fn (Builder $roomQuery): Builder => AdminScope::applyBuildingScope($roomQuery, $admin)),
-            'invoiceItems' => fn (Builder $query): Builder => $query->whereHas('invoice.room', fn (Builder $roomQuery): Builder => AdminScope::applyBuildingScope($roomQuery, $admin)),
+            'prices'       => fn(Builder $query): Builder       => AdminScope::applyBuildingScope($query, $admin),
+            'meterDevices' => fn(Builder $query): Builder => $query->whereHas('room', fn(Builder $roomQuery): Builder => AdminScope::applyBuildingScope($roomQuery, $admin)),
+            'invoiceItems' => fn(Builder $query): Builder => $query->whereHas('invoice.room', fn(Builder $roomQuery): Builder => AdminScope::applyBuildingScope($roomQuery, $admin)),
         ];
     }
 
@@ -258,22 +257,21 @@ class ServiceController extends Controller
             ->select($this->columns())
             ->with($this->listRelations())
             ->withCount($this->counts($admin))
-            ->when($keyword !== '', fn (Builder $query): Builder => $query->where(function (Builder $keywordQuery) use ($keyword): void {
-                $keywordQuery->where('service_code', 'like', "%{$keyword}%")
-                    ->orWhere('name', 'like', "%{$keyword}%")
+            ->when($keyword !== '', fn(Builder $query): Builder => $query->where(function (Builder $keywordQuery) use ($keyword): void {
+                $keywordQuery->where('name', 'like', "%{$keyword}%")
                     ->orWhere('unit_name', 'like', "%{$keyword}%");
             }))
-            ->when(isset($validated['service_type']), fn (Builder $query): Builder => $query->where('service_type', $validated['service_type']))
-            ->when(isset($validated['charge_method']), fn (Builder $query): Builder => $query->where('charge_method', $validated['charge_method']))
-            ->when(array_key_exists('is_required', $validated), fn (Builder $query): Builder => $query->where('is_required', (bool) $validated['is_required']))
-            ->when(array_key_exists('is_active', $validated), fn (Builder $query): Builder => $query->where('is_active', (bool) $validated['is_active']))
+            ->when(isset($validated['charge_method']), fn(Builder $query): Builder => $query->where('charge_method', $validated['charge_method']))
+            ->when(array_key_exists('is_required', $validated), fn(Builder $query): Builder => $query->where('is_required', (bool) $validated['is_required']))
+            ->when(array_key_exists('is_active', $validated), fn(Builder $query): Builder => $query->where('is_active', (bool) $validated['is_active']))
+            ->when(isset($validated['created_by_role']), fn(Builder $query): Builder => $query->whereHas('creator', fn(Builder $creatorQuery): Builder => $creatorQuery->where('role', $validated['created_by_role'])))
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }
 
     private function canViewServices(Admin $admin): bool
     {
-        return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
+        return AdminScope::isSuperAdmin($admin);
     }
 
     private function canMutateServices(Admin $admin): bool

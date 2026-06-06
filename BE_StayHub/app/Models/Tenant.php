@@ -64,9 +64,7 @@ class Tenant extends Authenticatable
         return self::SEARCH_INDEX;
     }
 
-    /**
-     * Dữ liệu đồng bộ sang Meilisearch, không đưa mật khẩu/token/ảnh giấy tờ nhạy cảm vào index.
-     */
+   
     public function toSearchableArray(): array
     {
         return [
@@ -126,6 +124,11 @@ class Tenant extends Authenticatable
     public function maintenanceFeedbacks(): HasMany
     {
         return $this->hasMany(MaintenanceFeedback::class);
+    }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class);
     }
 
     public function notificationReads(): HasMany

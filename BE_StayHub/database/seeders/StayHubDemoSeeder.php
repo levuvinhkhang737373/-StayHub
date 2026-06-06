@@ -398,22 +398,21 @@ class StayHubDemoSeeder extends Seeder
     private function seedServices(array $admins): array
     {
         $rows = [
-            'electric' => ['SV-DIEN', 'Điện sinh hoạt', Service::SERVICE_TYPE_ELECTRIC, Service::CHARGE_METHOD_BY_METER, 'kWh', true],
-            'water' => ['SV-NUOC', 'Nước sinh hoạt', Service::SERVICE_TYPE_WATER, Service::CHARGE_METHOD_BY_METER, 'm³', true],
-            'internet' => ['SV-INTERNET', 'Internet', Service::SERVICE_TYPE_INTERNET, Service::CHARGE_METHOD_BY_ROOM, 'phòng', true],
-            'trash' => ['SV-RAC', 'Phí rác', Service::SERVICE_TYPE_TRASH, Service::CHARGE_METHOD_BY_PERSON, 'người', true],
-            'parking' => ['SV-GUI-XE', 'Gửi xe', Service::SERVICE_TYPE_PARKING, Service::CHARGE_METHOD_BY_VEHICLE, 'xe', false],
-            'cleaning' => ['SV-VE-SINH', 'Vệ sinh khu vực chung', Service::SERVICE_TYPE_CLEANING, Service::CHARGE_METHOD_BY_ROOM, 'phòng', true],
+            'electric' => ['Điện sinh hoạt', Service::CHARGE_METHOD_BY_METER, 'kWh', true],
+            'water' => ['Nước sinh hoạt', Service::CHARGE_METHOD_BY_METER, 'm³', true],
+            'internet' => ['Internet', Service::CHARGE_METHOD_BY_ROOM, 'phòng', true],
+            'trash' => ['Phí rác', Service::CHARGE_METHOD_BY_PERSON, 'người', true],
+            'parking' => ['Gửi xe', Service::CHARGE_METHOD_BY_VEHICLE, 'xe', false],
+            'cleaning' => ['Vệ sinh khu vực chung', Service::CHARGE_METHOD_BY_ROOM, 'phòng', true],
         ];
 
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
-            $key => $this->upsertAndGetId('services', ['service_code' => $row[0]], [
-                'name' => $row[1],
-                'slug' => Str::slug($row[1]),
-                'service_type' => $row[2],
-                'charge_method' => $row[3],
-                'unit_name' => $row[4],
-                'is_required' => $row[5],
+            $key => $this->upsertAndGetId('services', ['slug' => Str::slug($row[0])], [
+                'name' => $row[0],
+                'slug' => Str::slug($row[0]),
+                'charge_method' => $row[1],
+                'unit_name' => $row[2],
+                'is_required' => $row[3],
                 'is_active' => Service::ACTIVE,
                 'created_by' => $admins['super'],
                 ...$this->timestamps(),
