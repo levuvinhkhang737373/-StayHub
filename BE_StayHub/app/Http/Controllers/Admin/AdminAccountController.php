@@ -290,8 +290,8 @@ class AdminAccountController extends Controller
     {
         $payload = [];
         $fields = $isUpdate
-            ? ['full_name', 'email', 'phone', 'password', 'role', 'gender', 'address', 'avatar_url']
-            : ['username', 'full_name', 'email', 'phone', 'password', 'role', 'gender', 'address', 'avatar_url'];
+            ? ['full_name', 'email', 'phone', 'password', 'role', 'gender', 'date_of_birth', 'address', 'avatar_url']
+            : ['username', 'full_name', 'email', 'phone', 'password', 'role', 'gender', 'date_of_birth', 'address', 'avatar_url'];
 
         foreach ($fields as $field) {
             if (! array_key_exists($field, $validated)) {
@@ -369,7 +369,7 @@ class AdminAccountController extends Controller
 
     private function listColumns(): array
     {
-        return ['id', 'username', 'full_name', 'email', 'phone', 'avatar_url', 'image_path_faceid', 'role', 'status', 'gender', 'address', 'created_at', 'updated_at'];
+        return ['id', 'username', 'full_name', 'email', 'phone', 'avatar_url', 'image_path_faceid', 'role', 'status', 'gender', 'date_of_birth', 'address', 'created_at', 'updated_at'];
     }
 
     private function managedBuildingRelation(): array
@@ -385,7 +385,7 @@ class AdminAccountController extends Controller
 
     private function detailColumns(): array
     {
-        return ['id', 'username', 'full_name', 'email', 'phone', 'avatar_url', 'image_path_faceid', 'created_faceid_at', 'updated_faceid_at', 'role', 'status', 'gender', 'address', 'created_at', 'updated_at'];
+        return ['id', 'username', 'full_name', 'email', 'phone', 'avatar_url', 'image_path_faceid', 'created_faceid_at', 'updated_faceid_at', 'role', 'status', 'gender', 'date_of_birth', 'address', 'created_at', 'updated_at'];
     }
 
     private function listCounts(): array
@@ -395,7 +395,7 @@ class AdminAccountController extends Controller
 
     private function detailCounts(): array
     {
-        return ['managedBuildings', 'createdRegions', 'createdBuildings', 'createdRoomTypes', 'createdRooms', 'createdAssetTemplates', 'createdServices', 'settings', 'logs'];
+        return ['managedBuildings', 'createdRegions', 'createdBuildings', 'createdRoomTypes', 'createdRooms', 'settings', 'logs'];
     }
 
     private function deleteCounts(): array

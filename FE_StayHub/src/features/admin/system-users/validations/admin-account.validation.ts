@@ -7,6 +7,7 @@ export type AdminAccountFormValues = {
   role: number
   status: number
   gender: number | null
+  date_of_birth: string
   address: string
   avatar_url: string
 }

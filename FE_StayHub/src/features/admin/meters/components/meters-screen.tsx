@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import {
   createAdminMeterDevice,
   deleteAdminMeterDevice,
@@ -702,7 +703,11 @@ export function MetersScreen() {
 
               <div>
                 <label className={labelClass}>Ngày lắp</label>
-                <input type="date" className={cn(inputClass, errors.installed_at && inputErrorClass)} value={form.installed_at} onChange={(event) => updateForm('installed_at', event.target.value)} />
+                <AdminDateInput 
+                  className={cn(inputClass, errors.installed_at && inputErrorClass)} 
+                  value={form.installed_at} 
+                  onChange={(value) => updateForm('installed_at', value)} 
+                />
                 <FieldError message={errors.installed_at} />
               </div>
 

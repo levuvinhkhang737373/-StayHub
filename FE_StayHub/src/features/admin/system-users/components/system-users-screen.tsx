@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Building2, ChevronLeft, ChevronRight, Edit3, Eye, LockKeyhole, Mail, Phone, Plus, Power, RefreshCw, Search, ShieldCheck, Trash2, UserCog, X } from 'lucide-react'
+import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { ApiError, type ApiValidationErrors } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
@@ -52,6 +54,7 @@ const defaultForm: AdminAccountFormValues = {
   role: ROLE_BUILDING_MANAGER,
   status: STATUS_ACTIVE,
   gender: null,
+  date_of_birth: '',
   address: '',
   avatar_url: '',
 }
@@ -86,7 +89,7 @@ const perPageOptions = [
   { value: 50, label: '50 dòng', tone: 'default' as const },
 ]
 
-const formErrorKeys: Array<keyof AdminAccountFormValues> = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'status', 'gender', 'address', 'avatar_url']
+const formErrorKeys: Array<keyof AdminAccountFormValues> = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'status', 'gender', 'date_of_birth', 'address', 'avatar_url']
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
@@ -224,6 +227,7 @@ export function SystemUsersScreen() {
       role: Number(account.role || ROLE_BUILDING_MANAGER),
       status: Number(account.status || STATUS_ACTIVE),
       gender: account.gender ? Number(account.gender) : null,
+      date_of_birth: account.date_of_birth || '',
       address: account.address || '',
       avatar_url: account.avatar_url || '',
     })
@@ -290,6 +294,7 @@ export function SystemUsersScreen() {
         phone: form.phone.trim(),
         role: Number(form.role),
         gender: form.gender === null ? undefined : Number(form.gender),
+        date_of_birth: form.date_of_birth || null,
         address: form.address.trim() || null,
         avatar_url: form.avatar_url.trim() || null,
       }
@@ -642,6 +647,11 @@ export function SystemUsersScreen() {
                   <FieldError message={errors.gender} />
                 </div>
                 <div>
+                  <label className={labelClass}>Ngày sinh</label>
+                  <AdminDateInput value={form.date_of_birth} onChange={(val) => updateForm('date_of_birth', val)} placeholder="dd/mm/yyyy" className={`${inputClass} ${errors.date_of_birth ? inputErrorClass : ''}`} maxDate={new Date()} />
+                  <FieldError message={errors.date_of_birth} />
+                </div>
+                <div>
                   <label className={labelClass}>Địa chỉ</label>
                   <textarea className={`${inputClass} min-h-24 resize-none ${errors.address ? inputErrorClass : ''}`} value={form.address} onChange={(event) => updateForm('address', event.target.value)} placeholder="Nhập địa chỉ liên hệ" />
                   <FieldError message={errors.address} />
@@ -701,14 +711,10 @@ export function SystemUsersScreen() {
                   <DetailTile label="Email" value={detailAccount?.email || '—'} />
                   <DetailTile label="Số điện thoại" value={detailAccount?.phone || '—'} />
                   <DetailTile label="Giới tính" value={detailAccount?.gender_label || '—'} />
+                  <DetailTile label="Ngày sinh" value={detailAccount?.date_of_birth ? formatDateTime(detailAccount.date_of_birth).split(' ')[0] : '—'} />
                   <DetailTile label="Địa Chỉ" value={detailAccount?.address || '—'} />
                 </div>
               </section>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <DetailTile label="Dịch vụ đã tạo" value={detailAccount?.created_services_count ?? 0} />
-                <DetailTile label="Mẫu tài sản đã tạo" value={detailAccount?.created_asset_templates_count ?? 0} />
-              </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <DetailTile label="Ngày tạo" value={formatDateTime(detailAccount?.created_at)} />
@@ -845,16 +851,4 @@ function getRoleBadgeClass(role?: string | number | null) {
   if (Number(role) === ROLE_SUPER_ADMIN) return 'border-[#f3c56b]/35 bg-[#f3c56b]/18 text-[#8a4f18]'
   if (Number(role) === ROLE_TECHNICIAN) return 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]'
   return 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]'
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return '—'
-
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }

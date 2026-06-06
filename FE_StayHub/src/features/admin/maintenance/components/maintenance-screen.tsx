@@ -17,6 +17,7 @@ import {
   Building
 } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
+import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -549,7 +550,7 @@ export function MaintenanceScreen() {
                                   {log.new_status_label}
                                 </span>
                                 <span className="text-[10px] text-stone-500 font-bold tabular-nums">
-                                  {log.created_at}
+                                  {formatDateTime(log.created_at)}
                                 </span>
                               </div>
                               <p className="text-stone-600 font-medium">{log.note}</p>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Database, Edit3, Eye, Plus, Power, RefreshCw, Search, Trash2, X, Zap } from 'lucide-react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
+import { formatCurrency } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
@@ -576,10 +577,4 @@ function FieldError({ message }: { message?: string }) {
   return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
 }
 
-function formatCurrency(value: string | null | undefined) {
-  const [integerPart, decimalPart] = String(value || '0').split('.')
-  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  const decimalText = decimalPart && !/^0+$/.test(decimalPart) ? `,${decimalPart}` : ''
 
-  return `${formattedInteger}${decimalText} ₫`
-}

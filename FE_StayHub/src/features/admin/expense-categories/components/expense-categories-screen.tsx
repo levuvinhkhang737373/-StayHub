@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Database, Edit3, Eye, Plus, Power, ReceiptText, RefreshCw, Search, Tags, Trash2, X } from 'lucide-react'
+import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -509,16 +510,4 @@ function DetailTile({ label, value }: { label: string; value: string | number })
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return '—'
-
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }

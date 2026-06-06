@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Edit3, Eye, Plus, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react'
+import { formatDate } from '../../../../shared/lib/utils/format'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
@@ -542,9 +543,4 @@ function DetailTile({ label, value }: { label: string; value?: string | number |
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return 'Không rõ'
-  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }

@@ -12,6 +12,7 @@ import {
   Edit3
 } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
+import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -467,7 +468,7 @@ export function NotificationsScreen() {
                           {notif.tenant_name && (
                             <span className="flex items-center gap-1"><User className="h-3 w-3" /> Khách: {notif.tenant_name}</span>
                           )}
-                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Ngày tạo: {notif.created_at}</span>
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Ngày tạo: {formatDateTime(notif.created_at)}</span>
                         </div>
                       </div>
 

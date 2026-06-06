@@ -23,6 +23,7 @@ class AdminAccountResource extends JsonResource
             'status_label' => Admin::STATUS_LABELS[$this->status] ?? null,
             'gender' => $this->gender,
             'gender_label' => $this->gender ? (Admin::GENDER_LABELS[$this->gender] ?? null) : null,
+            'date_of_birth' => optional($this->date_of_birth)->toDateString(),
             'address' => $this->address,
             'has_faceid' => filled($this->image_path_faceid),
             'managed_buildings_count' => $this->whenCounted('managedBuildings'),

@@ -3,6 +3,7 @@ import type { FC } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Clock, LayoutDashboard, MapPin, Phone, User, X } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
+import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
 import type { Building } from '../types/building.model'
 
 interface BuildingDetailModalProps {
@@ -129,8 +130,8 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                   <SectionTitle label="Dữ liệu liên quan" />
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <InfoStat label="Phòng" value={building?.rooms_count || 0} />
-                    
-                    
+
+
                     <InfoStat label="Bảng giá" value={building?.service_prices_count || 0} />
                     <InfoStat label="Cài đặt" value={building?.settings_count || 0} />
                     <InfoStat label="Thông báo" value={building?.notifications_count || 0} />
@@ -141,9 +142,9 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                 <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/80 p-5 shadow-sm">
                   <SectionTitle label="Cấu hình nền" />
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    
-                    
-                    <PreviewGroup label="Bảng giá" items={building?.service_prices?.map((item) => `${item.service_name || item.service?.name || 'Dịch vụ'} · ${formatMoneyText(item.price)}đ`) || []} />
+
+
+                    <PreviewGroup label="Bảng giá" items={building?.service_prices?.map((item) => `${item.service_name || item.service?.name || 'Dịch vụ'} · ${formatCurrency(item.price)}`) || []} />
                     <PreviewGroup label="Cài đặt" items={building?.settings?.map((item) => `${item.setting_label}: ${item.setting_value || '—'}`) || []} />
                   </div>
                 </section>
@@ -175,7 +176,7 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                 <div className="flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-stone-400">
                     <Clock className="h-3.5 w-3.5" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Khởi tạo: {building?.created_at || 'Chưa cập nhật'}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Khởi tạo: {formatDateTime(building?.created_at) || 'Chưa cập nhật'}</span>
                   </div>
                   <button type="button" onClick={() => building && onEdit(building)} className="self-start text-xs font-black text-stone-950 underline underline-offset-4 transition-colors hover:text-amber-700 sm:self-auto">
                     Chỉnh sửa tòa nhà
@@ -229,11 +230,4 @@ function PreviewGroup({ label, items }: { label: string; items: string[] }) {
   )
 }
 
-function formatMoneyText(value: string | null | undefined) {
-  const [integerPart, decimalPart] = String(value || '0').split('.')
-  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 
-  if (!decimalPart || /^0+$/.test(decimalPart)) return formattedInteger
-
-  return `${formattedInteger},${decimalPart}`
-}

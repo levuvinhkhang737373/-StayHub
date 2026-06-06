@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, BadgeCheck, Building2, Camera, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, RefreshCw, Search, Trash2, UploadCloud, UserRound, X } from 'lucide-react'
+import { formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
 import { ApiError, type ApiValidationErrors } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import {
   createAdminTenant,
   deleteAdminTenant,
@@ -641,8 +643,13 @@ export function TenantsScreen() {
                   <FieldError message={errors.phone} />
                 </div>
                 <div>
-                  <label className={labelClass}>Ngày sinh</label>
-                  <input className={cn(inputClass, errors.date_of_birth && inputErrorClass)} value={form.date_of_birth} onChange={(event) => updateForm('date_of_birth', event.target.value)} type="date" />
+                  <label className={labelClass}>Ngày sinh (Tùy chọn)</label>
+                  <AdminDateInput 
+                    className={cn(inputClass, errors.date_of_birth && inputErrorClass)} 
+                    value={form.date_of_birth} 
+                    onChange={(value) => updateForm('date_of_birth', value)} 
+                    maxDate={new Date()}
+                  />
                   <FieldError message={errors.date_of_birth} />
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -904,29 +911,7 @@ function getIdentityTypeLabel(identityType?: number | null) {
   return '—'
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
 
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('vi-VN').format(date)
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date)
-}
 
 function getVisibleErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError) {
