@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
+import '../../services/websocket_service.dart';
 
 class GridPainter extends CustomPainter {
   @override
@@ -56,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (success) {
       if (mounted) {
+        context.read<WebSocketService>().connect();
         if (authController.isAdmin) {
           Navigator.pushReplacementNamed(context, '/dashboard');
         } else {

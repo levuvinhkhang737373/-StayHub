@@ -219,7 +219,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'cd /var/www/current-backend && test -f artisan && test -f vendor/autoload.php && curl -fsS http://127.0.0.1:8000/up >/dev/null || exit 1' ]
+      test: [ 'CMD-SHELL', 'cd /var/www/html/BE_StayHub && test -f artisan && test -f vendor/autoload.php && curl -fsS http://127.0.0.1:8000/up >/dev/null || exit 1' ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -243,11 +243,31 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'cd /var/www/current-backend && test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
+      test: [ 'CMD-SHELL', 'cd /var/www/html/BE_StayHub && test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
       interval: 15s
       timeout: 10s
       retries: 20
       start_period: 180s
+    networks:
+      - laravel_network
+
+  reverb:
+    build: *backend-build
+    container_name: laravel_reverb
+    restart: unless-stopped
+    environment: *backend-environment
+    working_dir: /var/www/html/BE_StayHub
+    volumes: *backend-volumes
+    command: php artisan reverb:start --host=0.0.0.0 --port=8009 --debug
+    ports:
+      - '8009:8009'
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - laravel_network
 

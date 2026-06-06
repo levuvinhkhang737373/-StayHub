@@ -31,12 +31,14 @@ class Notification extends Model
     public const TARGET_TYPE_BUILDING = 2;
     public const TARGET_TYPE_ROOM = 3;
     public const TARGET_TYPE_TENANT = 4;
+    public const TARGET_TYPE_ADMIN = 5;
 
     public const TARGET_TYPE_LABELS = [
         self::TARGET_TYPE_ALL => 'Tất cả',
         self::TARGET_TYPE_BUILDING => 'Theo tòa nhà',
         self::TARGET_TYPE_ROOM => 'Theo phòng',
         self::TARGET_TYPE_TENANT => 'Theo khách thuê',
+        self::TARGET_TYPE_ADMIN => 'Ban quản lý',
     ];
 
     public const STATUS_DRAFT = 1;

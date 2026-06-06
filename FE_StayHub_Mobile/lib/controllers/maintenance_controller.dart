@@ -1,154 +1,133 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:dio/dio.dart';
 import '../models/maintenance_request.dart';
+import '../services/api_service.dart';
 
 class MaintenanceController extends ChangeNotifier {
-  final List<MaintenanceRequest> _mockRequests = [
-    MaintenanceRequest(
-      id: 1,
-      requestCode: 'SC-0001',
-      roomId: 1,
-      roomNumber: '101',
-      tenantId: 1,
-      tenantName: 'Nguyễn Văn An',
-      title: 'Hỏng vòi nước bồn rửa mặt',
-      description: 'Vòi nước bị rò rỉ liên tục không khóa chặt được, cần thay mới.',
-      status: 1, // PENDING
-      images: [
-        'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=300'
-      ],
-      createdAt: '2026-05-27 09:30',
-    ),
-    MaintenanceRequest(
-      id: 2,
-      requestCode: 'SC-0002',
-      roomId: 2,
-      roomNumber: '102',
-      tenantId: 2,
-      tenantName: 'Trần Thị Bình',
-      title: 'Điều hòa không lạnh',
-      description: 'Điều hòa bật 16 độ nhưng chỉ có gió, không thấy mát, nghi hết gas.',
-      status: 3, // PROCESSING / IN PROGRESS
-      images: [
-        'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&q=80&w=300'
-      ],
-      createdAt: '2026-05-26 14:15',
-    ),
-    MaintenanceRequest(
-      id: 3,
-      requestCode: 'SC-0003',
-      roomId: 5,
-      roomNumber: '201',
-      tenantId: 3,
-      tenantName: 'Lê Hoàng Cường',
-      title: 'Hỏng bóng đèn ngủ lầu 2',
-      description: 'Bóng đèn ngủ bật không sáng, đã thử lay chấu cắm nhưng không được.',
-      status: 4, // COMPLETED / RESOLVED
-      images: [
-        'https://images.unsplash.com/photo-1565814329452-e1efa11c5b89?auto=format&fit=crop&q=80&w=300',
-        'https://images.unsplash.com/photo-1550985616-10810253b84d?auto=format&fit=crop&q=80&w=300'
-      ],
-      feedback: 'Cảm ơn admin đã cho thợ sửa nhanh chóng!',
-      createdAt: '2026-05-24 20:00',
-    ),
-    MaintenanceRequest(
-      id: 4,
-      requestCode: 'SC-0004',
-      roomId: 1,
-      roomNumber: '101',
-      tenantId: 1,
-      tenantName: 'Nguyễn Văn An',
-      title: 'Hỏng ổ cắm điện phòng khách',
-      description: 'Ổ cắm điện góc tường bị lỏng và đánh lửa khi cắm phích nước.',
-      status: 4, // COMPLETED
-      images: [
-        'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&q=80&w=300',
-        'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=300'
-      ],
-      createdAt: '2026-05-25 10:00',
-    ),
-  ];
+  final ApiService _apiService = ApiService();
 
+  List<MaintenanceRequest> _requests = [];
   bool _isLoading = false;
+  String? _errorMessage;
 
-  List<MaintenanceRequest> get requests => _mockRequests;
+  List<MaintenanceRequest> get requests => _requests;
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
 
   /// Get requests for specific room (for Tenant view)
   List<MaintenanceRequest> getRequestsForRoom(String roomNumber) {
-    return _mockRequests.where((r) => r.roomNumber == roomNumber).toList();
+    // Trả về toàn bộ danh sách vì backend đã lọc theo tenant đang đăng nhập rồi
+    return _requests;
   }
 
-  /// Create a new maintenance request (Tenant action)
+  /// Tải danh sách yêu cầu bảo trì của Tenant
+  Future<void> fetchRequests() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get<List<dynamic>>(
+        '/tenant/maintenance-requests',
+        fromJsonT: (json) => json['data'] as List<dynamic>,
+      );
+
+      if (response.status && response.result != null) {
+        _requests = response.result!
+            .map((item) => MaintenanceRequest.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = 'Lỗi tải danh sách bảo trì: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Tải danh sách yêu cầu bảo trì của Admin
+  Future<void> fetchAdminRequests() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get<List<dynamic>>(
+        '/admin/maintenance-requests',
+        fromJsonT: (json) => json['data'] as List<dynamic>,
+      );
+
+      if (response.status && response.result != null) {
+        _requests = response.result!
+            .map((item) => MaintenanceRequest.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = 'Lỗi tải danh sách bảo trì admin: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Gửi một yêu cầu sửa chữa mới (Tenant action)
   Future<bool> createRequest({
     required String roomNumber,
     required String title,
     required String description,
-    String? beforeImageUrl,
+    XFile? imageFile,
   }) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final Map<String, dynamic> dataMap = {
+        'title': title,
+        'description': description,
+      };
 
-    final newReq = MaintenanceRequest(
-      id: _mockRequests.length + 1,
-      requestCode: 'SC-000${_mockRequests.length + 1}',
-      roomId: 1,
-      roomNumber: roomNumber,
-      tenantId: 1,
-      tenantName: 'Nguyễn Văn An',
-      title: title,
-      description: description,
-      status: 1, // PENDING
-      images: [
-        beforeImageUrl ?? 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=300'
-      ],
-      createdAt: DateTime.now().toString().substring(0, 16),
-    );
+      if (imageFile != null) {
+        if (kIsWeb) {
+          final bytes = await imageFile.readAsBytes();
+          dataMap['images[]'] = MultipartFile.fromBytes(
+            bytes,
+            filename: imageFile.name,
+          );
+        } else {
+          dataMap['images[]'] = await MultipartFile.fromFile(
+            imageFile.path,
+            filename: imageFile.name,
+          );
+        }
+      }
 
-    _mockRequests.insert(0, newReq);
-    _isLoading = false;
-    notifyListeners();
-    return true;
-  }
+      final formData = FormData.fromMap(dataMap);
 
-  /// Update request status (Admin action)
-  Future<bool> updateRequestStatus(int id, int status, {String? afterImageUrl, String? feedback}) async {
-    _isLoading = true;
-    notifyListeners();
-
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    final index = _mockRequests.indexWhere((r) => r.id == id);
-    if (index != -1) {
-      final old = _mockRequests[index];
-      
-      // Rebuild images list preserving before image and optionally adding after image
-      List<String> updatedImages = [];
-      if (old.beforeImageUrl != null) updatedImages.add(old.beforeImageUrl!);
-      final newAfterImage = afterImageUrl ?? old.afterImageUrl;
-      if (newAfterImage != null) updatedImages.add(newAfterImage);
-
-      _mockRequests[index] = MaintenanceRequest(
-        id: old.id,
-        requestCode: old.requestCode,
-        roomId: old.roomId,
-        roomNumber: old.roomNumber,
-        tenantId: old.tenantId,
-        tenantName: old.tenantName,
-        title: old.title,
-        description: old.description,
-        status: status,
-        images: updatedImages,
-        assignedTo: old.assignedTo,
-        receivedAt: old.receivedAt,
-        completedAt: old.completedAt,
-        feedback: feedback ?? old.feedback,
-        createdAt: old.createdAt,
+      final response = await _apiService.post<Map<String, dynamic>>(
+        '/tenant/maintenance-requests',
+        data: formData,
+        fromJsonT: (json) => json as Map<String, dynamic>,
       );
-      _isLoading = false;
-      notifyListeners();
-      return true;
+
+      if (response.status) {
+        await fetchRequests();
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi gửi yêu cầu sửa chữa: $e';
     }
 
     _isLoading = false;
@@ -156,8 +135,107 @@ class MaintenanceController extends ChangeNotifier {
     return false;
   }
 
-  /// Add Tenant Feedback (Tenant action)
-  Future<bool> addFeedback(int id, String feedback) async {
-    return updateRequestStatus(id, 4, feedback: feedback); // Keep COMPLETED status
+  /// Cập nhật trạng thái phiếu sửa chữa (Admin action)
+  Future<bool> updateRequestStatus(int id, int status, {String? note, String? afterImageUrl}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.patch<Map<String, dynamic>>(
+        '/admin/maintenance-requests/$id/status',
+        data: {
+          'status': status,
+          'note': note ?? 'Cập nhật trạng thái bảo trì',
+        },
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status) {
+        await fetchAdminRequests();
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi cập nhật trạng thái bảo trì: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Phân công nhân viên sửa chữa (Admin action)
+  Future<bool> assignStaff(int id, int adminId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.patch<Map<String, dynamic>>(
+        '/admin/maintenance-requests/$id/assign',
+        data: {
+          'assigned_to': adminId,
+        },
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status) {
+        await fetchAdminRequests();
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi phân công nhân viên: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Đánh giá chất lượng sau khi sửa chữa (Tenant action)
+  Future<bool> addFeedback(int id, String comment, {int rating = 5}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.post<Map<String, dynamic>>(
+        '/tenant/maintenance-requests/$id/feedback',
+        data: {
+          'rating': rating,
+          'comment': comment,
+        },
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status) {
+        await fetchRequests();
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi gửi đánh giá: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
 }

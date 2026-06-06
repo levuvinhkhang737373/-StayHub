@@ -1,3 +1,5 @@
+import '../config/app_config.dart';
+
 class MaintenanceRequest {
   // Status constants matching backend:
   static const int STATUS_CREATED = 1;
@@ -41,8 +43,26 @@ class MaintenanceRequest {
   });
 
   // Getters for backward compatibility
-  String? get beforeImageUrl => (images != null && images!.isNotEmpty) ? images!.first : null;
-  String? get afterImageUrl => (images != null && images!.length > 1) ? images![1] : null;
+  String? get beforeImageUrl {
+    final url = (images != null && images!.isNotEmpty) ? images!.first : null;
+    return _mapLocalUrl(url);
+  }
+
+  String? get afterImageUrl {
+    final url = (images != null && images!.length > 1) ? images![1] : null;
+    return _mapLocalUrl(url);
+  }
+
+  static String? _mapLocalUrl(String? url) {
+    if (url == null) return null;
+    if (url.startsWith('http://localhost:8080')) {
+      return url.replaceFirst('http://localhost:8080', AppConfig.apiOrigin);
+    }
+    if (url.startsWith('http://127.0.0.1:8080')) {
+      return url.replaceFirst('http://127.0.0.1:8080', AppConfig.apiOrigin);
+    }
+    return url;
+  }
 
   factory MaintenanceRequest.fromJson(Map<String, dynamic> json) {
     // Deserialize images list if present

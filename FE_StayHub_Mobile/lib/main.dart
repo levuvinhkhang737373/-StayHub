@@ -9,6 +9,8 @@ import 'controllers/room_controller.dart';
 import 'controllers/invoice_controller.dart';
 import 'controllers/maintenance_controller.dart';
 import 'controllers/contract_controller.dart';
+import 'controllers/notification_controller.dart';
+import 'services/websocket_service.dart';
 
 import 'views/auth/login_screen.dart';
 import 'views/dashboard/dashboard_screen.dart';
@@ -42,6 +44,8 @@ void main() {
         ChangeNotifierProvider(create: (_) => InvoiceController()),
         ChangeNotifierProvider(create: (_) => MaintenanceController()),
         ChangeNotifierProvider(create: (_) => ContractController()),
+        ChangeNotifierProvider(create: (_) => NotificationController()),
+        ChangeNotifierProvider(create: (_) => WebSocketService()),
       ],
       child: const MyApp(),
     ),
@@ -166,6 +170,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (isLoggedIn) {
+      context.read<WebSocketService>().connect();
       if (authController.isAdmin) {
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else {

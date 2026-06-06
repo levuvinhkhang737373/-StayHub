@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
+import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 
 class SettingsScreen extends StatefulWidget {
@@ -12,6 +13,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _handleLogout() async {
+    context.read<WebSocketService>().disconnect();
     final authController = context.read<AuthController>();
     final success = await authController.logout();
     if (success && mounted) {

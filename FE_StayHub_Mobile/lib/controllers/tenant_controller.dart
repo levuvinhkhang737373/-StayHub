@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/tenant.dart';
+import '../services/api_service.dart';
 
 class TenantController extends ChangeNotifier {
+  final ApiService _apiService = ApiService();
+  
   final List<Tenant> _mockTenants = [
     Tenant(
       id: 1,
@@ -65,24 +68,64 @@ class TenantController extends ChangeNotifier {
     ),
   ];
 
+  List<Tenant>? _realTenants = [];
   List<Tenant> _filteredTenants = [];
   bool _isLoading = false;
   String _searchQuery = '';
+  String? _errorMessage;
 
-  List<Tenant> get tenants => _filteredTenants.isEmpty && _searchQuery.isEmpty ? _mockTenants : _filteredTenants;
+  List<Tenant> get tenants {
+    final list = _realTenants;
+    if (list != null && list.isNotEmpty) {
+      return (_filteredTenants.isEmpty && _searchQuery.isEmpty ? list : _filteredTenants);
+    }
+    return (_filteredTenants.isEmpty && _searchQuery.isEmpty ? _mockTenants : _filteredTenants);
+  }
+      
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
 
   TenantController() {
     _filteredTenants = List.from(_mockTenants);
   }
 
+  /// Tải danh sách khách thuê thực tế từ API
+  Future<void> fetchTenants() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get<List<dynamic>>(
+        '/admin/tenants',
+        fromJsonT: (json) => json['data'] as List<dynamic>,
+      );
+
+      if (response.status && response.result != null) {
+        _realTenants = response.result!
+            .map((item) => Tenant.fromJson(item as Map<String, dynamic>))
+            .toList();
+        search(_searchQuery); // Cập nhật danh sách hiển thị
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = 'Lỗi tải danh sách khách thuê: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
   /// Search/filter tenants by name or phone or room
   void search(String query) {
     _searchQuery = query.toLowerCase();
+    final list = _realTenants;
+    final sourceList = (list != null && list.isNotEmpty) ? list : _mockTenants;
     if (_searchQuery.isEmpty) {
-      _filteredTenants = List.from(_mockTenants);
+      _filteredTenants = List.from(sourceList);
     } else {
-      _filteredTenants = _mockTenants.where((t) {
+      _filteredTenants = sourceList.where((t) {
         return t.fullName.toLowerCase().contains(_searchQuery) ||
             t.phone.contains(_searchQuery) ||
             (t.roomNumber != null && t.roomNumber!.contains(_searchQuery));
@@ -122,11 +165,40 @@ class TenantController extends ChangeNotifier {
           frontImageUrl: oldTenant.frontImageUrl,
           backImageUrl: oldTenant.backImageUrl,
         );
-        search(_searchQuery); // Refresh filtered list
-        _isLoading = false;
-        notifyListeners();
-        return true;
       }
+      
+      final list = _realTenants;
+      if (list != null) {
+        final realIndex = list.indexWhere((t) => t.id == id);
+        if (realIndex != -1) {
+          final oldTenant = list[realIndex];
+          list[realIndex] = Tenant(
+            id: oldTenant.id,
+            buildingId: oldTenant.buildingId,
+            fullName: oldTenant.fullName,
+            gender: oldTenant.gender,
+            dateOfBirth: oldTenant.dateOfBirth,
+            phone: oldTenant.phone,
+            email: oldTenant.email,
+            username: oldTenant.username,
+            permanentAddress: oldTenant.permanentAddress,
+            currentAddress: oldTenant.currentAddress,
+            avatarUrl: oldTenant.avatarUrl,
+            status: status,
+            roomNumber: oldTenant.roomNumber,
+            buildingName: oldTenant.buildingName,
+            identityType: oldTenant.identityType,
+            identityNumber: oldTenant.identityNumber,
+            frontImageUrl: oldTenant.frontImageUrl,
+            backImageUrl: oldTenant.backImageUrl,
+          );
+        }
+      }
+      
+      search(_searchQuery); // Refresh filtered list
+      _isLoading = false;
+      notifyListeners();
+      return true;
     } catch (_) {}
 
     _isLoading = false;

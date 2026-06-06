@@ -11,6 +11,14 @@ class MaintenanceScreen extends StatefulWidget {
 }
 
 class _MaintenanceScreenState extends State<MaintenanceScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MaintenanceController>().fetchAdminRequests();
+    });
+  }
+
   void _updateRequestStatus(dynamic request) {
     int selectedStatus = request.status;
     bool hasAfterPhoto = request.afterImageUrl != null;

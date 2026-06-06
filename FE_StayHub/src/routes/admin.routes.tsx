@@ -16,6 +16,8 @@ import { FacilitiesScreen } from '../features/admin/facilities/components/facili
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
 import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
 import { AdminLayout } from '../layouts/admin/AdminLayout'
+import { MaintenanceScreen } from '../features/admin/maintenance'
+import { NotificationsScreen } from '../features/admin/notifications'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -104,11 +106,11 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'maintenance',
-        element: <AdminPlaceholderScreen title="Bảo trì" description="Tiếp nhận, phân công và theo dõi tiến độ xử lý yêu cầu bảo trì." />,
+        element: <MaintenanceScreen />,
       },
       {
         path: 'notifications',
-        element: <AdminPlaceholderScreen title="Thông báo" description="Tạo và quản lý thông báo gửi tới khách thuê hoặc nhân sự vận hành." />,
+        element: <NotificationsScreen />,
       },
       {
         path: 'system-users',
