@@ -230,12 +230,9 @@ export function RoomTypesScreen() {
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-[2rem] bg-[#f4efe6] text-[#24170d] shadow-inner shadow-white/70">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(77,51,25,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(77,51,25,0.08)_1px,transparent_1px)] bg-[size:36px_36px]" />
-      <div className="pointer-events-none absolute -right-28 -top-32 h-80 w-80 rounded-full bg-[#f3c56b]/28 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-20 left-10 h-64 w-64 rounded-full bg-[#0f766e]/10 blur-3xl" />
-
-      <div className="relative space-y-5 p-4 sm:space-y-6 sm:p-6">
+    <>
+      <>
+      <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
           <div className="relative p-3 text-[#fff4df] sm:p-4">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
@@ -304,7 +301,7 @@ export function RoomTypesScreen() {
                   {!isLoading && roomTypes.map((roomType) => {
 
                     return (
-                    <tr key={roomType.id} className="group transition hover:bg-[#f3c56b]/12">
+<tr key={roomType.id} className="group transition hover:bg-[#f3c56b]/12">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#f3c56b]/35 bg-[#f3c56b]/18 text-[#a65f16] shadow-sm transition group-hover:scale-105">
@@ -330,7 +327,7 @@ export function RoomTypesScreen() {
                         </div>
                       </td>
                     </tr>
-                    )
+  )
                   })}
 
                   {!isLoading && roomTypes.length === 0 && (
@@ -395,7 +392,7 @@ export function RoomTypesScreen() {
             </aside>
           )}
         </div>
-      </div>
+      </section>
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -442,7 +439,8 @@ export function RoomTypesScreen() {
           </div>
         </div>
       )}
-    </div>
+    </>
+    </>
   )
 }
 

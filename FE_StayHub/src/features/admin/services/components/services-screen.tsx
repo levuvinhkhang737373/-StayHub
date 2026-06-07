@@ -282,13 +282,8 @@ export function ServicesScreen() {
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-[2rem] bg-[#f7f0e5] text-[#24170d] shadow-inner shadow-white/80">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(61,42,24,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(61,42,24,0.055)_1px,transparent_1px)] bg-[size:34px_34px]" />
-      <div className="pointer-events-none absolute -left-24 top-24 h-72 w-72 rounded-full bg-[#f3c56b]/25 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 -top-28 h-96 w-96 rounded-full bg-[#0f766e]/10 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-20 h-56 w-56 rounded-full bg-[#a65f16]/10 blur-3xl" />
-
-      <div className="relative space-y-5 p-4 sm:space-y-6 sm:p-6">
+    <>
+      <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
           <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
@@ -492,7 +487,7 @@ export function ServicesScreen() {
             </aside>
           )}
         </div>
-      </div>
+      </section>
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="service-detail-title">
@@ -543,7 +538,7 @@ export function ServicesScreen() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 

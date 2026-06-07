@@ -58,7 +58,7 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                   onError={(event) => { event.currentTarget.src = stayHubImage }}
                   className="h-full w-full object-cover opacity-55 grayscale-[18%]"
                 />
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:34px_34px] mix-blend-overlay" />
+
                 <div className="absolute inset-0 bg-gradient-to-t from-[#181511] via-[#181511]/55 to-transparent" />
               </div>
 

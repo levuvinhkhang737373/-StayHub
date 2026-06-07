@@ -415,13 +415,9 @@ export function TenantsScreen() {
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-[2rem] bg-[#f7f0e5] text-[#24170d] shadow-inner shadow-white/80">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(61,42,24,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(61,42,24,0.055)_1px,transparent_1px)] bg-[size:34px_34px]" />
-      <div className="pointer-events-none absolute -left-24 top-24 h-72 w-72 rounded-full bg-[#f3c56b]/25 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 -top-28 h-96 w-96 rounded-full bg-[#0f766e]/10 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-20 h-56 w-56 rounded-full bg-[#a65f16]/10 blur-3xl" />
-
-      <div className="relative space-y-5 p-4 sm:space-y-6 sm:p-6">
+    <>
+      <>
+      <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
           <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
@@ -580,13 +576,13 @@ export function TenantsScreen() {
                     const hasGap = previousPage && page - previousPage > 1
 
                     return (
-                      <div key={page} className="flex items-center gap-1.5">
+<div key={page} className="flex items-center gap-1.5">
                         {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
                         <button type="button" onClick={() => changePage(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === safeCurrentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')} aria-current={page === safeCurrentPage ? 'page' : undefined}>
                           {page}
                         </button>
                       </div>
-                    )
+  )
                   })}
                   <button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => changePage(safeCurrentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
                     <ChevronRight className="h-4 w-4" />
@@ -618,7 +614,7 @@ export function TenantsScreen() {
                 {isSuperAdmin && (
                   <div>
                     <label className={labelClass}>Tòa nhà <span className="text-rose-500">*</span></label>
-                    <AdminSelect value={form.building_id} options={buildingOptions} invalid={!!errors.building_id} onChange={(nextValue) => updateForm('building_id', nextValue)} />
+                    <AdminSelect value={form.building_id || ""} options={buildingOptions} invalid={!!errors.building_id} onChange={(nextValue) => updateForm('building_id', nextValue)} />
                     <FieldError message={errors.building_id} />
                   </div>
                 )}
@@ -699,7 +695,7 @@ export function TenantsScreen() {
             </aside>
           )}
         </div>
-      </div>
+      </section>
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="tenant-detail-title">
@@ -762,7 +758,8 @@ export function TenantsScreen() {
           </div>
         </div>
       )}
-    </div>
+    </>
+    </>
   )
 }
 

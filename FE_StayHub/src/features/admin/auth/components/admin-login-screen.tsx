@@ -20,7 +20,7 @@ export function AdminLoginScreen() {
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#f4efe6] text-[#20170f]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(180,83,9,0.16),transparent_28%),radial-gradient(circle_at_85%_18%,rgba(13,148,136,0.12),transparent_30%),linear-gradient(120deg,#fdf8ef_0%,#f4efe6_48%,#efe2cf_100%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:linear-gradient(90deg,rgba(77,51,25,0.18)_1px,transparent_1px),linear-gradient(rgba(77,51,25,0.12)_1px,transparent_1px)] [background-size:88px_88px]" />
+
       <div className="pointer-events-none absolute -left-20 top-1/4 h-[34rem] w-[34rem] rounded-full border border-[#8b5e34]/15" />
       <div className="pointer-events-none absolute -right-28 bottom-10 h-[26rem] w-[26rem] rotate-12 border border-[#0f766e]/15" />
 

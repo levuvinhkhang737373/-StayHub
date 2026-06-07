@@ -253,12 +253,8 @@ export function MaintenanceScreen() {
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-[2rem] bg-[#f4efe6] text-[#24170d] shadow-inner shadow-white/70">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(77,51,25,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(77,51,25,0.08)_1px,transparent_1px)] bg-[size:36px_36px]" />
-      <div className="pointer-events-none absolute -right-28 -top-32 h-80 w-80 rounded-full bg-[#f3c56b]/28 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-20 left-10 h-64 w-64 rounded-full bg-[#0f766e]/10 blur-3xl" />
-
-      <div className="relative space-y-5 p-4 sm:space-y-6 sm:p-6">
+    <>
+    <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         {/* Header and Summary Panel */}
         <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
           <div className="relative p-3 text-[#fff4df] sm:p-4">
@@ -446,7 +442,7 @@ export function MaintenanceScreen() {
             )}
           </div>
         </section>
-      </div>
+      </section>
 
       {/* LIGHTBOX FOR IMAGES */}
       {lightboxImage && (
@@ -720,7 +716,7 @@ export function MaintenanceScreen() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 

@@ -17,7 +17,7 @@ export function AdminDashboardScreen() {
     <section className="space-y-6 text-[#24170d]">
       <div className="relative overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/18 sm:p-6">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(243,197,107,0.26),transparent_28%),radial-gradient(circle_at_86%_22%,rgba(15,118,110,0.26),transparent_30%),linear-gradient(135deg,#24170d_0%,#3d2a18_48%,#0f3f3b_100%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(90deg,rgba(248,232,200,0.28)_1px,transparent_1px),linear-gradient(rgba(248,232,200,0.18)_1px,transparent_1px)] [background-size:72px_72px]" />
+
         <div className="relative max-w-3xl space-y-2">
           <p className="text-xs font-black uppercase tracking-[0.24em] text-[#f3c56b]">StayHub Admin</p>
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl lg:text-4xl">Tổng quan vận hành ký túc xá</h1>
