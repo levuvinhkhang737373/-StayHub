@@ -18,6 +18,7 @@ import {
     type BuildingServicePriceFormRow,
     type BuildingSettingFormRow,
 } from "../validations/building.validation";
+import { ImageViewerModal } from "../../../../shared/components/ImageViewerModal";
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
     if (!result) return [];
@@ -110,6 +111,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [quickService, setQuickService] = useState({ name: "", charge_method: 5, unit_name: "", is_required: false, is_active: true });
     const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
     const [form, setForm] = useState(createDefaultBuildingForm);
+    const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null);
 
     const isEditMode = typeof resolvedBuildingId === "number";
     const activeRegions = useMemo(() => regions.filter((region) => region.status), [regions]);
@@ -467,8 +469,8 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                         <FieldError message={errors.images} />
                         {visibleExistingImages.length > 0 && imagePreviewUrls.length > 0 && <p className="mt-2 px-1 text-xs font-bold text-gray-400">Ảnh mới sẽ được thêm sau ảnh hiện tại. Nếu muốn đặt ảnh mới làm ảnh chính, hãy xóa ảnh chính hiện tại trước.</p>}
                         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                            {visibleExistingImages.map((image) => <ImageCard key={image.id} src={image.image_url || stayHubImage} isPrimary={primaryImageId === image.id} onPrimary={() => { setPrimaryImageId(image.id); setPrimaryNewImageIndex(null); }} onRemove={() => removeExistingImage(image)} />)}
-                            {imagePreviewUrls.map((url, index) => <ImageCard key={url} src={url} isPrimary={primaryNewImageIndex === index} disabledPrimary={visibleExistingImages.length > 0} primaryLabel={primaryNewImageIndex === index ? "Chính" : "Mới"} onPrimary={() => { if (visibleExistingImages.length === 0) { setPrimaryImageId(null); setPrimaryNewImageIndex(index); } }} onRemove={() => removeNewImage(index)} removeIcon="x" />)}
+                            {visibleExistingImages.map((image) => <ImageCard key={image.id} src={image.image_url || stayHubImage} isPrimary={primaryImageId === image.id} onPrimary={() => { setPrimaryImageId(image.id); setPrimaryNewImageIndex(null); }} onRemove={() => removeExistingImage(image)} onView={() => setViewingImageSrc(image.image_url || stayHubImage)} />)}
+                            {imagePreviewUrls.map((url, index) => <ImageCard key={url} src={url} isPrimary={primaryNewImageIndex === index} disabledPrimary={visibleExistingImages.length > 0} primaryLabel={primaryNewImageIndex === index ? "Chính" : "Mới"} onPrimary={() => { if (visibleExistingImages.length === 0) { setPrimaryImageId(null); setPrimaryNewImageIndex(index); } }} onRemove={() => removeNewImage(index)} removeIcon="x" onView={() => setViewingImageSrc(url)} />)}
                             {visibleExistingImages.length === 0 && imagePreviewUrls.length === 0 && <div className="col-span-full rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center text-sm font-bold text-gray-400">Chưa có ảnh tòa nhà.</div>}
                         </div>
                     </section>
@@ -499,6 +501,12 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                     </ConfigCard>
                 </aside>
             </div>
+
+            <ImageViewerModal
+                isOpen={!!viewingImageSrc}
+                src={viewingImageSrc}
+                onClose={() => setViewingImageSrc(null)}
+            />
         </div>
     );
 }
@@ -683,6 +691,6 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
     return <div><label className={labelClass}>{label}</label><div className={`${inputClass} bg-gray-50 text-gray-500`}>{value}</div></div>;
 }
 
-function ImageCard({ src, isPrimary, onPrimary, onRemove, disabledPrimary = false, primaryLabel = "Chính", removeIcon = "trash" }: { src: string; isPrimary: boolean; onPrimary: () => void; onRemove: () => void; disabledPrimary?: boolean; primaryLabel?: string; removeIcon?: "trash" | "x" }) {
-    return <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white"><img src={src || stayHubImage} alt="Ảnh tòa nhà" onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-32 w-full object-cover" /><button type="button" onClick={onPrimary} disabled={disabledPrimary} className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70 ${isPrimary ? "bg-amber-500" : "bg-black/60"}`}><Star className="mr-1 inline h-3 w-3" /> {primaryLabel}</button><button type="button" onClick={onRemove} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-rose-600">{removeIcon === "x" ? <X className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}</button></div>;
+function ImageCard({ src, isPrimary, disabledPrimary, primaryLabel = "Chính", onPrimary, onRemove, onView, removeIcon = "trash" }: { src: string; isPrimary: boolean; disabledPrimary?: boolean; primaryLabel?: string; onPrimary: () => void; onRemove: () => void; onView?: () => void; removeIcon?: "trash" | "x" }) {
+    return <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white"><img src={src || stayHubImage} alt="Ảnh tòa nhà" onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-32 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity" onClick={onView} /><button type="button" onClick={onPrimary} disabled={disabledPrimary} className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70 ${isPrimary ? "bg-amber-500" : "bg-black/60"}`}><Star className="mr-1 inline h-3 w-3" /> {primaryLabel}</button><button type="button" onClick={onRemove} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-rose-600">{removeIcon === "x" ? <X className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}</button></div>;
 }

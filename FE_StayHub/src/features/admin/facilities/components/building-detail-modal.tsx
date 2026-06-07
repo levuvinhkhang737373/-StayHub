@@ -5,6 +5,8 @@ import { Clock, LayoutDashboard, MapPin, Phone, User, X } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
 import type { Building } from '../types/building.model'
+import { ImageViewerModal } from '../../../../shared/components/ImageViewerModal'
+import { useState } from 'react'
 
 interface BuildingDetailModalProps {
   isOpen: boolean
@@ -18,6 +20,8 @@ interface BuildingDetailModalProps {
 const stayHubImage = '/images/stayhub.png'
 
 export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onClose, building, isLoading = false, errorMessage = null, onEdit }) => {
+  const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null)
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -35,6 +39,7 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
   const genderPolicyLabel = building?.gender_policy === 2 ? 'Nam' : building?.gender_policy === 3 ? 'Nữ' : 'Hỗn hợp'
 
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="building-detail-title">
@@ -114,7 +119,7 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                   <SectionTitle label="Hình ảnh tòa nhà" />
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {images.map((imageUrl) => (
-                      <div key={imageUrl} className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+                      <div key={imageUrl} className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 cursor-pointer transition hover:opacity-90" onClick={() => setViewingImageSrc(imageUrl || stayHubImage)}>
                         <img src={imageUrl || stayHubImage} alt={building?.name || 'Ảnh tòa nhà'} onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-28 w-full object-cover" />
                       </div>
                     ))}
@@ -188,6 +193,12 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
         </div>
       )}
     </AnimatePresence>
+    <ImageViewerModal
+      isOpen={!!viewingImageSrc}
+      src={viewingImageSrc}
+      onClose={() => setViewingImageSrc(null)}
+    />
+    </>
   )
 }
 

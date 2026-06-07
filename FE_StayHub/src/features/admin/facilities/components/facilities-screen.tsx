@@ -9,6 +9,7 @@ import type { Building, BuildingStatus } from "../types/building.model";
 import { cn } from "../../../../shared/lib/utils/cn";
 import { AdminSelect } from "../../shared/components/AdminSelect";
 import { mapBuildingResourceToBuilding } from "../lib/data-utils";
+import { ImageViewerModal } from "../../../../shared/components/ImageViewerModal";
 
 type BuildingStatusFilter = "all" | BuildingStatus;
 
@@ -64,6 +65,7 @@ export function FacilitiesScreen() {
     const [statusChangingId, setStatusChangingId] = useState<number | null>(null);
     const [perPage, setPerPage] = useState(10);
     const [isLoading, setIsLoading] = useState(true);
+    const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null);
     const navigate = useNavigate();
     const { session } = useAdminSession();
     const isSuperAdmin = isSuperAdminRole(session?.admin.role);
@@ -457,7 +459,10 @@ export function FacilitiesScreen() {
                                         <tr key={building.id} className="group group/building transition hover:bg-[#f3c56b]/12">
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2.5">
-                                                    <div className="flex h-10 w-10 overflow-hidden rounded-xl border border-[#f3c56b]/35 bg-[#fffaf1] text-[#a65f16] shadow-sm transition group-hover:scale-105">
+                                                    <div 
+                                                        className="flex h-10 w-10 overflow-hidden rounded-xl border border-[#f3c56b]/35 bg-[#fffaf1] text-[#a65f16] shadow-sm transition group-hover:scale-105 cursor-pointer"
+                                                        onClick={() => setViewingImageSrc(building.primary_image?.image_url || stayHubImage)}
+                                                    >
                                                         <img src={building.primary_image?.image_url || stayHubImage} alt={building.name} onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-full w-full object-cover" />
                                                     </div>
                                                     <div className="min-w-0">
@@ -543,6 +548,12 @@ export function FacilitiesScreen() {
                     isLoading={isDetailLoading}
                     errorMessage={detailErrorMessage}
                     onEdit={editViewedBuilding}
+                />
+
+                <ImageViewerModal
+                    isOpen={!!viewingImageSrc}
+                    src={viewingImageSrc}
+                    onClose={() => setViewingImageSrc(null)}
                 />
             </div>
         </div>
