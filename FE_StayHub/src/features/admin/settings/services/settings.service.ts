@@ -51,6 +51,13 @@ export async function updateAdminSetting(settingId: number, payload: AdminSettin
   })
 }
 
+export async function updateAdminSettingPublic(settingId: number) {
+  return apiRequest<AdminSettingResource>({
+    url: `admin/settings/${settingId}/toggle-public`,
+    method: 'PATCH',
+  })
+}
+
 export async function deleteAdminSetting(settingId: number) {
   return apiRequest<null>({
     url: `admin/settings/${settingId}`,

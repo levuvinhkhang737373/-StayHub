@@ -76,7 +76,6 @@ export function mapBuildingDetailToForm(
             id: item.id,
             source_id: item.id,
             setting_label: item.setting_label || "",
-            setting_name: item.setting_name || "",
             setting_value: item.setting_value || "",
             description: item.description || "",
             is_public: Boolean(item.is_public),
@@ -133,7 +132,6 @@ export function buildBuildingPayload({
         settings: form.settings.filter((item) => !item.source_id || item.id).map((item) => ({
             id: item.id,
             setting_label: item.setting_label.trim(),
-            setting_name: item.setting_name.trim(),
             setting_value: item.setting_value.trim() || undefined,
             description: item.description.trim() || undefined,
             is_public: item.is_public,

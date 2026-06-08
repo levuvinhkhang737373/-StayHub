@@ -109,7 +109,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [regionKeyword, setRegionKeyword] = useState("");
     const [expandedRegionIds, setExpandedRegionIds] = useState<number[]>([]);
     const [quickService, setQuickService] = useState({ name: "", charge_method: 5, unit_name: "", is_required: false, is_active: true });
-    const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+    const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_value: "", description: "", is_public: true });
     const [form, setForm] = useState(createDefaultBuildingForm);
     const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null);
 
@@ -266,7 +266,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
 
     const addRow = (key: ConfigKey, row?: BuildingServicePriceFormRow | BuildingSettingFormRow) => {
         const nextRow = row || (key === "service_prices" ? { service_id: "", price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 }
-            : { setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+            : { setting_label: "", setting_value: "", description: "", is_public: true });
 
         setForm((current) => ({ ...current, [key]: [...(current[key] as unknown[]), nextRow] } as typeof current));
         setErrors((current) => ({ ...current, [key]: undefined }));
@@ -294,7 +294,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const settingOptions = useMemo(() => mergeSettingOptions(settingCatalog, form.settings), [form.settings, settingCatalog]);
 
     const findServicePriceIndex = (service: AdminServiceResource) => form.service_prices.findIndex((row) => Number(row.service_id) === service.id);
-    const findSettingIndex = (item: AdminSettingResource) => form.settings.findIndex((row) => row.source_id === item.id || row.id === item.id || row.setting_name.trim().toLowerCase() === item.setting_name.trim().toLowerCase());
+    const findSettingIndex = (item: AdminSettingResource) => form.settings.findIndex((row) => row.source_id === item.id || row.id === item.id || row.setting_label.trim().toLowerCase() === item.setting_label.trim().toLowerCase());
 
 
 
@@ -314,7 +314,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             removeRow("settings", index);
             return;
         }
-        addRow("settings", { source_id: item.id, setting_label: item.setting_label, setting_name: item.setting_name, setting_value: item.setting_value || "", description: item.description || "", is_public: Boolean(item.is_public) });
+        addRow("settings", { source_id: item.id, setting_label: item.setting_label, setting_value: item.setting_value || "", description: item.description || "", is_public: Boolean(item.is_public) });
     };
 
 
@@ -344,21 +344,20 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     };
 
     const createQuickSetting = async () => {
-        if (!quickSetting.setting_label.trim() || !quickSetting.setting_name.trim() || isCreatingSetting) return;
+        if (!quickSetting.setting_label.trim() || isCreatingSetting) return;
 
         try {
             setIsCreatingSetting(true);
             const response = await createAdminSetting({
                 setting_label: quickSetting.setting_label.trim(),
-                setting_name: quickSetting.setting_name.trim(),
                 setting_value: quickSetting.setting_value.trim() || undefined,
                 description: quickSetting.description.trim() || undefined,
                 is_public: quickSetting.is_public,
             });
             const setting = response.result;
             setSettingCatalog((current) => [setting, ...current.filter((item) => item.id !== setting.id)]);
-            addRow("settings", { source_id: setting.id, setting_label: setting.setting_label, setting_name: setting.setting_name, setting_value: setting.setting_value || "", description: setting.description || "", is_public: Boolean(setting.is_public) });
-            setQuickSetting({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+            addRow("settings", { source_id: setting.id, setting_label: setting.setting_label, setting_value: setting.setting_value || "", description: setting.description || "", is_public: Boolean(setting.is_public) });
+            setQuickSetting({ setting_label: "", setting_value: "", description: "", is_public: true });
             setOpenCreateForms((current) => ({ ...current, settings: false }));
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh cài đặt.");
@@ -496,8 +495,8 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                         <SelectionBlock title="Chọn cài đặt có sẵn" emptyText="Chưa có cài đặt dùng chung.">
                             {settingOptions.map((item) => <CheckboxOption key={item.id} checked={findSettingIndex(item) >= 0} title={item.setting_label} onChange={() => toggleSetting(item)} />)}
                         </SelectionBlock>
-                        {openCreateForms.settings && <QuickPanel actionLabel={isCreatingSetting ? "Đang tạo" : "Tạo cài đặt"} disabled={isCreatingSetting || !quickSetting.setting_label.trim() || !quickSetting.setting_name.trim()} onAction={createQuickSetting}><TextField label="Tên hiển thị" value={quickSetting.setting_label} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_label: value }))} /><TextField label="Khóa" value={quickSetting.setting_name} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_name: value }))} /><TextField label="Giá trị" value={quickSetting.setting_value} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_value: value }))} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={quickSetting.is_public} onChange={(event) => setQuickSetting((current) => ({ ...current, is_public: event.target.checked }))} /> Công khai</label></QuickPanel>}
-                        {form.settings.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-setting-${item.source_id}`} title={item.setting_label} description={`${item.setting_name} `} onRemove={() => removeRow("settings", index)} /> : <RowShell key={item.id || `setting-${index}`} title={item.setting_label || `Cài đặt ${index + 1}`} onRemove={() => removeRow("settings", index)}><TextField label="Tên hiển thị" value={item.setting_label} onChange={(value) => updateRow("settings", index, "setting_label", value)} /><TextField label="Khóa" value={item.setting_name} onChange={(value) => updateRow("settings", index, "setting_name", value)} /><TextField label="Giá trị" value={item.setting_value} onChange={(value) => updateRow("settings", index, "setting_value", value)} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={item.is_public} onChange={(event) => updateRow("settings", index, "is_public", event.target.checked)} /> Công khai</label></RowShell>)}
+                        {openCreateForms.settings && <QuickPanel actionLabel={isCreatingSetting ? "Đang tạo" : "Tạo cài đặt"} disabled={isCreatingSetting || !quickSetting.setting_label.trim()} onAction={createQuickSetting}><TextField label="Tên hiển thị" value={quickSetting.setting_label} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_label: value }))} /><TextField label="Giá trị" value={quickSetting.setting_value} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_value: value }))} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={quickSetting.is_public} onChange={(event) => setQuickSetting((current) => ({ ...current, is_public: event.target.checked }))} /> Công khai</label></QuickPanel>}
+                        {form.settings.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-setting-${item.source_id}`} title={item.setting_label} onRemove={() => removeRow("settings", index)} /> : <RowShell key={item.id || `setting-${index}`} title={item.setting_label || `Cài đặt ${index + 1}`} onRemove={() => removeRow("settings", index)}><TextField label="Tên hiển thị" value={item.setting_label} onChange={(value) => updateRow("settings", index, "setting_label", value)} /><TextField label="Giá trị" value={item.setting_value} onChange={(value) => updateRow("settings", index, "setting_value", value)} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={item.is_public} onChange={(event) => updateRow("settings", index, "is_public", event.target.checked)} /> Công khai</label></RowShell>)}
                     </ConfigCard>
                 </aside>
             </div>
@@ -647,7 +646,6 @@ function mergeSettingOptions(catalog: AdminSettingResource[], selectedRows: Buil
         .map((row) => ({
             id: row.source_id!,
             setting_label: row.setting_label,
-            setting_name: row.setting_name,
             setting_value: row.setting_value,
             description: row.description,
             is_public: row.is_public,
@@ -675,8 +673,8 @@ function QuickPanel({ children, actionLabel, disabled, onAction }: { children: R
     return <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4"><div className="space-y-3">{children}</div><button type="button" onClick={onAction} disabled={disabled} className="mt-3 w-full rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-blue-700 disabled:opacity-50">{actionLabel}</button></div>;
 }
 
-function SelectedTemplateRow({ title, description, onRemove }: { title: string; description: string; onRemove: () => void }) {
-    return <div className="flex items-center justify-between gap-3 rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4"><div className="min-w-0"><p className="truncate text-xs font-black text-gray-900">{title}</p><p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700">{description}</p></div><button type="button" onClick={onRemove} className="rounded-full p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button></div>;
+function SelectedTemplateRow({ title, description, onRemove }: { title: string; description?: string; onRemove: () => void }) {
+    return <div className="flex items-center justify-between gap-3 rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4"><div className="min-w-0"><p className="truncate text-xs font-black text-gray-900">{title}</p>{description && <p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700">{description}</p>}</div><button type="button" onClick={onRemove} className="rounded-full p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button></div>;
 }
 
 function RowShell({ title, children, onRemove, disabledRemove = false }: { title: string; children: ReactNode; onRemove: () => void; disabledRemove?: boolean }) {

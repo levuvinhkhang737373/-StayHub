@@ -62,6 +62,7 @@ Route::prefix('admin')->group(function (): void {
         Route::apiResource('expense-categories', ExpenseCategoryController::class);
 
         //=========================Settings================================
+        Route::patch('settings/{setting}/toggle-public', [SettingController::class, 'togglePublic']);
         Route::apiResource('settings', SettingController::class);
 
         //=========================Admin Accounts================================

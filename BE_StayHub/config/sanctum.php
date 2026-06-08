@@ -17,7 +17,6 @@ return [
             Sanctum::currentApplicationUrlWithPort()
         ));
         
-        // Dynamically include request origin/referer to support dynamic development ports (e.g. Flutter Web, Emulators)
         if (isset($_SERVER['HTTP_ORIGIN'])) {
             $originHost = parse_url($_SERVER['HTTP_ORIGIN'], PHP_URL_HOST);
             $originPort = parse_url($_SERVER['HTTP_ORIGIN'], PHP_URL_PORT);

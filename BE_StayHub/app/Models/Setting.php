@@ -18,7 +18,7 @@ class Setting extends Model
         self::PRIVATE => 'Không được xem',
     ];
 
-    protected $fillable = ['building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public', 'created_by'];
+    protected $fillable = ['building_id', 'setting_label', 'setting_value', 'description', 'is_public', 'created_by'];
 
     protected function casts(): array
     {

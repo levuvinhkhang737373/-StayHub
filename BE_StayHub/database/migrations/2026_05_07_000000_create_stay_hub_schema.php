@@ -514,7 +514,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('building_id')->nullable()->constrained('buildings')->cascadeOnDelete();
             $table->string('setting_label', 150);
-            $table->string('setting_name')->nullable();
             $table->string('setting_value', 500)->nullable();
             $table->string('description', 500)->nullable();
             $table->boolean('is_public')->default(true);

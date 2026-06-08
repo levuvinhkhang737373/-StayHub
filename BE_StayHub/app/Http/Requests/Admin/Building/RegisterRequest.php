@@ -65,7 +65,6 @@ class RegisterRequest extends FormRequest
             'setting_ids.*' => ['required', 'integer', 'distinct', Rule::exists('settings', 'id')->whereNull('building_id')],
             'settings' => ['nullable', 'array', 'max:100'],
             'settings.*.setting_label' => ['required_with:settings', 'string', 'max:150'],
-            'settings.*.setting_name' => ['required_with:settings', 'string', 'max:255', 'regex:/^[A-Za-z0-9_.-]+$/'],
             'settings.*.setting_value' => ['nullable', 'string', 'max:500'],
             'settings.*.description' => ['nullable', 'string', 'max:500'],
             'settings.*.is_public' => ['nullable', 'boolean'],
@@ -79,9 +78,7 @@ class RegisterRequest extends FormRequest
                 $validator->errors()->add("room_types.{$index}.name", 'Tên loại phòng không được trùng trong cùng tòa nhà.');
             }
 
-            foreach ($this->duplicateIndexes('settings', 'setting_name') as $index) {
-                $validator->errors()->add("settings.{$index}.setting_name", 'Khóa cài đặt không được trùng trong cùng tòa nhà.');
-            }
+
 
             foreach ($this->servicePriceRows() as $index => $servicePrice) {
                 if (! is_array($servicePrice)) {
@@ -188,10 +185,6 @@ class RegisterRequest extends FormRequest
             'settings.*.setting_label.required_with' => 'Tên hiển thị cài đặt là bắt buộc.',
             'settings.*.setting_label.string' => 'Tên hiển thị cài đặt phải là chuỗi ký tự.',
             'settings.*.setting_label.max' => 'Tên hiển thị cài đặt không được vượt quá 150 ký tự.',
-            'settings.*.setting_name.required_with' => 'Khóa cài đặt là bắt buộc.',
-            'settings.*.setting_name.string' => 'Khóa cài đặt phải là chuỗi ký tự.',
-            'settings.*.setting_name.max' => 'Khóa cài đặt không được vượt quá 255 ký tự.',
-            'settings.*.setting_name.regex' => 'Khóa cài đặt chỉ được chứa chữ, số, dấu gạch dưới, gạch ngang hoặc dấu chấm.',
             'settings.*.setting_value.string' => 'Giá trị cài đặt phải là chuỗi ký tự.',
             'settings.*.setting_value.max' => 'Giá trị cài đặt không được vượt quá 500 ký tự.',
             'settings.*.description.string' => 'Mô tả cài đặt phải là chuỗi ký tự.',

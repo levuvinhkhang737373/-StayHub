@@ -153,7 +153,7 @@ return [
             ],
             \App\Models\Tenant::class => [
                 'searchableAttributes' => ['full_name', 'username', 'phone', 'email', 'identity_number', 'permanent_address', 'current_address'],
-                'filterableAttributes' => ['id', 'created_by', 'gender', 'status', 'identity_type'],
+                'filterableAttributes' => ['id', 'created_by', 'building_id', 'gender', 'status', 'identity_type'],
                 'sortableAttributes' => ['created_at', 'updated_at', 'id'],
                 'rankingRules' => ['exactness', 'words', 'typo', 'proximity', 'attribute', 'sort'],
             ],

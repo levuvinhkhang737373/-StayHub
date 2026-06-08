@@ -25,7 +25,6 @@ class SettingDetailResource extends JsonResource
                 'status' => $this->building?->status,
             ]),
             'setting_label' => $this->setting_label,
-            'setting_name' => $this->setting_name,
             'setting_value' => $this->setting_value,
             'description' => $this->description,
             'is_public' => $isPublic,

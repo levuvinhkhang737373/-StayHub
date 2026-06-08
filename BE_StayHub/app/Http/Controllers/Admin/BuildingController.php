@@ -287,7 +287,6 @@ class BuildingController extends Controller
                 ->filter(fn ($setting): bool => is_array($setting))
                 ->map(fn (array $setting): array => [
                     'id' => isset($setting['id']) ? (int) $setting['id'] : null,
-                    'setting_name' => trim((string) ($setting['setting_name'] ?? '')),
                 ])
                 ->values()
                 ->all(),
@@ -378,55 +377,7 @@ class BuildingController extends Controller
 
     private static function preflightSettings(array $payload, ?int $buildingId): ?array
     {
-        $deleteIds = $payload['delete_setting_ids'] ?? [];
-        $selectedNames = Setting::query()
-            ->whereIn('id', $payload['setting_ids'] ?? [])
-            ->whereNull('building_id')
-            ->pluck('setting_name')
-            ->map(fn ($settingName): string => self::normalizedPreflightName($settingName))
-            ->filter()
-            ->values();
-
-        $existingSettings = $buildingId
-            ? Setting::query()
-                ->where('building_id', $buildingId)
-                ->when($deleteIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $deleteIds))
-                ->get(['id', 'setting_name'])
-            : collect();
-
-        if (self::hasDuplicatedPreflightNames($selectedNames->all()) || $existingSettings->contains(fn (Setting $setting): bool => $selectedNames->contains(self::normalizedPreflightName($setting->setting_name)))) {
-            return self::preflightError('Khóa cài đặt đã tồn tại trong tòa nhà này');
-        }
-
-        $inlineSettings = collect($payload['settings'] ?? [])
-            ->reject(fn (array $setting): bool => $setting['id'] && in_array((int) $setting['id'], $deleteIds, true))
-            ->map(fn (array $setting): array => [
-                'id' => $setting['id'] ? (int) $setting['id'] : null,
-                'setting_name' => self::normalizedPreflightName($setting['setting_name']),
-            ])
-            ->filter(fn (array $setting): bool => $setting['setting_name'] !== '')
-            ->values();
-
-        if ($inlineSettings->contains(fn (array $setting): bool => $selectedNames->contains($setting['setting_name']) || $existingSettings->contains(fn (Setting $existingSetting): bool => (int) $existingSetting->id !== $setting['id'] && self::normalizedPreflightName($existingSetting->setting_name) === $setting['setting_name']))) {
-            return self::preflightError('Khóa cài đặt đã tồn tại trong tòa nhà này');
-        }
-
         return null;
-    }
-
-    private static function normalizedPreflightName(mixed $value): string
-    {
-        return mb_strtolower(trim((string) $value));
-    }
-
-    private static function hasDuplicatedPreflightNames(array $names): bool
-    {
-        $normalizedNames = collect($names)
-            ->map(fn ($name): string => self::normalizedPreflightName($name))
-            ->filter()
-            ->values();
-
-        return $normalizedNames->count() !== $normalizedNames->unique()->count();
     }
 
     private static function preflightError(string $message, int $statusCode = 422): array
@@ -669,14 +620,9 @@ class BuildingController extends Controller
         }
 
         foreach (Setting::query()->whereIn('id', $this->ids($validated['setting_ids'] ?? []))->lockForUpdate()->get() as $setting) {
-            if ($this->settingNameExists($building, $setting->setting_name)) {
-                return ApiResponse::responseJson(false, 'Khóa cài đặt đã tồn tại trong tòa nhà này', 422, null, 422);
-            }
-
             Setting::query()->create([
                 'building_id' => $building->id,
                 'setting_label' => $setting->setting_label,
-                'setting_name' => $setting->setting_name,
                 'setting_value' => $setting->setting_value,
                 'description' => $setting->description,
                 'is_public' => $setting->is_public,
@@ -691,15 +637,8 @@ class BuildingController extends Controller
                 continue;
             }
 
-            $settingName = trim((string) $settingData['setting_name']);
-
-            if ($this->settingNameExists($building, $settingName, $settingId)) {
-                return ApiResponse::responseJson(false, 'Khóa cài đặt đã tồn tại trong tòa nhà này', 422, null, 422);
-            }
-
             $payload = [
                 'setting_label' => trim((string) $settingData['setting_label']),
-                'setting_name' => $settingName,
                 'setting_value' => $settingData['setting_value'] ?? null,
                 'description' => $settingData['description'] ?? null,
                 'is_public' => $settingData['is_public'] ?? Setting::PUBLIC,
@@ -798,13 +737,7 @@ class BuildingController extends Controller
         return $integer.'.'.$decimal;
     }
 
-    private function settingNameExists(Building $building, string $settingName, ?int $ignoreId = null): bool
-    {
-        return $building->settings()
-            ->where('setting_name', $settingName)
-            ->when($ignoreId !== null, fn (Builder $query): Builder => $query->whereKeyNot($ignoreId))
-            ->exists();
-    }
+
 
     private function columns(): array
     {
@@ -830,7 +763,7 @@ class BuildingController extends Controller
             'images:id,building_id,image_path,is_primary,sort_order,status,uploaded_by,created_at,updated_at',
             'images.uploader:id,full_name',
             'servicePrices' => fn ($query) => $query->select('id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status', 'created_at', 'updated_at')->with('service:id,name,slug,charge_method,unit_name,is_required,is_active,created_by,created_at,updated_at')->orderByDesc('effective_from')->orderByDesc('id'),
-            'settings' => fn ($query) => $query->select('id', 'building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at')->orderBy('setting_name'),
+            'settings' => fn ($query) => $query->select('id', 'building_id', 'setting_label', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at')->orderBy('setting_label'),
             'settings.creator:id,full_name',
             'rooms:id,building_id,room_number,status',
         ];

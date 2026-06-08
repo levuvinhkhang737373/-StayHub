@@ -16,7 +16,6 @@ export type BuildingSettingFormRow = {
     id?: number;
     source_id?: number;
     setting_label: string;
-    setting_name: string;
     setting_value: string;
     description: string;
     is_public: boolean;
@@ -129,17 +128,13 @@ export function validateBuildingForm(
     if (form.settings.length > 100) {
         errors.settings = "Mỗi lần chỉ được gửi tối đa 100 cài đặt.";
     } else {
-        const settingNames = new Set<string>();
         const invalidSetting = form.settings.find((item) => {
-            const settingName = item.setting_name.trim().toLowerCase();
-            if (!item.setting_label.trim() || !settingName || !/^[A-Za-z0-9_.-]+$/.test(item.setting_name.trim())) return true;
-            if (settingNames.has(settingName)) return true;
-            settingNames.add(settingName);
+            if (!item.setting_label.trim()) return true;
             return false;
         });
 
         if (invalidSetting) {
-            errors.settings = "Cài đặt cần có tên hiển thị, khóa hợp lệ và không trùng.";
+            errors.settings = "Cài đặt cần có tên hiển thị.";
         }
     }
 

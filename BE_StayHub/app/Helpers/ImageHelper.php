@@ -72,7 +72,7 @@ class ImageHelper
      */
     public static function storeOnDisk(UploadedFile $image, string $folder, string $disk = 's3'): string
     {
-        if (config('filesystems.default') === 'local' || $disk === 'local') {
+        if ($disk === 'local') {
             return self::create($image, $folder);
         }
 
@@ -121,7 +121,7 @@ class ImageHelper
             return $path;
         }
 
-        if (config('filesystems.default') === 'local' || $disk === 'local' || self::isLocalUploadPath($path)) {
+        if ($disk === 'local' || self::isLocalUploadPath($path)) {
             return self::load($path);
         }
 
@@ -141,7 +141,7 @@ class ImageHelper
             return $path;
         }
 
-        if (config('filesystems.default') === 'local' || $disk === 'local' || self::isLocalUploadPath($path)) {
+        if ($disk === 'local' || self::isLocalUploadPath($path)) {
             return self::load($path);
         }
 

@@ -17,7 +17,6 @@ class SettingResource extends JsonResource
             'building_id' => $this->building_id,
             'building_name' => $this->whenLoaded('building', fn (): ?string => $this->building?->name),
             'setting_label' => $this->setting_label,
-            'setting_name' => $this->setting_name,
             'setting_value' => $this->setting_value,
             'description' => $this->description,
             'is_public' => $isPublic,

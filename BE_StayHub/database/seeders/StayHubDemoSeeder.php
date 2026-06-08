@@ -906,18 +906,17 @@ class StayHubDemoSeeder extends Seeder
     private function seedSettings(array $admins, array $buildings): void
     {
         $rows = [
-            [null, 'Số hotline hỗ trợ', 'support_hotline', '1900 6868', 'Hotline hiển thị cho khách thuê.', true],
-            [null, 'Email hỗ trợ', 'support_email', 'support@stayhub.local', 'Email tiếp nhận hỗ trợ.', true],
-            [$buildings['sg_central'], 'Giờ yên tĩnh', 'quiet_hours', '22:00 - 06:00', 'Khung giờ hạn chế tiếng ồn.', true],
-            [$buildings['td_garden'], 'Ngày thu tiền phòng', 'billing_day', '05', 'Ngày chốt thanh toán hàng tháng.', true],
+            [null, 'Số hotline hỗ trợ', '1900 6868', 'Hotline hiển thị cho khách thuê.', true],
+            [null, 'Email hỗ trợ', 'support@stayhub.local', 'Email tiếp nhận hỗ trợ.', true],
+            [$buildings['sg_central'], 'Giờ yên tĩnh', '22:00 - 06:00', 'Khung giờ hạn chế tiếng ồn.', true],
+            [$buildings['td_garden'], 'Ngày thu tiền phòng', '05', 'Ngày chốt thanh toán hàng tháng.', true],
         ];
 
         foreach ($rows as $row) {
-            $this->updateOrInsert('settings', ['building_id' => $row[0], 'setting_name' => $row[2]], [
-                'setting_label' => $row[1],
-                'setting_value' => $row[3],
-                'description' => $row[4],
-                'is_public' => $row[5] ? Setting::PUBLIC : Setting::PRIVATE,
+            $this->updateOrInsert('settings', ['building_id' => $row[0], 'setting_label' => $row[1]], [
+                'setting_value' => $row[2],
+                'description' => $row[3],
+                'is_public' => $row[4] ? Setting::PUBLIC : Setting::PRIVATE,
                 'created_by' => $admins['super'],
                 ...$this->timestamps(),
             ]);
@@ -1487,10 +1486,9 @@ class StayHubDemoSeeder extends Seeder
     private function seedExpandedSettings(array $admins, array $buildings): void
     {
         foreach ($buildings as $buildingId) {
-            foreach ([['Giờ yên tĩnh', 'quiet_hours', '22:00 - 06:00'], ['Quy định khách ra vào', 'guest_policy', 'Đăng ký với quản lý trước 22:00']] as $index => $setting) {
-                $this->updateOrInsert('settings', ['building_id' => $buildingId, 'setting_name' => $setting[1]], [
-                    'setting_label' => $setting[0],
-                    'setting_value' => $setting[2],
+            foreach ([['Giờ yên tĩnh', '22:00 - 06:00'], ['Quy định khách ra vào', 'Đăng ký với quản lý trước 22:00']] as $index => $setting) {
+                $this->updateOrInsert('settings', ['building_id' => $buildingId, 'setting_label' => $setting[0]], [
+                    'setting_value' => $setting[1],
                     'description' => 'Cấu hình riêng cho tòa mở rộng.',
                     'is_public' => Setting::PUBLIC,
                     'created_by' => $admins['super'],

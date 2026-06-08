@@ -90,14 +90,14 @@ export function FacilitiesScreen() {
         const nextRegionKeyword = regionKeyword.trim();
         const [regionsResult, buildingsResult] = await Promise.allSettled([
             fetchAdminRegions({ keyword: nextRegionKeyword || undefined, per_page: 100 }),
-            fetchAdminBuildings({ keyword: keyword.trim() || undefined, status: selectedStatus === "all" ? undefined : selectedStatus === "active" ? 1 : selectedStatus === "inactive" ? 2 : 3, per_page: 100 }),
+            fetchAdminBuildings({ keyword: keyword.trim() || undefined, per_page: 100 }),
         ]);
 
         setRegions(regionsResult.status === "fulfilled" ? getResourceList(regionsResult.value.result) : []);
         setBuildings(buildingsResult.status === "fulfilled" ? getResourceList(buildingsResult.value.result).map(mapBuildingResourceToBuilding) : []);
 
         setIsLoading(false);
-    }, [isSuperAdmin, keyword, regionKeyword, selectedStatus]);
+    }, [isSuperAdmin, keyword, regionKeyword]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -332,230 +332,229 @@ export function FacilitiesScreen() {
     }
 
     return (
-    <>
-      <>
-      <section className="space-y-5 sm:space-y-6 text-[#24170d]">
-                <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-                    <div className="relative p-4 text-[#fff4df] sm:p-5">
-                        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
-                        <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                            <div className="min-w-0">
-                                <div className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
-                                    <span>StayHub</span>
+        <>
+            <>
+                <section className="space-y-5 sm:space-y-6 text-[#24170d]">
+                    <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
+                        <div className="relative p-4 text-[#fff4df] sm:p-5">
+                            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
+                            <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                                <div className="min-w-0">
+                                    <div className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
+                                        <span>StayHub</span>
+                                    </div>
+                                    <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-3xl lg:text-4xl">Khu vực và tòa nhà</h1>
                                 </div>
-                                <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-3xl lg:text-4xl">Khu vực và tòa nhà</h1>
-                            </div>
-                            <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end xl:w-auto">
-                                {isSuperAdmin && (
-                                    <Link to="/admin/facilities/regions/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 px-4 text-sm font-black text-[#fff4df] shadow-xl shadow-black/20 transition-all hover:bg-[#f8e8c8]/15 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98] sm:w-auto xl:min-w-40">
-                                        <Plus className="h-4 w-4 shrink-0 text-[#f3c56b] stroke-[2.8]" />
-                                        <span>Thêm khu vực</span>
+                                <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end xl:w-auto">
+                                    {isSuperAdmin && (
+                                        <Link to="/admin/facilities/regions/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 px-4 text-sm font-black text-[#fff4df] shadow-xl shadow-black/20 transition-all hover:bg-[#f8e8c8]/15 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98] sm:w-auto xl:min-w-40">
+                                            <Plus className="h-4 w-4 shrink-0 text-[#f3c56b] stroke-[2.8]" />
+                                            <span>Thêm khu vực</span>
+                                        </Link>
+                                    )}
+                                    <Link to="/admin/facilities/buildings/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:w-auto xl:min-w-40">
+                                        <Building2 className="h-4 w-4 shrink-0 stroke-[2.8]" />
+                                        <span>Thêm tòa nhà</span>
                                     </Link>
-                                )}
-                                <Link to="/admin/facilities/buildings/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:w-auto xl:min-w-40">
-                                    <Building2 className="h-4 w-4 shrink-0 stroke-[2.8]" />
-                                    <span>Thêm tòa nhà</span>
-                                </Link>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="relative mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-                            <MetricCard label="Tổng tòa nhà" value={buildings.length} tone="neutral" />
-                            <MetricCard label="Đang hoạt động" value={countByStatus(buildings, "active")} tone="emerald" />
-                            <MetricCard label="Đang bảo trì" value={countByStatus(buildings, "maintenance")} tone="amber" />
-                            <MetricCard label="Khu vực" value={activeRegions.length} tone="stone" />
+                            <div className="relative mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+                                <MetricCard label="Tổng tòa nhà" value={buildings.length} tone="neutral" />
+                                <MetricCard label="Đang hoạt động" value={countByStatus(buildings, "active")} tone="emerald" />
+                                <MetricCard label="Ngừng hoạt động" value={countByStatus(buildings, "inactive")} tone="amber" />
+                                <MetricCard label="Khu vực" value={activeRegions.length} tone="stone" />
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6 2xl:grid-cols-[330px_minmax(0,1fr)]">
-                    <aside className="min-w-0 space-y-4">
-                        <Panel title="Khu vực" subtitle="" icon={<MapPin className="h-5 w-5" />}>
-                            <div className="relative mb-3">
-                                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-                                <input
-                                    type="text"
-                                    value={regionKeyword}
-                                    onChange={(event) => setRegionKeyword(event.target.value)}
-                                    placeholder="Tìm mã, tên, đường dẫn khu vực..."
-                                    className="h-11 w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] pl-10 pr-3 text-sm font-bold text-[#3d2a18] shadow-sm outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
-                                />
-                            </div>
-                            <div className="max-h-[540px] space-y-1 overflow-y-auto pr-1">{rootRegions.map((region) => renderRegionNode(region))}</div>
-                        </Panel>
-                    </aside>
-
-                    <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
-                        <div className="border-b border-[#3d2a18]/10 bg-[#fff7e8]/72 p-4 sm:p-5">
-                            <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                                <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-2xl bg-[#efe2cf]/55 p-1.5">
-                                    {([
-                                        ["all", "Tất cả"],
-                                        ["active", "Hoạt động"],
-                                        ["maintenance", "Bảo trì"],
-                                        ["inactive", "Ngừng hoạt động"],
-                                    ] as [BuildingStatusFilter, string][]).map(([value, label]) => (
-                                        <button
-                                            key={value}
-                                            type="button"
-                                            onClick={() => setSelectedStatus(value)}
-                                            className={cn(
-                                                "rounded-xl px-3.5 py-2 text-sm font-black transition-all",
-                                                selectedStatus === value ? "bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" : "text-[#6f6254] hover:bg-[#fffaf1] hover:text-[#24170d]",
-                                            )}
-                                        >
-                                            {label} <span className="ml-1 opacity-70">({countByStatus(buildings, value)})</span>
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="relative w-full xl:w-80 2xl:w-[380px]">
-                                    <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
+                    <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6 2xl:grid-cols-[330px_minmax(0,1fr)]">
+                        <aside className="min-w-0 space-y-4">
+                            <Panel title="Khu vực" subtitle="" icon={<MapPin className="h-5 w-5" />}>
+                                <div className="relative mb-3">
+                                    <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
                                     <input
                                         type="text"
-                                        value={keyword}
-                                        onChange={(event) => setKeyword(event.target.value)}
-                                        placeholder="Tìm tên, địa chỉ, quản lý..."
-                                        className="h-12 w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] pl-11 pr-4 text-sm font-bold text-[#3d2a18] shadow-sm outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                                        value={regionKeyword}
+                                        onChange={(event) => setRegionKeyword(event.target.value)}
+                                        placeholder="Tìm mã, tên, đường dẫn khu vực..."
+                                        className="h-11 w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] pl-10 pr-3 text-sm font-bold text-[#3d2a18] shadow-sm outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
                                     />
                                 </div>
-                            </div>
+                                <div className="max-h-[540px] space-y-1 overflow-y-auto pr-1">{rootRegions.map((region) => renderRegionNode(region))}</div>
+                            </Panel>
+                        </aside>
 
-                            {(selectedRegionId || selectedStatus !== "all" || keyword || regionKeyword) && (
-                                <div className="mt-4 flex flex-wrap items-center gap-2">
-                                    <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/65">Bộ lọc</span>
-                                    {activeRegionName && <FilterPill label={`Khu vực: ${activeRegionName}`} onClear={() => setSelectedRegionId(null)} />}
-                                    {regionKeyword && <FilterPill label={`Tìm khu vực: ${regionKeyword}`} onClear={() => setRegionKeyword("")} />}
-                                    {selectedStatus !== "all" && <FilterPill label={`Trạng thái: ${statusLabels[selectedStatus]}`} onClear={() => setSelectedStatus("all")} />}
-                                    {keyword && <FilterPill label={`Từ khóa: ${keyword}`} onClear={() => setKeyword("")} />}
-                                    <button type="button" onClick={clearFilters} className="text-xs font-black text-[#8b5e34]/65 underline underline-offset-4 transition hover:text-[#24170d]">Xóa tất cả</button>
-                                </div>
-                            )}
-                        </div>
+                        <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
+                            <div className="border-b border-[#3d2a18]/10 bg-[#fff7e8]/72 p-4 sm:p-5">
+                                <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                                    <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-2xl bg-[#efe2cf]/55 p-1.5">
+                                        {([
+                                            ["all", "Tất cả"],
+                                            ["active", "Hoạt động"],
+                                            ["inactive", "Ngừng hoạt động"],
+                                        ] as [BuildingStatusFilter, string][]).map(([value, label]) => (
+                                            <button
+                                                key={value}
+                                                type="button"
+                                                onClick={() => setSelectedStatus(value)}
+                                                className={cn(
+                                                    "rounded-xl px-3.5 py-2 text-sm font-black transition-all",
+                                                    selectedStatus === value ? "bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" : "text-[#6f6254] hover:bg-[#fffaf1] hover:text-[#24170d]",
+                                                )}
+                                            >
+                                                {label} <span className="ml-1 opacity-70">({countByStatus(buildings, value)})</span>
+                                            </button>
+                                        ))}
+                                    </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="min-w-[980px] w-full text-left">
-                                <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
-                                    <tr>
-                                        <th className="px-5 py-4">Tòa nhà</th>
-                                        <th className="px-5 py-4">Khu vực</th>
-                                        <th className="px-5 py-4">Quản lý</th>
-                                        <th className="px-5 py-4 text-center">Phòng</th>
-                                        <th className="px-5 py-4">Trạng thái</th>
-                                        <th className="px-5 py-4"><span className="flex justify-end"><span className="w-[150px] text-center">Thao tác</span></span></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#3d2a18]/8">
-                                    {isLoading && Array.from({ length: 6 }).map((_, index) => (
-                                        <tr key={index}>
-                                            <td colSpan={8} className="px-5 py-4"><div className="h-12 animate-pulse rounded-2xl bg-stone-100" /></td>
-                                        </tr>
-                                    ))}
-
-                                    {!isLoading && paginatedBuildings.map((building) => (
-                                        <tr key={building.id} className="group group/building transition hover:bg-[#f3c56b]/12">
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div 
-                                                        className="flex h-10 w-10 overflow-hidden rounded-xl border border-[#f3c56b]/35 bg-[#fffaf1] text-[#a65f16] shadow-sm transition group-hover:scale-105 cursor-pointer"
-                                                        onClick={() => setViewingImageSrc(building.primary_image?.image_url || stayHubImage)}
-                                                    >
-                                                        <img src={building.primary_image?.image_url || stayHubImage} alt={building.name} onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-full w-full object-cover" />
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <p className="whitespace-normal wrap-break-word text-[13px] font-black leading-snug tracking-tight text-[#24170d]">{building.name}</p>
-                                                        <p className="mt-1 whitespace-normal wrap-break-word text-[10px] font-black uppercase leading-snug tracking-[0.12em] text-[#8b5e34]/60">{building.address || "Chưa cập nhật địa chỉ"}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">{building.region_name || "Chưa cập nhật"}</td>
-                                            <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">{building.manager_name || "Chưa phân công"}</td>
-                                            <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d] tabular-nums">{building.rooms_count ?? 0}</td>
-                                            <td className="px-4 py-3"><span className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm", statusClassNames[building.status])}>{statusLabels[building.status]}</span></td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    <button type="button" onClick={() => void openViewBuildingModal(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-[#f3c56b] hover:bg-[#f3c56b]/15 hover:text-[#a65f16] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20" title="Xem chi tiết" aria-label={`Xem chi tiết tòa nhà ${building.name}`}><Eye className="h-3.5 w-3.5" /></button>
-                                                    <button type="button" onClick={() => openEditBuildingPage(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-[#3d2a18]/25 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10" title="Chỉnh sửa" aria-label={`Chỉnh sửa tòa nhà ${building.name}`}><Pencil className="h-3.5 w-3.5" /></button>
-                                                    <button type="button" disabled={statusChangingId === building.id} onClick={() => void toggleBuildingStatus(building)} className={cn("inline-flex h-9 w-9 items-center justify-center rounded-lg border transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-55", building.status === "active" ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100" : "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100")} title={building.status === "active" ? "Ngừng hoạt động" : "Kích hoạt"} aria-label={`${building.status === "active" ? "Ngừng hoạt động" : "Kích hoạt"} tòa nhà ${building.name}`}><Power className="h-3.5 w-3.5" /></button>
-                                                    <button type="button" onClick={() => void deleteBuilding(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100" title="Xóa" aria-label={`Xóa tòa nhà ${building.name}`}><Trash2 className="h-3.5 w-3.5" /></button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-
-                                    {!isLoading && filteredBuildings.length === 0 && (
-                                        <tr>
-                                            <td colSpan={8} className="px-5 py-20 text-center">
-                                                <div className="mx-auto flex max-w-sm flex-col items-center">
-                                                    <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><Building2 className="h-9 w-9" /></div>
-                                                    <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy tòa nhà</p>
-                                                    <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">Hãy thử đổi từ khóa hoặc xóa bớt bộ lọc hiện tại.</p>
-                                                    <button type="button" onClick={clearFilters} className="mt-5 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-2 text-sm font-black text-[#3d2a18] transition hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15">Xóa bộ lọc</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {!isLoading && filteredBuildings.length > 0 && (
-                            <div className="flex flex-col gap-4 border-t border-[#3d2a18]/8 bg-[#fff7e8]/72 px-5 py-4 md:flex-row md:items-center md:justify-between">
-                                <div className="text-sm font-bold text-[#6f6254]">
-                                    Hiển thị <span className="font-black text-[#24170d]">{paginationStart}</span> - <span className="font-black text-[#24170d]">{paginationEnd}</span> / <span className="font-black text-[#24170d]">{filteredBuildings.length}</span> tòa nhà
-                                </div>
-
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                                    <label className="flex items-center gap-2 text-sm font-black text-[#6f6254]">
-                                        Mỗi trang
-                                        <AdminSelect value={perPage} options={perPageOptions} className="w-36" menuPlacement="top" onChange={(nextValue) => setPerPage(Number(nextValue))} />
-                                    </label>
-
-                                    <div className="flex items-center gap-1">
-                                        <button type="button" onClick={() => changePage(Math.max(1, safeCurrentPage - 1))} disabled={safeCurrentPage <= 1} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 text-[#8b5e34] transition hover:border-[#f3c56b] hover:text-[#a65f16] disabled:cursor-not-allowed disabled:opacity-40">
-                                            <ChevronLeft className="h-4 w-4" />
-                                        </button>
-
-                                        {visiblePages.map((page, index) => {
-                                            const previousPage = visiblePages[index - 1];
-                                            const showDots = previousPage && page - previousPage > 1;
-
-                                            return (
-<React.Fragment key={page}>
-                                                    {showDots && <span className="px-2 text-sm font-black text-[#8b5e34]/45">...</span>}
-                                                    <button type="button" onClick={() => changePage(page)} className={cn("inline-flex h-9 min-w-9 items-center justify-center rounded-xl px-3 text-sm font-black transition", safeCurrentPage === page ? "bg-[#24170d] text-[#fff4df] shadow-sm" : "border border-[#3d2a18]/10 text-[#8b5e34] hover:border-[#f3c56b] hover:text-[#a65f16]")}>{page}</button>
-                                                </React.Fragment>
-  );
-                                        })}
-
-                                        <button type="button" onClick={() => changePage(Math.min(totalPages, safeCurrentPage + 1))} disabled={safeCurrentPage >= totalPages} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 text-[#8b5e34] transition hover:border-[#f3c56b] hover:text-[#a65f16] disabled:cursor-not-allowed disabled:opacity-40">
-                                            <ChevronRight className="h-4 w-4" />
-                                        </button>
+                                    <div className="relative w-full xl:w-80 2xl:w-[380px]">
+                                        <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
+                                        <input
+                                            type="text"
+                                            value={keyword}
+                                            onChange={(event) => setKeyword(event.target.value)}
+                                            placeholder="Tìm tên, địa chỉ, quản lý..."
+                                            className="h-12 w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] pl-11 pr-4 text-sm font-bold text-[#3d2a18] shadow-sm outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                                        />
                                     </div>
                                 </div>
+
+                                {(selectedRegionId || selectedStatus !== "all" || keyword || regionKeyword) && (
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/65">Bộ lọc</span>
+                                        {activeRegionName && <FilterPill label={`Khu vực: ${activeRegionName}`} onClear={() => setSelectedRegionId(null)} />}
+                                        {regionKeyword && <FilterPill label={`Tìm khu vực: ${regionKeyword}`} onClear={() => setRegionKeyword("")} />}
+                                        {selectedStatus !== "all" && <FilterPill label={`Trạng thái: ${statusLabels[selectedStatus]}`} onClear={() => setSelectedStatus("all")} />}
+                                        {keyword && <FilterPill label={`Từ khóa: ${keyword}`} onClear={() => setKeyword("")} />}
+                                        <button type="button" onClick={clearFilters} className="text-xs font-black text-[#8b5e34]/65 underline underline-offset-4 transition hover:text-[#24170d]">Xóa tất cả</button>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </section>
-                </div>
 
-                <BuildingDetailModal
-                    isOpen={isViewModalOpen}
-                    onClose={closeViewBuildingModal}
-                    building={viewingBuilding}
-                    isLoading={isDetailLoading}
-                    errorMessage={detailErrorMessage}
-                    onEdit={editViewedBuilding}
-                />
+                            <div className="overflow-x-auto">
+                                <table className="min-w-[980px] w-full text-left">
+                                    <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+                                        <tr>
+                                            <th className="px-5 py-4">Tòa nhà</th>
+                                            <th className="px-5 py-4">Khu vực</th>
+                                            <th className="px-5 py-4">Quản lý</th>
+                                            <th className="px-5 py-4 text-center">Phòng</th>
+                                            <th className="px-5 py-4">Trạng thái</th>
+                                            <th className="px-5 py-4"><span className="flex justify-end"><span className="w-[150px] text-center">Thao tác</span></span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#3d2a18]/8">
+                                        {isLoading && Array.from({ length: 6 }).map((_, index) => (
+                                            <tr key={index}>
+                                                <td colSpan={8} className="px-5 py-4"><div className="h-12 animate-pulse rounded-2xl bg-stone-100" /></td>
+                                            </tr>
+                                        ))}
 
-                <ImageViewerModal
-                    isOpen={!!viewingImageSrc}
-                    src={viewingImageSrc}
-                    onClose={() => setViewingImageSrc(null)}
-                />
-            </section>
-    </>
-    </>
-  );
+                                        {!isLoading && paginatedBuildings.map((building) => (
+                                            <tr key={building.id} className="group group/building transition hover:bg-[#f3c56b]/12">
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div
+                                                            className="flex h-10 w-10 overflow-hidden rounded-xl border border-[#f3c56b]/35 bg-[#fffaf1] text-[#a65f16] shadow-sm transition group-hover:scale-105 cursor-pointer"
+                                                            onClick={() => setViewingImageSrc(building.primary_image?.image_url || stayHubImage)}
+                                                        >
+                                                            <img src={building.primary_image?.image_url || stayHubImage} alt={building.name} onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-full w-full object-cover" />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="whitespace-normal wrap-break-word text-[13px] font-black leading-snug tracking-tight text-[#24170d]">{building.name}</p>
+                                                            <p className="mt-1 whitespace-normal wrap-break-word text-[10px] font-black uppercase leading-snug tracking-[0.12em] text-[#8b5e34]/60">{building.address || "Chưa cập nhật địa chỉ"}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">{building.region_name || "Chưa cập nhật"}</td>
+                                                <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">{building.manager_name || "Chưa phân công"}</td>
+                                                <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d] tabular-nums">{building.rooms_count ?? 0}</td>
+                                                <td className="px-4 py-3"><span className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm", statusClassNames[building.status])}>{statusLabels[building.status]}</span></td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <button type="button" onClick={() => void openViewBuildingModal(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-[#f3c56b] hover:bg-[#f3c56b]/15 hover:text-[#a65f16] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20" title="Xem chi tiết" aria-label={`Xem chi tiết tòa nhà ${building.name}`}><Eye className="h-3.5 w-3.5" /></button>
+                                                        <button type="button" onClick={() => openEditBuildingPage(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-[#3d2a18]/25 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10" title="Chỉnh sửa" aria-label={`Chỉnh sửa tòa nhà ${building.name}`}><Pencil className="h-3.5 w-3.5" /></button>
+                                                        <button type="button" disabled={statusChangingId === building.id} onClick={() => void toggleBuildingStatus(building)} className={cn("inline-flex h-9 w-9 items-center justify-center rounded-lg border transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-55", building.status === "active" ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100" : "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100")} title={building.status === "active" ? "Ngừng hoạt động" : "Kích hoạt"} aria-label={`${building.status === "active" ? "Ngừng hoạt động" : "Kích hoạt"} tòa nhà ${building.name}`}><Power className="h-3.5 w-3.5" /></button>
+                                                        <button type="button" onClick={() => void deleteBuilding(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100" title="Xóa" aria-label={`Xóa tòa nhà ${building.name}`}><Trash2 className="h-3.5 w-3.5" /></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+
+                                        {!isLoading && filteredBuildings.length === 0 && (
+                                            <tr>
+                                                <td colSpan={8} className="px-5 py-20 text-center">
+                                                    <div className="mx-auto flex max-w-sm flex-col items-center">
+                                                        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><Building2 className="h-9 w-9" /></div>
+                                                        <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy tòa nhà</p>
+                                                        <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">Hãy thử đổi từ khóa hoặc xóa bớt bộ lọc hiện tại.</p>
+                                                        <button type="button" onClick={clearFilters} className="mt-5 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-2 text-sm font-black text-[#3d2a18] transition hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15">Xóa bộ lọc</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {!isLoading && filteredBuildings.length > 0 && (
+                                <div className="flex flex-col gap-4 border-t border-[#3d2a18]/8 bg-[#fff7e8]/72 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                                    <div className="text-sm font-bold text-[#6f6254]">
+                                        Hiển thị <span className="font-black text-[#24170d]">{paginationStart}</span> - <span className="font-black text-[#24170d]">{paginationEnd}</span> / <span className="font-black text-[#24170d]">{filteredBuildings.length}</span> tòa nhà
+                                    </div>
+
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                        <label className="flex items-center gap-2 text-sm font-black text-[#6f6254]">
+                                            Mỗi trang
+                                            <AdminSelect value={perPage} options={perPageOptions} className="w-36" menuPlacement="top" onChange={(nextValue) => setPerPage(Number(nextValue))} />
+                                        </label>
+
+                                        <div className="flex items-center gap-1">
+                                            <button type="button" onClick={() => changePage(Math.max(1, safeCurrentPage - 1))} disabled={safeCurrentPage <= 1} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 text-[#8b5e34] transition hover:border-[#f3c56b] hover:text-[#a65f16] disabled:cursor-not-allowed disabled:opacity-40">
+                                                <ChevronLeft className="h-4 w-4" />
+                                            </button>
+
+                                            {visiblePages.map((page, index) => {
+                                                const previousPage = visiblePages[index - 1];
+                                                const showDots = previousPage && page - previousPage > 1;
+
+                                                return (
+                                                    <React.Fragment key={page}>
+                                                        {showDots && <span className="px-2 text-sm font-black text-[#8b5e34]/45">...</span>}
+                                                        <button type="button" onClick={() => changePage(page)} className={cn("inline-flex h-9 min-w-9 items-center justify-center rounded-xl px-3 text-sm font-black transition", safeCurrentPage === page ? "bg-[#24170d] text-[#fff4df] shadow-sm" : "border border-[#3d2a18]/10 text-[#8b5e34] hover:border-[#f3c56b] hover:text-[#a65f16]")}>{page}</button>
+                                                    </React.Fragment>
+                                                );
+                                            })}
+
+                                            <button type="button" onClick={() => changePage(Math.min(totalPages, safeCurrentPage + 1))} disabled={safeCurrentPage >= totalPages} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 text-[#8b5e34] transition hover:border-[#f3c56b] hover:text-[#a65f16] disabled:cursor-not-allowed disabled:opacity-40">
+                                                <ChevronRight className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </section>
+                    </div>
+
+                    <BuildingDetailModal
+                        isOpen={isViewModalOpen}
+                        onClose={closeViewBuildingModal}
+                        building={viewingBuilding}
+                        isLoading={isDetailLoading}
+                        errorMessage={detailErrorMessage}
+                        onEdit={editViewedBuilding}
+                    />
+
+                    <ImageViewerModal
+                        isOpen={!!viewingImageSrc}
+                        src={viewingImageSrc}
+                        onClose={() => setViewingImageSrc(null)}
+                    />
+                </section>
+            </>
+        </>
+    );
 }
 
 function MetricCard({ label, value, tone }: { label: string; value: number; tone: "neutral" | "emerald" | "amber" | "stone" }) {

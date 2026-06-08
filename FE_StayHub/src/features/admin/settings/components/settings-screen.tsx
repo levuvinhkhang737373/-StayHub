@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Edit3, Eye, Plus, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Edit3, Eye, Plus, RefreshCw, Search, Settings, Trash2, X, Power } from 'lucide-react'
 import { formatDate } from '../../../../shared/lib/utils/format'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
@@ -13,6 +13,7 @@ import {
   fetchAdminSettingDetail,
   fetchAdminSettings,
   updateAdminSetting,
+  updateAdminSettingPublic,
 } from '../services/settings.service'
 import type { AdminSettingResource } from '../types/setting-api.model'
 import { validateSettingForm, type SettingFormErrors, type SettingFormValues } from '../validations/setting.validation'
@@ -42,7 +43,6 @@ function getSafeSettingsErrorMessage(error: unknown, fallback: string) {
 const defaultForm: SettingFormValues = {
   building_id: '',
   setting_label: '',
-  setting_name: '',
   setting_value: '',
   description: '',
   is_public: true,
@@ -175,7 +175,6 @@ export function SettingsScreen() {
     setForm({
       building_id: setting.building_id ? String(setting.building_id) : '',
       setting_label: setting.setting_label || '',
-      setting_name: setting.setting_name || '',
       setting_value: setting.setting_value || '',
       description: setting.description || '',
       is_public: Boolean(setting.is_public),
@@ -232,7 +231,6 @@ export function SettingsScreen() {
       const payload = {
         building_id: form.building_id ? Number(form.building_id) : null,
         setting_label: form.setting_label.trim(),
-        setting_name: form.setting_name.trim(),
         setting_value: form.setting_value.trim(),
         description: form.description.trim(),
         is_public: form.is_public,
@@ -251,6 +249,24 @@ export function SettingsScreen() {
       await loadSettings()
     } catch (error) {
       setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể lưu cài đặt.'))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const togglePublicSetting = async (setting: AdminSettingResource) => {
+    if (isSaving || !canMutateSetting(setting)) return
+
+    try {
+      setIsSaving(true)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+
+      await updateAdminSettingPublic(setting.id)
+      setSuccessMessage(setting.is_public ? 'Đã tắt hiển thị công khai.' : 'Đã bật hiển thị công khai.')
+      await loadSettings()
+    } catch (error) {
+      setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể thay đổi trạng thái hiển thị.'))
     } finally {
       setIsSaving(false)
     }
@@ -383,6 +399,7 @@ export function SettingsScreen() {
                           <div className="flex items-center justify-end gap-2.5">
                             <button type="button" aria-label={`Xem chi tiết ${setting.setting_label}`} onClick={() => void viewSetting(setting)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
                             <button type="button" aria-label={`Chỉnh sửa ${setting.setting_label}`} disabled={!canMutate} onClick={() => editSetting(setting)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title={canMutate ? 'Chỉnh sửa' : 'Bạn không có quyền sửa cài đặt này'}><Edit3 className="h-5 w-5" /></button>
+                            <button type="button" aria-label={`Đổi trạng thái hiển thị ${setting.setting_label}`} disabled={!canMutate || deletingId === setting.id} onClick={() => void togglePublicSetting(setting)} className={cn("inline-flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45", setting.is_public ? "border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59] hover:border-[#0f766e]/30 hover:bg-[#0f766e]/20 focus:ring-[#0f766e]/10" : "border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254] hover:bg-[#efe2cf] hover:text-[#3d2a18] focus:ring-[#3d2a18]/10")} title={canMutate ? 'Đổi trạng thái hiển thị' : 'Bạn không có quyền sửa cài đặt này'}><Power className="h-5 w-5" /></button>
                             <button type="button" aria-label={`Xóa ${setting.setting_label}`} disabled={!canMutate || deletingId === setting.id} onClick={() => void removeSetting(setting)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title={canMutate ? 'Xóa' : 'Bạn không có quyền xóa cài đặt này'}><Trash2 className="h-5 w-5" /></button>
                           </div>
                         </td>
@@ -429,11 +446,7 @@ export function SettingsScreen() {
                   <input className={`${inputClass} ${errors.setting_label ? inputErrorClass : ''}`} value={form.setting_label} onChange={(event) => updateForm('setting_label', event.target.value)} placeholder="Ví dụ: Giờ đóng cổng" />
                   <FieldError message={errors.setting_label} />
                 </div>
-                <div>
-                  <label className={labelClass}>Khóa cài đặt</label>
-                  <input className={`${inputClass} ${errors.setting_name ? inputErrorClass : ''}`} value={form.setting_name} onChange={(event) => updateForm('setting_name', event.target.value)} placeholder="Ví dụ: gate.close_time" />
-                  <FieldError message={errors.setting_name} />
-                </div>
+
                 <div>
                   <label className={labelClass}>Tòa nhà áp dụng</label>
                   <AdminSelect value={form.building_id} options={formBuildingOptions} invalid={!!errors.building_id} disabled={!isSuperAdmin && buildings.length === 0} onChange={(nextValue) => updateForm('building_id', String(nextValue))} />
@@ -474,7 +487,6 @@ export function SettingsScreen() {
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Setting detail</p>
                   <h2 className="mt-2 text-2xl font-black tracking-tight">{detailSetting?.setting_label || 'Đang tải chi tiết...'}</h2>
-                  <p className="mt-1 text-sm font-bold text-[#f8e8c8]/72">{detailSetting?.setting_name}</p>
                 </div>
                 <button type="button" onClick={closeSettingDetail} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết cài đặt">
                   <X className="h-5 w-5" />

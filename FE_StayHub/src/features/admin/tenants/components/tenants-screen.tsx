@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, BadgeCheck, Building2, Camera, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, RefreshCw, Search, Trash2, UploadCloud, UserRound, X } from 'lucide-react'
 import { formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
@@ -417,348 +418,348 @@ export function TenantsScreen() {
   return (
     <>
       <>
-      <section className="space-y-5 sm:space-y-6 text-[#24170d]">
-        <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
-            <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
+        <section className="space-y-5 sm:space-y-6 text-[#24170d]">
+          <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
+            <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
+              <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
-            <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-              <div className="min-w-0">
-                <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-                </Link>
-                
-                <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý khách thuê</h1>
+              <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0">
+                  <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
+                    <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
+                  </Link>
+
+                  <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý khách thuê</h1>
+                </div>
+                <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
+                  <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm khách thuê
+                </button>
               </div>
-              <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
-                <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm khách thuê
-              </button>
-            </div>
 
-            <div className="relative mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Tổng khách thuê" value={totalTenants} tone="neutral" />
-              <MetricCard label="Đang thuê/trang" value={rentingTenants} tone="emerald" />
-              <MetricCard label="Ngừng thuê/trang" value={stoppedTenants} tone="amber" />
-              <MetricCard label="Đủ giấy tờ/trang" value={verifiedTenants} tone="teal" />
-            </div>
-          </div>
-        </section>
-
-        {(errorMessage || successMessage) && (
-          <div className={cn('rounded-3xl border px-4 py-3 text-sm font-black shadow-sm', errorMessage ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
-            {errorMessage || successMessage}
-          </div>
-        )}
-
-        <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_430px]')}>
-          <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
-            <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-              <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)]">
-                <div className="relative min-w-0">
-                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-                  <input type="text" value={keyword} onChange={(event) => { setKeyword(event.target.value); setCurrentPage(1) }} placeholder="Tìm tên, username, email, SĐT hoặc số giấy tờ..." className={`${inputClass} pl-11 pr-28`} />
-                  <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 disabled:cursor-not-allowed disabled:opacity-45">
-                    <X className="h-3.5 w-3.5" /> Xóa lọc
-                  </button>
-                </div>
-                <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => setSelectedStatus(String(nextValue))} />
-                <AdminSelect value={selectedGender} options={genderOptions} onChange={(nextValue) => setSelectedGender(String(nextValue))} />
-                <AdminSelect value={selectedIdentityType} options={identityTypeOptions} onChange={(nextValue) => setSelectedIdentityType(String(nextValue))} />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1160px] text-left">
-                <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
-                  <tr>
-                    <th className="px-5 py-4">Khách thuê</th>
-                    <th className="px-5 py-4">Liên hệ</th>
-                    <th className="px-5 py-4">Giấy tờ</th>
-                    <th className="px-5 py-4">Trạng thái</th>
-                    <th className="px-5 py-4">Tòa nhà</th>
-                    <th className="whitespace-nowrap px-5 py-4">Phòng</th>
-                    <th className="px-5 py-4 text-center">Phương tiện</th>
-                    <th className="px-5 py-4 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
-                  {isLoading && Array.from({ length: 5 }).map((_, index) => (
-                    <tr key={index}>
-                      <td colSpan={8} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
-                    </tr>
-                  ))}
-
-                  {!isLoading && tenants.map((tenant) => {
-                    const renting = isTenantRenting(tenant)
-
-                    return (
-                      <tr key={tenant.id} className="group transition hover:bg-[#f3c56b]/10">
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <TenantAvatar tenant={tenant} />
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-black tracking-tight text-[#24170d]">{tenant.full_name || tenant.username}</p>
-                              <p className="mt-0.5 text-xs font-bold text-[#8b5e34]/70">@{tenant.username}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="space-y-1 text-xs font-bold text-[#6f6254]">
-                            <p className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-[#a65f16]" /> {tenant.email || 'Chưa có email'}</p>
-                            <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-[#0f766e]" /> {tenant.phone || 'Chưa có số điện thoại'}</p>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="space-y-1.5">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-3 py-1 text-xs font-black text-[#6f6254] shadow-sm"><IdCard className="h-3.5 w-3.5" /> {tenant.identity_type_label || getIdentityTypeLabel(tenant.identity_type)}</span>
-                            <p className="text-xs font-bold text-[#8b5e34]/75">{tenant.identity_number || 'Chưa nhập số giấy tờ'}</p>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', renting ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-rose-200 bg-rose-50 text-rose-700')}>
-                            {tenant.status_label || (renting ? 'Đang thuê' : 'Ngừng thuê')}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2 text-xs font-black text-[#0f5f59]"><Building2 className="h-4 w-4" /> {getTenantBuildingName(tenant)}</div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2 whitespace-nowrap text-xs font-black text-[#8a4f18]"><DoorOpen className="h-4 w-4 shrink-0" /> {getTenantRoomNumber(tenant)}</div>
-                        </td>
-                        <td className="px-5 py-4 text-center"><CountBadge value={tenant.vehicles_count ?? 0} /></td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <button type="button" onClick={() => void viewTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label={`Xem chi tiết khách thuê ${tenant.username}`}><Eye className="h-5 w-5" /></button>
-                            <button type="button" onClick={() => editTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa" aria-label={`Chỉnh sửa khách thuê ${tenant.username}`}><Edit3 className="h-5 w-5" /></button>
-                            <button type="button" disabled={statusChangingId === tenant.id} onClick={() => void toggleTenantStatus(tenant)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45', renting ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100')} title={renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'} aria-label={`${renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'} khách thuê ${tenant.username}`}><Power className="h-5 w-5" /></button>
-                            <button type="button" disabled={deletingId === tenant.id} onClick={() => void removeTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title="Xóa" aria-label={`Xóa khách thuê ${tenant.username}`}><Trash2 className="h-5 w-5" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-
-                  {!isLoading && tenants.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="px-5 py-20 text-center">
-                        <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-8">
-                          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><UserRound className="h-9 w-9" /></div>
-                          <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy khách thuê</p>
-                          <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">{hasActiveFilters ? 'Thử xóa bộ lọc hoặc đổi từ khóa tìm kiếm.' : 'Hãy tạo hồ sơ khách thuê đầu tiên cho hệ thống.'}</p>
-                          {hasActiveFilters && (
-                            <button type="button" onClick={clearFilters} className="mt-4 inline-flex h-10 items-center justify-center rounded-2xl bg-[#24170d] px-4 text-xs font-black text-[#fff4df] transition hover:bg-[#3d2a18]">
-                              Xóa bộ lọc
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-              <p className="text-xs font-black text-[#6f6254]">
-                Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalTenants}</span> khách thuê
-              </p>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="w-full sm:w-36">
-                  <AdminSelect value={perPage} options={perPageOptions} onChange={changePerPage} menuPlacement="top" />
-                </div>
-                <div className="flex items-center justify-end gap-1.5">
-                  <button type="button" disabled={safeCurrentPage <= 1} onClick={() => changePage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  {visiblePages.map((page, index) => {
-                    const previousPage = visiblePages[index - 1]
-                    const hasGap = previousPage && page - previousPage > 1
-
-                    return (
-<div key={page} className="flex items-center gap-1.5">
-                        {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
-                        <button type="button" onClick={() => changePage(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === safeCurrentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')} aria-current={page === safeCurrentPage ? 'page' : undefined}>
-                          {page}
-                        </button>
-                      </div>
-  )
-                  })}
-                  <button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => changePage(safeCurrentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
+              <div className="relative mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricCard label="Tổng khách thuê" value={totalTenants} tone="neutral" />
+                <MetricCard label="Đang thuê/trang" value={rentingTenants} tone="emerald" />
+                <MetricCard label="Ngừng thuê/trang" value={stoppedTenants} tone="amber" />
+                <MetricCard label="Đủ giấy tờ/trang" value={verifiedTenants} tone="teal" />
               </div>
             </div>
           </section>
 
-          {isFormOpen && (
-            <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md 2xl:sticky 2xl:top-6 2xl:self-start">
-              <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-5">
-                <div className="flex items-start justify-between gap-3">
+          {(errorMessage || successMessage) && (
+            <div className={cn('rounded-3xl border px-4 py-3 text-sm font-black shadow-sm', errorMessage ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
+              {errorMessage || successMessage}
+            </div>
+          )}
+
+          <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_430px]')}>
+            <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
+              <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
+                <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)]">
+                  <div className="relative min-w-0">
+                    <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
+                    <input type="text" value={keyword} onChange={(event) => { setKeyword(event.target.value); setCurrentPage(1) }} placeholder="Tìm tên, username, email, SĐT hoặc số giấy tờ..." className={`${inputClass} pl-11 pr-28`} />
+                    <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 disabled:cursor-not-allowed disabled:opacity-45">
+                      <X className="h-3.5 w-3.5" /> Xóa lọc
+                    </button>
+                  </div>
+                  <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => setSelectedStatus(String(nextValue))} />
+                  <AdminSelect value={selectedGender} options={genderOptions} onChange={(nextValue) => setSelectedGender(String(nextValue))} />
+                  <AdminSelect value={selectedIdentityType} options={identityTypeOptions} onChange={(nextValue) => setSelectedIdentityType(String(nextValue))} />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1160px] text-left">
+                  <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+                    <tr>
+                      <th className="px-5 py-4">Khách thuê</th>
+                      <th className="px-5 py-4">Liên hệ</th>
+                      <th className="px-5 py-4">Giấy tờ</th>
+                      <th className="px-5 py-4">Trạng thái</th>
+                      <th className="px-5 py-4">Tòa nhà</th>
+                      <th className="whitespace-nowrap px-5 py-4">Phòng</th>
+                      <th className="px-5 py-4 text-center">Phương tiện</th>
+                      <th className="px-5 py-4 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
+                    {isLoading && Array.from({ length: 5 }).map((_, index) => (
+                      <tr key={index}>
+                        <td colSpan={8} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
+                      </tr>
+                    ))}
+
+                    {!isLoading && tenants.map((tenant) => {
+                      const renting = isTenantRenting(tenant)
+
+                      return (
+                        <tr key={tenant.id} className="group transition hover:bg-[#f3c56b]/10">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <TenantAvatar tenant={tenant} />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-black tracking-tight text-[#24170d]">{tenant.full_name || tenant.username}</p>
+                                <p className="mt-0.5 text-xs font-bold text-[#8b5e34]/70">@{tenant.username}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="space-y-1 text-xs font-bold text-[#6f6254]">
+                              <p className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-[#a65f16]" /> {tenant.email || 'Chưa có email'}</p>
+                              <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-[#0f766e]" /> {tenant.phone || 'Chưa có số điện thoại'}</p>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="space-y-1.5">
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-3 py-1 text-xs font-black text-[#6f6254] shadow-sm"><IdCard className="h-3.5 w-3.5" /> {tenant.identity_type_label || getIdentityTypeLabel(tenant.identity_type)}</span>
+                              <p className="text-xs font-bold text-[#8b5e34]/75">{tenant.identity_number || 'Chưa nhập số giấy tờ'}</p>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', renting ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-rose-200 bg-rose-50 text-rose-700')}>
+                              {tenant.status_label || (renting ? 'Đang thuê' : 'Ngừng thuê')}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2 text-xs font-black text-[#0f5f59]"><Building2 className="h-4 w-4" /> {getTenantBuildingName(tenant)}</div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2 whitespace-nowrap text-xs font-black text-[#8a4f18]"><DoorOpen className="h-4 w-4 shrink-0" /> {getTenantRoomNumber(tenant)}</div>
+                          </td>
+                          <td className="px-5 py-4 text-center"><CountBadge value={tenant.vehicles_count ?? 0} /></td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <button type="button" onClick={() => void viewTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label={`Xem chi tiết khách thuê ${tenant.username}`}><Eye className="h-5 w-5" /></button>
+                              <button type="button" onClick={() => editTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa" aria-label={`Chỉnh sửa khách thuê ${tenant.username}`}><Edit3 className="h-5 w-5" /></button>
+                              <button type="button" disabled={statusChangingId === tenant.id} onClick={() => void toggleTenantStatus(tenant)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45', renting ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100')} title={renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'} aria-label={`${renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'} khách thuê ${tenant.username}`}><Power className="h-5 w-5" /></button>
+                              <button type="button" disabled={deletingId === tenant.id} onClick={() => void removeTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title="Xóa" aria-label={`Xóa khách thuê ${tenant.username}`}><Trash2 className="h-5 w-5" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+
+                    {!isLoading && tenants.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="px-5 py-20 text-center">
+                          <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-8">
+                            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><UserRound className="h-9 w-9" /></div>
+                            <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy khách thuê</p>
+                            <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">{hasActiveFilters ? 'Thử xóa bộ lọc hoặc đổi từ khóa tìm kiếm.' : 'Hãy tạo hồ sơ khách thuê đầu tiên cho hệ thống.'}</p>
+                            {hasActiveFilters && (
+                              <button type="button" onClick={clearFilters} className="mt-4 inline-flex h-10 items-center justify-center rounded-2xl bg-[#24170d] px-4 text-xs font-black text-[#fff4df] transition hover:bg-[#3d2a18]">
+                                Xóa bộ lọc
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                <p className="text-xs font-black text-[#6f6254]">
+                  Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalTenants}</span> khách thuê
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="w-full sm:w-36">
+                    <AdminSelect value={perPage} options={perPageOptions} onChange={changePerPage} menuPlacement="top" />
+                  </div>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <button type="button" disabled={safeCurrentPage <= 1} onClick={() => changePage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    {visiblePages.map((page, index) => {
+                      const previousPage = visiblePages[index - 1]
+                      const hasGap = previousPage && page - previousPage > 1
+
+                      return (
+                        <div key={page} className="flex items-center gap-1.5">
+                          {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
+                          <button type="button" onClick={() => changePage(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === safeCurrentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')} aria-current={page === safeCurrentPage ? 'page' : undefined}>
+                            {page}
+                          </button>
+                        </div>
+                      )
+                    })}
+                    <button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => changePage(safeCurrentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {isFormOpen && (
+              <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md 2xl:sticky 2xl:top-6 2xl:self-start">
+                <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="mt-1 text-xl font-black tracking-tight text-[#24170d]">{editingTenant ? 'Cập nhật khách thuê' : 'Thêm khách thuê'}</h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form" aria-label="Làm mới form khách thuê">
+                        <RefreshCw className="h-4 w-4" />
+                      </button>
+                      <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form" aria-label="Đóng form khách thuê">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
+                  {isSuperAdmin && (
+                    <div>
+                      <label className={labelClass}>Tòa nhà <span className="text-rose-500">*</span></label>
+                      <AdminSelect value={form.building_id || ""} options={buildingOptions} invalid={!!errors.building_id} onChange={(nextValue) => updateForm('building_id', nextValue)} />
+                      <FieldError message={errors.building_id} />
+                    </div>
+                  )}
                   <div>
-                    <h2 className="mt-1 text-xl font-black tracking-tight text-[#24170d]">{editingTenant ? 'Cập nhật khách thuê' : 'Thêm khách thuê'}</h2>
+                    <label className={labelClass}>Tên đăng nhập</label>
+                    <input className={cn(inputClass, errors.username && inputErrorClass)} value={form.username} onChange={(event) => updateForm('username', event.target.value)} placeholder="Ví dụ: tenant_nguyenvana" autoComplete="off" />
+                    <FieldError message={errors.username} />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form" aria-label="Làm mới form khách thuê">
-                      <RefreshCw className="h-4 w-4" />
-                    </button>
-                    <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form" aria-label="Đóng form khách thuê">
-                      <X className="h-4 w-4" />
+                  <div>
+                    <label className={labelClass}>Họ tên</label>
+                    <input className={cn(inputClass, errors.full_name && inputErrorClass)} value={form.full_name} onChange={(event) => updateForm('full_name', event.target.value)} placeholder="Nhập họ tên khách thuê" />
+                    <FieldError message={errors.full_name} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Email</label>
+                    <input className={cn(inputClass, errors.email && inputErrorClass)} value={form.email} onChange={(event) => updateForm('email', event.target.value)} placeholder="tenant@stayhub.vn" type="email" />
+                    <FieldError message={errors.email} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Số điện thoại</label>
+                    <input className={cn(inputClass, errors.phone && inputErrorClass)} value={form.phone} onChange={(event) => updateForm('phone', event.target.value)} placeholder="Nhập số điện thoại" />
+                    <FieldError message={errors.phone} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Ngày sinh (Tùy chọn)</label>
+                    <AdminDateInput
+                      className={cn(inputClass, errors.date_of_birth && inputErrorClass)}
+                      value={form.date_of_birth}
+                      onChange={(value) => updateForm('date_of_birth', value)}
+                      maxDate={new Date()}
+                    />
+                    <FieldError message={errors.date_of_birth} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={labelClass}>Giới tính</label>
+                      <AdminSelect value={form.gender} options={formGenderOptions} invalid={!!errors.gender} onChange={(nextValue) => updateForm('gender', Number(nextValue))} />
+                      <FieldError message={errors.gender} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Trạng thái</label>
+                      <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
+                      <FieldError message={errors.status} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={labelClass}>Loại giấy tờ</label>
+                      <AdminSelect value={form.identity_type} options={formIdentityTypeOptions} invalid={!!errors.identity_type} onChange={(nextValue) => updateForm('identity_type', Number(nextValue))} />
+                      <FieldError message={errors.identity_type} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Số giấy tờ</label>
+                      <input className={cn(inputClass, errors.identity_number && inputErrorClass)} value={form.identity_number} onChange={(event) => updateForm('identity_number', event.target.value)} placeholder="Nhập số CCCD/CMND" />
+                      <FieldError message={errors.identity_number} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Địa chỉ thường trú</label>
+                    <textarea className={cn(inputClass, 'min-h-20 resize-none', errors.permanent_address && inputErrorClass)} value={form.permanent_address} onChange={(event) => updateForm('permanent_address', event.target.value)} placeholder="Nhập địa chỉ thường trú" />
+                    <FieldError message={errors.permanent_address} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Địa chỉ hiện tại</label>
+                    <textarea className={cn(inputClass, 'min-h-20 resize-none', errors.current_address && inputErrorClass)} value={form.current_address} onChange={(event) => updateForm('current_address', event.target.value)} placeholder="Nhập địa chỉ hiện tại" />
+                    <FieldError message={errors.current_address} />
+                  </div>
+
+                  <FileInputField label="Ảnh mặt trước CCCD" file={form.front_image} currentUrl={editingTenant?.front_image_url} deleteChecked={form.delete_front_image} error={errors.front_image} onFileChange={(file) => updateForm('front_image', file)} onDeleteChange={(checked) => updateForm('delete_front_image', checked)} />
+                  <FileInputField label="Ảnh mặt sau CCCD" file={form.back_image} currentUrl={editingTenant?.back_image_url} deleteChecked={form.delete_back_image} error={errors.back_image} onFileChange={(file) => updateForm('back_image', file)} onDeleteChange={(checked) => updateForm('delete_back_image', checked)} />
+
+                  <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
+                    <button type="button" disabled={isSaving} onClick={() => void submit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60">
+                      <BadgeCheck className="h-5 w-5" /> {isSaving ? 'Đang lưu...' : editingTenant ? 'Cập nhật' : 'Tạo khách thuê'}
                     </button>
                   </div>
+                </div>
+              </aside>
+            )}
+          </div>
+        </section>
+
+        {isDetailOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="tenant-detail-title">
+            <button type="button" aria-label="Đóng chi tiết khách thuê" onClick={closeDetail} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
+            <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
+              <div className="bg-[#24170d] p-5 text-[#fff4df]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 id="tenant-detail-title" className="mt-2 text-2xl font-black tracking-tight">{detailTenant?.full_name || detailTenant?.username || 'Đang tải chi tiết...'}</h2>
+                  </div>
+                  <button type="button" onClick={closeDetail} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết khách thuê">
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
               </div>
 
               <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
-                {isSuperAdmin && (
-                  <div>
-                    <label className={labelClass}>Tòa nhà <span className="text-rose-500">*</span></label>
-                    <AdminSelect value={form.building_id || ""} options={buildingOptions} invalid={!!errors.building_id} onChange={(nextValue) => updateForm('building_id', nextValue)} />
-                    <FieldError message={errors.building_id} />
+                {isDetailLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết khách thuê...</div>}
+                {detailErrorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{detailErrorMessage}</div>}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <DetailTile label="Trạng thái" value={getTenantStatusLabel(detailTenant)} />
+                  <DetailTile label="Giới tính" value={detailTenant?.gender_label || getGenderLabel(detailTenant?.gender)} />
+                  <DetailTile label="Giấy tờ" value={`${detailTenant?.identity_type_label || getIdentityTypeLabel(detailTenant?.identity_type)} · ${detailTenant?.identity_number || '—'}`} />
+                  <DetailTile label="Người tạo" value={detailTenant?.creator?.full_name || detailTenant?.creator?.username || '—'} />
+                </div>
+
+                <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Thông tin liên hệ</p>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <DetailTile label="Username" value={`@${detailTenant?.username || '—'}`} />
+                    <DetailTile label="Email" value={detailTenant?.email || '—'} />
+                    <DetailTile label="Số điện thoại" value={detailTenant?.phone || '—'} />
+                    <DetailTile label="Ngày sinh" value={formatDate(detailTenant?.date_of_birth)} />
+                    <DetailTile label="Địa chỉ thường trú" value={detailTenant?.permanent_address || '—'} />
+                    <DetailTile label="Địa chỉ hiện tại" value={detailTenant?.current_address || '—'} />
                   </div>
-                )}
-                <div>
-                  <label className={labelClass}>Tên đăng nhập</label>
-                  <input className={cn(inputClass, errors.username && inputErrorClass)} value={form.username} onChange={(event) => updateForm('username', event.target.value)} placeholder="Ví dụ: tenant_nguyenvana" autoComplete="off" />
-                  <FieldError message={errors.username} />
+                </section>
+
+                <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Ảnh giấy tờ</p>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <ImageTile label="Mặt trước" url={detailTenant?.front_image_url} />
+                    <ImageTile label="Mặt sau" url={detailTenant?.back_image_url} />
+                  </div>
+                </section>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <DetailTile label="Tòa nhà đang ở" value={getTenantBuildingName(detailTenant)} />
+                  <DetailTile label="Phòng đang ở" value={getTenantRoomNumber(detailTenant)} />
+                  <DetailTile label="Phương tiện" value={detailTenant?.vehicles_count ?? 0} />
+                  <DetailTile label="Thông báo đã đọc" value={detailTenant?.notification_reads_count ?? 0} />
                 </div>
-                <div>
-                  <label className={labelClass}>Họ tên</label>
-                  <input className={cn(inputClass, errors.full_name && inputErrorClass)} value={form.full_name} onChange={(event) => updateForm('full_name', event.target.value)} placeholder="Nhập họ tên khách thuê" />
-                  <FieldError message={errors.full_name} />
-                </div>
-                <div>
-                  <label className={labelClass}>Email</label>
-                  <input className={cn(inputClass, errors.email && inputErrorClass)} value={form.email} onChange={(event) => updateForm('email', event.target.value)} placeholder="tenant@stayhub.vn" type="email" />
-                  <FieldError message={errors.email} />
-                </div>
-                <div>
-                  <label className={labelClass}>Số điện thoại</label>
-                  <input className={cn(inputClass, errors.phone && inputErrorClass)} value={form.phone} onChange={(event) => updateForm('phone', event.target.value)} placeholder="Nhập số điện thoại" />
-                  <FieldError message={errors.phone} />
-                </div>
-                <div>
-                  <label className={labelClass}>Ngày sinh (Tùy chọn)</label>
-                  <AdminDateInput 
-                    className={cn(inputClass, errors.date_of_birth && inputErrorClass)} 
-                    value={form.date_of_birth} 
-                    onChange={(value) => updateForm('date_of_birth', value)} 
-                    maxDate={new Date()}
-                  />
-                  <FieldError message={errors.date_of_birth} />
-                </div>
+
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className={labelClass}>Giới tính</label>
-                    <AdminSelect value={form.gender} options={formGenderOptions} invalid={!!errors.gender} onChange={(nextValue) => updateForm('gender', Number(nextValue))} />
-                    <FieldError message={errors.gender} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Trạng thái</label>
-                    <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
-                    <FieldError message={errors.status} />
-                  </div>
+                  <DetailTile label="Ngày tạo" value={formatDateTime(detailTenant?.created_at)} />
+                  <DetailTile label="Ngày cập nhật" value={formatDateTime(detailTenant?.updated_at)} />
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className={labelClass}>Loại giấy tờ</label>
-                    <AdminSelect value={form.identity_type} options={formIdentityTypeOptions} invalid={!!errors.identity_type} onChange={(nextValue) => updateForm('identity_type', Number(nextValue))} />
-                    <FieldError message={errors.identity_type} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Số giấy tờ</label>
-                    <input className={cn(inputClass, errors.identity_number && inputErrorClass)} value={form.identity_number} onChange={(event) => updateForm('identity_number', event.target.value)} placeholder="Nhập số CCCD/CMND" />
-                    <FieldError message={errors.identity_number} />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Địa chỉ thường trú</label>
-                  <textarea className={cn(inputClass, 'min-h-20 resize-none', errors.permanent_address && inputErrorClass)} value={form.permanent_address} onChange={(event) => updateForm('permanent_address', event.target.value)} placeholder="Nhập địa chỉ thường trú" />
-                  <FieldError message={errors.permanent_address} />
-                </div>
-                <div>
-                  <label className={labelClass}>Địa chỉ hiện tại</label>
-                  <textarea className={cn(inputClass, 'min-h-20 resize-none', errors.current_address && inputErrorClass)} value={form.current_address} onChange={(event) => updateForm('current_address', event.target.value)} placeholder="Nhập địa chỉ hiện tại" />
-                  <FieldError message={errors.current_address} />
-                </div>
-
-                <FileInputField label="Ảnh mặt trước CCCD" file={form.front_image} currentUrl={editingTenant?.front_image_url} deleteChecked={form.delete_front_image} error={errors.front_image} onFileChange={(file) => updateForm('front_image', file)} onDeleteChange={(checked) => updateForm('delete_front_image', checked)} />
-                <FileInputField label="Ảnh mặt sau CCCD" file={form.back_image} currentUrl={editingTenant?.back_image_url} deleteChecked={form.delete_back_image} error={errors.back_image} onFileChange={(file) => updateForm('back_image', file)} onDeleteChange={(checked) => updateForm('delete_back_image', checked)} />
-
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
-                  <button type="button" disabled={isSaving} onClick={() => void submit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60">
-                    <BadgeCheck className="h-5 w-5" /> {isSaving ? 'Đang lưu...' : editingTenant ? 'Cập nhật' : 'Tạo khách thuê'}
-                  </button>
-                </div>
-              </div>
-            </aside>
-          )}
-        </div>
-      </section>
-
-      {isDetailOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="tenant-detail-title">
-          <button type="button" aria-label="Đóng chi tiết khách thuê" onClick={closeDetail} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
-          <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
-            <div className="bg-[#24170d] p-5 text-[#fff4df]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 id="tenant-detail-title" className="mt-2 text-2xl font-black tracking-tight">{detailTenant?.full_name || detailTenant?.username || 'Đang tải chi tiết...'}</h2>
-                </div>
-                <button type="button" onClick={closeDetail} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết khách thuê">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
-              {isDetailLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết khách thuê...</div>}
-              {detailErrorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{detailErrorMessage}</div>}
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                <DetailTile label="Trạng thái" value={getTenantStatusLabel(detailTenant)} />
-                <DetailTile label="Giới tính" value={detailTenant?.gender_label || getGenderLabel(detailTenant?.gender)} />
-                <DetailTile label="Giấy tờ" value={`${detailTenant?.identity_type_label || getIdentityTypeLabel(detailTenant?.identity_type)} · ${detailTenant?.identity_number || '—'}`} />
-                <DetailTile label="Người tạo" value={detailTenant?.creator?.full_name || detailTenant?.creator?.username || '—'} />
-              </div>
-
-              <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Thông tin liên hệ</p>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DetailTile label="Username" value={`@${detailTenant?.username || '—'}`} />
-                  <DetailTile label="Email" value={detailTenant?.email || '—'} />
-                  <DetailTile label="Số điện thoại" value={detailTenant?.phone || '—'} />
-                  <DetailTile label="Ngày sinh" value={formatDate(detailTenant?.date_of_birth)} />
-                  <DetailTile label="Địa chỉ thường trú" value={detailTenant?.permanent_address || '—'} />
-                  <DetailTile label="Địa chỉ hiện tại" value={detailTenant?.current_address || '—'} />
-                </div>
-              </section>
-
-              <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Ảnh giấy tờ</p>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <ImageTile label="Mặt trước" url={detailTenant?.front_image_url} />
-                  <ImageTile label="Mặt sau" url={detailTenant?.back_image_url} />
-                </div>
-              </section>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                <DetailTile label="Tòa nhà đang ở" value={getTenantBuildingName(detailTenant)} />
-                <DetailTile label="Phòng đang ở" value={getTenantRoomNumber(detailTenant)} />
-                <DetailTile label="Phương tiện" value={detailTenant?.vehicles_count ?? 0} />
-                <DetailTile label="Thông báo đã đọc" value={detailTenant?.notification_reads_count ?? 0} />
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <DetailTile label="Ngày tạo" value={formatDateTime(detailTenant?.created_at)} />
-                <DetailTile label="Ngày cập nhật" value={formatDateTime(detailTenant?.updated_at)} />
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </>
+        )}
+      </>
     </>
   )
 }
@@ -787,22 +788,65 @@ function TenantAvatar({ tenant }: { tenant: AdminTenantResource }) {
   const avatarUrl = tenant.avatar_url?.trim()
   const [loadedAvatarUrl, setLoadedAvatarUrl] = useState<string | null>(null)
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null)
+  const [isZoomed, setIsZoomed] = useState(false)
 
   useEffect(() => {
     setLoadedAvatarUrl(null)
     setFailedAvatarUrl(null)
   }, [avatarUrl])
 
+  useEffect(() => {
+    if (!isZoomed) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsZoomed(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isZoomed])
+
   const hasRemoteAvatar = Boolean(avatarUrl && avatarUrl !== DEFAULT_AVATAR_URL && avatarUrl !== failedAvatarUrl)
   const avatarAlt = tenant.full_name || tenant.username
+  const visibleUrl = hasRemoteAvatar && loadedAvatarUrl === avatarUrl ? avatarUrl : DEFAULT_AVATAR_URL
 
   return (
-    <span className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-[#f3c56b]/35 bg-[#efe2cf] shadow-sm transition group-hover:-translate-y-0.5 group-hover:scale-105">
-      <img src={DEFAULT_AVATAR_URL} alt={avatarAlt} width={44} height={44} decoding="async" className="h-full w-full object-cover" />
-      {hasRemoteAvatar && (
-        <img src={avatarUrl} alt="" aria-hidden="true" width={44} height={44} loading="lazy" decoding="async" onLoad={() => setLoadedAvatarUrl(avatarUrl || null)} onError={() => setFailedAvatarUrl(avatarUrl || null)} className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-200', loadedAvatarUrl === avatarUrl ? 'opacity-100' : 'opacity-0')} />
+    <>
+      <span
+        className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-[#f3c56b]/35 bg-[#efe2cf] shadow-sm transition group-hover:-translate-y-0.5 group-hover:scale-105 cursor-zoom-in"
+        onClick={() => setIsZoomed(true)}
+      >
+        <img src={DEFAULT_AVATAR_URL} alt={avatarAlt} width={44} height={44} decoding="async" className="h-full w-full object-cover" />
+        {hasRemoteAvatar && (
+          <img src={avatarUrl} alt="" aria-hidden="true" width={44} height={44} loading="lazy" decoding="async" onLoad={() => setLoadedAvatarUrl(avatarUrl || null)} onError={() => setFailedAvatarUrl(avatarUrl || null)} className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-200', loadedAvatarUrl === avatarUrl ? 'opacity-100' : 'opacity-0')} />
+        )}
+      </span>
+
+      {isZoomed && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/80 p-4 backdrop-blur-sm cursor-zoom-out"
+          onClick={() => setIsZoomed(false)}
+        >
+          <button
+            type="button"
+            className="absolute right-6 top-6 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+            onClick={(e) => { e.stopPropagation(); setIsZoomed(false) }}
+            aria-label="Đóng ảnh"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <img
+            src={visibleUrl}
+            alt={avatarAlt}
+            className="max-h-[75vh] max-w-[90vw] lg:max-w-[70vw] rounded-lg object-contain shadow-2xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>,
+        document.body
       )}
-    </span>
+    </>
   )
 }
 
@@ -817,6 +861,7 @@ function handleImageFallback(event: SyntheticEvent<HTMLImageElement>) {
 
 function FileInputField({ label, file, currentUrl, deleteChecked, error, onFileChange, onDeleteChange }: { label: string; file: File | null; currentUrl?: string | null; deleteChecked: boolean; error?: string; onFileChange: (file: File | null) => void; onDeleteChange: (checked: boolean) => void }) {
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file])
+  const [isZoomed, setIsZoomed] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -824,40 +869,147 @@ function FileInputField({ label, file, currentUrl, deleteChecked, error, onFileC
     }
   }, [previewUrl])
 
+  useEffect(() => {
+    if (!isZoomed) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsZoomed(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isZoomed])
+
   const visibleUrl = previewUrl || (!deleteChecked ? currentUrl : null)
 
+  const handleRemove = () => {
+    if (previewUrl) {
+      onFileChange(null)
+    } else if (currentUrl) {
+      onDeleteChange(true)
+    }
+  }
+
+  const handleUndoDelete = () => {
+    onDeleteChange(false)
+  }
+
   return (
-    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/55 p-3">
-      <label className={labelClass}>{label}</label>
-      {visibleUrl ? (
-        <img src={visibleUrl} alt={label} className="mb-3 h-32 w-full rounded-2xl border border-[#3d2a18]/10 object-cover" />
-      ) : (
-        <div className="mb-3 flex h-24 w-full items-center justify-center rounded-2xl border border-dashed border-[#3d2a18]/12 bg-[#efe2cf]/45 text-[#8b5e34]"><Camera className="h-6 w-6" /></div>
-      )}
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
-        <UploadCloud className="h-4 w-4" /> Chọn ảnh
-        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => onFileChange(event.target.files?.[0] ?? null)} />
-      </label>
-      {file && <p className="mt-2 truncate text-xs font-bold text-[#6f6254]">{file.name}</p>}
-      {currentUrl && (
-        <label className="mt-3 flex items-center gap-2 text-xs font-bold text-rose-700">
-          <input type="checkbox" checked={deleteChecked} onChange={(event) => onDeleteChange(event.target.checked)} className="h-4 w-4 rounded border-rose-300" /> Xóa ảnh hiện tại
+    <>
+      <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/55 p-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className={labelClass}>{label}</label>
+          {deleteChecked && !previewUrl && currentUrl && (
+            <button type="button" onClick={handleUndoDelete} className="text-[10px] font-black text-[#a65f16] hover:text-[#8b5e34] hover:underline">Hoàn tác xóa</button>
+          )}
+        </div>
+        {visibleUrl ? (
+          <div className="relative mb-3 group">
+            <img src={visibleUrl} alt={label} onClick={() => setIsZoomed(true)} className="h-32 w-full rounded-2xl border border-[#3d2a18]/10 object-cover cursor-zoom-in transition hover:opacity-90" />
+            <button type="button" onClick={handleRemove} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/90 text-white shadow-sm backdrop-blur-sm transition hover:bg-rose-600 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-rose-400 sm:opacity-0 sm:group-hover:opacity-100" title="Xóa ảnh">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="mb-3 flex h-24 w-full items-center justify-center rounded-2xl border border-dashed border-[#3d2a18]/12 bg-[#efe2cf]/45 text-[#8b5e34]"><Camera className="h-6 w-6" /></div>
+        )}
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
+          <UploadCloud className="h-4 w-4" /> {file ? 'Chọn ảnh khác' : 'Chọn ảnh'}
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => {
+            onFileChange(event.target.files?.[0] ?? null)
+            if (deleteChecked) onDeleteChange(false)
+          }} />
         </label>
+        {file && <p className="mt-2 truncate text-xs font-bold text-[#6f6254]">{file.name}</p>}
+        <FieldError message={error} />
+      </div>
+
+      {isZoomed && visibleUrl && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/80 p-4 backdrop-blur-sm cursor-zoom-out"
+          onClick={() => setIsZoomed(false)}
+        >
+          <button
+            type="button"
+            className="absolute right-6 top-6 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+            onClick={(e) => { e.stopPropagation(); setIsZoomed(false) }}
+            aria-label="Đóng ảnh"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <img
+            src={visibleUrl}
+            alt={label}
+            className="max-h-[75vh] max-w-[90vw] lg:max-w-[70vw] rounded-lg object-contain shadow-2xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>,
+        document.body
       )}
-      <FieldError message={error} />
-    </div>
+    </>
   )
 }
 
 function ImageTile({ label, url }: { label: string; url?: string | null }) {
   const isAvatar = label === 'Ảnh đại diện'
   const visibleUrl = url || (isAvatar ? DEFAULT_AVATAR_URL : null)
+  const [isZoomed, setIsZoomed] = useState(false)
+
+  useEffect(() => {
+    if (!isZoomed) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsZoomed(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isZoomed])
 
   return (
-    <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
-      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
-      {visibleUrl ? <img src={visibleUrl} alt={label} onError={isAvatar ? handleImageFallback : undefined} className="h-44 w-full rounded-2xl object-cover" /> : <div className="flex h-44 items-center justify-center rounded-2xl border border-dashed border-[#3d2a18]/12 bg-[#efe2cf]/45 text-sm font-black text-[#8b5e34]">Chưa có ảnh</div>}
-    </div>
+    <>
+      <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
+        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
+        {visibleUrl ? (
+          <img
+            src={visibleUrl}
+            alt={label}
+            onError={isAvatar ? handleImageFallback : undefined}
+            className="h-44 w-full rounded-2xl object-cover cursor-zoom-in transition hover:opacity-90"
+            onClick={() => setIsZoomed(true)}
+          />
+        ) : (
+          <div className="flex h-44 items-center justify-center rounded-2xl border border-dashed border-[#3d2a18]/12 bg-[#efe2cf]/45 text-sm font-black text-[#8b5e34]">Chưa có ảnh</div>
+        )}
+      </div>
+
+      {isZoomed && visibleUrl && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/80 p-4 backdrop-blur-sm cursor-zoom-out"
+          onClick={() => setIsZoomed(false)}
+        >
+          <button
+            type="button"
+            className="absolute right-6 top-6 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+            onClick={(e) => { e.stopPropagation(); setIsZoomed(false) }}
+            aria-label="Đóng ảnh"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <img
+            src={visibleUrl}
+            alt={label}
+            className="max-h-[75vh] max-w-[90vw] lg:max-w-[70vw] rounded-lg object-contain shadow-2xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 

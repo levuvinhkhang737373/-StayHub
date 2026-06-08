@@ -97,7 +97,6 @@ export interface AdminBuildingSettingResource {
   building_id?: number | null
   building_name?: string | null
   setting_label: string
-  setting_name: string
   setting_value?: string | null
   description?: string | null
   is_public: boolean
@@ -122,7 +121,6 @@ export interface AdminBuildingServicePricePayload {
 export interface AdminBuildingSettingPayload {
   id?: number
   setting_label: string
-  setting_name: string
   setting_value?: string
   description?: string
   is_public?: boolean

@@ -6,7 +6,6 @@ export interface AdminSettingResource {
   building_name?: string | null
   building?: AdminBuildingResource | null
   setting_label: string
-  setting_name: string
   setting_value?: string | null
   description?: string | null
   is_public: boolean
@@ -24,7 +23,6 @@ export interface AdminSettingResource {
 export interface AdminSettingPayload {
   building_id?: number | null
   setting_label: string
-  setting_name: string
   setting_value?: string
   description?: string
   is_public?: boolean
