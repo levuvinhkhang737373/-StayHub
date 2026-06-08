@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
 use App\Http\Controllers\Admin\RegionController;
+use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
@@ -58,5 +59,8 @@ Route::prefix('admin')->group(function (): void {
         Route::apiResource('accounts', AdminAccountController::class);
 
         //=========================Contracts================================
+
+        //==========================Rooms===================================
+        Route::apiResource('/room', RoomController::class);
     });
 });

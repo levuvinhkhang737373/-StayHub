@@ -14,6 +14,8 @@ import { FacilitiesScreen } from '../features/admin/facilities/components/facili
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
 import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
 import { AdminLayout } from '../layouts/admin/AdminLayout'
+import {Rooms} from '../features/admin/rooms/components/rooms'
+import { Create } from '../features/admin/rooms/components/create'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -62,7 +64,11 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'rooms',
-        element: <AdminPlaceholderScreen title="Quản lý Phòng" description="Quản lý danh sách phòng, trạng thái phòng và cấu hình vận hành phòng." />,
+        element: <AdminRouteGuard access='all'><Rooms/></AdminRouteGuard> ,
+      },
+      {
+           path: 'room',
+        element: <AdminRouteGuard access='all'><Create/></AdminRouteGuard> ,
       },
       {
         path: 'tenants',
