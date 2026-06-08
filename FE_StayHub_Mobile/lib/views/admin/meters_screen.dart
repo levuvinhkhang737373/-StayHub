@@ -252,7 +252,11 @@ class _MetersScreenState extends State<MetersScreen> {
                                       borderRadius: BorderRadius.circular(16),
                                       child: Image.network(
                                         'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&q=80&w=400',
-                                        fit: double.infinity.toString() == 'double.infinity' ? BoxFit.cover : BoxFit.fill,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: const Color(0xFFF9F8F6),
+                                          child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                                        ),
                                       ),
                                     ),
                                   ),

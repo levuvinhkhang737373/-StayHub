@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import '../../controllers/maintenance_controller.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 
@@ -11,6 +15,25 @@ class MaintenanceScreen extends StatefulWidget {
 }
 
 class _MaintenanceScreenState extends State<MaintenanceScreen> {
+  XFile? _pickedAfterImage;
+  Uint8List? _pickedAfterImageBytes;
+
+  void _selectAfterImage(StateSetter setStateDialog) async {
+    final ImagePicker picker = ImagePicker();
+    try {
+      final XFile? img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (img != null) {
+        final bytes = await img.readAsBytes();
+        setStateDialog(() {
+          _pickedAfterImage = img;
+          _pickedAfterImageBytes = bytes;
+        });
+      }
+    } catch (e) {
+      debugPrint('Lỗi chọn ảnh: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -20,8 +43,9 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
   }
 
   void _updateRequestStatus(dynamic request) {
-    int selectedStatus = request.status;
-    bool hasAfterPhoto = request.afterImageUrl != null;
+    int selectedStatus = request.status == 2 ? 3 : request.status;
+    _pickedAfterImage = null;
+    _pickedAfterImageBytes = null;
 
     showDialog(
       context: context,
@@ -30,67 +54,78 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
           builder: (context, setStateDialog) {
             return AlertDialog(
               title: Text('Xử lý Yêu cầu Phòng ${request.roomNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                    DropdownButtonFormField<int>(
-                      initialValue: selectedStatus,
-                      decoration: const InputDecoration(labelText: 'Trạng thái xử lý', border: OutlineInputBorder()),
-                      items: const [
-                        DropdownMenuItem(value: 1, child: Text('Mới tạo')),
-                        DropdownMenuItem(value: 2, child: Text('Đã tiếp nhận')),
-                        DropdownMenuItem(value: 3, child: Text('Đang xử lý')),
-                        DropdownMenuItem(value: 4, child: Text('Đã hoàn thành')),
-                        DropdownMenuItem(value: 5, child: Text('Đã hủy')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setStateDialog(() {
-                            selectedStatus = val;
-                          });
-                        }
-                      },
-                    ),
-                  const SizedBox(height: 16),
-                  
-                  // After Photo capture simulation (Required if resolved)
-                  if (selectedStatus == 4) ...[
-                    const Text('ẢNH MINH CHỨNG HOÀN THÀNH', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () async {
-                        setStateDialog(() {
-                          hasAfterPhoto = true;
-                        });
-                      },
-                      child: Container(
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF9F8F6),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE4E2D7)),
-                        ),
-                        child: hasAfterPhoto
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  'https://images.unsplash.com/photo-1550985616-10810253b84d?auto=format&fit=crop&q=80&w=200',
-                                  fit: double.infinity.toString() == 'double.infinity' ? BoxFit.cover : BoxFit.fill,
-                                ),
-                              )
-                            : const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.camera_alt_outlined, size: 28, color: Colors.grey),
-                                  SizedBox(height: 4),
-                                  Text('Bấm chụp ảnh sau sửa chữa', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                                ],
-                              ),
+              content: SizedBox(
+                width: 320,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                      DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        value: selectedStatus,
+                        decoration: const InputDecoration(labelText: 'Trạng thái xử lý', border: OutlineInputBorder()),
+                        items: const [
+                          DropdownMenuItem(value: 1, child: Text('Mới tạo')),
+                          DropdownMenuItem(value: 3, child: Text('Đang xử lý')),
+                          DropdownMenuItem(value: 4, child: Text('Đã hoàn thành')),
+                          DropdownMenuItem(value: 5, child: Text('Đã hủy')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setStateDialog(() {
+                              selectedStatus = val;
+                            });
+                          }
+                        },
                       ),
-                    ),
-                  ]
-                ],
+                    const SizedBox(height: 16),
+                    
+                    // After Photo capture (Required if resolved)
+                    if (selectedStatus == 4) ...[
+                      const Text('ẢNH MINH CHỨNG HOÀN THÀNH', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () => _selectAfterImage(setStateDialog),
+                        child: Container(
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF9F8F6),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE4E2D7)),
+                          ),
+                          child: _pickedAfterImageBytes != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.memory(
+                                    _pickedAfterImageBytes!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : (request.afterImageUrl != null)
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        request.afterImageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: const Color(0xFFF9F8F6),
+                                          child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                                        ),
+                                      ),
+                                    )
+                                  : const Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.camera_alt_outlined, size: 28, color: Colors.grey),
+                                        SizedBox(height: 4),
+                                        Text('Bấm để chọn/chụp ảnh thực tế', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                      ],
+                                    ),
+                        ),
+                      ),
+                    ]
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -99,18 +134,17 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                 ),
                 TextButton(
                   onPressed: () async {
-                    if (selectedStatus == 4 && !hasAfterPhoto) {
+                    if (selectedStatus == 4 && _pickedAfterImage == null && request.afterImageUrl == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vui lòng chụp ảnh minh chứng hoàn thành!'), backgroundColor: Colors.redAccent),
+                        const SnackBar(content: Text('Vui lòng chọn ảnh minh chứng hoàn thành!'), backgroundColor: Colors.redAccent),
                       );
                       return;
                     }
 
-                    final afterImg = selectedStatus == 4 ? 'https://images.unsplash.com/photo-1550985616-10810253b84d?auto=format&fit=crop&q=80&w=300' : null;
                     final success = await context.read<MaintenanceController>().updateRequestStatus(
                       request.id,
                       selectedStatus,
-                      afterImageUrl: afterImg,
+                      afterImageFile: _pickedAfterImage,
                     );
 
                     if (success && mounted) {
@@ -201,7 +235,17 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                                       if (request.beforeImageUrl != null)
                                         ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
-                                          child: Image.network(request.beforeImageUrl!, height: 100, width: double.infinity, fit: double.infinity.toString() == 'double.infinity' ? BoxFit.cover : BoxFit.fill),
+                                          child: Image.network(
+                                            request.beforeImageUrl!,
+                                            height: 100,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              height: 100,
+                                              color: const Color(0xFFF9F8F6),
+                                              child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                                            ),
+                                          ),
                                         )
                                       else
                                         const Text('Không có ảnh', style: TextStyle(fontSize: 12, color: Colors.grey)),
@@ -218,7 +262,17 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                                       if (request.afterImageUrl != null)
                                         ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
-                                          child: Image.network(request.afterImageUrl!, height: 100, width: double.infinity, fit: double.infinity.toString() == 'double.infinity' ? BoxFit.cover : BoxFit.fill),
+                                          child: Image.network(
+                                            request.afterImageUrl!,
+                                            height: 100,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              height: 100,
+                                              color: const Color(0xFFF9F8F6),
+                                              child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                                            ),
+                                          ),
                                         )
                                       else
                                         Container(
@@ -278,7 +332,6 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
   Widget _buildStatusBadge(int status, String label) {
     Color color = Colors.grey;
     if (status == 1) color = Colors.redAccent;          // Mới tạo
-    if (status == 2) color = Colors.blueAccent;         // Đã tiếp nhận
     if (status == 3) color = const Color(0xFFEAB308);   // Đang xử lý
     if (status == 4) color = Colors.green;              // Đã hoàn thành
     if (status == 5) color = Colors.grey;               // Đã hủy

@@ -75,9 +75,21 @@ return new class extends Migration
         });
 
         Schema::table('asset_templates', function (Blueprint $table) {
-            $table->dropForeign(['building_id']);
-            $table->dropIndex('asset_templates_building_id_status_index');
-            $table->dropColumn('building_id');
+            $indexes = collect(Schema::getIndexes('asset_templates'))->pluck('name');
+            if ($indexes->contains('asset_templates_building_id_status_index')) {
+                $table->dropIndex('asset_templates_building_id_status_index');
+            }
+            
+            $foreignKeys = collect(Schema::getForeignKeys('asset_templates'));
+            $hasForeign = $foreignKeys->contains(fn ($fk) => in_array('building_id', $fk['columns'] ?? []))
+                || $foreignKeys->contains('name', 'asset_templates_building_id_foreign');
+            if ($hasForeign) {
+                $table->dropForeign(['building_id']);
+            }
+            
+            if (Schema::hasColumn('asset_templates', 'building_id')) {
+                $table->dropColumn('building_id');
+            }
         });
     }
 

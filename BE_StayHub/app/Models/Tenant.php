@@ -97,9 +97,21 @@ class Tenant extends Authenticatable
         return $this->belongsTo(Building::class);
     }
 
+    public function currentContractTenant(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ContractTenant::class, 'tenant_id')
+            ->where('is_staying', true)
+            ->whereNull('leave_date');
+    }
+
+    public function getRoomIdAttribute(): ?int
+    {
+        return $this->currentContractTenant?->contract?->room_id;
+    }
+
     public function room(): BelongsTo
     {
-        return $this->belongsTo(Room::class);
+        return $this->belongsTo(Room::class, 'room_id');
     }
 
     public function representedContracts(): HasMany

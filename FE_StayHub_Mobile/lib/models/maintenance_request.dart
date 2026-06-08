@@ -3,7 +3,7 @@ import '../config/app_config.dart';
 class MaintenanceRequest {
   // Status constants matching backend:
   static const int STATUS_CREATED = 1;
-  static const int STATUS_RECEIVED = 2;
+  // static const int STATUS_RECEIVED = 2;
   static const int STATUS_PROCESSING = 3;
   static const int STATUS_COMPLETED = 4;
   static const int STATUS_CANCELLED = 5;
@@ -73,6 +73,11 @@ class MaintenanceRequest {
       }
     }
 
+    int statusVal = json['status'] as int? ?? STATUS_CREATED;
+    if (statusVal == 2) {
+      statusVal = STATUS_PROCESSING;
+    }
+
     return MaintenanceRequest(
       id: json['id'] as int,
       requestCode: json['request_code'] as String? ?? '',
@@ -82,7 +87,7 @@ class MaintenanceRequest {
       tenantName: json['tenant_name'] as String?,
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
-      status: json['status'] as int? ?? STATUS_CREATED,
+      status: statusVal,
       images: imagesList,
       assignedTo: json['assigned_to'] as int?,
       receivedAt: json['received_at'] as String?,
@@ -116,8 +121,8 @@ class MaintenanceRequest {
     switch (status) {
       case STATUS_CREATED:
         return 'Mới tạo';
-      case STATUS_RECEIVED:
-        return 'Đã tiếp nhận';
+      // case STATUS_RECEIVED:
+      //   return 'Đã tiếp nhận';
       case STATUS_PROCESSING:
         return 'Đang xử lý';
       case STATUS_COMPLETED:

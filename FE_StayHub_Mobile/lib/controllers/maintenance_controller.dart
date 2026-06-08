@@ -136,20 +136,56 @@ class MaintenanceController extends ChangeNotifier {
   }
 
   /// Cập nhật trạng thái phiếu sửa chữa (Admin action)
-  Future<bool> updateRequestStatus(int id, int status, {String? note, String? afterImageUrl}) async {
+  Future<bool> updateRequestStatus(
+    int id,
+    int status, {
+    String? note,
+    XFile? afterImageFile,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final response = await _apiService.patch<Map<String, dynamic>>(
-        '/admin/maintenance-requests/$id/status',
-        data: {
+      ApiEnvelope<Map<String, dynamic>> response;
+
+      if (afterImageFile != null) {
+        final Map<String, dynamic> dataMap = {
+          '_method': 'PATCH',
           'status': status,
           'note': note ?? 'Cập nhật trạng thái bảo trì',
-        },
-        fromJsonT: (json) => json as Map<String, dynamic>,
-      );
+        };
+
+        if (kIsWeb) {
+          final bytes = await afterImageFile.readAsBytes();
+          dataMap['after_image'] = MultipartFile.fromBytes(
+            bytes,
+            filename: afterImageFile.name,
+          );
+        } else {
+          dataMap['after_image'] = await MultipartFile.fromFile(
+            afterImageFile.path,
+            filename: afterImageFile.name,
+          );
+        }
+
+        final formData = FormData.fromMap(dataMap);
+
+        response = await _apiService.post<Map<String, dynamic>>(
+          '/admin/maintenance-requests/$id/status',
+          data: formData,
+          fromJsonT: (json) => json as Map<String, dynamic>,
+        );
+      } else {
+        response = await _apiService.patch<Map<String, dynamic>>(
+          '/admin/maintenance-requests/$id/status',
+          data: {
+            'status': status,
+            'note': note ?? 'Cập nhật trạng thái bảo trì',
+          },
+          fromJsonT: (json) => json as Map<String, dynamic>,
+        );
+      }
 
       if (response.status) {
         await fetchAdminRequests();

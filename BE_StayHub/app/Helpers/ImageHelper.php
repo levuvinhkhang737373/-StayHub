@@ -121,7 +121,7 @@ class ImageHelper
             return $path;
         }
 
-        if (self::isLocalUploadPath($path)) {
+        if (config('filesystems.default') === 'local' || $disk === 'local' || self::isLocalUploadPath($path)) {
             return self::load($path);
         }
 
@@ -141,7 +141,7 @@ class ImageHelper
             return $path;
         }
 
-        if (self::isLocalUploadPath($path)) {
+        if (config('filesystems.default') === 'local' || $disk === 'local' || self::isLocalUploadPath($path)) {
             return self::load($path);
         }
 
@@ -234,7 +234,7 @@ class ImageHelper
     {
         $path = ltrim(str_replace('\\', '/', $path), '/');
 
-        return str_starts_with($path, 'upload/');
+        return str_starts_with($path, 'upload/') || str_starts_with($path, 'storage/');
     }
 
     private static function makeTemporaryFileName(string $path): string

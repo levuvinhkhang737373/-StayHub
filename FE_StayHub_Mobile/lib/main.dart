@@ -87,35 +87,33 @@ class MyApp extends StatelessWidget {
           size: isWide ? Size(480, mediaQuery.size.height) : mediaQuery.size,
         );
 
-        Widget mainApp = child!;
-
-        if (isWide) {
-          mainApp = Container(
-            color: const Color(0xFF0F172A), // Dark slate background for wide screens
-            alignment: Alignment.center,
-            child: Container(
-              constraints: const BoxConstraints(
-                maxWidth: 480,
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F6F0),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 30,
-                    spreadRadius: 2,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: child,
-              ),
+        Widget mainApp = Container(
+          color: isWide ? const Color(0xFF0F172A) : Colors.transparent, // Dark slate background for wide screens
+          alignment: Alignment.center,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: isWide ? 480 : double.infinity,
             ),
-          );
-        }
+            decoration: isWide
+                ? BoxDecoration(
+                    color: const Color(0xFFF7F6F0),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 30,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  )
+                : const BoxDecoration(color: Colors.transparent),
+            child: ClipRRect(
+              borderRadius: isWide ? BorderRadius.circular(24) : BorderRadius.zero,
+              child: child,
+            ),
+          ),
+        );
 
         return MediaQuery(
           data: clampedMediaQuery,
