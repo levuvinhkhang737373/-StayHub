@@ -202,6 +202,7 @@ return new class extends Migration
 
         Schema::create('asset_templates', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('building_id')->nullable()->constrained('buildings')->nullOnDelete();
             $table->string('name', 150);
             $table->string('slug')->nullable();
             $table->unsignedTinyInteger('default_unit_name')->nullable()->default(1);

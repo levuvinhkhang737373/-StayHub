@@ -3,8 +3,12 @@ import type { AdminMeterFormErrors, AdminMeterFormValues } from '../types/meter-
 export function validateMeterForm(form: AdminMeterFormValues) {
   const errors: AdminMeterFormErrors = {}
 
-  if (!form.room_id.trim()) {
-    errors.room_id = 'Phải nhập số phòng (Ví dụ: BT201).'
+  if (!form.building_id || !form.building_id.trim()) {
+    errors.building_id = 'Phải chọn tòa nhà.'
+  }
+
+  if (!form.room_id || !form.room_id.trim()) {
+    errors.room_id = 'Phải chọn phòng.'
   }
 
   if (!form.service_id.trim()) {

@@ -47,6 +47,11 @@ return new class extends Migration
 
         Schema::table('room_types', function (Blueprint $table) {
             $indexes = collect(Schema::getIndexes('room_types'))->pluck('name');
+            
+            if (collect(Schema::getForeignKeys('room_types'))->contains('name', 'room_types_building_id_foreign')) {
+                $table->dropForeign(['building_id']);
+            }
+
             if ($indexes->contains('room_types_building_name_unique')) {
                 $table->dropUnique('room_types_building_name_unique');
             }
@@ -55,10 +60,6 @@ return new class extends Migration
             }
             if ($indexes->contains('room_types_building_status_index')) {
                 $table->dropIndex('room_types_building_status_index');
-            }
-            
-            if (collect(Schema::getForeignKeys('room_types'))->contains('name', 'room_types_building_id_foreign')) {
-                $table->dropForeign(['building_id']);
             }
             
             if (Schema::hasColumn('room_types', 'building_id')) {

@@ -14,6 +14,7 @@ class MeterResource extends JsonResource
             'id' => $this->id,
             'room_id' => $this->room_id,
             'room_number' => $this->relationLoaded('room') ? $this->room?->room_number : null,
+            'building_id' => $this->relationLoaded('room') ? $this->room?->building_id : null,
             'service_id' => $this->service_id,
             'service_name' => $this->relationLoaded('service') ? $this->service?->name : null,
             'meter_code' => $this->meter_code,

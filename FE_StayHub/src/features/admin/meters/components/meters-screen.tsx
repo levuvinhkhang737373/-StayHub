@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowLeft, CheckCircle2, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X, Zap } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, CheckCircle2, Droplet, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X, Zap } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
+import { fetchAdminBuildingDetail, fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import {
   createAdminMeterDevice,
   deleteAdminMeterDevice,
@@ -39,6 +41,7 @@ const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:
 const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 const defaultForm: AdminMeterFormValues = {
+  building_id: '',
   room_id: '',
   service_id: '',
   meter_code: '',
@@ -88,7 +91,35 @@ export function MetersScreen() {
   const [meterDevices, setMeterDevices] = useState<AdminMeterDeviceResource[]>([])
   const [allMeterDevices, setAllMeterDevices] = useState<AdminMeterDeviceResource[]>([])
   const [rawServices, setRawServices] = useState<any[]>([])
+  const [buildings, setBuildings] = useState<any[]>([])
+  const [rooms, setRooms] = useState<any[]>([])
   const [editingMeter, setEditingMeter] = useState<AdminMeterDeviceResource | null>(null)
+
+  const loadBuildings = useCallback(async () => {
+    try {
+      const response = await fetchAdminBuildings({ per_page: 100 })
+      const results = getResourceList(response.result)
+      setBuildings(results)
+    } catch (error) {
+      console.error('Failed to load buildings:', error)
+    }
+  }, [])
+
+  const loadRoomsForBuilding = useCallback(async (buildingId: number) => {
+    if (!buildingId) {
+      setRooms([])
+      return
+    }
+    try {
+      const response = await fetchAdminBuildingDetail(buildingId)
+      const buildingDetail = response.result
+      setRooms(buildingDetail?.rooms || [])
+    } catch (error) {
+      console.error('Failed to load rooms:', error)
+      setRooms([])
+    }
+  }, [])
+
   const [detailMeter, setDetailMeter] = useState<AdminMeterDeviceResource | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [form, setForm] = useState<AdminMeterFormValues>(defaultForm)
@@ -101,6 +132,50 @@ export function MetersScreen() {
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [activeMessage, setActiveMessage] = useState<string | null>(null)
+  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [errorMessage])
+
+  useEffect(() => {
+    if (successMessage) {
+      setActiveMessage(successMessage)
+      setActiveType('success')
+    } else if (errorMessage) {
+      setActiveMessage(errorMessage)
+      setActiveType('error')
+    } else {
+      const timer = setTimeout(() => {
+        setActiveMessage(null)
+        setActiveType(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage, errorMessage])
+
+  useEffect(() => {
+    if (form.building_id) {
+      void loadRoomsForBuilding(Number(form.building_id))
+    } else {
+      setRooms([])
+    }
+  }, [form.building_id, loadRoomsForBuilding])
 
   const loadServices = useCallback(async () => {
     try {
@@ -156,7 +231,8 @@ export function MetersScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadServices()
     void loadAllMeterDevices()
-  }, [loadServices, loadAllMeterDevices])
+    void loadBuildings()
+  }, [loadServices, loadAllMeterDevices, loadBuildings])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -167,26 +243,39 @@ export function MetersScreen() {
   }, [loadMeterDevices])
 
   const totalMeters = useMemo(() => allMeterDevices.length, [allMeterDevices])
-  const electricityMeters = useMemo(() => allMeterDevices.filter((item) => item.meter_type === 1), [allMeterDevices])
-  const waterMeters = useMemo(() => allMeterDevices.filter((item) => item.meter_type === 2), [allMeterDevices])
 
-  const statsElectricity = useMemo(() => {
-    return {
-      total: electricityMeters.length,
-      active: electricityMeters.filter((item) => item.status === 1).length,
-      inactive: electricityMeters.filter((item) => item.status === 2 || item.status === 4).length,
-      replaced: electricityMeters.filter((item) => item.status === 3).length,
-    }
-  }, [electricityMeters])
+  const statsStatus = useMemo(() => {
+    const electricity = allMeterDevices.filter((item) => item.meter_type === 1)
+    const water = allMeterDevices.filter((item) => item.meter_type === 2)
 
-  const statsWater = useMemo(() => {
     return {
-      total: waterMeters.length,
-      active: waterMeters.filter((item) => item.status === 1).length,
-      inactive: waterMeters.filter((item) => item.status === 2 || item.status === 4).length,
-      replaced: waterMeters.filter((item) => item.status === 3).length,
+      total: {
+        all: allMeterDevices.length,
+        elec: electricity.length,
+        water: water.length,
+      },
+      active: {
+        all: allMeterDevices.filter((item) => item.status === 1).length,
+        elec: electricity.filter((item) => item.status === 1).length,
+        water: water.filter((item) => item.status === 1).length,
+      },
+      inactive: {
+        all: allMeterDevices.filter((item) => item.status === 2).length,
+        elec: electricity.filter((item) => item.status === 2).length,
+        water: water.filter((item) => item.status === 2).length,
+      },
+      replaced: {
+        all: allMeterDevices.filter((item) => item.status === 3).length,
+        elec: electricity.filter((item) => item.status === 3).length,
+        water: water.filter((item) => item.status === 3).length,
+      },
+      broken: {
+        all: allMeterDevices.filter((item) => item.status === 4).length,
+        elec: electricity.filter((item) => item.status === 4).length,
+        water: water.filter((item) => item.status === 4).length,
+      },
     }
-  }, [waterMeters])
+  }, [allMeterDevices])
   const safeCurrentPage = Math.max(1, Math.min(currentPage, paginationMeta?.last_page ?? currentPage))
   const totalPages = Math.max(1, paginationMeta?.last_page ?? (meterDevices.length >= perPage ? currentPage + 1 : currentPage))
   const paginationStart = paginationMeta?.from ?? (meterDevices.length === 0 ? 0 : (safeCurrentPage - 1) * perPage + 1)
@@ -209,53 +298,6 @@ export function MetersScreen() {
           next.service_id = String(matchedService.id)
         }
       }
-
-      // Auto-generate meter code when room_id or meter_type changes
-      if (key === 'room_id' || key === 'meter_type') {
-        const roomVal = key === 'room_id' ? String(value) : current.room_id
-        const typeVal = key === 'meter_type' ? Number(value) : current.meter_type
-
-        if (roomVal.trim()) {
-          const typePrefix = typeVal === 1 ? 'DIEN' : 'NUOC'
-          const cleanRoom = roomVal.trim().toUpperCase()
-          let isExpanded = false
-          let buildingShort = 'MTR'
-          if (cleanRoom.startsWith('BC')) {
-            buildingShort = 'BC-SQUARE'
-            isExpanded = true
-          } else if (cleanRoom.startsWith('BT')) {
-            buildingShort = 'BT-TOWER'
-            isExpanded = true
-          } else if (cleanRoom.startsWith('COL')) {
-            buildingShort = 'COL-RIVER'
-            isExpanded = true
-          } else if (cleanRoom.startsWith('SG')) {
-            buildingShort = 'SG-LUX'
-            isExpanded = true
-          } else if (cleanRoom.startsWith('TD')) {
-            buildingShort = 'TD-HOME'
-            isExpanded = true
-          } else if (cleanRoom.startsWith('A')) {
-            buildingShort = 'SG'
-          } else if (cleanRoom.startsWith('B')) {
-            buildingShort = 'TD'
-          } else if (cleanRoom.startsWith('C')) {
-            buildingShort = 'BC'
-          } else {
-            const prefixMatch = cleanRoom.match(/^([A-Z]+)/)
-            buildingShort = prefixMatch ? prefixMatch[1] : 'MTR'
-          }
-
-          if (isExpanded) {
-            next.meter_code = `${typePrefix}-EX-${buildingShort}-${cleanRoom}`
-          } else {
-            next.meter_code = `${typePrefix}-${buildingShort}-${cleanRoom}`
-          }
-        } else {
-          next.meter_code = ''
-        }
-      }
-
       return next
     })
     setErrors((current) => ({ ...current, [key]: undefined }))
@@ -277,22 +319,38 @@ export function MetersScreen() {
   }
 
   const resetForm = () => {
-    setEditingMeter(null)
-    const initialForm = { ...defaultForm }
-    const matchedService = rawServices.find(s => s.slug?.includes('dien'))
-    if (matchedService) {
-      initialForm.service_id = String(matchedService.id)
+    if (editingMeter) {
+      setForm({
+        building_id: editingMeter.building_id ? String(editingMeter.building_id) : '',
+        room_id: String(editingMeter.room_id),
+        service_id: String(editingMeter.service_id),
+        meter_code: editingMeter.meter_code || '',
+        meter_type: editingMeter.meter_type || 1,
+        initial_reading: editingMeter.initial_reading != null ? String(editingMeter.initial_reading) : '',
+        final_reading: editingMeter.final_reading != null ? String(editingMeter.final_reading) : '',
+        installed_at: editingMeter.installed_at || '',
+        status: editingMeter.status || 1,
+        replaced_by_meter_id: editingMeter.replaced_by_meter_id ? String(editingMeter.replaced_by_meter_id) : '',
+        note: editingMeter.note || '',
+      })
+    } else {
+      const initialForm = { ...defaultForm }
+      const matchedService = rawServices.find(s => s.slug?.includes('dien'))
+      if (matchedService) {
+        initialForm.service_id = String(matchedService.id)
+      }
+      setForm(initialForm)
     }
-    setForm(initialForm)
     setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
   }
 
-  const editMeter = (meter: AdminMeterDeviceResource) => {
+  const editMeter = async (meter: AdminMeterDeviceResource) => {
     setEditingMeter(meter)
     setForm({
-      room_id: meter.room_number || String(meter.room_id),
+      building_id: meter.building_id ? String(meter.building_id) : '',
+      room_id: String(meter.room_id),
       service_id: String(meter.service_id),
       meter_code: meter.meter_code || '',
       meter_type: meter.meter_type || 1,
@@ -307,6 +365,29 @@ export function MetersScreen() {
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
+
+    try {
+      const response = await fetchAdminMeterDeviceDetail(meter.id)
+      const detail = response.result
+      if (detail) {
+        setEditingMeter(detail)
+        setForm({
+          building_id: detail.building_id ? String(detail.building_id) : '',
+          room_id: String(detail.room_id),
+          service_id: String(detail.service_id),
+          meter_code: detail.meter_code || '',
+          meter_type: detail.meter_type || 1,
+          initial_reading: detail.initial_reading != null ? String(detail.initial_reading) : '',
+          final_reading: detail.final_reading != null ? String(detail.final_reading) : '',
+          installed_at: detail.installed_at || '',
+          status: detail.status || 1,
+          replaced_by_meter_id: detail.replaced_by_meter_id ? String(detail.replaced_by_meter_id) : '',
+          note: detail.note || '',
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch meter detail in edit:', error)
+    }
   }
 
   const viewMeter = async (meter: AdminMeterDeviceResource) => {
@@ -358,9 +439,8 @@ export function MetersScreen() {
       setSuccessMessage(null)
 
       const payload = {
-        room_number: form.room_id.trim(),
+        room_id: Number(form.room_id),
         service_id: Number(form.service_id),
-        meter_code: form.meter_code.trim() || undefined,
         meter_type: form.meter_type,
         initial_reading: Number(form.initial_reading),
         installed_at: form.installed_at || undefined,
@@ -446,177 +526,180 @@ export function MetersScreen() {
   )
 
   return (
-    <div className="space-y-6 pb-6">
-      <header className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 p-6 shadow-sm shadow-[#6b3f1d]/5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#8b5e34]/70">Quản lý</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-[#24170d]">Chốt điện nước</h1>
-            <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[#6f6254]">Danh sách đồng hồ, trạng thái và cấu hình phòng/ dịch vụ.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={openCreateForm} className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#24170d] px-5 text-sm font-black text-[#fff4df] transition hover:bg-[#3d2a18]">
-              <Plus className="mr-2 h-4 w-4" /> Thêm đồng hồ
-            </button>
-            <button type="button" onClick={() => void loadMeterDevices()} className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 text-sm font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
-              <RefreshCw className="mr-2 h-4 w-4" /> Tải lại
-            </button>
-          </div>
-        </div>
+    <div className="space-y-5 sm:space-y-6 text-[#24170d]">
+      <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
+        <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
+          <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
-        <div className="mt-6 space-y-6">
-          {/* Điện */}
-          <div>
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#8b5e34]/70 mb-2 px-1">Đồng hồ Điện</h3>
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-              <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white p-4 shadow-sm shadow-[#6b3f1d]/2">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#8b5e34]/65">Tổng số điện</p>
-                <p className="mt-2 text-2xl font-black text-[#24170d] tabular-nums">{statsElectricity.total}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#0f766e]/20 bg-[#0f766e]/10 p-4 shadow-sm shadow-[#0f766e]/5">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#0f5f59]/75">Đang sử dụng</p>
-                <p className="mt-2 text-2xl font-black text-[#0f5f59] tabular-nums">{statsElectricity.active}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 p-4 shadow-sm shadow-rose-100/5">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-rose-700/75">Ngừng sử dụng/Bị hỏng</p>
-                <p className="mt-2 text-2xl font-black text-rose-700 tabular-nums">{statsElectricity.inactive}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#f3c56b]/45 bg-[#f3c56b]/15 p-4 shadow-sm shadow-[#a65f16]/5">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#8a4f18]/75">Đã thay thế</p>
-                <p className="mt-2 text-2xl font-black text-[#8a4f18] tabular-nums">{statsElectricity.replaced}</p>
-              </div>
+          <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="min-w-0">
+              <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
+                <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
+              </Link>
+
+              <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý đồng hồ</h1>
+            </div>
+            <div className="relative flex flex-wrap items-center gap-3">
+              <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
+                <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm đồng hồ
+              </button>
             </div>
           </div>
 
-          {/* Nước */}
-          <div>
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#8b5e34]/70 mb-2 px-1">Đồng hồ Nước</h3>
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-              <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white p-4 shadow-sm shadow-[#6b3f1d]/2">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#8b5e34]/65">Tổng số nước</p>
-                <p className="mt-2 text-2xl font-black text-[#24170d] tabular-nums">{statsWater.total}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#0f766e]/20 bg-[#0f766e]/10 p-4 shadow-sm shadow-[#0f766e]/5">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#0f5f59]/75">Đang sử dụng</p>
-                <p className="mt-2 text-2xl font-black text-[#0f5f59] tabular-nums">{statsWater.active}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 p-4 shadow-sm shadow-rose-100/5">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-rose-700/75">Ngừng sử dụng/Bị hỏng</p>
-                <p className="mt-2 text-2xl font-black text-rose-700 tabular-nums">{statsWater.inactive}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#f3c56b]/45 bg-[#f3c56b]/15 p-4 shadow-sm shadow-[#a65f16]/5">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#8a4f18]/75">Đã thay thế</p>
-                <p className="mt-2 text-2xl font-black text-[#8a4f18] tabular-nums">{statsWater.replaced}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <section className={cn('grid gap-6 grid-cols-1', isFormOpen && 'xl:grid-cols-[1.8fr_1fr]')}>
-        <div className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 shadow-sm shadow-[#6b3f1d]/5">
-          <div className="flex flex-col gap-4 border-b border-[#3d2a18]/10 p-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-[#f3c56b]/15 p-3 text-[#a65f16]">
-                <Zap className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-[#24170d]">Danh sách đồng hồ</p>
-                <p className="text-xs font-medium text-[#6f6254]">Tìm kiếm, lọc và quản lý trạng thái đồng hồ.</p>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3 xl:w-[480px]">
-              <div>
-                <label className={labelClass}>Tìm theo từ khóa</label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/50" />
-                  <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Mã đồng hồ, phòng, ghi chú..." className={cn(inputClass, 'pl-11')} />
+          <div className="relative mt-6 space-y-6">
+            <div>
+              <div className="mb-2.5 flex items-center gap-2 px-1">
+                <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-[#f3c56b]/20 text-[#f3c56b]">
+                  <Zap className="h-3 w-3 stroke-[2.5]" />
                 </div>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f3c56b]/90">Đồng hồ Điện</h2>
               </div>
-              <div>
-                <label className={labelClass}>Loại đồng hồ</label>
-                <AdminSelect value={selectedMeterType} options={filterMeterTypeOptions} onChange={(nextValue) => setSelectedMeterType(String(nextValue))} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <MetricCard label="Tổng đồng hồ" value={statsStatus.total.elec} tone="neutral" />
+                <MetricCard label="Đang sử dụng" value={statsStatus.active.elec} tone="emerald" />
+                <MetricCard label="Ngừng sử dụng" value={statsStatus.inactive.elec} tone="teal" />
+                <MetricCard label="Đã thay thế" value={statsStatus.replaced.elec} tone="amber" />
+                <MetricCard label="Bị hỏng" value={statsStatus.broken.elec} tone="rose" />
               </div>
-              <div>
-                <label className={labelClass}>Trạng thái</label>
-                <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => setSelectedStatus(String(nextValue))} />
+            </div>
+
+            <div>
+              <div className="mb-2.5 flex items-center gap-2 px-1">
+                <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-cyan-400/20 text-cyan-400">
+                  <Droplet className="h-3 w-3 stroke-[2.5]" />
+                </div>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400/90">Đồng hồ Nước</h2>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <MetricCard label="Tổng đồng hồ" value={statsStatus.total.water} tone="neutral" />
+                <MetricCard label="Đang sử dụng" value={statsStatus.active.water} tone="emerald" />
+                <MetricCard label="Ngừng sử dụng" value={statsStatus.inactive.water} tone="teal" />
+                <MetricCard label="Đã thay thế" value={statsStatus.replaced.water} tone="amber" />
+                <MetricCard label="Bị hỏng" value={statsStatus.broken.water} tone="rose" />
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="overflow-x-auto p-5">
-            {errorMessage && (
-              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">
-                {errorMessage}
+      <div
+        className={cn(
+          'rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden',
+          (successMessage || errorMessage)
+            ? 'opacity-100 max-h-20 py-3 translate-y-0 scale-100'
+            : 'opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent',
+          (errorMessage || activeType === 'error')
+            ? 'border-rose-200 bg-rose-50 text-rose-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        )}
+      >
+        {activeMessage || errorMessage || successMessage}
+      </div>
+
+      <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
+        <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
+          <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
+            <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_200px_200px]">
+              <div className="relative min-w-0">
+                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
+                <input type="text" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm phòng, ghi chú..." className={`${inputClass} pl-11 pr-24`} />
+                <button type="button" onClick={() => setKeyword('')} disabled={!keyword} className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 disabled:cursor-not-allowed disabled:opacity-45">
+                  <X className="h-3.5 w-3.5" /> Xóa lọc
+                </button>
               </div>
-            )}
-            <div className="min-w-[780px]">
-              <table className="w-full border-separate border-spacing-y-2 text-left text-sm">
-                <thead>
+              <AdminSelect value={selectedMeterType} options={filterMeterTypeOptions} onChange={(nextValue) => setSelectedMeterType(String(nextValue))} />
+              <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => setSelectedStatus(String(nextValue))} />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[780px] text-left">
+              <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+                <tr>
+                  <th className="px-5 py-4 w-[15%]">Phòng</th>
+                  <th className="px-5 py-4 w-[18%]">Loại</th>
+                  <th className="px-5 py-4 w-[27%]">Chỉ số</th>
+                  <th className="px-5 py-4 w-[20%]">Trạng thái</th>
+                  <th className="px-5 py-4 w-[20%] text-right">Hành động</th>
+                </tr>
+              </thead>
+              <tbody className={cn('divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70 transition-opacity duration-200', isLoading && 'opacity-50 pointer-events-none')}>
+                {isLoading && meterDevices.length === 0 ? (
                   <tr>
-                    <th className="px-4 py-3 text-xs font-black uppercase tracking-[0.25em] text-[#8b5e34]/70">Phòng</th>
-                    <th className="px-4 py-3 text-xs font-black uppercase tracking-[0.25em] text-[#8b5e34]/70">Mã</th>
-                    <th className="px-4 py-3 text-xs font-black uppercase tracking-[0.25em] text-[#8b5e34]/70">Loại</th>
-                    <th className="px-4 py-3 text-xs font-black uppercase tracking-[0.25em] text-[#8b5e34]/70">Chỉ số</th>
-                    <th className="px-4 py-3 text-xs font-black uppercase tracking-[0.25em] text-[#8b5e34]/70">Trạng thái</th>
-                    <th className="px-4 py-3 text-xs font-black uppercase tracking-[0.25em] text-[#8b5e34]/70">Hành động</th>
+                    <td colSpan={5} className="px-5 py-20 text-center text-sm font-semibold text-[#6f6254]">
+                      Đang tải danh sách đồng hồ...
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-20 text-center text-sm font-semibold text-[#6f6254]">
-                        Đang tải danh sách đồng hồ...
+                ) : meterDevices.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-20 text-center">
+                      <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-8">
+                        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><Zap className="h-9 w-9" /></div>
+                        <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy đồng hồ</p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">{keyword.trim() || selectedMeterType || selectedStatus ? 'Thử xóa bộ lọc hoặc đổi từ khóa tìm kiếm.' : 'Hãy tạo đồng hồ mới hoặc kiểm tra lại dữ liệu hiện tại.'}</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  meterDevices.map((meter) => (
+                    <tr key={meter.id} className="group transition hover:bg-[#f3c56b]/10">
+                      <td className="px-5 py-4 text-sm font-black text-[#24170d] w-[15%]">
+                        {meter.room_number || `Phòng #${meter.room_id}`}
                       </td>
-                    </tr>
-                  ) : meterDevices.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-20 text-center">
-                        <div className="mx-auto max-w-xl rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/90 px-6 py-8 text-center">
-                          <p className="text-lg font-black text-[#24170d]">Không tìm thấy đồng hồ</p>
-                          <p className="mt-2 text-sm font-medium text-[#6f6254]">Thử thay đổi bộ lọc hoặc tạo đồng hồ mới.</p>
+                      <td className="px-5 py-4 text-sm text-[#6f6254] w-[18%]">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          {meter.meter_type === 1 ? (
+                            <>
+                              <Zap className="h-3.5 w-3.5 text-[#f3c56b] fill-[#f3c56b]/10" />
+                              <span className="text-[#8a4f18]">Điện</span>
+                            </>
+                          ) : (
+                            <>
+                              <Droplet className="h-3.5 w-3.5 text-cyan-600 fill-cyan-500/10" />
+                              <span className="text-cyan-700">Nước</span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-[#6f6254] w-[27%]">
+                        {(() => {
+                          const unit = meter.meter_type === 1 ? ' kWh' : ' m³'
+                          return (
+                            <>
+                              <span className="font-semibold text-[#6f6254] tabular-nums">
+                                {meter.initial_reading !== null && meter.initial_reading !== undefined && meter.initial_reading !== '' ? `${meter.initial_reading}${unit}` : '-'}
+                              </span>
+                              {meter.final_reading !== null && meter.final_reading !== undefined && meter.final_reading !== '' && (
+                                <>
+                                  <span className="mx-1.5 text-[#8b5e34]/45">→</span>
+                                  <span className="font-black text-[#24170d] tabular-nums">{meter.final_reading}{unit}</span>
+                                </>
+                              )}
+                            </>
+                          )
+                        })()}
+                      </td>
+                      <td className="px-5 py-4 w-[20%]">
+                        <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', getStatusBadgeClass(meter.status))}>
+                          {meter.status_label || 'Không xác định'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 w-[20%]">
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => void viewMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
+                          <button type="button" onClick={() => editMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa"><Edit3 className="h-5 w-5" /></button>
+                          <button type="button" onClick={() => void removeMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Xóa" disabled={deletingId === meter.id}><Trash2 className="h-5 w-5" /></button>
+                          {meter.status !== 1 && (
+                            <button type="button" onClick={() => void changeStatus(meter, 1)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#d1fae5] text-[#166534] shadow-sm transition hover:bg-[#bbf7d0] focus:outline-none focus:ring-4 focus:ring-emerald-100 active:scale-95" title="Kích hoạt" disabled={statusChangingId === meter.id}><CheckCircle2 className="h-5 w-5" /></button>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  ) : (
-                    meterDevices.map((meter) => (
-                      <tr key={meter.id} className="rounded-[1.75rem] border border-[#3d2a18]/10 bg-white align-middle shadow-sm shadow-[#6b3f1d]/5">
-                        <td className="px-4 py-4 align-middle text-sm font-semibold text-[#24170d]">{meter.room_number || `Phòng #${meter.room_id}`}</td>
-                        <td className="px-4 py-4 align-middle text-sm text-[#6f6254]">{meter.meter_code || '---'}</td>
-                        <td className="px-4 py-4 align-middle text-sm text-[#6f6254]">{meter.meter_type_label || (meter.meter_type === 1 ? 'Điện' : 'Nước')}</td>
-                        <td className="px-4 py-4 align-middle text-sm text-[#6f6254]">
-                          {meter.initial_reading ?? '-'}
-                          {meter.final_reading !== null && meter.final_reading !== undefined && meter.final_reading !== '' ? ` → ${meter.final_reading}` : ''}
-                        </td>
-                        <td className="px-4 py-4 align-middle text-sm text-[#24170d]">
-                          <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.2em]', getStatusBadgeClass(meter.status))}>
-                            {meter.status_label || 'Không xác định'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 align-middle text-sm text-[#6f6254]">
-                          <div className="flex flex-wrap gap-2">
-                            <button type="button" onClick={() => void viewMeter(meter)} className="inline-flex h-9 items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
-                              <Eye className="h-4 w-4" /> Xem
-                            </button>
-                            <button type="button" onClick={() => editMeter(meter)} className="inline-flex h-9 items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
-                              <Edit3 className="h-4 w-4" /> Sửa
-                            </button>
-                            <button type="button" onClick={() => void removeMeter(meter)} className="inline-flex h-9 items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:opacity-60" disabled={deletingId === meter.id}>
-                              <Trash2 className="h-4 w-4" /> Xóa
-                            </button>
-                            {meter.status !== 1 && (
-                              <button type="button" onClick={() => void changeStatus(meter, 1)} className="inline-flex h-9 items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#d1fae5] px-3 text-xs font-black text-[#166534] transition hover:bg-[#bbf7d0]/70 disabled:opacity-60" disabled={statusChangingId === meter.id}>
-                                <CheckCircle2 className="h-4 w-4" /> Kích hoạt
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
 
           <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
@@ -642,22 +725,24 @@ export function MetersScreen() {
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
         {isFormOpen && (
           <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 p-5 shadow-sm shadow-[#6b3f1d]/5">
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-semibold text-[#24170d]">{editingMeter ? 'Cập nhật đồng hồ' : 'Thông tin đồng hồ mới'}</p>
                   <p className="text-xs font-medium text-[#6f6254]">Điền thông tin bắt buộc và nhấn lưu.</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={resetForm} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
-                    <RefreshCw className="inline-block h-4 w-4" /> Làm mới
+                <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={resetForm} className="flex flex-col items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="whitespace-nowrap mt-1">Làm mới</span>
                   </button>
-                  <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-700">
-                    <X className="inline-block h-4 w-4" /> Đóng
+                  <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="flex flex-col items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-700">
+                    <X className="h-4 w-4" />
+                    <span className="whitespace-nowrap mt-1">Đóng</span>
                   </button>
                 </div>
               </div>
@@ -667,8 +752,30 @@ export function MetersScreen() {
 
             <div className="grid gap-4">
               <div>
+                <label className={labelClass}>Tòa nhà</label>
+                <AdminSelect
+                  value={form.building_id}
+                  options={buildings.map((b) => ({ value: b.id, label: b.name }))}
+                  invalid={!!errors.building_id}
+                  placeholder="Chọn tòa nhà"
+                  onChange={(nextValue) => {
+                    updateForm('building_id', String(nextValue))
+                    updateForm('room_id', '')
+                  }}
+                />
+                <FieldError message={errors.building_id} />
+              </div>
+
+              <div>
                 <label className={labelClass}>Phòng</label>
-                <input type="text" className={cn(inputClass, errors.room_id && inputErrorClass)} value={form.room_id} onChange={(event) => updateForm('room_id', event.target.value)} placeholder="Ví dụ: BT201" />
+                <AdminSelect
+                  value={form.room_id}
+                  options={rooms.map((r) => ({ value: r.id, label: r.room_number }))}
+                  disabled={!form.building_id}
+                  invalid={!!errors.room_id}
+                  placeholder={form.building_id ? "Chọn phòng" : "Vui lòng chọn tòa nhà trước"}
+                  onChange={(nextValue) => updateForm('room_id', String(nextValue))}
+                />
                 <FieldError message={errors.room_id} />
               </div>
 
@@ -676,17 +783,6 @@ export function MetersScreen() {
                 <label className={labelClass}>Loại đồng hồ</label>
                 <AdminSelect value={form.meter_type} options={meterTypeOptions} invalid={!!errors.meter_type} onChange={(nextValue) => updateForm('meter_type', Number(nextValue))} />
                 <FieldError message={errors.meter_type} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Mã đồng hồ</label>
-                <input
-                  readOnly
-                  className={cn(inputClass, 'bg-[#efe2cf]/40 text-[#3d2a18]/70 cursor-not-allowed', errors.meter_code && inputErrorClass)}
-                  value={form.meter_code}
-                  placeholder="Mã đồng hồ tự động"
-                />
-                <FieldError message={errors.meter_code} />
               </div>
 
               <div>
@@ -736,7 +832,7 @@ export function MetersScreen() {
           </div>
         </aside>
       )}
-      </section>
+      </div>
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -804,4 +900,24 @@ function DetailTile({ label, value }: { label: string; value: ReactNode }) {
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="mt-2 text-xs font-semibold text-rose-600">{message}</p>
+}
+
+function MetricCard({ label, value, subValue, tone }: { label: string; value: number; subValue?: string; tone: 'neutral' | 'emerald' | 'amber' | 'teal' | 'rose' }) {
+  const toneClassNames = {
+    neutral: 'border-[#f8e8c8]/12 bg-[#f8e8c8]/10 text-[#fff4df]',
+    emerald: 'border-[#0f766e]/35 bg-[#0f766e]/16 text-[#c8fff4]',
+    amber: 'border-[#f3c56b]/35 bg-[#f3c56b]/18 text-[#fff4df]',
+    teal: 'border-cyan-200/25 bg-cyan-100/10 text-cyan-50',
+    rose: 'border-rose-400/25 bg-rose-500/10 text-rose-200',
+  }[tone]
+
+  return (
+    <div className={cn('rounded-3xl border px-4 py-3 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10', toneClassNames)}>
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-65">{label}</p>
+      <p className="mt-1 text-3xl font-black tracking-tight tabular-nums">{value}</p>
+      {subValue && (
+        <p className="mt-1 text-[10px] font-black opacity-75">{subValue}</p>
+      )}
+    </div>
+  )
 }

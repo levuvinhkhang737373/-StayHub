@@ -37,15 +37,15 @@ class MeterController extends Controller
             }
 
             $query = $this->accessibleQuery($admin)
-                ->with(['room', 'service', 'replacementMeter'])
+                ->with(['room.building', 'service', 'replacementMeter'])
                 ->when($validated['room_id'] ?? null, fn (Builder $query, $roomId) => $query->where('room_id', $roomId))
                 ->when($validated['service_id'] ?? null, fn (Builder $query, $serviceId) => $query->where('service_id', $serviceId))
                 ->when($validated['meter_type'] ?? null, fn (Builder $query, $meterType) => $query->where('meter_type', $meterType))
                 ->when($validated['status'] ?? null, fn (Builder $query, $status) => $query->where('status', $status))
                 ->when(isset($validated['keyword']) && trim($validated['keyword']) !== '', fn (Builder $query) => $query->where(function (Builder $query) use ($validated): void {
                     $keyword = trim($validated['keyword']);
-                    $query->where('meter_code', 'like', "%{$keyword}%")
-                        ->orWhere('note', 'like', "%{$keyword}%");
+                    $query->where('note', 'like', "%{$keyword}%")
+                        ->orWhereHas('room', fn (Builder $q) => $q->where('room_number', 'like', "%{$keyword}%"));
                 }));
 
             $meterDevices = $query->orderByDesc('id')->paginate($validated['per_page'] ?? 20);
@@ -129,7 +129,7 @@ class MeterController extends Controller
 
                 AdminActivityLogger::write($admin, 'create_meter_device', MeterDevice::class, $meterDevice->id, null, $meterDevice->toArray(), $request);
 
-                return ApiResponse::responseJson(true, 'Tạo đồng hồ thành công', 201, new MeterResource($meterDevice->load(['room', 'service', 'replacementMeter'])), 201);
+                return ApiResponse::responseJson(true, 'Tạo đồng hồ thành công', 201, new MeterResource($meterDevice->load(['room.building', 'service', 'replacementMeter'])), 201);
             });
 
             return $response;
@@ -148,7 +148,7 @@ class MeterController extends Controller
             }
 
             $meterDeviceModel = $this->accessibleQuery($admin)
-                ->with(['room', 'service', 'replacementMeter'])
+                ->with(['room.building', 'service', 'replacementMeter'])
                 ->find($meterDevice);
 
             if (! $meterDeviceModel) {
@@ -256,7 +256,7 @@ class MeterController extends Controller
 
                 AdminActivityLogger::write($admin, 'update_meter_device', MeterDevice::class, $meterDeviceModel->id, $oldData, $meterDeviceModel->fresh()->toArray(), $request);
 
-                return ApiResponse::responseJson(true, 'Cập nhật đồng hồ thành công', 200, new MeterResource($meterDeviceModel->load(['room', 'service', 'replacementMeter'])), 200);
+                return ApiResponse::responseJson(true, 'Cập nhật đồng hồ thành công', 200, new MeterResource($meterDeviceModel->load(['room.building', 'service', 'replacementMeter'])), 200);
             });
 
             return $response;
@@ -319,7 +319,7 @@ class MeterController extends Controller
 
                 AdminActivityLogger::write($admin, 'update_meter_device_status', MeterDevice::class, $meterDeviceModel->id, $oldData, $meterDeviceModel->fresh()->toArray(), $request);
 
-                return ApiResponse::responseJson(true, 'Cập nhật trạng thái đồng hồ thành công', 200, new MeterResource($meterDeviceModel->load(['room', 'service', 'replacementMeter'])), 200);
+                return ApiResponse::responseJson(true, 'Cập nhật trạng thái đồng hồ thành công', 200, new MeterResource($meterDeviceModel->load(['room.building', 'service', 'replacementMeter'])), 200);
             });
 
             return $response;

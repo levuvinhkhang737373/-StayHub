@@ -89,6 +89,10 @@ export const adminRoutes: RouteObject[] = [
         element: <MetersScreen />,
       },
       {
+        path: 'meter-readings',
+        element: <AdminPlaceholderScreen title="Chốt điện nước" description="Chốt chỉ số điện nước, tính toán hóa đơn và quản lý chu kỳ thanh toán." />,
+      },
+      {
         path: 'invoices',
         element: <AdminPlaceholderScreen title="Phiếu thu" description="Quản lý hóa đơn, khoản thu và tình trạng thanh toán của khách thuê." />,
       },

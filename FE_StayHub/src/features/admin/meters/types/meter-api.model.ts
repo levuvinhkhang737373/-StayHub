@@ -17,6 +17,7 @@ export interface AdminMeterDeviceResource {
   id: number
   room_id: number
   room_number?: string | null
+  building_id?: number | null
   service_id: number
   service_name?: string | null
   meter_code?: string | null
@@ -50,6 +51,7 @@ export interface AdminMeterDevicePayload {
 }
 
 export interface AdminMeterFormValues {
+  building_id: string
   room_id: string
   service_id: string
   meter_code: string

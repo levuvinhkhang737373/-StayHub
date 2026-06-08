@@ -179,6 +179,12 @@ export interface AdminBuildingResource {
 
   service_prices?: AdminBuildingServicePriceResource[]
   settings?: AdminBuildingSettingResource[]
+  rooms?: Array<{
+    id: number
+    building_id: number
+    room_number: string
+    status: number
+  }>
   images_count?: number
   rooms_count?: number
 
