@@ -805,8 +805,7 @@ class StayHubDemoSeeder extends Seeder
     {
         $rows = [
             [$maintenanceRequests['aircon'], null, MaintenanceRequest::STATUS_CREATED, 'Khách thuê tạo phiếu sửa chữa.'],
-            [$maintenanceRequests['aircon'], MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_RECEIVED, 'Quản lý đã tiếp nhận yêu cầu.'],
-            [$maintenanceRequests['aircon'], MaintenanceRequest::STATUS_RECEIVED, MaintenanceRequest::STATUS_PROCESSING, 'Kỹ thuật bắt đầu kiểm tra.'],
+            [$maintenanceRequests['aircon'], MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_PROCESSING, 'Quản lý đã phân công và kỹ thuật bắt đầu kiểm tra.'],
             [$maintenanceRequests['aircon'], MaintenanceRequest::STATUS_PROCESSING, MaintenanceRequest::STATUS_COMPLETED, 'Đã vệ sinh đường thoát nước máy lạnh.'],
             [$maintenanceRequests['light'], null, MaintenanceRequest::STATUS_CREATED, 'Khách thuê tạo phiếu sửa chữa.'],
             [$maintenanceRequests['light'], MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_PROCESSING, 'Kỹ thuật đang xử lý.'],
@@ -1404,7 +1403,7 @@ class StayHubDemoSeeder extends Seeder
 
         for ($i = 1; $i <= 12; $i++) {
             $code = 'MR-2026-EX-' . str_pad((string) $i, 4, '0', STR_PAD_LEFT);
-            $status = [MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_RECEIVED, MaintenanceRequest::STATUS_PROCESSING, MaintenanceRequest::STATUS_COMPLETED][$i % 4];
+            $status = [MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_PROCESSING, MaintenanceRequest::STATUS_PROCESSING, MaintenanceRequest::STATUS_COMPLETED][$i % 4];
             $requestId = $this->upsertAndGetId('maintenance_requests', ['request_code' => $code], [
                 'tenant_id' => $tenantIds[($i - 1) % count($tenantIds)],
                 'room_id' => $roomIds[($i - 1) % count($roomIds)],
@@ -1413,7 +1412,7 @@ class StayHubDemoSeeder extends Seeder
                 'status' => $status,
                 'images' => $this->json(["/storage/demo/maintenance/expanded/{$code}.jpg"]),
                 'assigned_to' => $admins['tech_sg'],
-                'received_at' => $status >= MaintenanceRequest::STATUS_RECEIVED ? '2026-05-18 09:00:00' : null,
+                'received_at' => $status >= MaintenanceRequest::STATUS_PROCESSING ? '2026-05-18 09:00:00' : null,
                 'completed_at' => $status === MaintenanceRequest::STATUS_COMPLETED ? '2026-05-19 15:30:00' : null,
                 ...$this->timestamps(),
             ]);

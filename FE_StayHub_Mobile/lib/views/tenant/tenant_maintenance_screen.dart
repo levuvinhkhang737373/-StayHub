@@ -278,7 +278,16 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
                                         const SizedBox(height: 4),
                                         ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
-                                          child: Image.network(req.beforeImageUrl!, height: 100, fit: BoxFit.cover),
+                                          child: Image.network(
+                                            req.beforeImageUrl!,
+                                            height: 100,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              height: 100,
+                                              color: const Color(0xFFF7F6F0),
+                                              child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -293,7 +302,16 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
                                         const SizedBox(height: 4),
                                         ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
-                                          child: Image.network(req.afterImageUrl!, height: 100, fit: BoxFit.cover),
+                                          child: Image.network(
+                                            req.afterImageUrl!,
+                                            height: 100,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              height: 100,
+                                              color: const Color(0xFFF7F6F0),
+                                              child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -349,7 +367,6 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
   Widget _buildStatusBadge(int status, String label) {
     Color color = Colors.grey;
     if (status == 1) color = Colors.redAccent;          // Mới tạo
-    if (status == 2) color = Colors.blueAccent;         // Đã tiếp nhận
     if (status == 3) color = const Color(0xFFEAB308);   // Đang xử lý
     if (status == 4) color = Colors.green;              // Đã hoàn thành
     if (status == 5) color = Colors.grey;               // Đã hủy

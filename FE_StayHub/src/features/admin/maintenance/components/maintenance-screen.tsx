@@ -42,7 +42,6 @@ function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[
 
 const statusLabels: Record<number, string> = {
   1: 'Mới tạo',
-  2: 'Đã tiếp nhận',
   3: 'Đang xử lý',
   4: 'Đã hoàn thành',
   5: 'Đã hủy',
@@ -51,7 +50,6 @@ const statusLabels: Record<number, string> = {
 const statusOptions = [
   { value: '', label: 'Tất cả trạng thái', tone: 'default' as const },
   { value: '1', label: 'Mới tạo', tone: 'danger' as const },
-  { value: '2', label: 'Đã tiếp nhận', tone: 'default' as const },
   { value: '3', label: 'Đang xử lý', tone: 'warning' as const },
   { value: '4', label: 'Đã hoàn thành', tone: 'success' as const },
   { value: '5', label: 'Đã hủy', tone: 'default' as const },
@@ -59,7 +57,6 @@ const statusOptions = [
 
 const statusChangeOptions = [
   { value: 1, label: 'Mới tạo' },
-  { value: 2, label: 'Đã tiếp nhận' },
   { value: 3, label: 'Đang xử lý' },
   { value: 4, label: 'Đã hoàn thành' },
   { value: 5, label: 'Đã hủy' },
@@ -136,11 +133,13 @@ export function MaintenanceScreen() {
         room_number: roomNumber.trim() || undefined,
       })
 
-      // Parse requests from paginated result
+      // Parse requests from paginated result and coerce legacy status 2 to 3
       if (response.result && Array.isArray(response.result)) {
-        setRequests(response.result)
+        const coerced = response.result.map(r => ({ ...r, status: Number(r.status) === 2 ? 3 : Number(r.status) }))
+        setRequests(coerced)
       } else if (response.result?.data) {
-        setRequests(response.result.data)
+        const coerced = response.result.data.map(r => ({ ...r, status: Number(r.status) === 2 ? 3 : Number(r.status) }))
+        setRequests(coerced)
       } else {
         setRequests([])
       }
@@ -177,11 +176,13 @@ export function MaintenanceScreen() {
   const openDetail = async (req: AdminMaintenanceRequestResource) => {
     setIsDetailOpen(true)
     setIsDetailLoading(true)
-    setDetailRequest(req)
+    const coercedReq = { ...req, status: Number(req.status) === 2 ? 3 : Number(req.status) }
+    setDetailRequest(coercedReq)
     try {
       const res = await fetchAdminMaintenanceDetail(req.id)
       if (res.result) {
-        setDetailRequest(res.result)
+        const coercedRes = { ...res.result, status: Number(res.result.status) === 2 ? 3 : Number(res.result.status) }
+        setDetailRequest(coercedRes)
       }
     } catch (e) {
       console.error('Không thể load chi tiết phiếu', e)
@@ -430,7 +431,7 @@ export function MaintenanceScreen() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setUpdatingRequest(req); setNewStatus(req.status) }}
+                        onClick={() => { setUpdatingRequest(req); setNewStatus(Number(req.status) === 2 ? 3 : Number(req.status)) }}
                         className="ml-auto inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-3 text-xs font-black text-[#fff4df] shadow-sm transition hover:bg-[#3d2a18]"
                       >
                         <Settings className="h-4 w-4" /> Trạng thái
@@ -749,7 +750,6 @@ function StatusBadge({ status, label }: { status: number; label: string }) {
   ColorTone: {
     const tone = {
       1: 'border-rose-200 bg-rose-50 text-rose-700', // Mới tạo
-      2: 'border-blue-200 bg-blue-50 text-blue-700', // Đã tiếp nhận
       3: 'border-amber-200 bg-amber-50 text-amber-700', // Đang xử lý
       4: 'border-emerald-200 bg-emerald-50 text-emerald-700', // Đã hoàn thành
       5: 'border-stone-200 bg-stone-100 text-stone-600', // Đã hủy

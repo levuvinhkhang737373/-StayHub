@@ -173,8 +173,8 @@ class MaintenanceRequestTest extends TestCase
     {
         $admin = Admin::query()->first() ?? $this->createAdmin(Admin::ROLE_SUPER_ADMIN);
 
-        return Tenant::query()->create([
-            'room_id' => $room->id,
+        $tenant = Tenant::query()->create([
+            'building_id' => $room->building_id,
             'username' => 'tenant_'.uniqid(),
             'full_name' => 'Tenant Test',
             'email' => 'tenant_'.uniqid().'@example.com',
@@ -184,8 +184,30 @@ class MaintenanceRequestTest extends TestCase
             'gender' => Tenant::GENDER_MALE,
             'date_of_birth' => '1998-01-01',
             'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
-            'identity_number' => '123456789012',
+            'identity_number' => '1234567890'.random_int(10, 99),
             'created_by' => $admin->id,
         ]);
+
+        $contract = \App\Models\Contract::query()->create([
+            'contract_code' => 'HD-' . str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
+            'room_id' => $room->id,
+            'representative_tenant_id' => $tenant->id,
+            'start_date' => now()->subDays(5)->toDateString(),
+            'end_date' => now()->addYear()->toDateString(),
+            'billing_cycle_day' => 5,
+            'room_price' => $room->base_price,
+            'deposit_amount' => $room->base_price * 2,
+            'status' => \App\Models\Contract::STATUS_ACTIVE,
+            'created_by' => $admin->id,
+        ]);
+
+        $contract->tenants()->attach($tenant->id, [
+            'join_date' => now()->subDays(5)->toDateString(),
+            'is_representative' => true,
+            'is_staying' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        return $tenant;
     }
 }

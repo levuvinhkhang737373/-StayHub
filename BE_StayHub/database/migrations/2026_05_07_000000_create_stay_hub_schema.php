@@ -209,7 +209,7 @@ return new class extends Migration
             $table->unsignedTinyInteger('status')->default(1);
             $table->foreignId('created_by')->nullable()->constrained('admins')->nullOnDelete();
             $table->timestamps();
-            $table->index(['building_id', 'status']);
+            $table->index('status');
         });
 
         Schema::create('room_assets', function (Blueprint $table) {

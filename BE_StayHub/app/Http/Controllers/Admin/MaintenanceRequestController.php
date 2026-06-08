@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class MaintenanceRequestController extends Controller
 {
-    private const IMAGE_DISK = 's3';
+    private const IMAGE_DISK = 'local';
 
     /**
      * Danh sách tất cả yêu cầu sửa chữa (Dành cho Admin)
@@ -132,9 +132,9 @@ class MaintenanceRequestController extends Controller
 
             $oldData = $maintenance->toArray();
             $oldStatus = $maintenance->status;
-            // Nếu phiếu đang ở trạng thái Mới tạo (1), chuyển sang Đã tiếp nhận (2)
+            // Nếu phiếu đang ở trạng thái Mới tạo (1), chuyển sang Đang xử lý (3)
             $newStatus = ($oldStatus === MaintenanceRequest::STATUS_CREATED)
-                ? MaintenanceRequest::STATUS_RECEIVED
+                ? MaintenanceRequest::STATUS_PROCESSING
                 : $oldStatus;
 
             $result = DB::transaction(function () use ($request, $admin, $maintenance, $oldStatus, $newStatus) {
@@ -143,7 +143,7 @@ class MaintenanceRequestController extends Controller
                     'status' => $newStatus,
                 ];
 
-                if ($newStatus === MaintenanceRequest::STATUS_RECEIVED && is_null($maintenance->received_at)) {
+                if ($newStatus === MaintenanceRequest::STATUS_PROCESSING && is_null($maintenance->received_at)) {
                     $updatePayload['received_at'] = now();
                 }
 
@@ -248,7 +248,7 @@ class MaintenanceRequestController extends Controller
                     'images' => $images,
                 ];
 
-                if ($newStatus === MaintenanceRequest::STATUS_RECEIVED && is_null($maintenance->received_at)) {
+                if ($newStatus === MaintenanceRequest::STATUS_PROCESSING && is_null($maintenance->received_at)) {
                     $updatePayload['received_at'] = now();
                 }
 

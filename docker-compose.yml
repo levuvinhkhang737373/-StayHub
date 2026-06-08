@@ -386,7 +386,7 @@ services:
 networks:
   laravel_network:
     external: true
-    name: repokytucxaphongtro_laravel_network
+    name: stayhub_laravel_network
 
 secrets:
   backend_env:
@@ -394,17 +394,17 @@ secrets:
 
 volumes:
   backend_vendor:
-    name: repokytucxaphongtro_backend_vendor
+    name: stayhub_backend_vendor
   backend_composer_cache:
-    name: repokytucxaphongtro_backend_composer_cache
+    name: stayhub_backend_composer_cache
   frontend_node_modules:
   frontend_npm_cache:
-    name: repokytucxaphongtro_frontend_npm_cache
+    name: stayhub_frontend_npm_cache
   ai_deepface_cache:
-    name: repokytucxaphongtro_ai_deepface_cache
+    name: stayhub_ai_deepface_cache
   dbdata_new:
     external: true
-    name: repokytucxaphongtro_dbdata_new
+    name: stayhub_dbdata_new
   mongodata:
     external: true
     name: repokytucxaphongtro_mongodata
@@ -412,10 +412,8 @@ volumes:
     name: repokytucxaphongtro_redis_data
   meili_data:
     external: true
-    name: repokytucxaphongtro_meili_data
+    name: stayhub_meili_data
   minio_data:
-    external: true
-    name: repokytucxaphongtro_minio_data
+    name: stayhub_minio_data
   qdrant_data:
-    external: true
-    name: repokytucxaphongtro_qdrant_data
+    name: stayhub_qdrant_data

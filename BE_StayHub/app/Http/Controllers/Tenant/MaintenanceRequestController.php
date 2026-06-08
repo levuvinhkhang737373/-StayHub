@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 
 class MaintenanceRequestController extends Controller
 {
-    private const IMAGE_DISK = 's3';
+    private const IMAGE_DISK = 'local';
 
     /**
      * Danh sách phiếu sửa chữa của tenant đang đăng nhập
