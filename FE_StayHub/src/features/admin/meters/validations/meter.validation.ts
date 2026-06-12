@@ -22,27 +22,19 @@ export function validateMeterForm(form: AdminMeterFormValues) {
   }
 
   if (!form.initial_reading.trim()) {
-    errors.initial_reading = 'Phải nhập chỉ số khởi tạo.'
+    errors.initial_reading = 'Phải nhập chỉ số.'
   } else if (Number(form.initial_reading) < 0 || Number.isNaN(Number(form.initial_reading))) {
-    errors.initial_reading = 'Chỉ số khởi tạo phải là số không âm.'
+    errors.initial_reading = 'Chỉ số phải là số không âm.'
   }
 
-  if (form.final_reading.trim()) {
-    const finalVal = Number(form.final_reading)
-    const initialVal = Number(form.initial_reading)
-    if (Number.isNaN(finalVal) || finalVal < 0) {
-      errors.final_reading = 'Chỉ số cuối cùng phải là số không âm.'
-    } else if (!Number.isNaN(initialVal) && finalVal <= initialVal) {
-      errors.final_reading = 'Chỉ số cuối phải lớn hơn chỉ số khởi tạo.'
-    }
-  }
+
 
   if (form.status && ![1, 2, 3, 4].includes(form.status)) {
     errors.status = 'Trạng thái đồng hồ không hợp lệ.'
   }
 
   if (Number(form.status) === 3 && !form.replaced_by_meter_id.trim()) {
-    errors.replaced_by_meter_id = 'Phải chọn đồng hồ thay thế khi trạng thái là đã thay thế.'
+    errors.replaced_by_meter_id = 'Phải chọn đồng hồ thay thế khi trạng thái là đã bị thay thế.'
   }
 
   if (form.replaced_by_meter_id.trim() && Number(form.replaced_by_meter_id) <= 0) {

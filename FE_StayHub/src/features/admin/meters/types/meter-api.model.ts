@@ -24,7 +24,6 @@ export interface AdminMeterDeviceResource {
   meter_type: number
   meter_type_label?: string | null
   initial_reading?: string | number | null
-  final_reading?: string | number | null
   installed_at?: string | null
   status: number
   status_label?: string | null
@@ -44,7 +43,6 @@ export interface AdminMeterDevicePayload {
   meter_type: number
   initial_reading: string | number
   installed_at?: string
-  final_reading?: string | number
   status?: number
   replaced_by_meter_id?: number
   note?: string
@@ -57,7 +55,6 @@ export interface AdminMeterFormValues {
   meter_code: string
   meter_type: number
   initial_reading: string
-  final_reading: string
   installed_at: string
   status: number
   replaced_by_meter_id: string

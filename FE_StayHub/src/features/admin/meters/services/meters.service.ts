@@ -54,7 +54,7 @@ export async function updateAdminMeterDevice(meterDeviceId: number, payload: Adm
   })
 }
 
-export async function updateAdminMeterDeviceStatus(meterDeviceId: number, status: number, payload: { final_reading?: string | number; replaced_by_meter_id?: number | null } = {}) {
+export async function updateAdminMeterDeviceStatus(meterDeviceId: number, status: number, payload: { replaced_by_meter_id?: number | null } = {}) {
   return apiRequest<AdminMeterDeviceResource>({
     url: `admin/meter-devices/${meterDeviceId}/status`,
     method: 'PATCH',

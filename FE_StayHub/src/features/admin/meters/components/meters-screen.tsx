@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Droplet, Edit3, Eye, Plus, Search, Trash2, X, Zap } from 'lucide-react'
+import { ArrowLeft, Droplet, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X, Zap } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { fetchAdminBuildingDetail, fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import {
+  createAdminMeterDevice,
   deleteAdminMeterDevice,
   fetchAdminMeterDeviceDetail,
   fetchAdminMeterDevices,
   fetchAdminServices,
-  updateAdminMeterDeviceStatus,
+  updateAdminMeterDevice,
 } from '../services/meters.service'
-import type { AdminMeterDeviceResource, AdminMeterFormValues } from '../types/meter-api.model'
-import { MeterModal } from './meter-modal'
+import type { AdminMeterDeviceResource, AdminMeterFormErrors, AdminMeterFormValues } from '../types/meter-api.model'
+import { validateMeterForm } from '../validations/meter.validation'
 
 const meterTypeOptions = [
   { value: 1, label: 'Điện', tone: 'warning' as const },
@@ -25,13 +27,17 @@ const statusOptions = [
   { value: '', label: 'Tất cả trạng thái', tone: 'default' as const },
   { value: 1, label: 'Đang sử dụng', tone: 'success' as const },
   { value: 2, label: 'Ngừng sử dụng', tone: 'danger' as const },
-  { value: 3, label: 'Đã thay thế', tone: 'warning' as const },
+  { value: 3, label: 'Đã bị thay thế', tone: 'warning' as const },
   { value: 4, label: 'Bị hỏng', tone: 'danger' as const },
 ]
+
+const formStatusOptions = statusOptions.filter((item) => item.value !== '')
 
 const filterMeterTypeOptions = [{ value: '', label: 'Tất cả loại đồng hồ', tone: 'default' as const }, ...meterTypeOptions]
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
+const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
+const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 const defaultForm: AdminMeterFormValues = {
   building_id: '',
@@ -40,7 +46,6 @@ const defaultForm: AdminMeterFormValues = {
   meter_code: '',
   meter_type: 1,
   initial_reading: '',
-  final_reading: '',
   installed_at: '',
   status: 1,
   replaced_by_meter_id: '',
@@ -116,11 +121,12 @@ export function MetersScreen() {
   const [detailMeter, setDetailMeter] = useState<AdminMeterDeviceResource | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [form, setForm] = useState<AdminMeterFormValues>(defaultForm)
+  const [errors, setErrors] = useState<AdminMeterFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
@@ -279,6 +285,51 @@ export function MetersScreen() {
       .sort((a, b) => a - b)
   }, [safeCurrentPage, totalPages])
 
+  const findCurrentMeterForRoomAndType = useCallback((roomId: number, meterType: number, excludeId?: number) => {
+    if (!roomId || !meterType) return null
+    return allMeterDevices.find(
+      (item) =>
+        item.room_id === roomId &&
+        item.meter_type === meterType &&
+        item.id !== excludeId &&
+        item.status === 1 // STATUS_ACTIVE
+    ) || allMeterDevices.find(
+      (item) =>
+        item.room_id === roomId &&
+        item.meter_type === meterType &&
+        item.id !== excludeId &&
+        item.status !== 3 // NOT STATUS_REPLACED
+    )
+  }, [allMeterDevices])
+
+  const updateForm = (key: keyof AdminMeterFormValues, value: string | number) => {
+    setForm((current) => {
+      const next = { ...current, [key]: value }
+      if (key === 'meter_type') {
+        const targetTypeKey = Number(value) === 1 ? 'dien' : 'nuoc'
+        const matchedService = rawServices.find(s => s.slug?.includes(targetTypeKey))
+        if (matchedService) {
+          next.service_id = String(matchedService.id)
+        }
+      }
+
+      if (key === 'room_id' || key === 'meter_type') {
+        const roomId = Number(next.room_id)
+        const meterType = Number(next.meter_type)
+        const currentMeter = findCurrentMeterForRoomAndType(roomId, meterType, editingMeter?.id)
+        if (currentMeter) {
+          next.replaced_by_meter_id = String(currentMeter.id)
+        } else {
+          next.replaced_by_meter_id = ''
+        }
+      }
+
+      return next
+    })
+    setErrors((current) => ({ ...current, [key]: undefined }))
+    setSuccessMessage(null)
+  }
+
   const openCreateForm = () => {
     setEditingMeter(null)
     const initialForm = { ...defaultForm }
@@ -287,6 +338,7 @@ export function MetersScreen() {
       initialForm.service_id = String(matchedService.id)
     }
     setForm(initialForm)
+    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -301,7 +353,6 @@ export function MetersScreen() {
         meter_code: editingMeter.meter_code || '',
         meter_type: editingMeter.meter_type || 1,
         initial_reading: editingMeter.initial_reading != null ? String(editingMeter.initial_reading) : '',
-        final_reading: editingMeter.final_reading != null ? String(editingMeter.final_reading) : '',
         installed_at: editingMeter.installed_at || '',
         status: editingMeter.status || 1,
         replaced_by_meter_id: editingMeter.replaced_by_meter_id ? String(editingMeter.replaced_by_meter_id) : '',
@@ -315,12 +366,17 @@ export function MetersScreen() {
       }
       setForm(initialForm)
     }
+    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
   }
 
   const editMeter = async (meter: AdminMeterDeviceResource) => {
     setEditingMeter(meter)
+    const initialReplacementId = meter.replaced_by_meter_id
+      ? String(meter.replaced_by_meter_id)
+      : (findCurrentMeterForRoomAndType(meter.room_id, meter.meter_type, meter.id)?.id ? String(findCurrentMeterForRoomAndType(meter.room_id, meter.meter_type, meter.id)?.id) : '')
+
     setForm({
       building_id: meter.building_id ? String(meter.building_id) : '',
       room_id: String(meter.room_id),
@@ -328,12 +384,12 @@ export function MetersScreen() {
       meter_code: meter.meter_code || '',
       meter_type: meter.meter_type || 1,
       initial_reading: meter.initial_reading != null ? String(meter.initial_reading) : '',
-      final_reading: meter.final_reading != null ? String(meter.final_reading) : '',
       installed_at: meter.installed_at || '',
       status: meter.status || 1,
-      replaced_by_meter_id: meter.replaced_by_meter_id ? String(meter.replaced_by_meter_id) : '',
+      replaced_by_meter_id: initialReplacementId,
       note: meter.note || '',
     })
+    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -343,6 +399,10 @@ export function MetersScreen() {
       const detail = response.result
       if (detail) {
         setEditingMeter(detail)
+        const detailReplacementId = detail.replaced_by_meter_id
+          ? String(detail.replaced_by_meter_id)
+          : (findCurrentMeterForRoomAndType(detail.room_id, detail.meter_type, detail.id)?.id ? String(findCurrentMeterForRoomAndType(detail.room_id, detail.meter_type, detail.id)?.id) : '')
+
         setForm({
           building_id: detail.building_id ? String(detail.building_id) : '',
           room_id: String(detail.room_id),
@@ -350,10 +410,9 @@ export function MetersScreen() {
           meter_code: detail.meter_code || '',
           meter_type: detail.meter_type || 1,
           initial_reading: detail.initial_reading != null ? String(detail.initial_reading) : '',
-          final_reading: detail.final_reading != null ? String(detail.final_reading) : '',
           installed_at: detail.installed_at || '',
           status: detail.status || 1,
-          replaced_by_meter_id: detail.replaced_by_meter_id ? String(detail.replaced_by_meter_id) : '',
+          replaced_by_meter_id: detailReplacementId,
           note: detail.note || '',
         })
       }
@@ -394,24 +453,59 @@ export function MetersScreen() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
 
-  const changeStatus = async (meter: AdminMeterDeviceResource, targetStatus: number) => {
-    if (statusChangingId) return
+  const submit = async () => {
+    if (isSaving) return
+
+    const nextErrors = validateMeterForm(form)
+    setErrors(nextErrors)
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrorMessage('Vui lòng kiểm tra lại thông tin đồng hồ.')
+      return
+    }
 
     try {
-      setStatusChangingId(meter.id)
+      setIsSaving(true)
       setErrorMessage(null)
       setSuccessMessage(null)
 
-      await updateAdminMeterDeviceStatus(meter.id, targetStatus)
-      setSuccessMessage('Cập nhật trạng thái đồng hồ thành công.')
+      const payload = {
+        room_id: Number(form.room_id),
+        service_id: Number(form.service_id),
+        meter_type: form.meter_type,
+        initial_reading: Number(form.initial_reading),
+        installed_at: form.installed_at || undefined,
+        status: form.status,
+        replaced_by_meter_id: form.replaced_by_meter_id.trim() ? Number(form.replaced_by_meter_id) : undefined,
+        note: form.note.trim() || undefined,
+      }
+
+      if (editingMeter) {
+        await updateAdminMeterDevice(editingMeter.id, payload)
+        setSuccessMessage('Cập nhật đồng hồ thành công.')
+      } else {
+        await createAdminMeterDevice(payload)
+        setSuccessMessage('Tạo đồng hồ thành công.')
+      }
+
+      setEditingMeter(null)
+      const initialForm = { ...defaultForm }
+      const matchedService = rawServices.find(s => s.slug?.includes('dien'))
+      if (matchedService) {
+        initialForm.service_id = String(matchedService.id)
+      }
+      setForm(initialForm)
+      setErrors({})
+      setIsFormOpen(false)
       void loadMeterDevices()
       void loadAllMeterDevices()
     } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể cập nhật trạng thái đồng hồ.'))
+      setErrorMessage(getVisibleErrorMessage(error, editingMeter ? 'Không thể cập nhật đồng hồ.' : 'Không thể tạo đồng hồ.'))
     } finally {
-      setStatusChangingId(null)
+      setIsSaving(false)
     }
   }
+
 
   const removeMeter = async (meter: AdminMeterDeviceResource) => {
     if (deletingId) return
@@ -477,7 +571,7 @@ export function MetersScreen() {
                 <MetricCard label="Tổng đồng hồ" value={statsStatus.total.elec} tone="neutral" />
                 <MetricCard label="Đang sử dụng" value={statsStatus.active.elec} tone="emerald" />
                 <MetricCard label="Ngừng sử dụng" value={statsStatus.inactive.elec} tone="teal" />
-                <MetricCard label="Đã thay thế" value={statsStatus.replaced.elec} tone="amber" />
+                <MetricCard label="Đã bị thay thế" value={statsStatus.replaced.elec} tone="amber" />
                 <MetricCard label="Bị hỏng" value={statsStatus.broken.elec} tone="rose" />
               </div>
             </div>
@@ -493,7 +587,7 @@ export function MetersScreen() {
                 <MetricCard label="Tổng đồng hồ" value={statsStatus.total.water} tone="neutral" />
                 <MetricCard label="Đang sử dụng" value={statsStatus.active.water} tone="emerald" />
                 <MetricCard label="Ngừng sử dụng" value={statsStatus.inactive.water} tone="teal" />
-                <MetricCard label="Đã thay thế" value={statsStatus.replaced.water} tone="amber" />
+                <MetricCard label="Đã bị thay thế" value={statsStatus.replaced.water} tone="amber" />
                 <MetricCard label="Bị hỏng" value={statsStatus.broken.water} tone="rose" />
               </div>
             </div>
@@ -515,7 +609,7 @@ export function MetersScreen() {
         {activeMessage || errorMessage || successMessage}
       </div>
 
-      <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
+      <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
           <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
             <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_200px_200px]">
@@ -588,12 +682,6 @@ export function MetersScreen() {
                               <span className="font-semibold text-[#6f6254] tabular-nums">
                                 {meter.initial_reading !== null && meter.initial_reading !== undefined && meter.initial_reading !== '' ? `${meter.initial_reading}${unit}` : '-'}
                               </span>
-                              {meter.final_reading !== null && meter.final_reading !== undefined && meter.final_reading !== '' && (
-                                <>
-                                  <span className="mx-1.5 text-[#8b5e34]/45">→</span>
-                                  <span className="font-black text-[#24170d] tabular-nums">{meter.final_reading}{unit}</span>
-                                </>
-                              )}
                             </>
                           )
                         })()}
@@ -608,9 +696,6 @@ export function MetersScreen() {
                           <button type="button" onClick={() => void viewMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
                           <button type="button" onClick={() => editMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa"><Edit3 className="h-5 w-5" /></button>
                           <button type="button" onClick={() => void removeMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Xóa" disabled={deletingId === meter.id}><Trash2 className="h-5 w-5" /></button>
-                          {meter.status !== 1 && (
-                            <button type="button" onClick={() => void changeStatus(meter, 1)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#d1fae5] text-[#166534] shadow-sm transition hover:bg-[#bbf7d0] focus:outline-none focus:ring-4 focus:ring-emerald-100 active:scale-95" title="Kích hoạt" disabled={statusChangingId === meter.id}><CheckCircle2 className="h-5 w-5" /></button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -645,28 +730,109 @@ export function MetersScreen() {
           </div>
         </section>
 
-        <MeterModal
-          isOpen={isFormOpen}
-          onClose={() => setIsFormOpen(false)}
-          editingMeterId={editingMeter ? editingMeter.id : null}
-          form={form}
-          setForm={setForm}
-          onCancel={() => {
-            resetForm()
-            setIsFormOpen(false)
-          }}
-          onSubmitSuccess={async () => {
-            resetForm()
-            setIsFormOpen(false)
-            setSuccessMessage(editingMeter ? 'Cập nhật đồng hồ thành công.' : 'Tạo đồng hồ thành công.')
-            void loadMeterDevices()
-            void loadAllMeterDevices()
-          }}
-          buildings={buildings}
-          rooms={rooms}
-          rawServices={rawServices}
-          replacementOptions={replacementOptions}
-        />
+        {isFormOpen && (
+          <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 p-5 shadow-sm shadow-[#6b3f1d]/5">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#24170d]">{editingMeter ? 'Cập nhật đồng hồ' : 'Thông tin đồng hồ mới'}</p>
+                  <p className="text-xs font-medium text-[#6f6254]">Điền thông tin bắt buộc và nhấn lưu.</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={resetForm} className="flex flex-col items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="whitespace-nowrap mt-1">Làm mới</span>
+                  </button>
+                  <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="flex flex-col items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-700">
+                    <X className="h-4 w-4" />
+                    <span className="whitespace-nowrap mt-1">Đóng</span>
+                  </button>
+                </div>
+              </div>
+
+              {successMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{successMessage}</div>}
+              {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{errorMessage}</div>}
+
+            <div className="grid gap-4">
+              <div>
+                <label className={labelClass}>Tòa nhà</label>
+                <AdminSelect
+                  value={form.building_id}
+                  options={buildings.map((b) => ({ value: b.id, label: b.name }))}
+                  invalid={!!errors.building_id}
+                  placeholder="Chọn tòa nhà"
+                  onChange={(nextValue) => {
+                    updateForm('building_id', String(nextValue))
+                    updateForm('room_id', '')
+                  }}
+                />
+                <FieldError message={errors.building_id} />
+              </div>
+
+              <div>
+                <label className={labelClass}>Phòng</label>
+                <AdminSelect
+                  value={form.room_id}
+                  options={rooms.map((r) => ({ value: r.id, label: r.room_number }))}
+                  disabled={!form.building_id}
+                  invalid={!!errors.room_id}
+                  placeholder={form.building_id ? "Chọn phòng" : "Vui lòng chọn tòa nhà trước"}
+                  onChange={(nextValue) => updateForm('room_id', String(nextValue))}
+                />
+                <FieldError message={errors.room_id} />
+              </div>
+
+              <div>
+                <label className={labelClass}>Loại đồng hồ</label>
+                <AdminSelect value={form.meter_type} options={meterTypeOptions} invalid={!!errors.meter_type} onChange={(nextValue) => updateForm('meter_type', Number(nextValue))} />
+                <FieldError message={errors.meter_type} />
+              </div>
+
+              <div>
+                <label className={labelClass}>Chỉ số</label>
+                <input type="number" min={0} step="any" className={cn(inputClass, errors.initial_reading && inputErrorClass)} value={form.initial_reading} onChange={(event) => updateForm('initial_reading', event.target.value)} placeholder="0" />
+                <FieldError message={errors.initial_reading} />
+              </div>
+
+
+
+              <div>
+                <label className={labelClass}>Ngày lắp</label>
+                <AdminDateInput 
+                  className={cn(inputClass, errors.installed_at && inputErrorClass)} 
+                  value={form.installed_at} 
+                  onChange={(value) => updateForm('installed_at', value)} 
+                />
+                <FieldError message={errors.installed_at} />
+              </div>
+
+              <div>
+                <label className={labelClass}>Trạng thái</label>
+                <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
+                <FieldError message={errors.status} />
+              </div>
+
+              {(!!findCurrentMeterForRoomAndType(Number(form.room_id), Number(form.meter_type), editingMeter?.id) || !!form.replaced_by_meter_id) && (
+                <div>
+                  <label className={labelClass}>Đồng hồ thay thế</label>
+                  <AdminSelect value={form.replaced_by_meter_id} options={[{ value: '', label: 'Chọn đồng hồ thay thế', tone: 'default' }, ...replacementOptions]} invalid={!!errors.replaced_by_meter_id} disabled={true} onChange={(nextValue) => updateForm('replaced_by_meter_id', String(nextValue))} />
+                  <FieldError message={errors.replaced_by_meter_id} />
+                </div>
+              )}
+
+              <div>
+                <label className={labelClass}>Ghi chú</label>
+                <textarea className={cn(inputClass, 'min-h-[120px]', errors.note && inputErrorClass)} value={form.note} onChange={(event) => updateForm('note', event.target.value)} placeholder="Ghi chú vận hành hoặc vị trí lắp" />
+                <FieldError message={errors.note} />
+              </div>
+
+              <button type="button" onClick={submit} disabled={isSaving} className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#24170d] px-5 text-sm font-black text-[#fff4df] transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-55">
+                {isSaving ? 'Đang lưu...' : editingMeter ? 'Lưu cập nhật' : 'Lưu đồng hồ'}
+              </button>
+            </div>
+          </div>
+        </aside>
+      )}
       </div>
 
       {isDetailOpen && (
@@ -704,7 +870,6 @@ export function MetersScreen() {
                   detailMeter ? (
                     <span>
                       {detailMeter.initial_reading ?? '-'}
-                      {detailMeter.final_reading !== null && detailMeter.final_reading !== undefined && detailMeter.final_reading !== '' ? ` → ${detailMeter.final_reading}` : ''}
                     </span>
                   ) : (
                     '---'
@@ -732,6 +897,10 @@ function DetailTile({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null
+  return <p className="mt-2 text-xs font-semibold text-rose-600">{message}</p>
+}
 
 function MetricCard({ label, value, subValue, tone }: { label: string; value: number; subValue?: string; tone: 'neutral' | 'emerald' | 'amber' | 'teal' | 'rose' }) {
   const toneClassNames = {

@@ -28,17 +28,17 @@ class MeterDevice extends Model
     public const STATUS_LABELS = [
         self::STATUS_ACTIVE => 'Đang sử dụng',
         self::STATUS_INACTIVE => 'Ngừng sử dụng',
-        self::STATUS_REPLACED => 'Đã thay thế',
+        self::STATUS_REPLACED => 'Đã bị thay thế',
         self::STATUS_BROKEN => 'Bị hỏng',
     ];
 
-    protected $fillable = ['room_id', 'service_id', 'meter_type', 'initial_reading', 'installed_at', 'replaced_by_meter_id', 'final_reading', 'status', 'image_path', 'note'];
+    protected $fillable = ['room_id', 'service_id', 'meter_type', 'initial_reading', 'installed_at', 'replaced_by_meter_id', 'status', 'image_path', 'note'];
 
     protected function casts(): array
     {
         return ['meter_type' => 'integer',
             'initial_reading' => 'decimal:2',
-            'status' => 'integer', 'installed_at' => 'date', 'final_reading' => 'decimal:2'];
+            'status' => 'integer', 'installed_at' => 'date'];
     }
 
     public function room(): BelongsTo
