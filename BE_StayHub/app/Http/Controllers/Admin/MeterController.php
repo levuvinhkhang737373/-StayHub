@@ -67,7 +67,6 @@ class MeterController extends Controller
                 'meter_type' => 'required|integer|in:1,2',
                 'initial_reading' => 'required|numeric|min:0',
                 'installed_at' => 'nullable|date',
-                'final_reading' => 'nullable|numeric|min:0',
                 'status' => 'nullable|integer|in:1,2,3,4',
                 'replaced_by_meter_id' => 'nullable|integer|exists:meter_devices,id',
                 'note' => 'nullable|string|max:500',
@@ -86,9 +85,7 @@ class MeterController extends Controller
                 return ApiResponse::responseJson(false, 'Phải nhập ID phòng hoặc Số phòng', 422, null, 422);
             }
 
-            if (isset($validated['final_reading']) && $validated['final_reading'] <= $validated['initial_reading']) {
-                return ApiResponse::responseJson(false, 'Chỉ số cuối phải lớn hơn chỉ số khởi tạo', 422, null, 422);
-            }
+
 
             $admin = $request->user('admin');
 
@@ -101,18 +98,25 @@ class MeterController extends Controller
             }
 
             if ($validated['status'] === MeterDevice::STATUS_REPLACED && empty($validated['replaced_by_meter_id'])) {
-                return ApiResponse::responseJson(false, 'Khi trạng thái là đã thay thế phải chọn đồng hồ thay thế', 422, null, 422);
+                return ApiResponse::responseJson(false, 'Khi trạng thái là đã bị thay thế phải chọn đồng hồ thay thế', 422, null, 422);
             }
 
-            if (MeterDevice::query()
+            $oldMeterId = $validated['replaced_by_meter_id'] ?? null;
+
+            $existingActiveMeterQuery = MeterDevice::query()
                 ->where('room_id', $validated['room_id'])
                 ->where('service_id', $validated['service_id'])
-                ->where('status', '!=', MeterDevice::STATUS_REPLACED)
-                ->exists()) {
+                ->where('status', '!=', MeterDevice::STATUS_REPLACED);
+
+            if ($oldMeterId) {
+                $existingActiveMeterQuery->where('id', '!=', $oldMeterId);
+            }
+
+            if ($existingActiveMeterQuery->exists()) {
                 return ApiResponse::responseJson(false, 'Phòng này đã có đồng hồ cho dịch vụ này', 422, null, 422);
             }
 
-            $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
+            $response = DB::transaction(function () use ($validated, $admin, $request, $oldMeterId): JsonResponse {
                 $meterDevice = MeterDevice::query()->create([
                     'room_id' => $validated['room_id'],
                     'service_id' => $validated['service_id'],
@@ -120,12 +124,20 @@ class MeterController extends Controller
                     'meter_type' => $validated['meter_type'],
                     'initial_reading' => $validated['initial_reading'],
                     'installed_at' => $validated['installed_at'] ?? now(),
-                    'final_reading' => $validated['final_reading'] ?? null,
                     'status' => $validated['status'] ?? MeterDevice::STATUS_ACTIVE,
-                    'replaced_by_meter_id' => $validated['replaced_by_meter_id'] ?? null,
+                    'replaced_by_meter_id' => null, // The new meter is not replaced
                     'note' => $validated['note'] ?? null,
                     'image_path' => $request->file('image') ? ImageHelper::create($request->file('image'), 'meter-device') : null,
                 ]);
+
+                if ($oldMeterId) {
+                    $oldMeter = MeterDevice::query()->find($oldMeterId);
+                    if ($oldMeter) {
+                        $oldMeter->status = MeterDevice::STATUS_REPLACED; // 3
+                        $oldMeter->replaced_by_meter_id = $meterDevice->id; // Linked to new meter
+                        $oldMeter->save();
+                    }
+                }
 
                 AdminActivityLogger::write($admin, 'create_meter_device', MeterDevice::class, $meterDevice->id, null, $meterDevice->toArray(), $request);
 
@@ -172,7 +184,6 @@ class MeterController extends Controller
                 'meter_type' => 'nullable|integer|in:1,2',
                 'initial_reading' => 'nullable|numeric|min:0',
                 'installed_at' => 'nullable|date',
-                'final_reading' => 'nullable|numeric|min:0',
                 'status' => 'nullable|integer|in:1,2,3,4',
                 'replaced_by_meter_id' => 'nullable|integer|exists:meter_devices,id',
                 'note' => 'nullable|string|max:500',
@@ -201,12 +212,7 @@ class MeterController extends Controller
                     return ApiResponse::responseJson(false, 'Không tìm thấy đồng hồ', 404, null, 404);
                 }
 
-                $targetInitial = array_key_exists('initial_reading', $validated) ? $validated['initial_reading'] : $meterDeviceModel->initial_reading;
-                $targetFinal = array_key_exists('final_reading', $validated) ? $validated['final_reading'] : $meterDeviceModel->final_reading;
 
-                if ($targetFinal !== null && $targetInitial !== null && $targetFinal <= $targetInitial) {
-                    return ApiResponse::responseJson(false, 'Chỉ số cuối phải lớn hơn chỉ số khởi tạo', 422, null, 422);
-                }
 
                 if (AdminScope::isBuildingManager($admin) && isset($validated['room_id']) && ! $this->roomBelongsToAdmin($validated['room_id'], $admin->id)) {
                     return ApiResponse::responseJson(false, 'Bạn không có quyền gán đồng hồ cho phòng này', 403, null, 403);
@@ -217,20 +223,27 @@ class MeterController extends Controller
                 }
 
                 if (isset($validated['status']) && $validated['status'] === MeterDevice::STATUS_REPLACED && empty($validated['replaced_by_meter_id'])) {
-                    return ApiResponse::responseJson(false, 'Khi trạng thái là đã thay thế phải chọn đồng hồ thay thế', 422, null, 422);
+                    return ApiResponse::responseJson(false, 'Khi trạng thái là đã bị thay thế phải chọn đồng hồ thay thế', 422, null, 422);
                 }
 
                 $targetStatus = $validated['status'] ?? $meterDeviceModel->status;
+                $oldMeterId = $validated['replaced_by_meter_id'] ?? null;
+
                 if ($targetStatus !== MeterDevice::STATUS_REPLACED) {
                     $roomId = $validated['room_id'] ?? $meterDeviceModel->room_id;
                     $serviceId = $validated['service_id'] ?? $meterDeviceModel->service_id;
 
-                    if (MeterDevice::query()
+                    $existingActiveMeterQuery = MeterDevice::query()
                         ->where('room_id', $roomId)
                         ->where('service_id', $serviceId)
                         ->where('id', '!=', $meterDeviceModel->id)
-                        ->where('status', '!=', MeterDevice::STATUS_REPLACED)
-                        ->exists()) {
+                        ->where('status', '!=', MeterDevice::STATUS_REPLACED);
+
+                    if ($oldMeterId) {
+                        $existingActiveMeterQuery->where('id', '!=', $oldMeterId);
+                    }
+
+                    if ($existingActiveMeterQuery->exists()) {
                         return ApiResponse::responseJson(false, 'Phòng này đã có đồng hồ cho dịch vụ này', 422, null, 422);
                     }
                 }
@@ -246,9 +259,20 @@ class MeterController extends Controller
                     $meterDeviceModel->image_path = ImageHelper::update($request->file('image'), $meterDeviceModel->image_path, 'meter-device');
                 }
 
-                foreach (['room_id', 'service_id', 'meter_code', 'meter_type', 'initial_reading', 'installed_at', 'final_reading', 'status', 'replaced_by_meter_id', 'note'] as $field) {
+                foreach (['room_id', 'service_id', 'meter_code', 'meter_type', 'initial_reading', 'installed_at', 'status', 'note'] as $field) {
                     if (array_key_exists($field, $validated)) {
                         $meterDeviceModel->{$field} = $validated[$field];
+                    }
+                }
+
+                if ($oldMeterId) {
+                    $meterDeviceModel->replaced_by_meter_id = null; // New/Updated meter is not replaced
+                    
+                    $oldMeter = MeterDevice::query()->find($oldMeterId);
+                    if ($oldMeter) {
+                        $oldMeter->status = MeterDevice::STATUS_REPLACED; // 3
+                        $oldMeter->replaced_by_meter_id = $meterDeviceModel->id; // Linked to new/updated meter
+                        $oldMeter->save();
                     }
                 }
 
@@ -270,7 +294,6 @@ class MeterController extends Controller
         try {
             $validated = $request->validate([
                 'status' => 'required|integer|in:1,2,3,4',
-                'final_reading' => 'nullable|numeric|min:0',
                 'replaced_by_meter_id' => 'nullable|integer|exists:meter_devices,id',
             ]);
 
@@ -287,13 +310,10 @@ class MeterController extends Controller
                     return ApiResponse::responseJson(false, 'Không tìm thấy đồng hồ', 404, null, 404);
                 }
 
-                $targetFinal = array_key_exists('final_reading', $validated) ? $validated['final_reading'] : $meterDeviceModel->final_reading;
-                if ($targetFinal !== null && $meterDeviceModel->initial_reading !== null && $targetFinal <= $meterDeviceModel->initial_reading) {
-                    return ApiResponse::responseJson(false, 'Chỉ số cuối phải lớn hơn chỉ số khởi tạo', 422, null, 422);
-                }
+
 
                 if ($validated['status'] === MeterDevice::STATUS_REPLACED && empty($validated['replaced_by_meter_id'])) {
-                    return ApiResponse::responseJson(false, 'Khi đổi trạng thái sang đã thay thế phải có đồng hồ thay thế', 422, null, 422);
+                    return ApiResponse::responseJson(false, 'Khi đổi trạng thái sang đã bị thay thế phải có đồng hồ thay thế', 422, null, 422);
                 }
 
                 if (isset($validated['replaced_by_meter_id']) && $validated['replaced_by_meter_id'] === $meterDeviceModel->id) {
@@ -313,7 +333,6 @@ class MeterController extends Controller
 
                 $oldData = $meterDeviceModel->toArray();
                 $meterDeviceModel->status = $validated['status'];
-                $meterDeviceModel->final_reading = $validated['final_reading'] ?? $meterDeviceModel->final_reading;
                 $meterDeviceModel->replaced_by_meter_id = $validated['replaced_by_meter_id'] ?? $meterDeviceModel->replaced_by_meter_id;
                 $meterDeviceModel->save();
 

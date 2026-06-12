@@ -119,13 +119,13 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
           'border-[#3d2a18]/10 hover:border-[#f3c56b]/45 hover:bg-[#fff7e8] focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20',
           isOpen && 'border-[#f3c56b]/60 bg-[#fff7e8] ring-4 ring-[#f3c56b]/18',
           invalid && 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100',
-          disabled && 'cursor-not-allowed bg-[#efe2cf]/45 text-[#8b5e34]/45 opacity-70',
+          disabled && 'cursor-not-allowed bg-[#efe2cf]/45 text-[#3d2a18]',
         )}
       >
         <span className="min-w-0 flex-1 truncate">{selectedOption?.label || placeholder}</span>
         <span className="flex items-center gap-2">
           {selectedOption?.tone && selectedOption.tone !== 'default' && <span className={cn('h-2.5 w-2.5 rounded-full', toneClassNames[selectedOption.tone])} />}
-          <ChevronDown className={cn('h-4 w-4 shrink-0 text-[#a65f16] transition-transform duration-200 group-hover:text-[#8a4f18]', isOpen && 'rotate-180')} />
+          {!disabled && <ChevronDown className={cn('h-4 w-4 shrink-0 text-[#a65f16] transition-transform duration-200 group-hover:text-[#8a4f18]', isOpen && 'rotate-180')} />}
         </span>
       </button>
 

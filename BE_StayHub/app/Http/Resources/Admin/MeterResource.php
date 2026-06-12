@@ -21,7 +21,6 @@ class MeterResource extends JsonResource
             'meter_type' => (int) $this->meter_type,
             'meter_type_label' => MeterDevice::METER_TYPE_LABELS[$this->meter_type] ?? null,
             'initial_reading' => $this->initial_reading === null ? null : (string) $this->initial_reading,
-            'final_reading' => $this->final_reading === null ? null : (string) $this->final_reading,
             'installed_at' => optional($this->installed_at)->toDateString(),
             'status' => (int) $this->status,
             'status_label' => MeterDevice::STATUS_LABELS[$this->status] ?? null,

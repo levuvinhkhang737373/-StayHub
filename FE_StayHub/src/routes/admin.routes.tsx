@@ -18,6 +18,7 @@ import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteG
 import { AdminLayout } from '../layouts/admin/AdminLayout'
 import { MaintenanceScreen } from '../features/admin/maintenance'
 import { NotificationsScreen } from '../features/admin/notifications'
+import { VehiclesScreen } from '../features/admin/vehicles'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -106,7 +107,7 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'vehicles',
-        element: <AdminPlaceholderScreen title="Bãi xe & Phương tiện" description="Quản lý phương tiện, bãi xe, phí gửi xe và trạng thái đăng ký." />,
+        element: <VehiclesScreen />,
       },
       {
         path: 'maintenance',

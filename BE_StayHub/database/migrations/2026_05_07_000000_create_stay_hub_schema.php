@@ -347,7 +347,6 @@ return new class extends Migration
             $table->decimal('initial_reading', 12, 2);
             $table->date('installed_at')->nullable();
             $table->foreignId('replaced_by_meter_id')->nullable()->constrained('meter_devices')->nullOnDelete();
-            $table->decimal('final_reading', 12, 2)->nullable();
             $table->unsignedTinyInteger('status')->default(1);
             $table->string('image_path', 500)->nullable();
             $table->string('note', 500)->nullable();
