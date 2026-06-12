@@ -1,20 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Database, Edit3, Eye, Plus, Power, ReceiptText, RefreshCw, Search, Tags, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Database, Edit3, Eye, Plus, Power, ReceiptText, Search, Tags, Trash2, X } from 'lucide-react'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { ExpenseCategoryModal } from './expense-category-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
-  createAdminExpenseCategory,
   deleteAdminExpenseCategory,
   fetchAdminExpenseCategories,
   fetchAdminExpenseCategoryDetail,
-  updateAdminExpenseCategory,
   updateAdminExpenseCategoryStatus,
 } from '../services/expense-categories.service'
 import type { AdminExpenseCategoryResource } from '../types/expense-category-api.model'
-import { validateExpenseCategoryForm, type ExpenseCategoryFormErrors, type ExpenseCategoryFormValues } from '../validations/expense-category.validation'
+import type { ExpenseCategoryFormValues } from '../validations/expense-category.validation'
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
   if (!result) return []
@@ -34,14 +33,7 @@ const statusOptions = [
   { value: '0', label: 'Hết sử dụng', tone: 'danger' as const },
 ]
 
-const formStatusOptions = [
-  { value: 1, label: 'Đang sử dụng', tone: 'success' as const },
-  { value: 0, label: 'Hết sử dụng', tone: 'danger' as const },
-]
-
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
-const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
-const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function ExpenseCategoriesScreen() {
   const { session } = useAdminSession()
@@ -49,10 +41,9 @@ export function ExpenseCategoriesScreen() {
   const [keyword, setKeyword] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [expenseCategories, setExpenseCategories] = useState<AdminExpenseCategoryResource[]>([])
-  const [editingExpenseCategory, setEditingExpenseCategory] = useState<AdminExpenseCategoryResource | null>(null)
+  const [editingExpenseCategoryId, setEditingExpenseCategoryId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [form, setForm] = useState<ExpenseCategoryFormValues>(defaultForm)
-  const [errors, setErrors] = useState<ExpenseCategoryFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailExpenseCategory, setDetailExpenseCategory] = useState<AdminExpenseCategoryResource | null>(null)
@@ -60,7 +51,6 @@ export function ExpenseCategoriesScreen() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
 
   const loadExpenseCategories = useCallback(async () => {
@@ -95,39 +85,27 @@ export function ExpenseCategoriesScreen() {
   const usedExpenses = useMemo(() => expenseCategories.reduce((sum, item) => sum + Number(item.expenses_count || 0), 0), [expenseCategories])
   const hasActiveFilters = Boolean(keyword.trim() || selectedStatus)
 
-  const updateForm = (key: keyof ExpenseCategoryFormValues, value: string | boolean) => {
-    setForm((current) => ({ ...current, [key]: value }))
-    setErrors((current) => ({ ...current, [key]: undefined }))
-    setSuccessMessage(null)
-  }
-
   const openCreateForm = () => {
-    setEditingExpenseCategory(null)
-    setForm({ ...defaultForm })
-    setErrors({})
+    if (editingExpenseCategoryId !== null) {
+      setForm({ ...defaultForm })
+    }
+    setEditingExpenseCategoryId(null)
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
   }
 
-  const resetForm = () => {
-    setEditingExpenseCategory(null)
-    setForm({ ...defaultForm })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
-  }
-
   const editExpenseCategory = (expenseCategory: AdminExpenseCategoryResource) => {
-    setEditingExpenseCategory(expenseCategory)
-    setForm({
-      name: expenseCategory.name || '',
-      description: expenseCategory.description || '',
-      is_active: Boolean(expenseCategory.is_active),
-    })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
+    if (editingExpenseCategoryId !== expenseCategory.id) {
+      setEditingExpenseCategoryId(expenseCategory.id)
+      setForm({
+        name: expenseCategory.name || '',
+        description: expenseCategory.description || '',
+        is_active: Boolean(expenseCategory.is_active),
+      })
+      setErrorMessage(null)
+      setSuccessMessage(null)
+    }
     setIsFormOpen(true)
   }
 
@@ -168,44 +146,22 @@ export function ExpenseCategoriesScreen() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
 
-  const submit = async () => {
-    if (isSaving || !isSuperAdmin) return
+  const handleCancelForm = () => {
+    setIsFormOpen(false)
+    setEditingExpenseCategoryId(null)
+    setForm({ ...defaultForm })
+  }
 
-    const nextErrors = validateExpenseCategoryForm(form)
-    setErrors(nextErrors)
+  const handleCloseForm = () => {
+    setIsFormOpen(false)
+  }
 
-    if (Object.keys(nextErrors).length > 0) {
-      setErrorMessage('Vui lòng kiểm tra lại thông tin danh mục chi phí.')
-      return
-    }
-
-    try {
-      setIsSaving(true)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-
-      const payload = {
-        name: form.name.trim(),
-        description: form.description.trim(),
-        is_active: Boolean(form.is_active),
-      }
-
-      if (editingExpenseCategory) {
-        await updateAdminExpenseCategory(editingExpenseCategory.id, payload)
-        setSuccessMessage('Cập nhật danh mục chi phí thành công.')
-      } else {
-        await createAdminExpenseCategory(payload)
-        setSuccessMessage('Tạo danh mục chi phí thành công.')
-      }
-
-      resetForm()
-      setIsFormOpen(false)
-      await loadExpenseCategories()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu danh mục chi phí.')
-    } finally {
-      setIsSaving(false)
-    }
+  const handleSubmitSuccess = () => {
+    setIsFormOpen(false)
+    setEditingExpenseCategoryId(null)
+    setForm({ ...defaultForm })
+    setSuccessMessage(editingExpenseCategoryId ? 'Cập nhật danh mục chi phí thành công.' : 'Tạo danh mục chi phí thành công.')
+    void loadExpenseCategories()
   }
 
   const toggleExpenseCategoryStatus = async (expenseCategory: AdminExpenseCategoryResource) => {
@@ -288,7 +244,7 @@ export function ExpenseCategoriesScreen() {
 
 
 
-        <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
+        <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
               <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(12rem,14rem)]">
@@ -388,47 +344,15 @@ export function ExpenseCategoriesScreen() {
           </section>
 
           {isFormOpen && isSuperAdmin && (
-            <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md 2xl:sticky 2xl:top-6 2xl:self-start">
-              <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="mt-1 text-xl font-black tracking-tight text-[#24170d]">{editingExpenseCategory ? 'Cập nhật danh mục' : 'Thêm danh mục'}</h2>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form" aria-label="Làm mới form danh mục chi phí">
-                      <RefreshCw className="h-4 w-4" />
-                    </button>
-                    <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form" aria-label="Đóng form danh mục chi phí">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4 p-5">
-                <div>
-                  <label className={labelClass}>Tên danh mục</label>
-                  <input className={`${inputClass} ${errors.name ? inputErrorClass : ''}`} value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Ví dụ: Sửa chữa, Vệ sinh, Internet" />
-                  <FieldError message={errors.name} />
-                </div>
-                <div>
-                  <label className={labelClass}>Mô tả</label>
-                  <textarea className={`${inputClass} min-h-32 resize-none ${errors.description ? inputErrorClass : ''}`} value={form.description} onChange={(event) => updateForm('description', event.target.value)} placeholder="Mô tả phạm vi sử dụng của danh mục chi phí" />
-                  <FieldError message={errors.description} />
-                </div>
-                <div>
-                  <label className={labelClass}>Trạng thái</label>
-                  <AdminSelect value={form.is_active ? 1 : 0} options={formStatusOptions} invalid={!!errors.is_active} onChange={(nextValue) => updateForm('is_active', Number(nextValue) === 1)} />
-                  <FieldError message={errors.is_active} />
-                </div>
-
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
-                  <button type="button" disabled={isSaving} onClick={() => void submit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60">
-                    {isSaving ? 'Đang lưu...' : editingExpenseCategory ? 'Cập nhật' : 'Tạo danh mục'}
-                  </button>
-                </div>
-              </div>
-            </aside>
+            <ExpenseCategoryModal
+              isOpen={isFormOpen}
+              onClose={handleCloseForm}
+              editingExpenseCategoryId={editingExpenseCategoryId}
+              form={form}
+              setForm={setForm}
+              onCancel={handleCancelForm}
+              onSubmitSuccess={handleSubmitSuccess}
+            />
           )}
         </div>
       </section>
@@ -502,7 +426,3 @@ function DetailTile({ label, value }: { label: string; value: string | number })
   )
 }
 
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
-}

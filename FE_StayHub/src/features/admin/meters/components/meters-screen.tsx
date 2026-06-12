@@ -1,23 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Droplet, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X, Zap } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Droplet, Edit3, Eye, Plus, Search, Trash2, X, Zap } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
-import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { fetchAdminBuildingDetail, fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import {
-  createAdminMeterDevice,
   deleteAdminMeterDevice,
   fetchAdminMeterDeviceDetail,
   fetchAdminMeterDevices,
   fetchAdminServices,
-  updateAdminMeterDevice,
   updateAdminMeterDeviceStatus,
 } from '../services/meters.service'
-import type { AdminMeterDeviceResource, AdminMeterFormErrors, AdminMeterFormValues } from '../types/meter-api.model'
-import { validateMeterForm } from '../validations/meter.validation'
+import type { AdminMeterDeviceResource, AdminMeterFormValues } from '../types/meter-api.model'
+import { MeterModal } from './meter-modal'
 
 const meterTypeOptions = [
   { value: 1, label: 'Điện', tone: 'warning' as const },
@@ -32,13 +29,9 @@ const statusOptions = [
   { value: 4, label: 'Bị hỏng', tone: 'danger' as const },
 ]
 
-const formStatusOptions = statusOptions.filter((item) => item.value !== '')
-
 const filterMeterTypeOptions = [{ value: '', label: 'Tất cả loại đồng hồ', tone: 'default' as const }, ...meterTypeOptions]
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
-const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
-const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 const defaultForm: AdminMeterFormValues = {
   building_id: '',
@@ -123,12 +116,10 @@ export function MetersScreen() {
   const [detailMeter, setDetailMeter] = useState<AdminMeterDeviceResource | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [form, setForm] = useState<AdminMeterFormValues>(defaultForm)
-  const [errors, setErrors] = useState<AdminMeterFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -288,22 +279,6 @@ export function MetersScreen() {
       .sort((a, b) => a - b)
   }, [safeCurrentPage, totalPages])
 
-  const updateForm = (key: keyof AdminMeterFormValues, value: string | number) => {
-    setForm((current) => {
-      const next = { ...current, [key]: value }
-      if (key === 'meter_type') {
-        const targetTypeKey = Number(value) === 1 ? 'dien' : 'nuoc'
-        const matchedService = rawServices.find(s => s.slug?.includes(targetTypeKey))
-        if (matchedService) {
-          next.service_id = String(matchedService.id)
-        }
-      }
-      return next
-    })
-    setErrors((current) => ({ ...current, [key]: undefined }))
-    setSuccessMessage(null)
-  }
-
   const openCreateForm = () => {
     setEditingMeter(null)
     const initialForm = { ...defaultForm }
@@ -312,7 +287,6 @@ export function MetersScreen() {
       initialForm.service_id = String(matchedService.id)
     }
     setForm(initialForm)
-    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -341,7 +315,6 @@ export function MetersScreen() {
       }
       setForm(initialForm)
     }
-    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
   }
@@ -361,7 +334,6 @@ export function MetersScreen() {
       replaced_by_meter_id: meter.replaced_by_meter_id ? String(meter.replaced_by_meter_id) : '',
       note: meter.note || '',
     })
-    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -421,60 +393,6 @@ export function MetersScreen() {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
-
-  const submit = async () => {
-    if (isSaving) return
-
-    const nextErrors = validateMeterForm(form)
-    setErrors(nextErrors)
-
-    if (Object.keys(nextErrors).length > 0) {
-      setErrorMessage('Vui lòng kiểm tra lại thông tin đồng hồ.')
-      return
-    }
-
-    try {
-      setIsSaving(true)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-
-      const payload = {
-        room_id: Number(form.room_id),
-        service_id: Number(form.service_id),
-        meter_type: form.meter_type,
-        initial_reading: Number(form.initial_reading),
-        installed_at: form.installed_at || undefined,
-        final_reading: form.final_reading.trim() ? Number(form.final_reading) : undefined,
-        status: form.status,
-        replaced_by_meter_id: form.replaced_by_meter_id.trim() ? Number(form.replaced_by_meter_id) : undefined,
-        note: form.note.trim() || undefined,
-      }
-
-      if (editingMeter) {
-        await updateAdminMeterDevice(editingMeter.id, payload)
-        setSuccessMessage('Cập nhật đồng hồ thành công.')
-      } else {
-        await createAdminMeterDevice(payload)
-        setSuccessMessage('Tạo đồng hồ thành công.')
-      }
-
-      setEditingMeter(null)
-      const initialForm = { ...defaultForm }
-      const matchedService = rawServices.find(s => s.slug?.includes('dien'))
-      if (matchedService) {
-        initialForm.service_id = String(matchedService.id)
-      }
-      setForm(initialForm)
-      setErrors({})
-      setIsFormOpen(false)
-      void loadMeterDevices()
-      void loadAllMeterDevices()
-    } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, editingMeter ? 'Không thể cập nhật đồng hồ.' : 'Không thể tạo đồng hồ.'))
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   const changeStatus = async (meter: AdminMeterDeviceResource, targetStatus: number) => {
     if (statusChangingId) return
@@ -597,7 +515,7 @@ export function MetersScreen() {
         {activeMessage || errorMessage || successMessage}
       </div>
 
-      <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
+      <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
           <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
             <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_200px_200px]">
@@ -727,111 +645,28 @@ export function MetersScreen() {
           </div>
         </section>
 
-        {isFormOpen && (
-          <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 p-5 shadow-sm shadow-[#6b3f1d]/5">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#24170d]">{editingMeter ? 'Cập nhật đồng hồ' : 'Thông tin đồng hồ mới'}</p>
-                  <p className="text-xs font-medium text-[#6f6254]">Điền thông tin bắt buộc và nhấn lưu.</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button type="button" onClick={resetForm} className="flex flex-col items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
-                    <RefreshCw className="h-4 w-4" />
-                    <span className="whitespace-nowrap mt-1">Làm mới</span>
-                  </button>
-                  <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="flex flex-col items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-700">
-                    <X className="h-4 w-4" />
-                    <span className="whitespace-nowrap mt-1">Đóng</span>
-                  </button>
-                </div>
-              </div>
-
-              {successMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{successMessage}</div>}
-              {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{errorMessage}</div>}
-
-            <div className="grid gap-4">
-              <div>
-                <label className={labelClass}>Tòa nhà</label>
-                <AdminSelect
-                  value={form.building_id}
-                  options={buildings.map((b) => ({ value: b.id, label: b.name }))}
-                  invalid={!!errors.building_id}
-                  placeholder="Chọn tòa nhà"
-                  onChange={(nextValue) => {
-                    updateForm('building_id', String(nextValue))
-                    updateForm('room_id', '')
-                  }}
-                />
-                <FieldError message={errors.building_id} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Phòng</label>
-                <AdminSelect
-                  value={form.room_id}
-                  options={rooms.map((r) => ({ value: r.id, label: r.room_number }))}
-                  disabled={!form.building_id}
-                  invalid={!!errors.room_id}
-                  placeholder={form.building_id ? "Chọn phòng" : "Vui lòng chọn tòa nhà trước"}
-                  onChange={(nextValue) => updateForm('room_id', String(nextValue))}
-                />
-                <FieldError message={errors.room_id} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Loại đồng hồ</label>
-                <AdminSelect value={form.meter_type} options={meterTypeOptions} invalid={!!errors.meter_type} onChange={(nextValue) => updateForm('meter_type', Number(nextValue))} />
-                <FieldError message={errors.meter_type} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Chỉ số khởi tạo</label>
-                <input type="number" min={0} step="any" className={cn(inputClass, errors.initial_reading && inputErrorClass)} value={form.initial_reading} onChange={(event) => updateForm('initial_reading', event.target.value)} placeholder="0" />
-                <FieldError message={errors.initial_reading} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Chỉ số cuối</label>
-                <input type="number" min={0} step="any" className={cn(inputClass, errors.final_reading && inputErrorClass)} value={form.final_reading} onChange={(event) => updateForm('final_reading', event.target.value)} placeholder="Tùy chọn" />
-                <FieldError message={errors.final_reading} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Ngày lắp</label>
-                <AdminDateInput 
-                  className={cn(inputClass, errors.installed_at && inputErrorClass)} 
-                  value={form.installed_at} 
-                  onChange={(value) => updateForm('installed_at', value)} 
-                />
-                <FieldError message={errors.installed_at} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Trạng thái</label>
-                <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
-                <FieldError message={errors.status} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Đồng hồ thay thế</label>
-                <AdminSelect value={form.replaced_by_meter_id} options={[{ value: '', label: 'Chọn đồng hồ thay thế', tone: 'default' }, ...replacementOptions]} invalid={!!errors.replaced_by_meter_id} onChange={(nextValue) => updateForm('replaced_by_meter_id', String(nextValue))} />
-                <FieldError message={errors.replaced_by_meter_id} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Ghi chú</label>
-                <textarea className={cn(inputClass, 'min-h-[120px]', errors.note && inputErrorClass)} value={form.note} onChange={(event) => updateForm('note', event.target.value)} placeholder="Ghi chú vận hành hoặc vị trí lắp" />
-                <FieldError message={errors.note} />
-              </div>
-
-              <button type="button" onClick={submit} disabled={isSaving} className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#24170d] px-5 text-sm font-black text-[#fff4df] transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-55">
-                {isSaving ? 'Đang lưu...' : editingMeter ? 'Lưu cập nhật' : 'Lưu đồng hồ'}
-              </button>
-            </div>
-          </div>
-        </aside>
-      )}
+        <MeterModal
+          isOpen={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          editingMeterId={editingMeter ? editingMeter.id : null}
+          form={form}
+          setForm={setForm}
+          onCancel={() => {
+            resetForm()
+            setIsFormOpen(false)
+          }}
+          onSubmitSuccess={async () => {
+            resetForm()
+            setIsFormOpen(false)
+            setSuccessMessage(editingMeter ? 'Cập nhật đồng hồ thành công.' : 'Tạo đồng hồ thành công.')
+            void loadMeterDevices()
+            void loadAllMeterDevices()
+          }}
+          buildings={buildings}
+          rooms={rooms}
+          rawServices={rawServices}
+          replacementOptions={replacementOptions}
+        />
       </div>
 
       {isDetailOpen && (
@@ -897,10 +732,6 @@ function DetailTile({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="mt-2 text-xs font-semibold text-rose-600">{message}</p>
-}
 
 function MetricCard({ label, value, subValue, tone }: { label: string; value: number; subValue?: string; tone: 'neutral' | 'emerald' | 'amber' | 'teal' | 'rose' }) {
   const toneClassNames = {

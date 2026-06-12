@@ -1,20 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Database, Edit3, Eye, Plus, Power, RefreshCw, Search, Trash2, X, Zap } from 'lucide-react'
+import { ArrowLeft, Database, Edit3, Eye, Plus, Power, Search, Trash2, X, Zap } from 'lucide-react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
-  createAdminService,
   deleteAdminService,
   fetchAdminServiceDetail,
   fetchAdminServices,
-  updateAdminService,
   updateAdminServiceStatus,
 } from '../services/services.service'
 import type { AdminServiceResource } from '../types/service-api.model'
-import { validateServiceForm, type ServiceFormErrors, type ServiceFormValues } from '../validations/service.validation'
+import type { ServiceFormValues } from '../validations/service.validation'
+import { ServiceModal } from './service-modal'
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
   if (!result) return []
@@ -44,27 +43,15 @@ const requiredOptions = [
   { value: '0', label: 'Không bắt buộc', tone: 'default' as const },
 ]
 
-const formRequiredOptions = [
-  { value: 1, label: 'Bắt buộc', tone: 'warning' as const },
-  { value: 0, label: 'Không bắt buộc', tone: 'default' as const },
-]
-
 const statusOptions = [
   { value: '', label: 'Tất cả trạng thái', tone: 'default' as const },
   { value: '1', label: 'Hoạt động', tone: 'success' as const },
   { value: '0', label: 'Ngừng hoạt động', tone: 'danger' as const },
 ]
 
-const formStatusOptions = [
-  { value: 1, label: 'Hoạt động', tone: 'success' as const },
-  { value: 0, label: 'Ngừng hoạt động', tone: 'danger' as const },
-]
-
 const filterChargeMethodOptions = [{ value: '', label: 'Tất cả cách tính phí', tone: 'default' as const }, ...chargeMethodOptions]
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
-const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
-const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function ServicesScreen() {
   const { session } = useAdminSession()
@@ -77,7 +64,6 @@ export function ServicesScreen() {
   const [editingService, setEditingService] = useState<AdminServiceResource | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [form, setForm] = useState<ServiceFormValues>(defaultForm)
-  const [errors, setErrors] = useState<ServiceFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailService, setDetailService] = useState<AdminServiceResource | null>(null)
@@ -85,7 +71,6 @@ export function ServicesScreen() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
 
   const loadServices = useCallback(async () => {
@@ -122,16 +107,9 @@ export function ServicesScreen() {
   const relatedRecords = useMemo(() => services.reduce((sum, item) => sum + Number(item.prices_count || 0) + Number(item.meter_devices_count || 0) + Number(item.invoice_items_count || 0), 0), [services])
   const hasActiveFilters = Boolean(keyword.trim() || selectedChargeMethod || selectedRequired || selectedStatus)
 
-  const updateForm = (key: keyof ServiceFormValues, value: string | number | boolean) => {
-    setForm((current) => ({ ...current, [key]: value }))
-    setErrors((current) => ({ ...current, [key]: undefined }))
-    setSuccessMessage(null)
-  }
-
   const openCreateForm = () => {
     setEditingService(null)
     setForm({ ...defaultForm })
-    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -140,7 +118,6 @@ export function ServicesScreen() {
   const resetForm = () => {
     setEditingService(null)
     setForm({ ...defaultForm })
-    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
   }
@@ -154,7 +131,6 @@ export function ServicesScreen() {
       is_required: Boolean(service.is_required),
       is_active: Boolean(service.is_active),
     })
-    setErrors({})
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -196,48 +172,6 @@ export function ServicesScreen() {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
-
-  const submit = async () => {
-    if (isSaving || !isSuperAdmin) return
-
-    const nextErrors = validateServiceForm(form)
-    setErrors(nextErrors)
-
-    if (Object.keys(nextErrors).length > 0) {
-      setErrorMessage('Vui lòng kiểm tra lại thông tin dịch vụ.')
-      return
-    }
-
-    try {
-      setIsSaving(true)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-
-      const payload = {
-        name: form.name.trim(),
-        charge_method: Number(form.charge_method),
-        unit_name: form.unit_name.trim() || undefined,
-        is_required: Boolean(form.is_required),
-        is_active: Boolean(form.is_active),
-      }
-
-      if (editingService) {
-        await updateAdminService(editingService.id, payload)
-        setSuccessMessage('Cập nhật dịch vụ thành công.')
-      } else {
-        await createAdminService(payload)
-        setSuccessMessage('Tạo dịch vụ thành công.')
-      }
-
-      resetForm()
-      setIsFormOpen(false)
-      await loadServices()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu dịch vụ.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   const toggleServiceStatus = async (service: AdminServiceResource) => {
     if (!isSuperAdmin) return
@@ -319,7 +253,7 @@ export function ServicesScreen() {
           </div>
         )}
 
-        <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
+        <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
               <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(12rem,14rem)_minmax(11rem,13rem)_minmax(11rem,13rem)]">
@@ -430,64 +364,26 @@ export function ServicesScreen() {
               </table>
             </div>
           </section>
-
-          {isFormOpen && isSuperAdmin && (
-            <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md 2xl:sticky 2xl:top-6 2xl:self-start">
-              <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="mt-1 text-xl font-black tracking-tight text-[#24170d]">{editingService ? 'Cập nhật dịch vụ' : 'Thêm dịch vụ'}</h2>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form" aria-label="Làm mới form dịch vụ">
-                      <RefreshCw className="h-4 w-4" />
-                    </button>
-                    <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form" aria-label="Đóng form dịch vụ">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4 p-5">
-                <div>
-                  <label className={labelClass}>Tên dịch vụ</label>
-                  <input className={`${inputClass} ${errors.name ? inputErrorClass : ''}`} value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Ví dụ: Điện sinh hoạt" />
-                  <FieldError message={errors.name} />
-                </div>
-                <div>
-                  <label className={labelClass}>Cách tính phí</label>
-                  <AdminSelect value={form.charge_method} options={chargeMethodOptions} invalid={!!errors.charge_method} onChange={(nextValue) => updateForm('charge_method', Number(nextValue))} />
-                  <FieldError message={errors.charge_method} />
-                </div>
-                <div>
-                  <label className={labelClass}>Đơn vị tính</label>
-                  <input className={`${inputClass} ${errors.unit_name ? inputErrorClass : ''}`} value={form.unit_name} onChange={(event) => updateForm('unit_name', event.target.value)} placeholder="Ví dụ: kWh, m³, phòng, người" />
-                  <FieldError message={errors.unit_name} />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-1">
-                  <div>
-                    <label className={labelClass}>Bắt buộc</label>
-                    <AdminSelect value={form.is_required ? 1 : 0} options={formRequiredOptions} invalid={!!errors.is_required} onChange={(nextValue) => updateForm('is_required', Number(nextValue) === 1)} />
-                    <FieldError message={errors.is_required} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Trạng thái</label>
-                    <AdminSelect value={form.is_active ? 1 : 0} options={formStatusOptions} invalid={!!errors.is_active} onChange={(nextValue) => updateForm('is_active', Number(nextValue) === 1)} />
-                    <FieldError message={errors.is_active} />
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
-                  <button type="button" disabled={isSaving} onClick={() => void submit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60">
-                    {isSaving ? 'Đang lưu...' : editingService ? 'Cập nhật' : 'Tạo dịch vụ'}
-                  </button>
-                </div>
-              </div>
-            </aside>
-          )}
         </div>
       </section>
+
+      <ServiceModal
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        editingServiceId={editingService ? editingService.id : null}
+        form={form}
+        setForm={setForm}
+        onCancel={() => {
+          resetForm()
+          setIsFormOpen(false)
+        }}
+        onSubmitSuccess={async () => {
+          resetForm()
+          setIsFormOpen(false)
+          setSuccessMessage(editingService ? 'Cập nhật dịch vụ thành công.' : 'Tạo dịch vụ thành công.')
+          await loadServices()
+        }}
+      />
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="service-detail-title">
@@ -566,10 +462,3 @@ function DetailTile({ label, value }: { label: string; value: string | number })
     </div>
   )
 }
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
-}
-
-

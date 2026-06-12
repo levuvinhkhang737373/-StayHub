@@ -46,10 +46,12 @@ export function validateAdminAccountForm(form: AdminAccountFormValues, isEdit: b
     errors.email = 'Email admin tối đa 255 ký tự.'
   }
 
+  const VIETNAMESE_PHONE_REGEX = /^(032|033|034|035|036|037|038|039|086|096|097|098|081|082|083|084|085|088|091|094|070|076|077|078|079|089|090|093|056|058|092|059|099|087)\d{7}$/
+
   if (!phone) {
     errors.phone = 'Vui lòng nhập số điện thoại admin.'
-  } else if (phone.length > 20) {
-    errors.phone = 'Số điện thoại admin tối đa 20 ký tự.'
+  } else if (!VIETNAMESE_PHONE_REGEX.test(phone)) {
+    errors.phone = 'Số điện thoại phải gồm 10 số và thuộc nhà mạng Việt Nam hợp lệ.'
   }
 
   if (isEdit && password && password.length < 6) {

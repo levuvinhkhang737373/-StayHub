@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/invoice_controller.dart';
+import '../../models/invoice.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 
 class TenantInvoicesScreen extends StatefulWidget {
@@ -119,75 +120,97 @@ class _TenantInvoicesScreenState extends State<TenantInvoicesScreen> {
     final roomNumber = tenant?.roomNumber ?? '101';
     final invoices = invoiceController.getInvoicesForRoom(roomNumber);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F6F0),
-      appBar: AppBar(
-        title: const Text('Hóa đơn của tôi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: const Color(0xFF1C1917),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F6F0),
+        appBar: AppBar(
+          title: const Text('Hóa đơn của tôi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          backgroundColor: const Color(0xFF1C1917),
+          bottom: const TabBar(
+            indicatorColor: Color(0xFFEAB308),
+            labelColor: Color(0xFFEAB308),
+            unselectedLabelColor: Colors.grey,
+            tabs: [
+              Tab(text: 'Chưa thanh toán'),
+              Tab(text: 'Đã thanh toán'),
+            ],
+          ),
+        ),
+        body: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: GridPainter())),
+            TabBarView(
+              children: [
+                _buildInvoiceList(invoices.where((inv) => inv.isUnpaid).toList()),
+                _buildInvoiceList(invoices.where((inv) => inv.isPaid).toList()),
+              ],
+            ),
+          ],
+        ),
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: GridPainter())),
-          invoices.isEmpty
-              ? const Center(child: Text('Không tìm thấy hóa đơn nào.', style: TextStyle(color: Colors.grey)))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: invoices.length,
-                  itemBuilder: (context, index) {
-                    final invoice = invoices[index];
-                    return Card(
-                      color: Colors.white,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: const BorderSide(color: Color(0xFFE4E2D7)),
-                      ),
-                      elevation: 0,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  invoice.invoiceCode,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
-                                ),
-                                _buildStatusBadge(invoice.status, invoice.statusLabel),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            _buildInfoRow('Kỳ thanh toán:', 'Tháng ${invoice.billingMonth}/${invoice.billingYear}'),
-                            _buildInfoRow('Tổng số tiền:', '${invoice.totalAmount.toStringAsFixed(0)}đ'),
-                            _buildInfoRow('Đã thanh toán:', '${invoice.paidAmount.toStringAsFixed(0)}đ'),
-                            _buildInfoRow('Còn lại:', '${invoice.remainingAmount.toStringAsFixed(0)}đ'),
-                            _buildInfoRow('Hạn thanh toán:', invoice.dueDate),
-                            
-                            if (invoice.isUnpaid) ...[
-                              const Divider(height: 24, color: Color(0xFFE4E2D7)),
-                              ElevatedButton.icon(
-                                onPressed: () => _showPaymentBottomSheet(invoice),
-                                icon: const Icon(Icons.payment, size: 18, color: Color(0xFF1C1917)),
-                                label: const Text('Thanh toán ngay', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFEAB308),
-                                  foregroundColor: const Color(0xFF1C1917),
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                              ),
-                            ]
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+    );
+  }
+
+  Widget _buildInvoiceList(List<Invoice> filteredInvoices) {
+    if (filteredInvoices.isEmpty) {
+      return const Center(child: Text('Không tìm thấy hóa đơn nào.', style: TextStyle(color: Colors.grey)));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: filteredInvoices.length,
+      itemBuilder: (context, index) {
+        final invoice = filteredInvoices[index];
+        return Card(
+          color: Colors.white,
+          margin: const EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFE4E2D7)),
+          ),
+          elevation: 0,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      invoice.invoiceCode,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
+                    ),
+                    _buildStatusBadge(invoice.status, invoice.statusLabel),
+                  ],
                 ),
-        ],
-      ),
+                const SizedBox(height: 12),
+                _buildInfoRow('Kỳ thanh toán:', 'Tháng ${invoice.billingMonth}/${invoice.billingYear}'),
+                _buildInfoRow('Tổng số tiền:', '${invoice.totalAmount.toStringAsFixed(0)}đ'),
+                _buildInfoRow('Đã thanh toán:', '${invoice.paidAmount.toStringAsFixed(0)}đ'),
+                _buildInfoRow('Còn lại:', '${invoice.remainingAmount.toStringAsFixed(0)}đ'),
+                _buildInfoRow('Hạn thanh toán:', invoice.dueDate),
+                
+                if (invoice.isUnpaid) ...[
+                  const Divider(height: 24, color: Color(0xFFE4E2D7)),
+                  ElevatedButton.icon(
+                    onPressed: () => _showPaymentBottomSheet(invoice),
+                    icon: const Icon(Icons.payment, size: 18, color: Color(0xFF1C1917)),
+                    label: const Text('Thanh toán ngay', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEAB308),
+                      foregroundColor: const Color(0xFF1C1917),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ]
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

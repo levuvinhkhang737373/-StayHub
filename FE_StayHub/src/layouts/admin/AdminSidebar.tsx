@@ -30,7 +30,7 @@ export function AdminSidebar() {
   }
 
   return (
-    <aside className="relative z-40 hidden h-screen w-60 shrink-0 overflow-hidden border-r border-[#3d2a18]/10 bg-[#fffaf1]/90 text-[#24170d] shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur-xl xl:flex xl:flex-col">
+    <aside className="sticky top-0 z-40 hidden h-screen w-60 shrink-0 overflow-hidden border-r border-[#3d2a18]/10 bg-[#fffaf1]/90 text-[#24170d] shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur-xl xl:flex xl:flex-col">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_8%,rgba(243,197,107,0.38),transparent_28%),radial-gradient(circle_at_110%_18%,rgba(15,118,110,0.14),transparent_30%),linear-gradient(180deg,rgba(255,250,241,0.95),rgba(244,239,230,0.88))]" />
 
 

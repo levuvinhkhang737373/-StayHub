@@ -616,7 +616,7 @@ export function SystemUsersScreen() {
                 </div>
                 <div>
                   <label className={labelClass}>Số điện thoại</label>
-                  <input className={`${inputClass} ${errors.phone ? inputErrorClass : ''}`} value={form.phone} onChange={(event) => updateForm('phone', event.target.value)} placeholder="Nhập số điện thoại" />
+                  <input className={`${inputClass} ${errors.phone ? inputErrorClass : ''}`} value={form.phone} onChange={(event) => updateForm('phone', event.target.value.replace(/\D/g, ''))} placeholder="Nhập số điện thoại" maxLength={10} />
                   <FieldError message={errors.phone} />
                 </div>
                 {editingAccount && (

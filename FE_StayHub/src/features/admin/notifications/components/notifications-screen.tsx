@@ -4,7 +4,6 @@ import {
   ArrowLeft, 
   Bell, 
   Plus, 
-  X, 
   Trash2, 
   Clock, 
   Building, 
@@ -21,14 +20,12 @@ import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import {
   fetchAdminNotifications,
-  createAdminNotification,
-  updateAdminNotification,
   deleteAdminNotification
 } from '../services/notification.service'
 import type { 
-  AdminNotificationResource,
-  AdminNotificationPayload 
+  AdminNotificationResource
 } from '../types/notification-api.model'
+import { NotificationModal, type NotificationFormValues } from './notification-modal'
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
   if (!result) return []
@@ -73,22 +70,6 @@ const filterTargetTypeOptions = [
   { value: '4', label: 'Theo khách thuê', tone: 'default' as const },
 ]
 
-const typeOptions = [
-  { value: 1, label: 'Sửa chữa' },
-  { value: 2, label: 'Hóa đơn' },
-  { value: 3, label: 'Hệ thống' },
-  { value: 4, label: 'Cảnh báo' },
-  { value: 5, label: 'Khác' },
-]
-
-const statusOptions = [
-  { value: 1, label: 'Bản nháp' },
-  { value: 2, label: 'Gửi ngay' },
-  { value: 3, label: 'Hủy' },
-]
-
-const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
-const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function NotificationsScreen() {
   const { session } = useAdminSession()
@@ -104,70 +85,24 @@ export function NotificationsScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
  
+  const defaultForm = useMemo<NotificationFormValues>(() => ({
+    title: '',
+    content: '',
+    notification_type: 3,
+    target_type: isSuperAdmin ? 1 : 2,
+    building_id: '',
+    room_id: '',
+    tenant_id: '',
+    status: 1,
+  }), [isSuperAdmin])
+
   // Drawer / Form state
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [editingNotification, setEditingNotification] = useState<AdminNotificationResource | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  
-  // Form fields
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [notifType, setNotifType] = useState<number>(3) // Default to System
-  const [targetType, setTargetType] = useState<number>(1) // Default to All
-  const [targetBuildingId, setTargetBuildingId] = useState<string>('')
-  const [targetRoomId, setTargetRoomId] = useState<string>('')
-  const [targetTenantId, setTargetTenantId] = useState<string>('')
-  const [status, setStatus] = useState<number>(1) // Default to Draft
+  const [editingNotificationId, setEditingNotificationId] = useState<number | null>(null)
+  const [form, setForm] = useState<NotificationFormValues>(defaultForm)
 
   const buildingOptions = useMemo(() => buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const })), [buildings])
   const filterBuildingOptions = useMemo(() => [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions], [buildingOptions])
-
-  // Map tenants to select options
-  const tenantSelectOptions = useMemo(() => {
-    return tenants.map((t) => ({
-      value: t.id,
-      label: `${t.full_name || t.username} (Phòng ${t.room_number || 'N/A'} - ${t.building_name || 'N/A'})`,
-      tone: 'default' as const
-    }))
-  }, [tenants])
-
-  const allowedTargetOptions = useMemo(() => {
-    const options = [
-      { value: 2, label: 'Theo tòa nhà / phòng' },
-      { value: 4, label: 'Theo khách thuê' },
-    ]
-    if (isSuperAdmin) {
-      options.unshift({ value: 1, label: 'Tất cả (Toàn hệ thống)' })
-    }
-    return options
-  }, [isSuperAdmin])
-
-  const handleBuildingChange = (val: string | number) => {
-    setTargetBuildingId(String(val))
-    setTargetRoomId('')
-  }
-
-  // Filter rooms belonging to targetBuildingId
-  const filteredRoomSelectOptions = useMemo(() => {
-    if (!targetBuildingId) return []
-    const seenRoomIds = new Set<number>()
-    const options: Array<{ value: string; label: string; tone: 'default' }> = [
-      { value: '', label: 'Tất cả phòng (Mặc định gửi cả tòa nhà)', tone: 'default' as const }
-    ]
-
-    tenants.forEach((t) => {
-      if (t.room_id && String(t.building_id) === targetBuildingId && !seenRoomIds.has(t.room_id)) {
-        seenRoomIds.add(t.room_id)
-        options.push({
-          value: String(t.room_id),
-          label: `Phòng ${t.room_number || 'N/A'}`,
-          tone: 'default' as const
-        })
-      }
-    })
-
-    return options
-  }, [tenants, targetBuildingId])
 
   // Metrics
   const metrics = useMemo(() => {
@@ -228,12 +163,6 @@ export function NotificationsScreen() {
   }, [loadNotifications])
 
   useEffect(() => {
-    if (buildings.length === 1 && !targetBuildingId && isFormOpen) {
-      setTargetBuildingId(String(buildings[0].id))
-    }
-  }, [buildings, targetBuildingId, isFormOpen])
-
-  useEffect(() => {
     function handleMaintenanceCreated() {
       console.log('WS Event: Refreshing admin notifications list')
       void loadNotifications()
@@ -244,89 +173,53 @@ export function NotificationsScreen() {
     }
   }, [loadNotifications])
 
-  // Open Form for Creating
   const openCreateForm = () => {
-    setEditingNotification(null)
-    setTitle('')
-    setContent('')
-    setNotifType(3)
-    setTargetType(isSuperAdmin ? 1 : 2)
-    setTargetBuildingId('')
-    setTargetRoomId('')
-    setTargetTenantId('')
-    setStatus(1)
+    if (editingNotificationId !== null) {
+      setForm(defaultForm)
+    }
+    setEditingNotificationId(null)
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
   }
 
-  // Open Form for Editing
   const openEditForm = (notif: AdminNotificationResource) => {
     if (notif.status === 2) {
       alert('Không thể chỉnh sửa thông báo đã gửi.')
       return
     }
-    setEditingNotification(notif)
-    setTitle(notif.title)
-    setContent(notif.content)
-    setNotifType(notif.notification_type)
-    setTargetType(notif.target_type === 3 ? 2 : notif.target_type)
-    setTargetBuildingId(notif.building_id ? String(notif.building_id) : '')
-    setTargetRoomId(notif.room_id ? String(notif.room_id) : '')
-    setTargetTenantId(notif.tenant_id ? String(notif.tenant_id) : '')
-    setStatus(notif.status)
+    setEditingNotificationId(notif.id)
+    setForm({
+      title: notif.title || '',
+      content: notif.content || '',
+      notification_type: notif.notification_type,
+      target_type: notif.target_type === 3 ? 2 : notif.target_type,
+      building_id: notif.building_id ? String(notif.building_id) : '',
+      room_id: notif.room_id ? String(notif.room_id) : '',
+      tenant_id: notif.tenant_id ? String(notif.tenant_id) : '',
+      status: notif.status,
+    })
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
   }
 
-  // Submit Form
-  const handleSubmit = async () => {
-    if (!title.trim() || !content.trim()) {
-      alert('Vui lòng điền đầy đủ tiêu đề và nội dung.')
-      return
-    }
+  const handleCancelForm = () => {
+    setIsFormOpen(false)
+    setForm(defaultForm)
+    setEditingNotificationId(null)
+  }
 
-    if (targetType === 2 && !targetBuildingId) {
-      alert('Vui lòng chọn tòa nhà mục tiêu.')
-      return
-    }
+  const handleCloseForm = () => {
+    setIsFormOpen(false)
+  }
 
-    if (targetType === 4 && !targetTenantId) {
-      alert('Vui lòng chọn khách thuê mục tiêu.')
-      return
-    }
-
-    setIsSaving(true)
-    setErrorMessage(null)
-    setSuccessMessage(null)
-
-    const payload: AdminNotificationPayload = {
-      title: title.trim(),
-      content: content.trim(),
-      notification_type: notifType,
-      target_type: (targetType === 2 && targetRoomId) ? 3 : targetType,
-      building_id: targetType === 2 ? Number(targetBuildingId) : null,
-      room_id: (targetType === 2 && targetRoomId) ? Number(targetRoomId) : null,
-      tenant_id: targetType === 4 ? Number(targetTenantId) : null,
-      status: status
-    }
-
-    try {
-      if (editingNotification) {
-        await updateAdminNotification(editingNotification.id, payload)
-        setSuccessMessage('Cập nhật thông báo thành công.')
-      } else {
-        await createAdminNotification(payload)
-        setSuccessMessage('Tạo thông báo thành công.')
-      }
-      setIsFormOpen(false)
-      void loadNotifications()
-    } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : 'Có lỗi xảy ra khi lưu thông báo.')
-    } finally {
-      setIsSaving(false)
-    }
+  const handleSubmitSuccess = () => {
+    setIsFormOpen(false)
+    setForm(defaultForm)
+    setEditingNotificationId(null)
+    setSuccessMessage(editingNotificationId ? 'Cập nhật thông báo thành công.' : 'Tạo thông báo thành công.')
+    void loadNotifications()
   }
 
   // Delete notification
@@ -394,7 +287,7 @@ export function NotificationsScreen() {
           </div>
         )}
 
-        <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_400px]')}>
+        <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
           {/* Main List */}
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff7e8]/72 p-4 sm:p-5">
@@ -496,126 +389,18 @@ export function NotificationsScreen() {
             </div>
           </section>
 
-          {/* Form sidebar drawer */}
-          {isFormOpen && (
-            <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 p-5 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md sticky top-6 self-start">
-              <div className="mb-5 flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-black tracking-tight text-[#24170d]">
-                    {editingNotification ? 'Cập nhật thông báo' : 'Thêm thông báo'}
-                  </h2>
-                  <p className="text-xs font-bold text-[#8b5e34]/60">Gửi các bản tin/cảnh báo tới khách thuê.</p>
-                </div>
-                <button 
-                  type="button" 
-                  onClick={() => setIsFormOpen(false)} 
-                  className="rounded-xl border border-[#3d2a18]/10 p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className={labelClass}>Tiêu đề thông báo</label>
-                  <input 
-                    type="text" 
-                    value={title} 
-                    onChange={(e) => setTitle(e.target.value)} 
-                    placeholder="Ví dụ: Lịch bảo trì điện ngày 15/06" 
-                    className={inputClass} 
-                  />
-                </div>
-
-                <div>
-                  <label className={labelClass}>Nội dung chi tiết</label>
-                  <textarea 
-                    value={content} 
-                    onChange={(e) => setContent(e.target.value)} 
-                    placeholder="Nhập nội dung thông báo đầy đủ..." 
-                    className={`${inputClass} min-h-24`} 
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelClass}>Loại thông báo</label>
-                    <AdminSelect 
-                      value={notifType} 
-                      options={typeOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))} 
-                      onChange={(val) => setNotifType(Number(val))} 
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Trạng thái</label>
-                    <AdminSelect 
-                      value={status} 
-                      options={statusOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))} 
-                      onChange={(val) => setStatus(Number(val))} 
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className={labelClass}>Đối tượng mục tiêu</label>
-                  <AdminSelect 
-                    value={targetType} 
-                    options={allowedTargetOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))} 
-                    onChange={(val) => { setTargetType(Number(val)); setTargetBuildingId(''); setTargetRoomId(''); setTargetTenantId('') }} 
-                  />
-                </div>
-
-                {/* Conditional Fields */}
-                {targetType === 2 && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className={labelClass}>Chọn tòa nhà</label>
-                      <AdminSelect 
-                        value={targetBuildingId} 
-                        options={[{ value: '', label: 'Chọn tòa nhà mục tiêu', tone: 'default' as const }, ...buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const }))]} 
-                        onChange={(val) => handleBuildingChange(String(val))} 
-                      />
-                    </div>
-
-                    {targetBuildingId && (
-                      <div>
-                        <label className={labelClass}>Chọn phòng nhận tin (Không bắt buộc)</label>
-                        <AdminSelect 
-                          value={targetRoomId} 
-                          options={filteredRoomSelectOptions} 
-                          onChange={(val) => setTargetRoomId(String(val))} 
-                          placeholder="Mặc định gửi cả tòa nhà"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {targetType === 4 && (
-                  <div>
-                    <label className={labelClass}>Chọn khách thuê nhận tin</label>
-                    <AdminSelect 
-                      value={targetTenantId} 
-                      options={tenantSelectOptions} 
-                      onChange={(val) => setTargetTenantId(String(val))} 
-                      placeholder="Chọn khách thuê mục tiêu"
-                    />
-                  </div>
-                )}
-
-                <div className="pt-2">
-                  <button 
-                    type="button" 
-                    disabled={isSaving} 
-                    onClick={() => void handleSubmit()} 
-                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] transition hover:bg-[#3d2a18] disabled:opacity-60"
-                  >
-                    {isSaving ? 'Đang gửi...' : editingNotification ? 'Cập nhật' : 'Gửi thông báo'}
-                  </button>
-                </div>
-              </div>
-            </aside>
-          )}
+          <NotificationModal
+            isOpen={isFormOpen}
+            onClose={handleCloseForm}
+            editingNotificationId={editingNotificationId}
+            form={form}
+            setForm={setForm}
+            onCancel={handleCancelForm}
+            onSubmitSuccess={handleSubmitSuccess}
+            buildings={buildings}
+            tenants={tenants}
+            isSuperAdmin={isSuperAdmin}
+          />
         </div>
       </section>
     </>

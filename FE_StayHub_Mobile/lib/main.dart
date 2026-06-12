@@ -29,6 +29,8 @@ import 'views/tenant/tenant_dashboard_screen.dart';
 import 'views/tenant/tenant_invoices_screen.dart';
 import 'views/tenant/tenant_maintenance_screen.dart';
 import 'views/tenant/tenant_chat_screen.dart';
+import 'views/tenant/tenant_contract_screen.dart';
+import 'views/tenant/tenant_utility_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -140,6 +142,8 @@ class MyApp extends StatelessWidget {
         '/tenant/invoices': (_) => const TenantInvoicesScreen(),
         '/tenant/maintenance': (_) => const TenantMaintenanceScreen(),
         '/tenant/notifications': (_) => const TenantNotificationScreen(),
+        '/tenant/contract': (_) => const TenantContractScreen(),
+        '/tenant/utility': (_) => const TenantUtilityScreen(),
       },
     );
   }
