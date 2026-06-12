@@ -39,18 +39,27 @@ class SePayWebhookController extends Controller
             ]);
         }
 
+        $content = $request->input('content') ?? $request->input('transferDesc') ?? '';
+        $reference = $request->input('code'); // Bank transaction reference code
+        $sepayId = $request->input('id'); // SePay ID
+
+        // Check if it's a SePay test webhook delivery
+        if ($reference === 'SEPAYTEST' || $content === 'SEPAY TEST WEBHOOK') {
+            Log::info('SePay Webhook: Test request bypassed successfully.');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Test webhook received successfully.'
+            ]);
+        }
+
         // Read transaction details
-        $amount = (float) $request->input('amount');
+        $amount = (float) ($request->input('amount') ?? $request->input('transferAmount') ?? 0);
         if ($amount <= 0) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Transaction amount must be positive.'
             ], 400);
         }
-
-        $content = $request->input('content') ?? $request->input('transferDesc') ?? '';
-        $reference = $request->input('code'); // Bank transaction reference code
-        $sepayId = $request->input('id'); // SePay ID
         
         // Use bank reference code first, fallback to SePay transaction ID
         $transactionReference = !empty($reference) ? $reference : $sepayId;

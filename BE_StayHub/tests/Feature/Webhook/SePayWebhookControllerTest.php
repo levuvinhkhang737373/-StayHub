@@ -201,4 +201,30 @@ class SePayWebhookControllerTest extends TestCase
                 'message' => 'Transaction already processed.'
             ]);
     }
+
+    public function test_sepay_webhook_bypasses_test_delivery(): void
+    {
+        Config::set('services.sepay.webhook_token', 'test-token-123');
+
+        $payload = [
+            'id' => 0,
+            'gateway' => 'SePay',
+            'transactionDate' => '2026-06-12 08:31:48',
+            'accountNumber' => '0000000000',
+            'transferType' => 'in',
+            'transferAmount' => 10000,
+            'code' => 'SEPAYTEST',
+            'content' => 'SEPAY TEST WEBHOOK',
+        ];
+
+        $response = $this->postJson('/api/sepay-webhook', $payload, [
+            'Authorization' => 'Apikey test-token-123'
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => 'success',
+                'message' => 'Test webhook received successfully.'
+            ]);
+    }
 }
