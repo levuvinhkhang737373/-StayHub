@@ -21,11 +21,7 @@ class SePayWebhookController extends Controller
             $token = config('services.sepay.webhook_token');
             if (!empty($token)) {
                 $authHeader = $request->header('Authorization');
-                $isValid = false;
-                if ($authHeader === $token || $authHeader === 'Apikey ' . $token) {
-                    $isValid = true;
-                }
-                if (!$isValid) {
+                if ($authHeader !== $token && $authHeader !== 'Apikey ' . $token) {
                     Log::warning('SePay Webhook unauthorized request.');
                     return ApiResponse::responseJson(false, 'Unauthorized', 401, null, 401);
                 }
@@ -50,8 +46,7 @@ class SePayWebhookController extends Controller
                 return ApiResponse::responseJson(false, 'Transaction amount must be positive.', 400, null, 400);
             }
             
-            $transactionReference = !empty($reference) ? $reference : $sepayId;
-
+            $transactionReference = $reference ?: $sepayId;
             if (empty($transactionReference)) {
                 return ApiResponse::responseJson(false, 'Missing transaction reference code.', 400, null, 400);
             }
