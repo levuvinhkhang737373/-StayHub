@@ -19,7 +19,7 @@ class UpdateRequest extends RegisterRequest
             'actual_end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'billing_cycle_day' => ['nullable', 'integer', 'min:1', 'max:28'],
             'room_price' => ['nullable', 'regex:/^\d{1,13}(\.\d{1,2})?$/'],
-            'deposit_amount' => ['nullable', 'regex:/^\d{1,13}(\.\d{1,2})?$/'],
+            'deposit_amount' => ['nullable', 'regex:/^\d{1,13}(\.\d{1,2})?$/', 'gt:0'],
             'status' => ['prohibited'],
             'contract_files' => ['nullable', 'array', 'max:10'],
             'contract_files.*' => ['file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:20480'],

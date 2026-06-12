@@ -1,15 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
-import Echo from 'laravel-echo'
-import Pusher from 'pusher-js'
-import axios from 'axios'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
-import { appConfig } from '../../../../shared/config/app-config'
-
-if (typeof window !== 'undefined') {
-  ;(window as any).Pusher = Pusher
-}
+import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 
 export interface ReceivedNotification {
   id: string
@@ -97,66 +90,13 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
     })
   }, [adminId])
 
+  const { echo } = useAdminSocket()
+
   // Setup WebSocket connection for Admin Notifications
   useEffect(() => {
-    if (!adminId) return
+    if (!adminId || !echo) return
 
-    const REVERB_KEY = 'rhtxfafogu4wbww3eufp'
-    const REVERB_HOST = window.location.hostname
-    
-    // Ở local development, kết nối trực tiếp đến cổng Reverb 8009
-    // Ở production (domain khác localhost), đi qua cổng mặc định của domain (80 hoặc 443)
-    let REVERB_PORT = 8009
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      REVERB_PORT = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80)
-    }
-
-    const REVERB_SCHEME = window.location.protocol === 'https:' ? 'https' : 'http'
-    const isTLS = REVERB_SCHEME === 'https'
-
-    const echoInstance = new Echo({
-      broadcaster: 'reverb',
-      key: REVERB_KEY,
-      wsHost: REVERB_HOST,
-      wsPort: REVERB_PORT,
-      wssPort: REVERB_PORT,
-      forceTLS: isTLS,
-      enabledTransports: isTLS ? ['wss'] : ['ws'],
-      authorizer: (channel: any) => {
-        return {
-          authorize: (socketId: string, callback: any) => {
-            const xsrfToken = document.cookie
-              .split('; ')
-              .find((item) => item.startsWith('XSRF-TOKEN='))
-              ?.split('=')[1]
-
-            axios.post(
-              `${appConfig.apiOrigin}/broadcasting/auth`,
-              {
-                socket_id: socketId,
-                channel_name: channel.name,
-              },
-              {
-                withCredentials: true,
-                headers: {
-                  Accept: 'application/json',
-                  ...(xsrfToken ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrfToken) } : {}),
-                },
-              }
-            )
-            .then((response) => {
-              callback(false, response.data)
-            })
-            .catch((error) => {
-              console.error('WS Auth failed:', error)
-              callback(true, error)
-            })
-          },
-        }
-      },
-    })
-
-    const channel = echoInstance.private('admin-maintenance')
+    const channel = echo.private('admin-maintenance')
 
     channel.listen('.MaintenanceRequestCreated', (event: any) => {
       console.log('WS: Received MaintenanceRequestCreated', event)
@@ -216,15 +156,23 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
+    channel.listen('.ContractDepositPaid', (event: any) => {
+      console.log('WS: Received ContractDepositPaid', event)
+      const contract = event.contract
+      if (contract) {
+        window.dispatchEvent(new CustomEvent('contract-deposit-paid', { detail: contract }))
+      }
+    })
+
     return () => {
       channel.stopListening('.MaintenanceRequestCreated')
       channel.stopListening('.MaintenanceRequestAssigned')
       channel.stopListening('.MaintenanceRequestProcessing')
       channel.stopListening('.MaintenanceRequestCompleted')
       channel.stopListening('.MaintenanceFeedbackCreated')
-      echoInstance.disconnect()
+      channel.stopListening('.ContractDepositPaid')
     }
-  }, [adminId, session, addNotification])
+  }, [adminId, echo, session, addNotification])
 
   const markAsRead = (id: string) => {
     const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n))

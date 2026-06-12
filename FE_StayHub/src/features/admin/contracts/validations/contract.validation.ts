@@ -60,6 +60,8 @@ export function validateContractForm(form: ContractFormValues, roomMaxOccupants?
     errors.deposit_amount = 'Vui lòng nhập tiền cọc.'
   } else if (!MONEY_REGEX.test(depositAmount)) {
     errors.deposit_amount = 'Tiền cọc phải là số tiền không âm và tối đa 2 chữ số thập phân.'
+  } else if (Number(depositAmount) <= 0) {
+    errors.deposit_amount = 'Tiền cọc trong hợp đồng phải lớn hơn 0.'
   }
 
   if (![1, 2, 3, 4].includes(Number(form.status))) {

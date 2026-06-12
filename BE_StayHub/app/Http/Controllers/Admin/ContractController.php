@@ -60,7 +60,10 @@ class ContractController extends Controller
                 ->select(['id', 'building_id', 'room_number', 'status', 'base_price', 'max_occupants', 'current_occupants'])
                 ->where('building_id', $buildingId)
                 ->where('status', Room::STATUS_ACTIVE)
-                ->whereDoesntHave('contracts', fn (Builder $query): Builder => $query->where('status', Contract::STATUS_ACTIVE))
+                ->where(function (Builder $query): void {
+                    $query->where('max_occupants', 0)
+                        ->orWhereColumn('current_occupants', '<', 'max_occupants');
+                })
                 ->orderBy('room_number')
                 ->get();
 
@@ -122,7 +125,6 @@ class ContractController extends Controller
 
                 $this->assertRoomCanBeUsed($admin, $room);
 
-                // Auto-generate contract code
                 $validated['contract_code'] = $this->generateContractCode($room);
 
                 $tenantPayloads = $this->normalizedTenantPayloads($validated, null);
@@ -130,8 +132,7 @@ class ContractController extends Controller
 
                 $this->assertTenantPayloads($admin, $tenantPayloads, $room, null, $status);
 
-                // For vehicles, automatically set started_at and billing_start_date to contract start_date
-                $vehiclePayloads = $this->normalizedVehiclePayloads($validated, $validated['start_date']);
+                $vehiclePayloads = $this->normalizedVehiclePayloads($validated, true);
                 $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, null, $status);
 
                 $this->assertRoomContractAvailability($room->id, null, $status);
@@ -147,7 +148,6 @@ class ContractController extends Controller
                 $this->syncContractTenants($contract, $tenantPayloads, $admin, true);
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
 
-                // Auto create collect deposit transaction if deposit_amount > 0 and is_deposit_paid is true
                 $depositAmountCents = $this->decimalToCents($contract->deposit_amount);
                 $isDepositPaid = isset($validated['is_deposit_paid']) ? (bool) $validated['is_deposit_paid'] : true;
                 if ($depositAmountCents > 0 && $isDepositPaid) {
@@ -254,7 +254,7 @@ class ContractController extends Controller
                     $tenantPayloads = $this->normalizedTenantPayloads($validated, $contractModel);
                     $tenantIds = collect($tenantPayloads)->pluck('tenant_id')->all();
                     $this->assertTenantPayloads($admin, $tenantPayloads, $room, $contractModel->id, $status);
-                    $this->assertRoomCapacity($room, $tenantPayloads);
+                    $this->assertRoomCapacity($room, $tenantPayloads, $contractModel->id);
                 } else {
                     $tenantPayloads = null;
                     $currentTenantPayloads = $this->currentTenantPayloads($contractModel);
@@ -262,13 +262,13 @@ class ContractController extends Controller
 
                     if ($this->hasStructuralUpdate($validated) || $status === Contract::STATUS_ACTIVE) {
                         $this->assertTenantPayloads($admin, $currentTenantPayloads, $room, $contractModel->id, $status);
-                        $this->assertRoomCapacity($room, $currentTenantPayloads);
+                        $this->assertRoomCapacity($room, $currentTenantPayloads, $contractModel->id);
                     }
                 }
 
                 $startDate = $payload['start_date'] ?? $contractModel->start_date?->toDateString();
                 if (array_key_exists('vehicles', $validated)) {
-                    $vehiclePayloads = $this->normalizedVehiclePayloads($validated, $startDate);
+                    $vehiclePayloads = $this->normalizedVehiclePayloads($validated, false);
                     $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, $contractModel->id, $status);
                 } else {
                     $vehiclePayloads = null;
@@ -366,7 +366,7 @@ class ContractController extends Controller
                     $tenantPayloads = $this->currentTenantPayloads($contractModel);
                     $vehiclePayloads = $this->currentVehiclePayloads($contractModel);
                     $this->assertRoomContractAvailability((int) $contractModel->room_id, $contractModel->id, $nextStatus);
-                    $this->assertRoomCapacity($room, $tenantPayloads);
+                    $this->assertRoomCapacity($room, $tenantPayloads, $contractModel->id);
                     $this->assertTenantPayloads($admin, $tenantPayloads, $room, $contractModel->id, $nextStatus);
                     $this->assertVehiclePayloads($admin, $vehiclePayloads, collect($tenantPayloads)->pluck('tenant_id')->all(), $contractModel->id, $nextStatus);
                 }
@@ -386,7 +386,6 @@ class ContractController extends Controller
                 $oldData = $contractModel->toArray();
                 $contractModel->forceFill($payload)->save();
 
-                // If liquidated, also auto-update tenant leave dates and vehicle end dates
                 if (in_array($nextStatus, [Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED, Contract::STATUS_CANCELLED], true)) {
                     $endDate = $validated['actual_end_date'] ?? now()->toDateString();
                     $this->closeActiveContractRows($contractModel, $endDate);
@@ -477,7 +476,7 @@ class ContractController extends Controller
             $oldContract = $this->accessibleQuery($admin)->findOrFail($contract);
 
             $newContract = DB::transaction(function () use ($validated, $oldContract, $admin, $request, &$uploadedPaths): Contract {
-                // Ensure old contract can be renewed
+                
                 if (! in_array((int) $oldContract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
                     $this->throwResponse('Chỉ có thể gia hạn hợp đồng đang hiệu lực hoặc đã hết hạn.', 422);
                 }
@@ -489,12 +488,12 @@ class ContractController extends Controller
 
                 $this->assertRoomCanBeUsed($admin, $room);
 
-                // Set parent and renew IDs
+                
                 $parentContractId = $oldContract->parent_contract_id ?? $oldContract->id;
                 $validated['parent_contract_id'] = $parentContractId;
                 $validated['renew_from_contract_id'] = $oldContract->id;
 
-                // Auto-generate contract code
+                
                 $validated['contract_code'] = $this->generateContractCode($room);
 
                 $status = Contract::STATUS_ACTIVE;
@@ -505,10 +504,10 @@ class ContractController extends Controller
 
                 $this->assertTenantPayloads($admin, $tenantPayloads, $room, null, $status);
 
-                $vehiclePayloads = $this->normalizedVehiclePayloads($validated, $validated['start_date']);
+                $vehiclePayloads = $this->normalizedVehiclePayloads($validated, true);
                 $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, null, $status);
 
-                // Expire/close the old contract
+                
                 $oldContractActualEndDate = date('Y-m-d', strtotime($validated['start_date'] . ' - 1 day'));
                 $oldContract->forceFill([
                     'status' => Contract::STATUS_EXPIRED,
@@ -517,7 +516,7 @@ class ContractController extends Controller
 
                 $this->closeActiveContractRows($oldContract, $oldContractActualEndDate);
 
-                // Create the new contract
+                
                 $contract = Contract::query()->create($this->payload($validated, $admin, $status));
                 $contractFiles = $this->storeContractFiles($request, $contract, $uploadedPaths);
 
@@ -528,7 +527,7 @@ class ContractController extends Controller
                 $this->syncContractTenants($contract, $tenantPayloads, $admin, true);
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
 
-                // Calculate deposit balance of old contract and transfer
+                
                 $oldBalanceCents = $this->depositBalanceCents($oldContract);
                 $newDepositAmountCents = $this->decimalToCents($contract->deposit_amount);
 
@@ -536,7 +535,7 @@ class ContractController extends Controller
                     $transferAmountCents = min($oldBalanceCents, $newDepositAmountCents);
                     $transferAmount = number_format($transferAmountCents / 100, 2, '.', '');
 
-                    // Deduct from old contract
+                    
                     $oldContract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
                         'amount' => $transferAmount,
@@ -546,7 +545,7 @@ class ContractController extends Controller
                         'created_by' => $admin->id,
                     ]);
 
-                    // Transfer to new contract
+                    
                     $contract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER,
                         'amount' => $transferAmount,
@@ -556,7 +555,7 @@ class ContractController extends Controller
                         'created_by' => $admin->id,
                     ]);
 
-                    // If transfer is less than new deposit amount, auto collect the remainder
+                    
                     $remainderCents = $newDepositAmountCents - $transferAmountCents;
                     if ($remainderCents > 0) {
                         $remainderAmount = number_format($remainderCents / 100, 2, '.', '');
@@ -570,7 +569,7 @@ class ContractController extends Controller
                         ]);
                     }
                 } elseif ($newDepositAmountCents > 0) {
-                    // If old contract has no deposit but new contract has, collect it
+                    
                     $contract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
                         'amount' => $contract->deposit_amount,
@@ -615,10 +614,10 @@ class ContractController extends Controller
                 $currentBalanceCents = $this->depositBalanceCents($contractModel);
                 $depositLimitCents = $this->decimalToCents($contractModel->deposit_amount);
 
-                // Run deposit transaction validation rules
+                
                 $this->assertDepositTransactions([$validated], $currentBalanceCents, $depositLimitCents);
 
-                // Create transaction
+                
                 return $contractModel->depositTransactions()->create([
                     'transaction_type' => (int) $validated['transaction_type'],
                     'amount' => $this->normalizeDecimal($validated['amount']),
@@ -629,7 +628,7 @@ class ContractController extends Controller
                 ]);
             });
 
-            // Reload detail relations
+            
             $contractModel->unsetRelations();
             $this->loadDetailRelations($contractModel);
 
@@ -754,31 +753,32 @@ class ContractController extends Controller
 
     private function normalizedTenantPayloads(array $validated, ?Contract $contract): array
     {
+        $isCreate = $contract === null;
         return collect($validated['tenants'] ?? [])
             ->map(fn (array $tenant): array => [
                 'tenant_id' => (int) $tenant['tenant_id'],
                 'join_date' => $tenant['join_date'],
-                'leave_date' => $tenant['leave_date'] ?? null,
+                'leave_date' => $isCreate ? null : ($tenant['leave_date'] ?? null),
                 'billing_start_date' => $tenant['billing_start_date'] ?? $tenant['join_date'],
-                'billing_end_date' => $tenant['billing_end_date'] ?? ($tenant['leave_date'] ?? null),
-                'is_staying' => array_key_exists('is_staying', $tenant) ? filter_var($tenant['is_staying'], FILTER_VALIDATE_BOOLEAN) : blank($tenant['leave_date'] ?? null),
+                'billing_end_date' => $isCreate ? null : ($tenant['billing_end_date'] ?? ($tenant['leave_date'] ?? null)),
+                'is_staying' => $isCreate ? true : (array_key_exists('is_staying', $tenant) ? filter_var($tenant['is_staying'], FILTER_VALIDATE_BOOLEAN) : blank($tenant['leave_date'] ?? null)),
             ])
             ->values()
             ->all();
     }
 
-    private function normalizedVehiclePayloads(array $validated): array
+    private function normalizedVehiclePayloads(array $validated, bool $isCreate = false): array
     {
         return collect($validated['vehicles'] ?? [])
             ->map(fn (array $vehicle): array => [
                 'vehicle_id' => (int) $vehicle['vehicle_id'],
                 'started_at' => $vehicle['started_at'],
-                'ended_at' => $vehicle['ended_at'] ?? null,
+                'ended_at' => $isCreate ? null : ($vehicle['ended_at'] ?? null),
                 'billing_start_date' => $vehicle['billing_start_date'] ?? $vehicle['started_at'],
-                'billing_end_date' => $vehicle['billing_end_date'] ?? ($vehicle['ended_at'] ?? null),
+                'billing_end_date' => $isCreate ? null : ($vehicle['billing_end_date'] ?? ($vehicle['ended_at'] ?? null)),
                 'monthly_fee' => $this->normalizeDecimal((int) $vehicle['charge_policy'] === ContractVehicle::CHARGE_POLICY_FREE ? '0' : ($vehicle['monthly_fee'] ?? '0')),
                 'charge_policy' => (int) $vehicle['charge_policy'],
-                'is_active' => array_key_exists('is_active', $vehicle) ? filter_var($vehicle['is_active'], FILTER_VALIDATE_BOOLEAN) : blank($vehicle['ended_at'] ?? null),
+                'is_active' => $isCreate ? true : (array_key_exists('is_active', $vehicle) ? filter_var($vehicle['is_active'], FILTER_VALIDATE_BOOLEAN) : blank($vehicle['ended_at'] ?? null)),
             ])
             ->values()
             ->all();
@@ -957,19 +957,28 @@ class ContractController extends Controller
             return;
         }
 
-        $hasActiveContract = Contract::query()
-            ->where('room_id', $roomId)
-            ->where('status', Contract::STATUS_ACTIVE)
-            ->when($ignoreContractId !== null, fn (Builder $query): Builder => $query->whereKeyNot($ignoreContractId))
-            ->lockForUpdate()
-            ->exists();
+        $room = Room::find($roomId);
+        if (! $room) {
+            $this->throwResponse('Không tìm thấy phòng.', 404);
+        }
 
-        if ($hasActiveContract) {
-            $this->throwResponse('Phòng này đang có hợp đồng hiệu lực, không thể tạo thêm hợp đồng đang hiệu lực.', 422);
+        $otherOccupants = ContractTenant::query()
+            ->where('is_staying', true)
+            ->whereNull('leave_date')
+            ->whereHas('contract', function (Builder $query) use ($roomId, $ignoreContractId): Builder {
+                return $query->where('room_id', $roomId)
+                    ->where('status', Contract::STATUS_ACTIVE)
+                    ->when($ignoreContractId !== null, fn (Builder $q) => $q->whereKeyNot($ignoreContractId));
+            })
+            ->distinct('tenant_id')
+            ->count('tenant_id');
+
+        if ((int) $room->max_occupants > 0 && $otherOccupants >= (int) $room->max_occupants) {
+            $this->throwResponse('Phòng này đã đầy, không thể tạo thêm hợp đồng mới.', 422);
         }
     }
 
-    private function assertRoomCapacity(Room $room, array $tenantPayloads): void
+    private function assertRoomCapacity(Room $room, array $tenantPayloads, ?int $ignoreContractId = null): void
     {
         $stayingCount = collect($tenantPayloads)
             ->filter(fn (array $tenant): bool => (bool) $tenant['is_staying'])
@@ -979,7 +988,20 @@ class ContractController extends Controller
             $this->throwResponse('Hợp đồng phải có ít nhất một khách thuê đang ở.', 422);
         }
 
-        if ((int) $room->max_occupants > 0 && $stayingCount > (int) $room->max_occupants) {
+        $otherOccupants = ContractTenant::query()
+            ->where('is_staying', true)
+            ->whereNull('leave_date')
+            ->whereHas('contract', function (Builder $query) use ($room, $ignoreContractId): Builder {
+                return $query->where('room_id', $room->id)
+                    ->where('status', Contract::STATUS_ACTIVE)
+                    ->when($ignoreContractId !== null, fn (Builder $q) => $q->whereKeyNot($ignoreContractId));
+            })
+            ->distinct('tenant_id')
+            ->count('tenant_id');
+
+        $totalOccupants = $otherOccupants + $stayingCount;
+
+        if ((int) $room->max_occupants > 0 && $totalOccupants > (int) $room->max_occupants) {
             $this->throwResponse('Số khách thuê đang ở vượt quá sức chứa tối đa của phòng.', 422);
         }
     }

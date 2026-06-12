@@ -752,8 +752,8 @@ export function TenantsScreen() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DetailTile label="Ngày ngừng thuê" value={formatDate(detailTenant?.leave_date)} />
                   <DetailTile label="Ngày tạo" value={formatDateTime(detailTenant?.created_at)} />
-                  <DetailTile label="Ngày cập nhật" value={formatDateTime(detailTenant?.updated_at)} />
                 </div>
               </div>
             </div>

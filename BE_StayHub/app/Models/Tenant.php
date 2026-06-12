@@ -109,6 +109,21 @@ class Tenant extends Authenticatable
         return $this->currentContractTenant?->contract?->room_id;
     }
 
+    public function getLeaveDateAttribute(): ?string
+    {
+        $date = $this->contractTenants()
+            ->whereNotNull('leave_date')
+            ->orderByDesc('leave_date')
+            ->orderByDesc('id')
+            ->value('leave_date');
+
+        if ($date instanceof \Carbon\Carbon || $date instanceof \DateTime) {
+            return $date->toDateString();
+        }
+
+        return $date ? date('Y-m-d', strtotime((string) $date)) : null;
+    }
+
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class, 'room_id');

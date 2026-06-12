@@ -162,3 +162,17 @@ export async function createAdminContractDepositTransaction(
     data: payload,
   })
 }
+
+export async function createAdminVehicle(payload: {
+  tenant_id: number
+  vehicle_type: number
+  license_plate: string
+  brand?: string
+  color?: string
+}) {
+  return apiRequest<AdminVehicleOptionResource>({
+    url: 'admin/vehicles',
+    method: 'POST',
+    data: payload,
+  })
+}

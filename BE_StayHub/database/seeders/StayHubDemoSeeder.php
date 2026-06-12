@@ -90,6 +90,18 @@ class StayHubDemoSeeder extends Seeder
             $this->seedSettings($admins, $buildings);
             $this->seedAdminLogs($admins, $buildings, $rooms, $tenants, $contracts, $invoices);
             $this->seedExpandedDemoData($admins, $regions, $roomTypes, $assets, $services, $expenseCategories);
+
+            // Recalculate current_occupants for all rooms
+            $roomsList = Room::all();
+            foreach ($roomsList as $room) {
+                $occupants = ContractTenant::query()
+                    ->where('is_staying', true)
+                    ->whereNull('leave_date')
+                    ->whereHas('contract', fn ($query) => $query->where('room_id', $room->id)->where('status', Contract::STATUS_ACTIVE))
+                    ->distinct('tenant_id')
+                    ->count('tenant_id');
+                $room->update(['current_occupants' => $occupants]);
+            }
         });
     }
 

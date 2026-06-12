@@ -48,11 +48,19 @@ class ContractDepositTransaction extends Model
     protected static function booted()
     {
         static::saved(function ($transaction) {
-            $transaction->contract?->updatePaymentStatus();
+            $contract = $transaction->contract;
+            if ($contract) {
+                $contract->updatePaymentStatus();
+                event(new \App\Events\ContractDepositPaid($contract));
+            }
         });
 
         static::deleted(function ($transaction) {
-            $transaction->contract?->updatePaymentStatus();
+            $contract = $transaction->contract;
+            if ($contract) {
+                $contract->updatePaymentStatus();
+                event(new \App\Events\ContractDepositPaid($contract));
+            }
         });
     }
 

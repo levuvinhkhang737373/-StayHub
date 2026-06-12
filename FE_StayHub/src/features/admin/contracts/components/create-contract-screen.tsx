@@ -6,12 +6,13 @@ import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
 import { canManageContractsRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
+import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { fetchAdminTenants } from '../../tenants/services/tenants.service'
 import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
-import { createAdminContract, createAdminContractDepositTransaction, fetchAdminContractDetail, fetchAvailableRooms, fetchAdminContractVehicles, updateAdminContract } from '../services/contracts.service'
+import { createAdminContract, createAdminContractDepositTransaction, createAdminVehicle, fetchAdminContractDetail, fetchAvailableRooms, fetchAdminContractVehicles, updateAdminContract } from '../services/contracts.service'
 import type {
   AdminContractPayload,
   AdminContractResource,
@@ -41,23 +42,29 @@ const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
 const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
+const todayStr = new Date().toISOString().slice(0, 10)
+const oneYearLaterStr = (() => {
+  const date = new Date()
+  date.setFullYear(date.getFullYear() + 1)
+  date.setDate(date.getDate() - 1)
+  return date.toISOString().slice(0, 10)
+})()
+
 const defaultTenantRow: ContractTenantFormRow = {
   tenant_id: '',
-  join_date: '',
+  join_date: todayStr,
   leave_date: '',
-  billing_start_date: '',
+  billing_start_date: todayStr,
   billing_end_date: '',
   is_staying: true,
 }
-
-
 
 const defaultForm: ContractFormValues = {
   contract_code: '',
   building_id: '',
   room_id: '',
-  start_date: '',
-  end_date: '',
+  start_date: todayStr,
+  end_date: oneYearLaterStr,
   actual_end_date: '',
   billing_cycle_day: '1',
   room_price: '',
@@ -103,6 +110,8 @@ export function CreateContractScreen() {
   const [rooms, setRooms] = useState<ContractRoomOption[]>([])
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
   const [vehicles, setVehicles] = useState<AdminVehicleOptionResource[]>([])
+  const [currentContractTenants, setCurrentContractTenants] = useState<AdminTenantResource[]>([])
+  const [currentContractVehicles, setCurrentContractVehicles] = useState<AdminVehicleOptionResource[]>([])
   const [editingContract, setEditingContract] = useState<AdminContractResource | null>(null)
   const [isLoading, setIsLoading] = useState(Boolean(contractId))
   const [isSaving, setIsSaving] = useState(false)
@@ -110,11 +119,42 @@ export function CreateContractScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [qrModalContract, setQrModalContract] = useState<AdminContractResource | null>(null)
   const [isConfirmingDeposit, setIsConfirmingDeposit] = useState(false)
+  const [isCreateVehicleOpen, setIsCreateVehicleOpen] = useState(false)
 
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
   const roomOptions = useMemo(() => rooms.map((room) => ({ value: room.id, label: `Phòng ${room.room_number || room.id}`, description: `Đang ở ${room.current_occupants ?? 0}/${room.max_occupants ?? '—'} người`, tone: room.status === 1 ? 'success' as const : 'warning' as const })), [rooms])
-  const tenantOptions = useMemo(() => tenants.map((tenant) => ({ value: tenant.id, label: tenant.full_name || tenant.username, description: tenant.phone || tenant.email || tenant.identity_number || undefined, tone: 'default' as const })), [tenants])
-  const vehicleOptions = useMemo(() => vehicles.map((vehicle) => ({ value: vehicle.id, label: `${vehicle.license_plate || vehicle.vehicle_type_label || 'Phương tiện'}`, description: vehicle.tenant_name || undefined, tone: vehicle.is_active ? 'success' as const : 'warning' as const })), [vehicles])
+  
+  const tenantOptions = useMemo(() => {
+    const merged = [...tenants]
+    const existingIds = new Set(merged.map((t) => t.id))
+    for (const t of currentContractTenants) {
+      if (!existingIds.has(t.id)) {
+        merged.push(t)
+      }
+    }
+    return merged.map((tenant) => ({
+      value: tenant.id,
+      label: tenant.full_name || tenant.username,
+      description: tenant.phone || tenant.email || tenant.identity_number || undefined,
+      tone: 'default' as const
+    }))
+  }, [tenants, currentContractTenants])
+
+  const vehicleOptions = useMemo(() => {
+    const merged = [...vehicles]
+    const existingIds = new Set(merged.map((v) => v.id))
+    for (const v of currentContractVehicles) {
+      if (!existingIds.has(v.id)) {
+        merged.push(v)
+      }
+    }
+    return merged.map((vehicle) => ({
+      value: vehicle.id,
+      label: `${vehicle.license_plate || vehicle.vehicle_type_label || 'Phương tiện'}`,
+      description: vehicle.tenant_name || undefined,
+      tone: vehicle.is_active ? 'success' as const : 'warning' as const
+    }))
+  }, [vehicles, currentContractVehicles])
 
   const loadBuildings = useCallback(async () => {
     if (!canManageContracts) return
@@ -175,6 +215,56 @@ export function CreateContractScreen() {
     }
   }, [])
 
+  const autoPopulateVehicles = useCallback(async (tenantIds: number[], startDate: string) => {
+    // 1. Remove vehicles belonging to tenants no longer in the form
+    setForm((current) => {
+      const tenantIdSet = new Set(tenantIds)
+      const allKnownVehicles = [...vehicles, ...currentContractVehicles]
+      const cleanedVehicles = current.vehicles.filter((v) => {
+        const vehicleId = Number(v.vehicle_id)
+        if (!vehicleId) return true // keep empty/uncommitted rows
+        const vehicleInfo = allKnownVehicles.find((av) => av.id === vehicleId)
+        if (!vehicleInfo) return true // keep if we can't determine ownership
+        return tenantIdSet.has(vehicleInfo.tenant_id)
+      })
+      if (cleanedVehicles.length !== current.vehicles.length) {
+        return { ...current, vehicles: cleanedVehicles }
+      }
+      return current
+    })
+
+    // 2. Fetch available vehicles for these tenants
+    if (tenantIds.length === 0) return
+
+    try {
+      const responses = await Promise.all(tenantIds.map((tenantId) => fetchAdminContractVehicles({ tenant_id: tenantId, is_active: true, without_active_contract: true, per_page: 100 })))
+      const fetchedVehicles = responses.flatMap((response) => getResourceList(response.result))
+      const uniqueFetched = Array.from(new Map(fetchedVehicles.map((v) => [v.id, v])).values())
+
+      // 3. Auto-append new vehicles that are not already in the form
+      setForm((current) => {
+        const existingVehicleIds = new Set(current.vehicles.map((v) => Number(v.vehicle_id)).filter((id) => id > 0))
+        const newRows: ContractVehicleFormRow[] = uniqueFetched
+          .filter((v) => !existingVehicleIds.has(v.id))
+          .map((v) => ({
+            vehicle_id: String(v.id),
+            started_at: startDate || current.start_date,
+            ended_at: '',
+            billing_start_date: startDate || current.start_date,
+            billing_end_date: '',
+            monthly_fee: '0.00',
+            charge_policy: CHARGE_MONTHLY,
+            is_active: true,
+          }))
+
+        if (newRows.length === 0) return current
+        return { ...current, vehicles: [...current.vehicles, ...newRows] }
+      })
+    } catch {
+      // Vehicle fetch errors are non-blocking for auto-population
+    }
+  }, [vehicles, currentContractVehicles])
+
   const loadContract = useCallback(async () => {
     if (!contractId) return
 
@@ -185,6 +275,15 @@ export function CreateContractScreen() {
       if (!contract) return
       setEditingContract(contract)
       setForm(contractToForm(contract))
+      const currentTenants = (contract.contract_tenants || [])
+        .map((ct) => ct.tenant)
+        .filter(Boolean) as AdminTenantResource[]
+      setCurrentContractTenants(currentTenants)
+      const currentVehicles = (contract.contract_vehicles || [])
+        .filter((cv) => cv.is_active !== false)
+        .map((cv) => cv.vehicle)
+        .filter(Boolean) as AdminVehicleOptionResource[]
+      setCurrentContractVehicles(currentVehicles)
     } catch (error) {
       setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết hợp đồng.'))
     } finally {
@@ -212,7 +311,8 @@ export function CreateContractScreen() {
     const tenantIds = form.tenants.map((tenant) => Number(tenant.tenant_id)).filter((id) => id > 0)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadVehiclesForTenants(tenantIds)
-  }, [form.tenants, loadVehiclesForTenants])
+    void autoPopulateVehicles(tenantIds, form.start_date)
+  }, [form.tenants, form.start_date, loadVehiclesForTenants, autoPopulateVehicles])
 
   const updateForm = <K extends keyof ContractFormValues>(key: K, value: ContractFormValues[K]) => {
     setForm((current) => {
@@ -223,6 +323,14 @@ export function CreateContractScreen() {
           started_at: value,
           billing_start_date: value
         }))
+        if (value) {
+          const startDateObj = new Date(value)
+          if (!isNaN(startDateObj.getTime())) {
+            startDateObj.setFullYear(startDateObj.getFullYear() + 1)
+            startDateObj.setDate(startDateObj.getDate() - 1)
+            next.end_date = startDateObj.toISOString().slice(0, 10)
+          }
+        }
       }
       return next
     })
@@ -258,10 +366,19 @@ export function CreateContractScreen() {
     }
 
     const today = new Date().toISOString().slice(0, 10)
+    const oneYearLater = (() => {
+      const date = new Date(today)
+      date.setFullYear(date.getFullYear() + 1)
+      date.setDate(date.getDate() - 1)
+      return date.toISOString().slice(0, 10)
+    })()
+    setCurrentContractTenants([])
+    setCurrentContractVehicles([])
     setForm({
       ...defaultForm,
       building_id: isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : buildings[0]?.id ? String(buildings[0].id) : '',
       start_date: today,
+      end_date: oneYearLater,
       tenants: [{ ...defaultTenantRow, join_date: today, billing_start_date: today }],
     })
     setErrors({})
@@ -352,11 +469,11 @@ export function CreateContractScreen() {
               <Field label="Tiền cọc" required error={errors.deposit_amount}>
                 <input className={cn(inputClass, errors.deposit_amount && inputErrorClass)} value={form.deposit_amount} onChange={(event) => updateForm('deposit_amount', event.target.value)} placeholder="3500000.00" />
               </Field>
-              {Number(form.deposit_amount) > 0 && (
+              {!isEditMode && Number(form.deposit_amount) > 0 && (
                 <div className="flex flex-col gap-2 p-3 rounded-2xl border border-[#3d2a18]/10 bg-white/40 col-span-1 lg:col-span-2">
                   <label className="inline-flex items-center gap-2 text-xs font-black text-[#6f6254]">
-                    <input type="checkbox" checked={form.is_deposit_paid} onChange={(e) => updateForm('is_deposit_paid', e.target.checked)} />
-                    Khách đã đóng tiền cọc khi ký hợp đồng
+                    <input type="checkbox" checked={form.is_deposit_paid} disabled onChange={(e) => updateForm('is_deposit_paid', e.target.checked)} />
+                    Khách đóng tiền cọc khi ký hợp đồng
                   </label>
                   {form.is_deposit_paid && (
                     <div className="w-full sm:w-1/2">
@@ -379,15 +496,20 @@ export function CreateContractScreen() {
           <FormSection title="Khách thuê" icon={<UserPlus className="h-5 w-5" />} action={<button type="button" onClick={() => updateForm('tenants', [...form.tenants, { ...defaultTenantRow, join_date: form.start_date, billing_start_date: form.start_date }])} className="rounded-xl bg-[#24170d] px-3 py-2 text-xs font-black text-[#fff4df]"><Plus className="mr-1 inline h-3.5 w-3.5" />Thêm khách</button>}>
             <FieldError message={errors.tenants} />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {form.tenants.map((tenant, index) => <TenantRow key={index} index={index} row={tenant} options={tenantOptions} error={errors[`tenants.${index}`]} canRemove={form.tenants.length > 1} onChange={(patch) => updateTenantRow(index, patch)} onRemove={() => updateForm('tenants', form.tenants.filter((_, rowIndex) => rowIndex !== index))} />)}
+              {form.tenants.map((tenant, index) => <TenantRow key={index} index={index} row={tenant} options={tenantOptions} error={errors[`tenants.${index}`]} canRemove={form.tenants.length > 1} onChange={(patch) => updateTenantRow(index, patch)} onRemove={() => updateForm('tenants', form.tenants.filter((_, rowIndex) => rowIndex !== index))} isEditMode={isEditMode} />)}
             </div>
           </FormSection>
 
-          <FormSection title="Phương tiện" icon={<Car className="h-5 w-5" />} action={<button type="button" onClick={() => updateForm('vehicles', [...form.vehicles, { vehicle_id: '', started_at: form.start_date, ended_at: '', billing_start_date: form.start_date, billing_end_date: '', monthly_fee: '0.00', charge_policy: CHARGE_MONTHLY, is_active: true }])} className="rounded-xl bg-[#24170d] px-3 py-2 text-xs font-black text-[#fff4df]"><Plus className="mr-1 inline h-3.5 w-3.5" />Thêm xe</button>}>
+          <FormSection title="Phương tiện" icon={<Car className="h-5 w-5" />} action={
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setIsCreateVehicleOpen(true)} disabled={form.tenants.every((t) => !t.tenant_id)} className="rounded-xl border border-[#3d2a18]/10 bg-white px-3 py-2 text-xs font-black text-[#8b5e34] disabled:opacity-50"><Plus className="mr-1 inline h-3.5 w-3.5" />Tạo xe mới</button>
+              <button type="button" onClick={() => updateForm('vehicles', [...form.vehicles, { vehicle_id: '', started_at: form.start_date, ended_at: '', billing_start_date: form.start_date, billing_end_date: '', monthly_fee: '0.00', charge_policy: CHARGE_MONTHLY, is_active: true }])} className="rounded-xl bg-[#24170d] px-3 py-2 text-xs font-black text-[#fff4df]"><Plus className="mr-1 inline h-3.5 w-3.5" />Thêm xe</button>
+            </div>
+          }>
             <FieldError message={errors.vehicles} />
             {form.vehicles.length === 0 && <p className="text-sm font-bold text-[#8b5e34]/70">Chưa thêm phương tiện.</p>}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {form.vehicles.map((vehicle, index) => <VehicleRow key={index} index={index} row={vehicle} options={vehicleOptions} error={errors[`vehicles.${index}`]} onChange={(patch) => updateVehicleRow(index, patch)} onRemove={() => updateForm('vehicles', form.vehicles.filter((_, rowIndex) => rowIndex !== index))} />)}
+              {form.vehicles.map((vehicle, index) => <VehicleRow key={index} index={index} row={vehicle} options={vehicleOptions} error={errors[`vehicles.${index}`]} onChange={(patch) => updateVehicleRow(index, patch)} onRemove={() => updateForm('vehicles', form.vehicles.filter((_, rowIndex) => rowIndex !== index))} isEditMode={isEditMode} />)}
             </div>
           </FormSection>
         </div>
@@ -440,6 +562,38 @@ export function CreateContractScreen() {
           }}
         />
       )}
+
+      {isCreateVehicleOpen && (
+        <CreateVehicleModal
+          tenantOptions={form.tenants
+            .filter((t) => t.tenant_id)
+            .map((t) => {
+              const tenantInfo = [...tenants, ...currentContractTenants].find((tenant) => tenant.id === Number(t.tenant_id))
+              return { value: Number(t.tenant_id), label: tenantInfo?.full_name || tenantInfo?.username || `Khách #${t.tenant_id}` }
+            })}
+          onClose={() => setIsCreateVehicleOpen(false)}
+          onCreated={(newVehicle) => {
+            setVehicles((current) => [...current, newVehicle])
+            setForm((current) => ({
+              ...current,
+              vehicles: [
+                ...current.vehicles,
+                {
+                  vehicle_id: String(newVehicle.id),
+                  started_at: current.start_date,
+                  ended_at: '',
+                  billing_start_date: current.start_date,
+                  billing_end_date: '',
+                  monthly_fee: '0.00',
+                  charge_policy: CHARGE_MONTHLY,
+                  is_active: true,
+                },
+              ],
+            }))
+            setIsCreateVehicleOpen(false)
+          }}
+        />
+      )}
     </section>
   )
 }
@@ -455,15 +609,34 @@ function DepositQRModal({
   onClose: () => void
   onConfirm: () => void
 }) {
+  const { echo } = useAdminSocket()
   const [timeLeft, setTimeLeft] = useState(1800) // 30 minutes in seconds
+  const [isPaidSuccess, setIsPaidSuccess] = useState(false)
 
   useEffect(() => {
-    if (timeLeft <= 0) return
+    if (!echo) return
+    const channel = echo.private('admin-maintenance')
+    channel.listen('.ContractDepositPaid', (event: any) => {
+      const updatedContract = event.contract
+      if (updatedContract && Number(updatedContract.id) === Number(contract.id) && updatedContract.is_deposit_paid) {
+        setIsPaidSuccess(true)
+        setTimeout(() => {
+          onClose()
+        }, 2000)
+      }
+    })
+    return () => {
+      channel.stopListening('.ContractDepositPaid')
+    }
+  }, [echo, contract.id, onClose])
+
+  useEffect(() => {
+    if (timeLeft <= 0 || isPaidSuccess) return
     const timer = setInterval(() => {
       setTimeLeft((prev) => prev - 1)
     }, 1000)
     return () => clearInterval(timer)
-  }, [timeLeft])
+  }, [timeLeft, isPaidSuccess])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -484,7 +657,15 @@ function DepositQRModal({
 
         <div className="mt-4 flex flex-col items-center">
           <div className="rounded-3xl border border-[#3d2a18]/10 bg-white p-4 shadow-sm">
-            {isExpired ? (
+            {isPaidSuccess ? (
+              <div className="flex h-[280px] w-[280px] flex-col items-center justify-center text-center p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 animate-bounce">
+                  <BadgeCheck className="h-9 w-9" />
+                </div>
+                <p className="mt-4 text-sm font-black text-emerald-700 font-black">Thanh toán thành công!</p>
+                <p className="mt-1.5 text-xs text-emerald-600/80 font-bold">Hệ thống đang tự động chuyển hướng...</p>
+              </div>
+            ) : isExpired ? (
               <div className="flex h-[280px] w-[280px] flex-col items-center justify-center text-center p-4 bg-stone-50 rounded-2xl">
                 <p className="text-sm font-bold text-rose-500">Mã QR đã hết hạn (30 phút)</p>
                 <p className="mt-2 text-xs text-stone-500">Vui lòng đóng modal và tạo lại/mở lại để lấy mã mới.</p>
@@ -551,16 +732,160 @@ function FormSection({ title, icon, action, children }: { title: string; icon: R
   return <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 p-4 shadow-xl shadow-[#6b3f1d]/8"><div className="mb-4 flex items-center justify-between gap-3"><h2 className="flex items-center gap-2 text-lg font-black text-[#24170d]">{icon}{title}</h2>{action}</div>{children}</section>
 }
 
+const vehicleTypeOptions = [
+  { value: 1, label: 'Xe máy' },
+  { value: 2, label: 'Xe đạp' },
+  { value: 3, label: 'Ô tô' },
+  { value: 4, label: 'Xe điện' },
+]
+
+function CreateVehicleModal({
+  tenantOptions,
+  onClose,
+  onCreated,
+}: {
+  tenantOptions: Array<{ value: number; label: string }>
+  onClose: () => void
+  onCreated: (vehicle: AdminVehicleOptionResource) => void
+}) {
+  const [vehicleForm, setVehicleForm] = useState({
+    tenant_id: tenantOptions.length === 1 ? String(tenantOptions[0].value) : '',
+    vehicle_type: '1',
+    license_plate: '',
+    brand: '',
+    color: '',
+  })
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async () => {
+    if (!vehicleForm.tenant_id) { setError('Vui lòng chọn khách thuê sở hữu xe.'); return }
+    if (!vehicleForm.license_plate.trim()) { setError('Vui lòng nhập biển số xe.'); return }
+
+    try {
+      setIsSaving(true)
+      setError(null)
+      const response = await createAdminVehicle({
+        tenant_id: Number(vehicleForm.tenant_id),
+        vehicle_type: Number(vehicleForm.vehicle_type),
+        license_plate: vehicleForm.license_plate.trim(),
+        brand: vehicleForm.brand.trim() || undefined,
+        color: vehicleForm.color.trim() || undefined,
+      })
+      if (response.result) {
+        onCreated(response.result)
+      }
+    } catch (err) {
+      setError(getVisibleErrorMessage(err, 'Không thể tạo phương tiện.'))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <button type="button" aria-label="Đóng" onClick={onClose} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
+      <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-5 shadow-2xl">
+        <h2 className="text-lg font-black text-[#24170d]">Tạo phương tiện mới</h2>
+        <p className="mt-1 text-xs font-bold text-[#8b5e34]/70">Xe sẽ được tạo và tự động thêm vào hợp đồng.</p>
+
+        {error && <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-black text-rose-700">{error}</p>}
+
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className={labelClass}>Khách thuê sở hữu <span className="text-rose-500">*</span></label>
+            <AdminSelect
+              value={vehicleForm.tenant_id}
+              options={tenantOptions.map((t) => ({ value: t.value, label: t.label, tone: 'default' as const }))}
+              placeholder="Chọn khách thuê"
+              onChange={(value) => setVehicleForm((f) => ({ ...f, tenant_id: String(value) }))}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Loại xe <span className="text-rose-500">*</span></label>
+            <AdminSelect
+              value={Number(vehicleForm.vehicle_type)}
+              options={vehicleTypeOptions.map((t) => ({ ...t, tone: 'default' as const }))}
+              onChange={(value) => setVehicleForm((f) => ({ ...f, vehicle_type: String(value) }))}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Biển số xe <span className="text-rose-500">*</span></label>
+            <input className={inputClass} value={vehicleForm.license_plate} onChange={(e) => setVehicleForm((f) => ({ ...f, license_plate: e.target.value }))} placeholder="59F1-12345" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Hiệu xe</label>
+              <input className={inputClass} value={vehicleForm.brand} onChange={(e) => setVehicleForm((f) => ({ ...f, brand: e.target.value }))} placeholder="Honda" />
+            </div>
+            <div>
+              <label className={labelClass}>Màu xe</label>
+              <input className={inputClass} value={vehicleForm.color} onChange={(e) => setVehicleForm((f) => ({ ...f, color: e.target.value }))} placeholder="Đen" />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+          <button type="button" onClick={onClose} className="h-12 flex-1 rounded-xl border border-[#3d2a18]/10 bg-white text-sm font-black text-[#8b5e34]">Hủy</button>
+          <button type="button" disabled={isSaving} onClick={handleSubmit} className="h-12 flex-1 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] disabled:opacity-60">{isSaving ? 'Đang tạo...' : 'Tạo xe'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return <div><label className={labelClass}>{label} {required && <span className="text-rose-500">*</span>}</label>{children}<FieldError message={error} /></div>
 }
 
-function TenantRow({ index, row, options, error, canRemove, onChange, onRemove }: { index: number; row: ContractTenantFormRow; options: Array<{ value: string | number; label: string; description?: string }>; error?: string; canRemove: boolean; onChange: (patch: Partial<ContractTenantFormRow>) => void; onRemove: () => void }) {
-  return <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3"><RowHeader title={`Khách #${index + 1}`} canRemove={canRemove} onRemove={onRemove} /><div className="mt-3 space-y-3"><AdminSelect value={row.tenant_id} options={options} invalid={!!error} placeholder="Chọn khách thuê" onChange={(value) => onChange({ tenant_id: String(value) })} /><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><AdminDateInput className={inputClass} value={row.join_date} onChange={(value) => onChange({ join_date: value, billing_start_date: row.billing_start_date || value })} /><AdminDateInput className={inputClass} value={row.leave_date} onChange={(value) => onChange({ leave_date: value, is_staying: !value })} placeholder="Ngày rời đi" /></div><div className="flex flex-wrap gap-3 text-xs font-black text-[#6f6254]"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={row.is_staying} onChange={(event) => onChange({ is_staying: event.target.checked })} /> Đang ở</label></div><FieldError message={error} /></div></div>
+function TenantRow({ index, row, options, error, canRemove, onChange, onRemove, isEditMode }: { index: number; row: ContractTenantFormRow; options: Array<{ value: string | number; label: string; description?: string }>; error?: string; canRemove: boolean; onChange: (patch: Partial<ContractTenantFormRow>) => void; onRemove: () => void; isEditMode: boolean }) {
+  return (
+    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3">
+      <RowHeader title={`Khách #${index + 1}`} canRemove={canRemove} onRemove={onRemove} />
+      <div className="mt-3 space-y-3">
+        <AdminSelect value={row.tenant_id} options={options} invalid={!!error} placeholder="Chọn khách thuê" onChange={(value) => onChange({ tenant_id: String(value) })} />
+        <div className={cn("grid grid-cols-1 gap-3", isEditMode && "sm:grid-cols-2")}>
+          <AdminDateInput className={inputClass} value={row.join_date} onChange={(value) => onChange({ join_date: value, billing_start_date: row.billing_start_date || value })} />
+          {isEditMode && (
+            <AdminDateInput className={inputClass} value={row.leave_date} onChange={(value) => onChange({ leave_date: value, is_staying: !value })} placeholder="Ngày rời đi" />
+          )}
+        </div>
+        {isEditMode && (
+          <div className="flex flex-wrap gap-3 text-xs font-black text-[#6f6254]">
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={row.is_staying} onChange={(event) => onChange({ is_staying: event.target.checked })} /> Đang ở
+            </label>
+          </div>
+        )}
+        <FieldError message={error} />
+      </div>
+    </div>
+  )
 }
 
-function VehicleRow({ index, row, options, error, onChange, onRemove }: { index: number; row: ContractVehicleFormRow; options: Array<{ value: string | number; label: string; description?: string }>; error?: string; onChange: (patch: Partial<ContractVehicleFormRow>) => void; onRemove: () => void }) {
-  return <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3"><RowHeader title={`Xe #${index + 1}`} canRemove onRemove={onRemove} /><div className="mt-3 space-y-3"><AdminSelect value={row.vehicle_id} options={options} invalid={!!error} placeholder="Chọn phương tiện" onChange={(value) => onChange({ vehicle_id: String(value) })} /><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><AdminDateInput className={inputClass} value={row.started_at} disabled onChange={(value) => onChange({ started_at: value, billing_start_date: row.billing_start_date || value })} /><AdminDateInput className={inputClass} value={row.ended_at} onChange={(value) => onChange({ ended_at: value, is_active: !value })} placeholder="Ngày kết thúc" /></div><AdminSelect value={row.charge_policy} options={chargePolicyOptions} onChange={(value) => onChange({ charge_policy: Number(value), monthly_fee: Number(value) === CHARGE_FREE ? '0.00' : row.monthly_fee })} /><input className={cn(inputClass, error && inputErrorClass)} value={row.monthly_fee} disabled={Number(row.charge_policy) === CHARGE_FREE} onChange={(event) => onChange({ monthly_fee: event.target.value })} placeholder="Phí gửi xe" /><label className="inline-flex items-center gap-2 text-xs font-black text-[#6f6254]"><input type="checkbox" checked={row.is_active} onChange={(event) => onChange({ is_active: event.target.checked })} /> Còn tính phí</label><FieldError message={error} /></div></div>
+function VehicleRow({ index, row, options, error, onChange, onRemove, isEditMode }: { index: number; row: ContractVehicleFormRow; options: Array<{ value: string | number; label: string; description?: string }>; error?: string; onChange: (patch: Partial<ContractVehicleFormRow>) => void; onRemove: () => void; isEditMode: boolean }) {
+  return (
+    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3">
+      <RowHeader title={`Xe #${index + 1}`} canRemove onRemove={onRemove} />
+      <div className="mt-3 space-y-3">
+        <AdminSelect value={row.vehicle_id} options={options} invalid={!!error} placeholder="Chọn phương tiện" onChange={(value) => onChange({ vehicle_id: String(value) })} />
+        <div className={cn("grid grid-cols-1 gap-3", isEditMode && "sm:grid-cols-2")}>
+          <AdminDateInput className={inputClass} value={row.started_at} disabled onChange={(value) => onChange({ started_at: value, billing_start_date: row.billing_start_date || value })} />
+          {isEditMode && (
+            <AdminDateInput className={inputClass} value={row.ended_at} onChange={(value) => onChange({ ended_at: value, is_active: !value })} placeholder="Ngày kết thúc" />
+          )}
+        </div>
+        <AdminSelect value={row.charge_policy} options={chargePolicyOptions} onChange={(value) => onChange({ charge_policy: Number(value), monthly_fee: Number(value) === CHARGE_FREE ? '0.00' : row.monthly_fee })} />
+        <input className={cn(inputClass, error && inputErrorClass)} value={row.monthly_fee} disabled={Number(row.charge_policy) === CHARGE_FREE} onChange={(event) => onChange({ monthly_fee: event.target.value })} placeholder="Phí gửi xe" />
+        {isEditMode && (
+          <label className="inline-flex items-center gap-2 text-xs font-black text-[#6f6254]">
+            <input type="checkbox" checked={row.is_active} onChange={(event) => onChange({ is_active: event.target.checked })} /> Còn tính phí
+          </label>
+        )}
+        <FieldError message={error} />
+      </div>
+    </div>
+  )
 }
 
 
@@ -619,7 +944,7 @@ function contractToForm(contract: AdminContractResource): ContractFormValues {
     parent_contract_id: contract.parent_contract_id ? String(contract.parent_contract_id) : '',
     renew_from_contract_id: contract.renew_from_contract_id ? String(contract.renew_from_contract_id) : '',
     tenants: tenants.length > 0 ? tenants : [{ ...defaultTenantRow }],
-    vehicles: (contract.contract_vehicles || []).map((vehicle) => ({
+    vehicles: (contract.contract_vehicles || []).filter((vehicle) => vehicle.is_active !== false).map((vehicle) => ({
       vehicle_id: String(vehicle.vehicle_id),
       started_at: vehicle.started_at || '',
       ended_at: vehicle.ended_at || '',

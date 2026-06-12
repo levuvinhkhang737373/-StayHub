@@ -49,6 +49,7 @@ class TenantResource extends JsonResource
             'vehicles_count' => $this->whenCounted('vehicles'),
             'created_at' => optional($this->created_at)->toDateTimeString(),
             'updated_at' => optional($this->updated_at)->toDateTimeString(),
+            'leave_date' => $this->leave_date,
         ];
     }
 

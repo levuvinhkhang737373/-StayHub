@@ -26,6 +26,7 @@ import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
 import { canManageContractsRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
+import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -75,23 +76,29 @@ const CHARGE_MONTHLY = 1
 const CHARGE_DAILY = 2
 const CHARGE_FREE = 3
 
+const todayStr = new Date().toISOString().slice(0, 10)
+const oneYearLaterStr = (() => {
+  const date = new Date()
+  date.setFullYear(date.getFullYear() + 1)
+  date.setDate(date.getDate() - 1)
+  return date.toISOString().slice(0, 10)
+})()
+
 const defaultTenantRow: ContractTenantFormRow = {
   tenant_id: '',
-  join_date: '',
+  join_date: todayStr,
   leave_date: '',
-  billing_start_date: '',
+  billing_start_date: todayStr,
   billing_end_date: '',
   is_staying: true,
 }
-
-
 
 const defaultForm: ContractFormValues = {
   contract_code: '',
   building_id: '',
   room_id: '',
-  start_date: '',
-  end_date: '',
+  start_date: todayStr,
+  end_date: oneYearLaterStr,
   actual_end_date: '',
   billing_cycle_day: '1',
   room_price: '',
@@ -157,6 +164,8 @@ export function ContractsScreen() {
   const [rooms, setRooms] = useState<ContractRoomOption[]>([])
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
   const [vehicles, setVehicles] = useState<AdminVehicleOptionResource[]>([])
+  const [currentContractTenants, setCurrentContractTenants] = useState<AdminTenantResource[]>([])
+  const [currentContractVehicles, setCurrentContractVehicles] = useState<AdminVehicleOptionResource[]>([])
   const [editingContract, setEditingContract] = useState<AdminContractResource | null>(null)
   const [renewingContract, setRenewingContract] = useState<AdminContractResource | null>(null)
   const [detailContract, setDetailContract] = useState<AdminContractResource | null>(null)
@@ -181,8 +190,38 @@ export function ContractsScreen() {
   const filterBuildingOptions = useMemo(() => [{ value: '', label: isSuperAdmin ? 'Tất cả tòa nhà' : 'Tòa nhà được phân quyền', tone: 'default' as const }, ...buildingOptions], [buildingOptions, isSuperAdmin])
   const roomOptions = useMemo(() => rooms.map((room) => ({ value: room.id, label: `Phòng ${room.room_number || room.id}`, description: `Đang ở ${room.current_occupants ?? 0}/${room.max_occupants ?? '—'} người`, tone: room.status === 1 ? 'success' as const : 'warning' as const })), [rooms])
   const filterRoomOptions = useMemo(() => [{ value: '', label: 'Tất cả phòng', tone: 'default' as const }, ...roomOptions], [roomOptions])
-  const tenantOptions = useMemo(() => tenants.map((tenant) => ({ value: tenant.id, label: tenant.full_name || tenant.username, description: tenant.phone || tenant.email || tenant.identity_number || undefined, tone: 'default' as const })), [tenants])
-  const vehicleOptions = useMemo(() => vehicles.map((vehicle) => ({ value: vehicle.id, label: `${vehicle.license_plate || vehicle.vehicle_type_label || 'Phương tiện'}`, description: vehicle.tenant_name || undefined, tone: vehicle.is_active ? 'success' as const : 'warning' as const })), [vehicles])
+  
+  const tenantOptions = useMemo(() => {
+    const merged = [...tenants]
+    const existingIds = new Set(merged.map((t) => t.id))
+    for (const t of currentContractTenants) {
+      if (!existingIds.has(t.id)) {
+        merged.push(t)
+      }
+    }
+    return merged.map((tenant) => ({
+      value: tenant.id,
+      label: tenant.full_name || tenant.username,
+      description: tenant.phone || tenant.email || tenant.identity_number || undefined,
+      tone: 'default' as const
+    }))
+  }, [tenants, currentContractTenants])
+
+  const vehicleOptions = useMemo(() => {
+    const merged = [...vehicles]
+    const existingIds = new Set(merged.map((v) => v.id))
+    for (const v of currentContractVehicles) {
+      if (!existingIds.has(v.id)) {
+        merged.push(v)
+      }
+    }
+    return merged.map((vehicle) => ({
+      value: vehicle.id,
+      label: `${vehicle.license_plate || vehicle.vehicle_type_label || 'Phương tiện'}`,
+      description: vehicle.tenant_name || undefined,
+      tone: vehicle.is_active ? 'success' as const : 'warning' as const
+    }))
+  }, [vehicles, currentContractVehicles])
 
   const metrics = useMemo(() => ({
     active: contracts.filter((contract) => Number(contract.status) === STATUS_ACTIVE).length,
@@ -261,6 +300,56 @@ export function ContractsScreen() {
     }
   }, [])
 
+  const autoPopulateVehicles = useCallback(async (tenantIds: number[], startDate: string) => {
+    // 1. Remove vehicles belonging to tenants no longer in the form
+    setForm((current) => {
+      const tenantIdSet = new Set(tenantIds)
+      const allKnownVehicles = [...vehicles, ...currentContractVehicles]
+      const cleanedVehicles = current.vehicles.filter((v) => {
+        const vehicleId = Number(v.vehicle_id)
+        if (!vehicleId) return true
+        const vehicleInfo = allKnownVehicles.find((av) => av.id === vehicleId)
+        if (!vehicleInfo) return true
+        return tenantIdSet.has(vehicleInfo.tenant_id)
+      })
+      if (cleanedVehicles.length !== current.vehicles.length) {
+        return { ...current, vehicles: cleanedVehicles }
+      }
+      return current
+    })
+
+    // 2. Fetch available vehicles for these tenants
+    if (tenantIds.length === 0) return
+
+    try {
+      const responses = await Promise.all(tenantIds.map((tenantId) => fetchAdminContractVehicles({ tenant_id: tenantId, is_active: true, without_active_contract: true, per_page: 100 })))
+      const fetchedVehicles = responses.flatMap((response) => getResourceList(response.result))
+      const uniqueFetched = Array.from(new Map(fetchedVehicles.map((v) => [v.id, v])).values())
+
+      // 3. Auto-append new vehicles that are not already in the form
+      setForm((current) => {
+        const existingVehicleIds = new Set(current.vehicles.map((v) => Number(v.vehicle_id)).filter((id) => id > 0))
+        const newRows: ContractVehicleFormRow[] = uniqueFetched
+          .filter((v) => !existingVehicleIds.has(v.id))
+          .map((v) => ({
+            vehicle_id: String(v.id),
+            started_at: startDate || current.start_date,
+            ended_at: '',
+            billing_start_date: startDate || current.start_date,
+            billing_end_date: '',
+            monthly_fee: '0.00',
+            charge_policy: CHARGE_MONTHLY,
+            is_active: true,
+          }))
+
+        if (newRows.length === 0) return current
+        return { ...current, vehicles: [...current.vehicles, ...newRows] }
+      })
+    } catch {
+      // Vehicle fetch errors are non-blocking for auto-population
+    }
+  }, [vehicles, currentContractVehicles])
+
   const loadContracts = useCallback(async () => {
     if (!canManageContracts) return
 
@@ -306,7 +395,8 @@ export function ContractsScreen() {
     const tenantIds = form.tenants.map((tenant) => Number(tenant.tenant_id)).filter((id) => id > 0)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadVehiclesForTenants(tenantIds)
-  }, [form.tenants, loadVehiclesForTenants])
+    void autoPopulateVehicles(tenantIds, form.start_date)
+  }, [form.tenants, form.start_date, loadVehiclesForTenants, autoPopulateVehicles])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -325,6 +415,14 @@ export function ContractsScreen() {
           started_at: value,
           billing_start_date: value
         }))
+        if (value) {
+          const startDateObj = new Date(value)
+          if (!isNaN(startDateObj.getTime())) {
+            startDateObj.setFullYear(startDateObj.getFullYear() + 1)
+            startDateObj.setDate(startDateObj.getDate() - 1)
+            next.end_date = startDateObj.toISOString().slice(0, 10)
+          }
+        }
       }
       return next
     })
@@ -358,12 +456,21 @@ export function ContractsScreen() {
   const openCreateForm = () => {
     const buildingId = isSuperAdmin ? selectedBuildingId : selectedBuildingId || (managedBuildingId ? String(managedBuildingId) : '')
     const today = new Date().toISOString().slice(0, 10)
+    const oneYearLater = (() => {
+      const date = new Date(today)
+      date.setFullYear(date.getFullYear() + 1)
+      date.setDate(date.getDate() - 1)
+      return date.toISOString().slice(0, 10)
+    })()
     setEditingContract(null)
     setRenewingContract(null)
+    setCurrentContractTenants([])
+    setCurrentContractVehicles([])
     setForm({
       ...defaultForm,
       building_id: buildingId,
       start_date: today,
+      end_date: oneYearLater,
       tenants: [{ ...defaultTenantRow, join_date: today, billing_start_date: today }],
       deposit_transactions: [],
     })
@@ -386,6 +493,15 @@ export function ContractsScreen() {
       if (!detail) return
       setEditingContract(detail)
       setForm(contractToForm(detail))
+      const currentTenants = (detail.contract_tenants || [])
+        .map((ct) => ct.tenant)
+        .filter(Boolean) as AdminTenantResource[]
+      setCurrentContractTenants(currentTenants)
+      const currentVehicles = (detail.contract_vehicles || [])
+        .filter((cv) => cv.is_active !== false)
+        .map((cv) => cv.vehicle)
+        .filter(Boolean) as AdminVehicleOptionResource[]
+      setCurrentContractVehicles(currentVehicles)
     } catch (error) {
       setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết hợp đồng để chỉnh sửa.'))
     }
@@ -403,6 +519,15 @@ export function ContractsScreen() {
       const detail = response.result
       if (!detail) return
       setRenewingContract(detail)
+      const currentTenants = (detail.contract_tenants || [])
+        .map((ct) => ct.tenant)
+        .filter(Boolean) as AdminTenantResource[]
+      setCurrentContractTenants(currentTenants)
+      const currentVehicles = (detail.contract_vehicles || [])
+        .filter((cv) => cv.is_active !== false)
+        .map((cv) => cv.vehicle)
+        .filter(Boolean) as AdminVehicleOptionResource[]
+      setCurrentContractVehicles(currentVehicles)
 
       let nextStartDate = ''
       if (detail.end_date) {
@@ -639,7 +764,6 @@ export function ContractsScreen() {
                 <tr>
                   <th className="px-5 py-4">Hợp đồng</th>
                   <th className="px-5 py-4">Phòng / Tòa nhà</th>
-                  <th className="px-5 py-4">Khách thuê</th>
                   <th className="px-5 py-4">Thời hạn</th>
                   <th className="px-5 py-4">Giá / Cọc</th>
                   <th className="px-5 py-4 text-center">Dữ liệu</th>
@@ -650,10 +774,10 @@ export function ContractsScreen() {
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
                 {isLoading && Array.from({ length: 5 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={8} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
+                    <td colSpan={7} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
                   </tr>
                 ))}
-
+ 
                 {!isLoading && contracts.map((contract) => (
                   <tr key={contract.id} className="transition hover:bg-[#f3c56b]/10">
                     <td className="px-5 py-4">
@@ -665,9 +789,6 @@ export function ContractsScreen() {
                         <p className="flex items-center gap-1.5 text-[#8a4f18]"><Building2 className="h-4 w-4" /> {contract.building_name || 'Chưa rõ tòa nhà'}</p>
                         <p className="text-[#24170d]">Phòng {contract.room_number || contract.room_code || contract.room_id}</p>
                       </div>
-                    </td>
-                    <td className="px-5 py-4 max-w-[200px] truncate" title={contract.contract_tenants?.map((ct) => ct.tenant?.full_name).filter(Boolean).join(', ') || 'Chưa có'}>
-                      <p className="text-sm font-black text-[#24170d]">{contract.contract_tenants?.map((ct) => ct.tenant?.full_name).filter(Boolean).join(', ') || 'Chưa có'}</p>
                     </td>
                     <td className="px-5 py-4">
                       <p className="flex items-center gap-1.5 text-xs font-black text-[#0f5f59]"><CalendarDays className="h-4 w-4" /> {formatDate(contract.start_date)} → {formatDate(contract.end_date)}</p>
@@ -697,10 +818,10 @@ export function ContractsScreen() {
                     </td>
                   </tr>
                 ))}
-
+ 
                 {!isLoading && contracts.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-5 py-20 text-center">
+                    <td colSpan={7} className="px-5 py-20 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-8">
                         <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><FileText className="h-9 w-9" /></div>
                         <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy hợp đồng</p>
@@ -747,7 +868,7 @@ export function ContractsScreen() {
             onRemoveVehicle={(index) => updateForm('vehicles', form.vehicles.filter((_, rowIndex) => rowIndex !== index))}
             onSubmit={() => void submit()}
             onReset={openCreateForm}
-            onClose={() => { setIsFormOpen(false); setEditingContract(null); setRenewingContract(null); setErrors({}) }}
+            onClose={() => { setIsFormOpen(false); setEditingContract(null); setRenewingContract(null); setErrors({}); setCurrentContractTenants([]); setCurrentContractVehicles([]); }}
           />
         )}
       </div>
@@ -950,11 +1071,11 @@ function ContractFormPanel({
           </div>
         </div>
 
-        {Number(form.deposit_amount) > 0 && (
+        {!editing && Number(form.deposit_amount) > 0 && (
           <div className="flex flex-col gap-2 p-3 rounded-2xl border border-[#3d2a18]/10 bg-white/40">
             <label className="inline-flex items-center gap-2 text-xs font-black text-[#6f6254]">
-              <input type="checkbox" checked={form.is_deposit_paid} onChange={(e) => onUpdate('is_deposit_paid', e.target.checked)} />
-              Khách đã đóng tiền cọc khi ký hợp đồng
+              <input type="checkbox" checked={form.is_deposit_paid} disabled onChange={(e) => onUpdate('is_deposit_paid', e.target.checked)} />
+              Khách đóng tiền cọc khi ký hợp đồng
             </label>
             {form.is_deposit_paid && (
               <div className="w-full sm:w-1/2">
@@ -987,13 +1108,17 @@ function ContractFormPanel({
                 </div>
                 <div className="mt-3 space-y-3">
                   <AdminSelect value={tenant.tenant_id} options={tenantOptions} invalid={!!errors[`tenants.${index}`]} placeholder="Chọn khách thuê" onChange={(value) => onUpdateTenant(index, { tenant_id: String(value) })} />
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className={cn("grid grid-cols-1 gap-3", (editing || renewing) && "sm:grid-cols-2")}>
                     <AdminDateInput className={inputClass} value={tenant.join_date} onChange={(value) => onUpdateTenant(index, { join_date: value, billing_start_date: tenant.billing_start_date || value })} />
-                    <AdminDateInput className={inputClass} value={tenant.leave_date} onChange={(value) => onUpdateTenant(index, { leave_date: value, is_staying: !value })} placeholder="Ngày rời đi" />
+                    {(editing || renewing) && (
+                      <AdminDateInput className={inputClass} value={tenant.leave_date} onChange={(value) => onUpdateTenant(index, { leave_date: value, is_staying: !value })} placeholder="Ngày rời đi" />
+                    )}
                   </div>
-                  <div className="flex flex-wrap gap-3 text-xs font-black text-[#6f6254]">
-                    <label className="inline-flex items-center gap-2"><input type="checkbox" checked={tenant.is_staying} onChange={(event) => onUpdateTenant(index, { is_staying: event.target.checked })} /> Đang ở</label>
-                  </div>
+                  {(editing || renewing) && (
+                    <div className="flex flex-wrap gap-3 text-xs font-black text-[#6f6254]">
+                      <label className="inline-flex items-center gap-2"><input type="checkbox" checked={tenant.is_staying} onChange={(event) => onUpdateTenant(index, { is_staying: event.target.checked })} /> Đang ở</label>
+                    </div>
+                  )}
                   <FieldError message={errors[`tenants.${index}`]} />
                 </div>
               </div>
@@ -1017,13 +1142,17 @@ function ContractFormPanel({
                 </div>
                 <div className="mt-3 space-y-3">
                   <AdminSelect value={vehicle.vehicle_id} options={vehicleOptions} invalid={!!errors[`vehicles.${index}`]} placeholder="Chọn phương tiện" onChange={(value) => onUpdateVehicle(index, { vehicle_id: String(value) })} />
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className={cn("grid grid-cols-1 gap-3", (editing || renewing) && "sm:grid-cols-2")}>
                     <AdminDateInput className={inputClass} value={vehicle.started_at} disabled onChange={(value) => onUpdateVehicle(index, { started_at: value, billing_start_date: vehicle.billing_start_date || value })} />
-                    <AdminDateInput className={inputClass} value={vehicle.ended_at} onChange={(value) => onUpdateVehicle(index, { ended_at: value, is_active: !value })} placeholder="Ngày kết thúc" />
+                    {(editing || renewing) && (
+                      <AdminDateInput className={inputClass} value={vehicle.ended_at} onChange={(value) => onUpdateVehicle(index, { ended_at: value, is_active: !value })} placeholder="Ngày kết thúc" />
+                    )}
                   </div>
                   <AdminSelect value={vehicle.charge_policy} options={chargePolicyOptions} onChange={(value) => onUpdateVehicle(index, { charge_policy: Number(value), monthly_fee: Number(value) === CHARGE_FREE ? '0.00' : vehicle.monthly_fee })} />
                   <input className={cn(inputClass, errors[`vehicles.${index}`] && inputErrorClass)} value={vehicle.monthly_fee} onChange={(event) => onUpdateVehicle(index, { monthly_fee: event.target.value })} placeholder="Phí gửi xe" disabled={Number(vehicle.charge_policy) === CHARGE_FREE} />
-                  <label className="inline-flex items-center gap-2 text-xs font-black text-[#6f6254]"><input type="checkbox" checked={vehicle.is_active} onChange={(event) => onUpdateVehicle(index, { is_active: event.target.checked })} /> Còn tính phí</label>
+                  {(editing || renewing) && (
+                    <label className="inline-flex items-center gap-2 text-xs font-black text-[#6f6254]"><input type="checkbox" checked={vehicle.is_active} onChange={(event) => onUpdateVehicle(index, { is_active: event.target.checked })} /> Còn tính phí</label>
+                  )}
                   <FieldError message={errors[`vehicles.${index}`]} />
                 </div>
               </div>
@@ -1095,12 +1224,12 @@ function ContractDetailModal({
               value={
                 <span className={
                   contract.payment_status === 2 // SUCCESS
-                    ? "text-emerald-600 font-bold"
+                    ? "text-emerald-600 font-black"
                     : contract.payment_status === 3 // CANCELLED
-                    ? "text-rose-600 font-bold"
-                    : contract.payment_status === 4 // EXPIRED
-                    ? "text-red-600 font-bold"
-                    : "text-amber-600 font-bold" // PENDING / others
+                      ? "text-rose-600 font-black"
+                      : contract.payment_status === 4 // EXPIRED
+                        ? "text-red-600 font-black"
+                        : "text-amber-600 font-black" // PENDING / others
                 }>
                   {contract.payment_status_label || (contract.is_deposit_paid ? "Đã đóng cọc" : "Chưa đóng cọc")}
                 </span>
@@ -1127,7 +1256,14 @@ function ContractDetailModal({
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead className="text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/70"><tr><th className="py-2">Khách thuê</th><th>Ngày ở</th><th>Tính tiền</th><th>Trạng thái</th></tr></thead>
                 <tbody className="divide-y divide-[#3d2a18]/10">
-                  {(contract.contract_tenants || []).map((tenant) => <tr key={tenant.id || tenant.tenant_id}><td className="py-3 font-black">{tenant.tenant?.full_name || tenant.tenant_id}</td><td>{formatDate(tenant.join_date)} → {formatDate(tenant.leave_date)}</td><td>{formatDate(tenant.billing_start_date)} → {formatDate(tenant.billing_end_date)}</td><td>{tenant.is_staying ? 'Đang ở' : 'Đã rời'}</td></tr>)}
+                  {(contract.contract_tenants || []).map((tenant) => (
+                    <tr key={tenant.id || tenant.tenant_id}>
+                      <td className="py-3 font-black">{tenant.tenant?.full_name || tenant.tenant_id}</td>
+                      <td className="font-black">{formatDate(tenant.join_date)} → {formatDate(tenant.leave_date)}</td>
+                      <td className="font-black">{formatDate(tenant.billing_start_date)} → {formatDate(tenant.billing_end_date)}</td>
+                      <td className="font-black">{tenant.is_staying ? 'Đang ở' : 'Đã rời'}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               {(contract.contract_tenants || []).length === 0 && <p className="py-4 text-sm font-bold text-[#8b5e34]/70">Chưa có dữ liệu khách thuê.</p>}
@@ -1138,8 +1274,13 @@ function ContractDetailModal({
             <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
               <p className={labelClass}>Phương tiện</p>
               <div className="mt-3 space-y-2">
-                {(contract.contract_vehicles || []).map((vehicle) => <div key={vehicle.id || vehicle.vehicle_id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 text-sm font-bold"><p className="font-black text-[#24170d]">{vehicle.vehicle?.license_plate || vehicle.vehicle_id}</p><p className="text-xs text-[#6f6254]">{vehicle.charge_policy_label} · {formatCurrency(vehicle.monthly_fee)} · {vehicle.is_active ? 'Còn tính phí' : 'Hết tính phí'}</p></div>)}
-                {(contract.contract_vehicles || []).length === 0 && <p className="text-sm font-bold text-[#8b5e34]/70">Chưa có phương tiện.</p>}
+                {(contract.contract_vehicles || []).filter((vehicle) => vehicle.is_active !== false).map((vehicle) => (
+                  <div key={vehicle.id || vehicle.vehicle_id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 text-sm font-bold">
+                    <p className="font-black text-[#24170d]">{vehicle.vehicle?.license_plate || vehicle.vehicle_id}</p>
+                    <p className="text-xs font-black text-[#6f6254]">{vehicle.charge_policy_label} · {formatCurrency(vehicle.monthly_fee)} · {vehicle.is_active ? 'Còn tính phí' : 'Hết tính phí'}</p>
+                  </div>
+                ))}
+                {(contract.contract_vehicles || []).filter((vehicle) => vehicle.is_active !== false).length === 0 && <p className="text-sm font-bold text-[#8b5e34]/70">Chưa có phương tiện.</p>}
               </div>
             </div>
             <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
@@ -1156,7 +1297,12 @@ function ContractDetailModal({
                 )}
               </div>
               <div className="mt-3 space-y-2">
-                {(contract.deposit_transactions || []).map((transaction) => <div key={transaction.id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 text-sm font-bold"><p className="font-black text-[#24170d]">{transaction.transaction_type_label} · {formatCurrency(transaction.amount)}</p><p className="text-xs text-[#6f6254]">{formatDate(transaction.transaction_date)} · {transaction.payment_method_label} · {transaction.creator_name || '—'}</p></div>)}
+                {(contract.deposit_transactions || []).map((transaction) => (
+                  <div key={transaction.id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 text-sm font-bold">
+                    <p className="font-black text-[#24170d]">{transaction.transaction_type_label} · {formatCurrency(transaction.amount)}</p>
+                    <p className="text-xs font-black text-[#6f6254]">{formatDate(transaction.transaction_date)} · {transaction.payment_method_label} · {transaction.creator_name || '—'}</p>
+                  </div>
+                ))}
                 {(contract.deposit_transactions || []).length === 0 && <p className="text-sm font-bold text-[#8b5e34]/70">Chưa có giao dịch cọc.</p>}
               </div>
             </div>
@@ -1285,7 +1431,7 @@ function contractToForm(contract: AdminContractResource): ContractFormValues {
     parent_contract_id: contract.parent_contract_id ? String(contract.parent_contract_id) : '',
     renew_from_contract_id: contract.renew_from_contract_id ? String(contract.renew_from_contract_id) : '',
     tenants: tenants.length > 0 ? tenants : [{ ...defaultTenantRow }],
-    vehicles: (contract.contract_vehicles || []).map((vehicle) => ({
+    vehicles: (contract.contract_vehicles || []).filter((vehicle) => vehicle.is_active !== false).map((vehicle) => ({
       vehicle_id: String(vehicle.vehicle_id),
       started_at: vehicle.started_at || '',
       ended_at: vehicle.ended_at || '',
@@ -1514,15 +1660,34 @@ function DepositQRModal({
   onClose: () => void
   onConfirm: () => void
 }) {
+  const { echo } = useAdminSocket()
   const [timeLeft, setTimeLeft] = useState(1800) // 30 minutes in seconds
+  const [isPaidSuccess, setIsPaidSuccess] = useState(false)
 
   useEffect(() => {
-    if (timeLeft <= 0) return
+    if (!echo) return
+    const channel = echo.private('admin-maintenance')
+    channel.listen('.ContractDepositPaid', (event: any) => {
+      const updatedContract = event.contract
+      if (updatedContract && Number(updatedContract.id) === Number(contract.id) && updatedContract.is_deposit_paid) {
+        setIsPaidSuccess(true)
+        setTimeout(() => {
+          onClose()
+        }, 2000)
+      }
+    })
+    return () => {
+      channel.stopListening('.ContractDepositPaid')
+    }
+  }, [echo, contract.id, onClose])
+
+  useEffect(() => {
+    if (timeLeft <= 0 || isPaidSuccess) return
     const timer = setInterval(() => {
       setTimeLeft((prev) => prev - 1)
     }, 1000)
     return () => clearInterval(timer)
-  }, [timeLeft])
+  }, [timeLeft, isPaidSuccess])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -1543,7 +1708,15 @@ function DepositQRModal({
 
         <div className="mt-4 flex flex-col items-center">
           <div className="rounded-3xl border border-[#3d2a18]/10 bg-white p-4 shadow-sm">
-            {isExpired ? (
+            {isPaidSuccess ? (
+              <div className="flex h-[280px] w-[280px] flex-col items-center justify-center text-center p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 animate-bounce">
+                  <BadgeCheck className="h-9 w-9" />
+                </div>
+                <p className="mt-4 text-sm font-black text-emerald-700 font-black">Thanh toán thành công!</p>
+                <p className="mt-1.5 text-xs text-emerald-600/80 font-bold">Hệ thống đang tự động cập nhật...</p>
+              </div>
+            ) : isExpired ? (
               <div className="flex h-[280px] w-[280px] flex-col items-center justify-center text-center p-4 bg-stone-50 rounded-2xl">
                 <p className="text-sm font-bold text-rose-500">Mã QR đã hết hạn (30 phút)</p>
                 <p className="mt-2 text-xs text-stone-500">Vui lòng đóng modal và tải lại để lấy mã mới.</p>

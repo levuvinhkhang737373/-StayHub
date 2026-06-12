@@ -63,6 +63,7 @@ export interface AdminTenantResource {
   created_at?: string | null
   updated_at?: string | null
   deleted_at?: string | null
+  leave_date?: string | null
 }
 
 export interface AdminTenantFilters {

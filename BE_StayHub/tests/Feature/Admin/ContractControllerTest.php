@@ -190,6 +190,122 @@ class ContractControllerTest extends TestCase
         $this->assertEquals('2026-06-01', $contractVehicle->started_at->toDateString());
     }
 
+    public function test_create_contract_ignores_leave_and_end_dates_for_tenants_and_vehicles()
+    {
+        $payload = [
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'tenants' => [
+                [
+                    'tenant_id' => $this->tenant1->id,
+                    'join_date' => '2026-06-01',
+                    'leave_date' => '2026-07-01',
+                    'is_staying' => false,
+                ]
+            ],
+            'vehicles' => [
+                [
+                    'vehicle_id' => $this->vehicle->id,
+                    'started_at' => '2026-06-01',
+                    'ended_at' => '2026-07-01',
+                    'charge_policy' => 1,
+                    'monthly_fee' => '100000.00',
+                    'is_active' => false,
+                ]
+            ]
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/admin/contracts', $payload);
+
+        $response->assertStatus(201);
+        $data = $response->json('result');
+
+        $contractTenant = \App\Models\ContractTenant::where([
+            'contract_id' => $data['id'],
+            'tenant_id' => $this->tenant1->id,
+        ])->first();
+
+        $this->assertNotNull($contractTenant);
+        $this->assertNull($contractTenant->leave_date);
+        $this->assertNull($contractTenant->billing_end_date);
+        $this->assertTrue((bool)$contractTenant->is_staying);
+
+        $contractVehicle = \App\Models\ContractVehicle::where([
+            'contract_id' => $data['id'],
+            'vehicle_id' => $this->vehicle->id,
+        ])->first();
+
+        $this->assertNotNull($contractVehicle);
+        $this->assertNull($contractVehicle->ended_at);
+        $this->assertNull($contractVehicle->billing_end_date);
+        $this->assertTrue((bool)$contractVehicle->is_active);
+    }
+
+    public function test_room_with_active_contract_but_not_full_is_available_for_new_contracts()
+    {
+        // 1. Create first contract for the room (max_occupants = 5)
+        $contract1 = Contract::create([
+            'contract_code' => 'HD-TEST-COLIV-1',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '2000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract1->id,
+            'tenant_id' => $this->tenant1->id,
+            'join_date' => '2026-06-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        // Update current occupants of room
+        $this->room->update(['current_occupants' => 1]);
+
+        // 2. Query available rooms - should contain this room
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson("/api/admin/contracts/available-rooms?building_id={$this->building->id}");
+
+        $response->assertStatus(200);
+        $rooms = $response->json('result');
+        $roomIds = collect($rooms)->pluck('id')->all();
+        $this->assertContains($this->room->id, $roomIds);
+
+        // 3. Create second contract for the same room (with tenant2) - should succeed
+        $payload = [
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '2000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'tenants' => [
+                [
+                    'tenant_id' => $this->tenant2->id,
+                    'join_date' => '2026-06-01',
+                    'is_staying' => true,
+                ]
+            ]
+        ];
+
+        $createResponse = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/admin/contracts', $payload);
+
+        $createResponse->assertStatus(201);
+    }
+
     public function test_create_contract_violates_room_capacity()
     {
         $this->room->update(['max_occupants' => 1]);

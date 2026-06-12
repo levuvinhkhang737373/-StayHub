@@ -9,7 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class ContractResource extends JsonResource
 {
     /**
-     * Dữ liệu hợp đồng tối ưu cho danh sách.
+     * Dữ liệu hợp đồng .
      */
     public function toArray(Request $request): array
     {
