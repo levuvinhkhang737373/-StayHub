@@ -27,12 +27,8 @@ class AssetTemplateController extends Controller
             $validated = $request->validated();
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseAssetTemplates($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xem mẫu tài sản', 403, null, 403);
-            }
-
-            if (isset($validated['building_id']) && ! AdminScope::ensureBuildingAccess($admin, (int) $validated['building_id'])) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xem mẫu tài sản của tòa nhà này', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền xem mẫu tài sản', 403, null, 403);
             }
 
             $assetTemplates = $this->queryAssetTemplates($validated, $admin)->paginate($validated['per_page'] ?? 20);
@@ -49,12 +45,12 @@ class AssetTemplateController extends Controller
             $validated = $request->validated();
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseAssetTemplates($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền tạo mẫu tài sản', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới được tạo mẫu tài sản', 403, null, 403);
             }
 
-            if (! $this->canWriteAssetTemplateForBuilding($admin, $validated['building_id'] ?? null)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền tạo mẫu tài sản cho tòa nhà này', 403, null, 403);
+            if ($this->assetTemplateNameExists($validated['name'])) {
+                return ApiResponse::responseJson(false, 'Tên mẫu tài sản đã tồn tại', 422, null, 422);
             }
 
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
@@ -78,11 +74,11 @@ class AssetTemplateController extends Controller
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseAssetTemplates($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xem mẫu tài sản', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền xem mẫu tài sản', 403, null, 403);
             }
 
-            $assetTemplateModel = $this->accessibleQuery($admin)
+            $assetTemplateModel = AssetTemplate::query()
                 ->select($this->columns())
                 ->with($this->detailRelations())
                 ->withCount($this->counts())
@@ -104,23 +100,21 @@ class AssetTemplateController extends Controller
             $validated = $request->validated();
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseAssetTemplates($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật mẫu tài sản', 403, null, 403);
-            }
-
-            if (array_key_exists('building_id', $validated) && ! $this->canWriteAssetTemplateForBuilding($admin, $validated['building_id'])) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền chuyển mẫu tài sản sang tòa nhà này', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền cập nhật mẫu tài sản', 403, null, 403);
             }
 
             $response = DB::transaction(function () use ($validated, $assetTemplate, $admin, $request): JsonResponse {
-                $assetTemplateModel = $this->accessibleQuery($admin)->lockForUpdate()->find($assetTemplate);
+                $assetTemplateModel = AssetTemplate::query()->lockForUpdate()->find($assetTemplate);
 
                 if (! $assetTemplateModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy mẫu tài sản', 404, null, 404);
                 }
 
-                if (! $this->canWriteAssetTemplateForBuilding($admin, $assetTemplateModel->building_id)) {
-                    return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật mẫu tài sản này', 403, null, 403);
+                $targetName = $validated['name'] ?? $assetTemplateModel->name;
+
+                if ($this->assetTemplateNameExists($targetName, $assetTemplateModel->id)) {
+                    return ApiResponse::responseJson(false, 'Tên mẫu tài sản đã tồn tại', 422, null, 422);
                 }
 
                 $oldData = $assetTemplateModel->toArray();
@@ -145,19 +139,15 @@ class AssetTemplateController extends Controller
             $validated = $request->validated();
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseAssetTemplates($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền đổi trạng thái mẫu tài sản', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền đổi trạng thái mẫu tài sản', 403, null, 403);
             }
 
             $response = DB::transaction(function () use ($validated, $assetTemplate, $admin, $request): JsonResponse {
-                $assetTemplateModel = $this->accessibleQuery($admin)->lockForUpdate()->find($assetTemplate);
+                $assetTemplateModel = AssetTemplate::query()->lockForUpdate()->find($assetTemplate);
 
                 if (! $assetTemplateModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy mẫu tài sản', 404, null, 404);
-                }
-
-                if (! $this->canWriteAssetTemplateForBuilding($admin, $assetTemplateModel->building_id)) {
-                    return ApiResponse::responseJson(false, 'Bạn không có quyền đổi trạng thái mẫu tài sản này', 403, null, 403);
                 }
 
                 $oldData = $assetTemplateModel->toArray();
@@ -181,19 +171,15 @@ class AssetTemplateController extends Controller
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseAssetTemplates($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xóa mẫu tài sản', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền xóa mẫu tài sản', 403, null, 403);
             }
 
             $response = DB::transaction(function () use ($assetTemplate, $admin, $request): JsonResponse {
-                $assetTemplateModel = $this->accessibleQuery($admin)->withCount('roomAssets')->lockForUpdate()->find($assetTemplate);
+                $assetTemplateModel = AssetTemplate::query()->withCount('roomAssets')->lockForUpdate()->find($assetTemplate);
 
                 if (! $assetTemplateModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy mẫu tài sản', 404, null, 404);
-                }
-
-                if (! $this->canWriteAssetTemplateForBuilding($admin, $assetTemplateModel->building_id)) {
-                    return ApiResponse::responseJson(false, 'Bạn không có quyền xóa mẫu tài sản này', 403, null, 403);
                 }
 
                 if ((int) $assetTemplateModel->room_assets_count > 0) {
@@ -217,7 +203,7 @@ class AssetTemplateController extends Controller
     private function payload(array $validated, Admin $admin, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['name', 'building_id', 'default_unit_name', 'description', 'status', 'created_by'];
+        $fields = ['name', 'default_unit_name', 'description', 'status', 'created_by'];
 
         foreach ($fields as $field) {
             if (array_key_exists($field, $validated)) {
@@ -236,22 +222,22 @@ class AssetTemplateController extends Controller
 
     private function columns(): array
     {
-        return ['id', 'name', 'slug', 'building_id', 'default_unit_name', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'name', 'slug', 'default_unit_name', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
     }
 
     private function listRelations(): array
     {
-        return ['building:id,name,slug,address,status', 'creator:id,full_name'];
+        return ['creator:id,full_name'];
     }
 
     private function storeRelations(): array
     {
-        return ['building:id,name,slug,address,status', 'creator:id,full_name'];
+        return ['creator:id,full_name'];
     }
 
     private function detailRelations(): array
     {
-        return ['building:id,region_id,manager_admin_id,name,slug,address,total_floors,gender_policy,description,status,created_by,created_at,updated_at', 'creator:id,full_name'];
+        return ['creator:id,full_name'];
     }
 
     private function counts(): array
@@ -263,7 +249,7 @@ class AssetTemplateController extends Controller
     {
         $keyword = trim($validated['keyword'] ?? '');
 
-        return $this->accessibleQuery($admin)
+        return AssetTemplate::query()
             ->select($this->columns())
             ->with($this->listRelations())
             ->withCount($this->counts())
@@ -271,47 +257,17 @@ class AssetTemplateController extends Controller
                 $keywordQuery->where('name', 'like', "%{$keyword}%")
                     ->orWhere('description', 'like', "%{$keyword}%");
             }))
-            ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', $validated['building_id']))
-            ->when((bool) ($validated['only_global'] ?? false), fn (Builder $query): Builder => $query->whereNull('building_id'))
             ->when(isset($validated['default_unit_name']), fn (Builder $query): Builder => $query->where('default_unit_name', $validated['default_unit_name']))
             ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', $validated['status']))
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }
 
-    private function accessibleQuery(Admin $admin): Builder
+    private function assetTemplateNameExists(string $name, ?int $ignoreId = null): bool
     {
-        $query = AssetTemplate::query();
-
-        if (AdminScope::isSuperAdmin($admin)) {
-            return $query;
-        }
-
-        if (AdminScope::isBuildingManager($admin)) {
-            return $query->where(function (Builder $scopeQuery) use ($admin): void {
-                $scopeQuery->whereNull('asset_templates.building_id')
-                    ->orWhereHas('building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('manager_admin_id', $admin->id));
-            });
-        }
-
-        return $query->whereRaw('1 = 0');
-    }
-
-    private function canUseAssetTemplates(Admin $admin): bool
-    {
-        return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
-    }
-
-    private function canWriteAssetTemplateForBuilding(Admin $admin, mixed $buildingId): bool
-    {
-        if (AdminScope::isSuperAdmin($admin)) {
-            return true;
-        }
-
-        if (! AdminScope::isBuildingManager($admin) || empty($buildingId)) {
-            return false;
-        }
-
-        return AdminScope::ensureBuildingAccess($admin, (int) $buildingId);
+        return AssetTemplate::query()
+            ->where('name', $name)
+            ->when($ignoreId !== null, fn (Builder $query): Builder => $query->whereKeyNot($ignoreId))
+            ->exists();
     }
 }

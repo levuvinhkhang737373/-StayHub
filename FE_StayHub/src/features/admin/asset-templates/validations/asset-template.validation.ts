@@ -1,9 +1,4 @@
-export type AssetTemplateBuildingOption = {
-  id: number
-}
-
 export type AssetTemplateFormValues = {
-  building_id: string
   name: string
   default_unit_name: number
   description: string
@@ -14,24 +9,15 @@ export type AssetTemplateFormErrors = Partial<Record<keyof AssetTemplateFormValu
 
 export function validateAssetTemplateForm(
   form: AssetTemplateFormValues,
-  buildings: AssetTemplateBuildingOption[],
-  options: { requireBuilding: boolean },
 ): AssetTemplateFormErrors {
   const errors: AssetTemplateFormErrors = {}
   const name = form.name.trim()
   const description = form.description.trim()
-  const buildingId = form.building_id ? Number(form.building_id) : undefined
 
   if (!name) {
     errors.name = 'Vui lòng nhập tên mẫu tài sản.'
   } else if (name.length > 150) {
     errors.name = 'Tên mẫu tài sản tối đa 150 ký tự.'
-  }
-
-  if (options.requireBuilding && !buildingId) {
-    errors.building_id = 'Vui lòng chọn tòa nhà áp dụng.'
-  } else if (buildingId && !buildings.some((building) => building.id === buildingId)) {
-    errors.building_id = 'Tòa nhà áp dụng không hợp lệ.'
   }
 
   if (![1, 2, 3].includes(Number(form.default_unit_name))) {

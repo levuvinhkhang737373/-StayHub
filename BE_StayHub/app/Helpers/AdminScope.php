@@ -60,6 +60,29 @@ class AdminScope
     }
 
     /**
+     * Áp quyền xem khách thuê theo tòa nhà thông qua hợp đồng/phòng, không dựa vào created_by.
+     */
+    public static function applyTenantScope(Builder $query, Admin $admin): Builder
+    {
+        if (self::isSuperAdmin($admin)) {
+            return $query;
+        }
+
+        if (self::isBuildingManager($admin)) {
+            return $query->where(function (Builder $tenantQuery) use ($admin): void {
+                $tenantQuery
+                    ->whereIn('building_id', Building::query()
+                        ->select('id')
+                        ->where('manager_admin_id', $admin->id))
+                    ->orWhereHas('contractTenants.contract.room.building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('manager_admin_id', $admin->id))
+                    ->orWhereHas('representedContracts.room.building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('manager_admin_id', $admin->id));
+            });
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
+
+    /**
      * Kiểm tra quyền truy cập một tòa nhà bằng exists().
      */
     public static function ensureBuildingAccess(Admin $admin, int $buildingId): bool

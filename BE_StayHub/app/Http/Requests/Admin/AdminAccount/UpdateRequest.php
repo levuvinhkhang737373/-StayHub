@@ -28,6 +28,7 @@ class UpdateRequest extends FormRequest
             'password' => ['nullable', 'string', 'min:6', 'max:255'],
             'role' => ['sometimes', 'required', 'integer', Rule::in(array_keys(Admin::ROLE_LABELS))],
             'gender' => ['nullable', 'integer', Rule::in(array_keys(Admin::GENDER_LABELS))],
+            'date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
             'address' => ['nullable', 'string', 'max:500'],
             'avatar_url' => ['nullable', 'string', 'max:2048'],
         ];
@@ -56,6 +57,8 @@ class UpdateRequest extends FormRequest
             'role.in' => 'Vai trò admin không nằm trong danh sách cho phép.',
             'gender.integer' => 'Giới tính admin không hợp lệ.',
             'gender.in' => 'Giới tính admin không nằm trong danh sách cho phép.',
+            'date_of_birth.date' => 'Ngày sinh admin không hợp lệ.',
+            'date_of_birth.before_or_equal' => 'Ngày sinh admin không được lớn hơn ngày hiện tại.',
             'address.string' => 'Địa chỉ admin phải là chuỗi ký tự.',
             'address.max' => 'Địa chỉ admin không được vượt quá 500 ký tự.',
             'avatar_url.string' => 'Đường dẫn ảnh đại diện phải là chuỗi ký tự.',

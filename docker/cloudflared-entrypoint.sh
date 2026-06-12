@@ -10,11 +10,11 @@ wait_for_http() {
 
     until curl -fsS "$url" >/dev/null; do
         if [ "$count" -ge "$attempts" ]; then
-            echo "$name chưa sẵn sàng sau $attempts lần kiểm tra; thoát để Docker tự restart."
+            echo "$name chÆ°a sáºµn sÃ ng sau $attempts láº§n kiá»ƒm tra; thoÃ¡t Ä‘á»ƒ Docker tá»± restart."
             exit 1
         fi
 
-        echo "Đợi $name sẵn sàng ($count/$attempts)..."
+        echo "Äá»£i $name sáºµn sÃ ng ($count/$attempts)..."
         count=$((count + 1))
         sleep "$delay"
     done
@@ -26,7 +26,7 @@ if [ -n "${CLOUDFLARED_ENV_FILE:-}" ] && [ -f "$CLOUDFLARED_ENV_FILE" ]; then
 fi
 
 if [ -z "${TUNNEL_TOKEN:-}" ]; then
-    echo "TUNNEL_TOKEN chưa được cấu hình trong BE_StayHub/.env."
+    echo "TUNNEL_TOKEN chÆ°a Ä‘Æ°á»£c cáº¥u hÃ¬nh trong BE_StayHub/.env."
     exit 1
 fi
 

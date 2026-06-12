@@ -12,6 +12,8 @@ x-backend-environment: &backend-environment
   APP_UID: ${DOCKER_UID:-1000}
   COMPOSER_CACHE_DIR: /tmp/composer-cache
   RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+  PROJECT_MOUNT_ATTEMPTS: ${PROJECT_MOUNT_ATTEMPTS:-60}
+  PROJECT_MOUNT_DELAY: ${PROJECT_MOUNT_DELAY:-1}
 
 x-backend-volumes: &backend-volumes
   - type: bind
@@ -217,11 +219,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'test -f artisan && curl -fsS http://127.0.0.1:8000/sanctum/csrf-cookie >/dev/null || exit 1' ]
+      test: [ 'CMD-SHELL', 'cd /var/www/html/BE_StayHub && test -f artisan && test -f vendor/autoload.php && curl -fsS http://127.0.0.1:8000/up >/dev/null || exit 1' ]
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - laravel_network
 
@@ -241,11 +243,31 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
+      test: [ 'CMD-SHELL', 'cd /var/www/html/BE_StayHub && test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
       interval: 15s
       timeout: 10s
       retries: 20
-      start_period: 120s
+      start_period: 180s
+    networks:
+      - laravel_network
+
+  reverb:
+    build: *backend-build
+    container_name: laravel_reverb
+    restart: unless-stopped
+    environment: *backend-environment
+    working_dir: /var/www/html/BE_StayHub
+    volumes: *backend-volumes
+    command: php artisan reverb:start --host=0.0.0.0 --port=8009 --debug
+    ports:
+      - '8009:8009'
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - laravel_network
 
@@ -301,7 +323,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 60s
     networks:
       - laravel_network
 
@@ -364,7 +386,7 @@ services:
 networks:
   laravel_network:
     external: true
-    name: repokytucxaphongtro_laravel_network
+    name: stayhub_laravel_network
 
 secrets:
   backend_env:
@@ -372,17 +394,17 @@ secrets:
 
 volumes:
   backend_vendor:
-    name: repokytucxaphongtro_backend_vendor
+    name: stayhub_backend_vendor
   backend_composer_cache:
-    name: repokytucxaphongtro_backend_composer_cache
+    name: stayhub_backend_composer_cache
   frontend_node_modules:
   frontend_npm_cache:
-    name: repokytucxaphongtro_frontend_npm_cache
+    name: stayhub_frontend_npm_cache
   ai_deepface_cache:
-    name: repokytucxaphongtro_ai_deepface_cache
+    name: stayhub_ai_deepface_cache
   dbdata_new:
     external: true
-    name: repokytucxaphongtro_dbdata_new
+    name: stayhub_dbdata_new
   mongodata:
     external: true
     name: repokytucxaphongtro_mongodata
@@ -390,10 +412,8 @@ volumes:
     name: repokytucxaphongtro_redis_data
   meili_data:
     external: true
-    name: repokytucxaphongtro_meili_data
+    name: stayhub_meili_data
   minio_data:
-    external: true
-    name: repokytucxaphongtro_minio_data
+    name: stayhub_minio_data
   qdrant_data:
-    external: true
-    name: repokytucxaphongtro_qdrant_data
+    name: stayhub_qdrant_data

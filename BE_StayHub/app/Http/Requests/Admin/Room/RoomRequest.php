@@ -6,7 +6,7 @@ use App\Helpers\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
-
+use Illuminate\Support\Facades\DB;
 
 class RoomRequest extends FormRequest
 {
@@ -36,7 +36,7 @@ class RoomRequest extends FormRequest
             'description'          => 'nullable|string',
             'status'               => 'nullable|integer|in:1,2,3',
             'images'               => 'nullable|array',
-            'images.*'             => 'image|mimes:jpeg,jpg,png,webp|max:10240',
+            'images.*'             => 'image|mimes:jpg,png,webp|max:10240',
             'assets'               => 'nullable|array',
             'assets.*.template_id' => 'required|integer|exists:asset_templates,id',
             'assets.*.quantity'    => 'required|integer|min:1',
@@ -102,5 +102,36 @@ class RoomRequest extends FormRequest
         throw new HttpResponseException(
             ApiResponse::responseJson(false, $validator->errors()->first(), 422, $validator->errors(), 422)
         );
+    }
+    /**
+     * Cấu hình validator để kiểm tra logic nâng cao sau khi validate cơ bản hoàn tất.
+     */
+    public function withValidator($validator)
+    {
+        // Chờ các lỗi cơ bản (nhập thiếu, sai kiểu dữ liệu) sửa xong thì mới check logic này
+        $validator->after(function ($validator) {
+            $buildingId = $this->input('building_id');
+            $floorInput = $this->input('floor');
+
+            // 1. Chỉ kiểm tra khi người dùng đã điền đủ cả building_id và floor hợp lệ
+            if ($buildingId && is_numeric($floorInput)) {
+
+                // 2. Truy vấn lấy số tầng lớn nhất của tòa nhà từ database
+                // Bạn hãy thay 'total_floors' bằng tên cột chính xác trong bảng buildings của bạn nhé
+                $building = DB::table('buildings')->where('id', $buildingId)->first();
+
+                if ($building) {
+                    $totalFloors = $building->total_floors; // Hoặc tên cột tổng số tầng của bạn
+
+                    // 3. So sánh nếu số tầng nhập vào vượt quá tổng số tầng của tòa nhà
+                    if ($floorInput > $totalFloors) {
+                        $validator->errors()->add(
+                            'floor',
+                            "Số tầng nhập vào ({$floorInput}) không được vượt quá tổng số tầng của tòa nhà này (Tối đa: {$totalFloors} tầng)."
+                        );
+                    }
+                }
+            }
+        });
     }
 }

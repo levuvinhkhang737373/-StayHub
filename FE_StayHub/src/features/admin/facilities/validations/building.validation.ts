@@ -1,23 +1,6 @@
 import type { AdminManagerResource, AdminRegionResource } from "../types/facility-api.model";
 
-export type BuildingRoomTypeFormRow = {
-    id?: number;
-    source_id?: number;
-    name: string;
-    description: string;
-    status: number;
-    rooms_count?: number;
-};
 
-export type BuildingAssetTemplateFormRow = {
-    id?: number;
-    source_id?: number;
-    name: string;
-    default_unit_name: number;
-    description: string;
-    status: number;
-    room_assets_count?: number;
-};
 
 export type BuildingServicePriceFormRow = {
     id?: number;
@@ -33,7 +16,6 @@ export type BuildingSettingFormRow = {
     id?: number;
     source_id?: number;
     setting_label: string;
-    setting_name: string;
     setting_value: string;
     description: string;
     is_public: boolean;
@@ -74,13 +56,11 @@ export type BuildingFormValues = {
     gender_policy: number;
     description: string;
     status: number;
-    room_types: BuildingRoomTypeFormRow[];
-    asset_templates: BuildingAssetTemplateFormRow[];
     service_prices: BuildingServicePriceFormRow[];
     settings: BuildingSettingFormRow[];
 };
 
-export type BuildingFormErrors = Partial<Record<keyof Omit<BuildingFormValues, "room_types" | "asset_templates" | "service_prices" | "settings"> | "images" | "room_types" | "asset_templates" | "service_prices" | "settings", string>>;
+export type BuildingFormErrors = Partial<Record<keyof Omit<BuildingFormValues, "service_prices" | "settings"> | "images" | "service_prices" | "settings", string>>;
 
 export function validateBuildingForm(
     form: BuildingFormValues,
@@ -132,28 +112,7 @@ export function validateBuildingForm(
         }
     }
 
-    if (form.room_types.length > 100) {
-        errors.room_types = "Mỗi lần chỉ được gửi tối đa 100 loại phòng.";
-    } else {
-        const roomTypeNames = new Set<string>();
-        const invalidRoomType = form.room_types.find((item) => {
-            const rowName = item.name.trim().toLowerCase();
-            if (!rowName || item.name.trim().length > 150 || ![1, 2].includes(Number(item.status))) return true;
-            if (roomTypeNames.has(rowName)) return true;
-            roomTypeNames.add(rowName);
-            return false;
-        });
 
-        if (invalidRoomType) {
-            errors.room_types = "Loại phòng cần có tên không trùng và trạng thái hợp lệ.";
-        }
-    }
-
-    if (form.asset_templates.length > 100) {
-        errors.asset_templates = "Mỗi lần chỉ được gửi tối đa 100 mẫu tài sản.";
-    } else if (form.asset_templates.some((item) => !item.name.trim() || item.name.trim().length > 150 || ![1, 2, 3].includes(Number(item.default_unit_name)) || ![1, 2].includes(Number(item.status)))) {
-        errors.asset_templates = "Mẫu tài sản cần có tên, đơn vị và trạng thái hợp lệ.";
-    }
 
     if (form.service_prices.length > 100) {
         errors.service_prices = "Mỗi lần chỉ được gửi tối đa 100 bảng giá dịch vụ.";
@@ -169,17 +128,13 @@ export function validateBuildingForm(
     if (form.settings.length > 100) {
         errors.settings = "Mỗi lần chỉ được gửi tối đa 100 cài đặt.";
     } else {
-        const settingNames = new Set<string>();
         const invalidSetting = form.settings.find((item) => {
-            const settingName = item.setting_name.trim().toLowerCase();
-            if (!item.setting_label.trim() || !settingName || !/^[A-Za-z0-9_.-]+$/.test(item.setting_name.trim())) return true;
-            if (settingNames.has(settingName)) return true;
-            settingNames.add(settingName);
+            if (!item.setting_label.trim()) return true;
             return false;
         });
 
         if (invalidSetting) {
-            errors.settings = "Cài đặt cần có tên hiển thị, khóa hợp lệ và không trùng.";
+            errors.settings = "Cài đặt cần có tên hiển thị.";
         }
     }
 

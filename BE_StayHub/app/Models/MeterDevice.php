@@ -32,7 +32,7 @@ class MeterDevice extends Model
         self::STATUS_BROKEN => 'Bị hỏng',
     ];
 
-    protected $fillable = ['room_id', 'service_id', 'meter_code', 'meter_type', 'initial_reading', 'installed_at', 'replaced_by_meter_id', 'final_reading', 'status', 'image_path', 'note'];
+    protected $fillable = ['room_id', 'service_id', 'meter_type', 'initial_reading', 'installed_at', 'replaced_by_meter_id', 'final_reading', 'status', 'image_path', 'note'];
 
     protected function casts(): array
     {

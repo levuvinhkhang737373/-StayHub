@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ElementType, ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Boxes, Building2, ChevronRight, ImagePlus, MapPin, Plus, Save, Search, Settings, Star, Trash2, X, Zap } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, ImagePlus, MapPin, Plus, Save, Search, Settings, Star, Trash2, X, Zap } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
-import { createAdminAssetTemplate, fetchAdminAssetTemplates } from "../../asset-templates/services/asset-templates.service";
-import type { AdminAssetTemplateResource } from "../../asset-templates/types/asset-template-api.model";
-import { createAdminRoomType, fetchAdminRoomTypes } from "../../room-types/services/room-types.service";
-import type { AdminRoomTypeResource } from "../../room-types/types/room-type-api.model";
 import { createAdminService, fetchAdminServices } from "../../services/services/services.service";
 import type { AdminServiceResource } from "../../services/types/service-api.model";
 import { createAdminSetting, fetchAdminSettings } from "../../settings/services/settings.service";
@@ -18,12 +14,11 @@ import type { BuildingImage } from "../types/building.model";
 import { buildBuildingPayload, createDefaultBuildingForm, getTodayIsoDate, mapBuildingDetailToForm } from "../utils/building-form.utils";
 import {
     validateBuildingForm,
-    type BuildingAssetTemplateFormRow,
     type BuildingFormErrors,
-    type BuildingRoomTypeFormRow,
     type BuildingServicePriceFormRow,
     type BuildingSettingFormRow,
 } from "../validations/building.validation";
+import { ImageViewerModal } from "../../../../shared/components/ImageViewerModal";
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
     if (!result) return [];
@@ -37,7 +32,7 @@ const inputErrorClass = "border-rose-300 bg-rose-50 focus:border-rose-400";
 const labelClass = "mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-gray-400";
 const cardClass = "rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm";
 
-type ConfigKey = "room_types" | "asset_templates" | "service_prices" | "settings";
+type ConfigKey = "service_prices" | "settings";
 
 const buildingStatusOptions = [
     { value: 1, label: "Đang hoạt động", tone: "success" as const },
@@ -51,31 +46,13 @@ const genderPolicyOptions = [
     { value: 3, label: "Nữ", tone: "default" as const },
 ];
 
-const activeStatusOptions = [
-    { value: 1, label: "Hoạt động", tone: "success" as const },
-    { value: 2, label: "Ngừng", tone: "danger" as const },
-];
 
 const servicePriceStatusOptions = [
     { value: 1, label: "Còn hiệu lực", tone: "success" as const },
     { value: 2, label: "Hết hiệu lực", tone: "danger" as const },
 ];
 
-const assetUnitOptions = [
-    { value: 1, label: "Cái", tone: "default" as const },
-    { value: 2, label: "Bộ", tone: "default" as const },
-    { value: 3, label: "Chiếc", tone: "default" as const },
-];
 
-const serviceTypeOptions = [
-    { value: "dien", label: "Điện", tone: "warning" as const },
-    { value: "nuoc", label: "Nước", tone: "default" as const },
-    { value: "internet", label: "Internet", tone: "default" as const },
-    { value: "rac", label: "Rác", tone: "default" as const },
-    { value: "gui_xe", label: "Gửi xe", tone: "default" as const },
-    { value: "ve_sinh", label: "Vệ sinh", tone: "default" as const },
-    { value: "khac", label: "Khác", tone: "default" as const },
-];
 
 const chargeMethodOptions = [
     { value: 1, label: "Theo chỉ số", tone: "default" as const },
@@ -98,6 +75,12 @@ function formatDateForDisplay(value: string) {
 
 export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const navigate = useNavigate();
+
+    const isRequiredService = (service?: AdminServiceResource | null) => {
+        if (!service) return false;
+        const slug = String(service.slug || "").toLowerCase().trim();
+        return slug.includes("dien") || slug.includes("nuoc");
+    };
     const { buildingId: routeBuildingId } = useParams();
     const numericRouteBuildingId = routeBuildingId ? Number(routeBuildingId) : undefined;
     const resolvedBuildingId = typeof buildingId === "number" ? buildingId : Number.isFinite(numericRouteBuildingId) ? numericRouteBuildingId : undefined;
@@ -106,13 +89,9 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [regions, setRegions] = useState<AdminRegionResource[]>([]);
     const [managers, setManagers] = useState<AdminManagerResource[]>([]);
     const [services, setServices] = useState<AdminServiceResource[]>([]);
-    const [roomTypeCatalog, setRoomTypeCatalog] = useState<AdminRoomTypeResource[]>([]);
-    const [assetTemplateCatalog, setAssetTemplateCatalog] = useState<AdminAssetTemplateResource[]>([]);
     const [settingCatalog, setSettingCatalog] = useState<AdminSettingResource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isCreatingRoomType, setIsCreatingRoomType] = useState(false);
-    const [isCreatingAssetTemplate, setIsCreatingAssetTemplate] = useState(false);
     const [isCreatingService, setIsCreatingService] = useState(false);
     const [isCreatingSetting, setIsCreatingSetting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -120,22 +99,19 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [imageFiles, setImageFiles] = useState<File[]>([]);
     const [existingImages, setExistingImages] = useState<BuildingImage[]>([]);
     const [deleteImageIds, setDeleteImageIds] = useState<number[]>([]);
-    const [deleteRoomTypeIds, setDeleteRoomTypeIds] = useState<number[]>([]);
-    const [deleteAssetTemplateIds, setDeleteAssetTemplateIds] = useState<number[]>([]);
     const [deleteServicePriceIds, setDeleteServicePriceIds] = useState<number[]>([]);
     const [deleteSettingIds, setDeleteSettingIds] = useState<number[]>([]);
     const [primaryImageId, setPrimaryImageId] = useState<number | null>(null);
     const [primaryNewImageIndex, setPrimaryNewImageIndex] = useState<number | null>(null);
-    const [openCreateForms, setOpenCreateForms] = useState<Record<ConfigKey, boolean>>({ room_types: false, asset_templates: false, service_prices: false, settings: false });
-    const [openConfigCards, setOpenConfigCards] = useState<Record<ConfigKey, boolean>>({ room_types: true, asset_templates: false, service_prices: false, settings: false });
+    const [openCreateForms, setOpenCreateForms] = useState<Record<ConfigKey, boolean>>({ service_prices: false, settings: false });
+    const [openConfigCards, setOpenConfigCards] = useState<Record<ConfigKey, boolean>>({ service_prices: true, settings: false });
     const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
     const [regionKeyword, setRegionKeyword] = useState("");
     const [expandedRegionIds, setExpandedRegionIds] = useState<number[]>([]);
-    const [quickRoomType, setQuickRoomType] = useState({ name: "", description: "", status: 1 });
-    const [quickAssetTemplate, setQuickAssetTemplate] = useState({ name: "", default_unit_name: 1, description: "", status: 1 });
-    const [quickService, setQuickService] = useState({ service_code: "", name: "", service_type: "khac", charge_method: 5, unit_name: "", is_required: false, is_active: true });
-    const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+    const [quickService, setQuickService] = useState({ name: "", charge_method: 5, unit_name: "", is_required: false, is_active: true });
+    const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_value: "", description: "", is_public: true });
     const [form, setForm] = useState(createDefaultBuildingForm);
+    const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null);
 
     const isEditMode = typeof resolvedBuildingId === "number";
     const activeRegions = useMemo(() => regions.filter((region) => region.status), [regions]);
@@ -177,21 +153,18 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         Promise.all([
             fetchAdminRegions({ per_page: 100 }),
             fetchAdminManagers(),
-            fetchAdminServices({ per_page: 100, is_active: true }),
-            fetchAdminRoomTypes({ per_page: 100, status: 1, created_by_me: true }),
-            fetchAdminAssetTemplates({ per_page: 100, status: 1 }),
+            fetchAdminServices({ per_page: 100, is_active: true, created_by_role: 2 }),
+
             fetchAdminSettings({ per_page: 100, only_global: true }),
             isEditMode && resolvedBuildingId ? fetchAdminBuildingDetail(resolvedBuildingId) : Promise.resolve(null),
         ])
-            .then(([regionsResponse, managersResponse, servicesResponse, roomTypesResponse, assetTemplatesResponse, settingsResponse, buildingResponse]) => {
+            .then(([regionsResponse, managersResponse, servicesResponse, settingsResponse, buildingResponse]) => {
                 const nextRegions = getResourceList(regionsResponse.result);
                 const nextManagers = getResourceList(managersResponse.result);
                 const nextServices = getResourceList(servicesResponse.result);
                 setRegions(nextRegions);
                 setManagers(nextManagers);
                 setServices(nextServices);
-                setRoomTypeCatalog(getResourceList(roomTypesResponse.result));
-                setAssetTemplateCatalog(getResourceList(assetTemplatesResponse.result));
                 setSettingCatalog(getResourceList(settingsResponse.result));
 
                 const building = buildingResponse?.result;
@@ -199,11 +172,52 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 setExistingImages(nextImages as BuildingImage[]);
                 setPrimaryImageId(building?.primary_image?.id || nextImages.find((image) => image.is_primary)?.id || null);
 
-                setForm((current) => mapBuildingDetailToForm(building, nextRegions, current));
+                setForm((current) => {
+                    const mappedForm = mapBuildingDetailToForm(building, nextRegions, current);
+                    // Ensure dien/nuoc are in service_prices
+                    const existingServiceIds = new Set(mappedForm.service_prices.map(p => Number(p.service_id)));
+                    const missingRequiredServices = nextServices.filter(s => isRequiredService(s) && !existingServiceIds.has(s.id));
+                    
+                    if (missingRequiredServices.length > 0) {
+                        const newPrices = missingRequiredServices.map(s => ({
+                            service_id: String(s.id),
+                            service_name: s.name,
+                            price: "0",
+                            effective_from: getTodayIsoDate(),
+                            effective_to: "",
+                            status: 1
+                        }));
+                        mappedForm.service_prices = [...mappedForm.service_prices, ...newPrices];
+                    }
+                    return mappedForm;
+                });
             })
             .catch((error) => setErrorMessage(error instanceof Error ? error.message : "Không thể tải dữ liệu tòa nhà."))
             .finally(() => setIsLoading(false));
     }, [isEditMode, isSuperAdmin, resolvedBuildingId]);
+
+    useEffect(() => {
+        if (!services.length) return;
+        
+        const existingServiceIds = new Set(form.service_prices.map(p => Number(p.service_id)));
+        const missingRequiredServices = services.filter(s => isRequiredService(s) && !existingServiceIds.has(s.id));
+        
+        if (missingRequiredServices.length > 0) {
+            const newPrices = missingRequiredServices.map(s => ({
+                service_id: String(s.id),
+                service_name: s.name,
+                price: "0",
+                effective_from: getTodayIsoDate(),
+                effective_to: "",
+                status: 1
+            }));
+            
+            setForm(current => ({
+                ...current,
+                service_prices: [...current.service_prices, ...newPrices]
+            }));
+        }
+    }, [services, form.service_prices]);
 
     const updateForm = (key: keyof typeof form, value: string | number) => {
         setForm((current) => ({ ...current, [key]: value }));
@@ -250,11 +264,9 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         }
     };
 
-    const addRow = (key: ConfigKey, row?: BuildingRoomTypeFormRow | BuildingAssetTemplateFormRow | BuildingServicePriceFormRow | BuildingSettingFormRow) => {
-        const nextRow = row || (key === "room_types" ? { name: "", description: "", status: 1 }
-            : key === "asset_templates" ? { name: "", default_unit_name: 1, description: "", status: 1 }
-                : key === "service_prices" ? { service_id: "", price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 }
-                    : { setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+    const addRow = (key: ConfigKey, row?: BuildingServicePriceFormRow | BuildingSettingFormRow) => {
+        const nextRow = row || (key === "service_prices" ? { service_id: "", price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 }
+            : { setting_label: "", setting_value: "", description: "", is_public: true });
 
         setForm((current) => ({ ...current, [key]: [...(current[key] as unknown[]), nextRow] } as typeof current));
         setErrors((current) => ({ ...current, [key]: undefined }));
@@ -262,11 +274,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
 
     const removeRow = (key: ConfigKey, index: number) => {
         const row = form[key][index] as { id?: number; rooms_count?: number; room_assets_count?: number };
-        if (key === "room_types" && row.rooms_count && row.rooms_count > 0) return;
-        if (key === "asset_templates" && row.room_assets_count && row.room_assets_count > 0) return;
         if (row.id) {
-            if (key === "room_types") setDeleteRoomTypeIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
-            if (key === "asset_templates") setDeleteAssetTemplateIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
             if (key === "service_prices") setDeleteServicePriceIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
             if (key === "settings") setDeleteSettingIds((current) => (current.includes(row.id!) ? current : [...current, row.id!]));
         }
@@ -282,41 +290,22 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         setErrors((current) => ({ ...current, [key]: undefined }));
     };
 
-    const roomTypeOptions = useMemo(() => mergeRoomTypeOptions(roomTypeCatalog, form.room_types), [form.room_types, roomTypeCatalog]);
-    const assetTemplateOptions = useMemo(() => mergeAssetTemplateOptions(assetTemplateCatalog, form.asset_templates), [assetTemplateCatalog, form.asset_templates]);
     const serviceOptions = useMemo(() => mergeServiceOptions(services, form.service_prices), [form.service_prices, services]);
     const settingOptions = useMemo(() => mergeSettingOptions(settingCatalog, form.settings), [form.settings, settingCatalog]);
 
-    const findRoomTypeIndex = (item: AdminRoomTypeResource) => form.room_types.findIndex((row) => row.source_id === item.id || row.id === item.id || row.name.trim().toLowerCase() === item.name.trim().toLowerCase());
-    const findAssetTemplateIndex = (item: AdminAssetTemplateResource) => form.asset_templates.findIndex((row) => row.source_id === item.id || row.id === item.id || row.name.trim().toLowerCase() === item.name.trim().toLowerCase());
     const findServicePriceIndex = (service: AdminServiceResource) => form.service_prices.findIndex((row) => Number(row.service_id) === service.id);
-    const findSettingIndex = (item: AdminSettingResource) => form.settings.findIndex((row) => row.source_id === item.id || row.id === item.id || row.setting_name.trim().toLowerCase() === item.setting_name.trim().toLowerCase());
+    const findSettingIndex = (item: AdminSettingResource) => form.settings.findIndex((row) => row.source_id === item.id || row.id === item.id || row.setting_label.trim().toLowerCase() === item.setting_label.trim().toLowerCase());
 
-    const toggleRoomType = (item: AdminRoomTypeResource) => {
-        const index = findRoomTypeIndex(item);
-        if (index >= 0) {
-            removeRow("room_types", index);
-            return;
-        }
-        addRow("room_types", { source_id: item.id, name: item.name, description: item.description || "", status: Number(item.status || 1), rooms_count: 0 });
-    };
 
-    const toggleAssetTemplate = (item: AdminAssetTemplateResource) => {
-        const index = findAssetTemplateIndex(item);
-        if (index >= 0) {
-            removeRow("asset_templates", index);
-            return;
-        }
-        addRow("asset_templates", { source_id: item.id, name: item.name, default_unit_name: Number(item.default_unit_name || 1), description: item.description || "", status: Number(item.status || 1), room_assets_count: 0 });
-    };
 
     const toggleService = (service: AdminServiceResource) => {
+        if (isRequiredService(service)) return;
         const index = findServicePriceIndex(service);
         if (index >= 0) {
             removeRow("service_prices", index);
             return;
         }
-        addRow("service_prices", { service_id: String(service.id), price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 });
+        addRow("service_prices", { service_id: String(service.id), service_name: service.name, price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 });
     };
 
     const toggleSetting = (item: AdminSettingResource) => {
@@ -325,63 +314,18 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             removeRow("settings", index);
             return;
         }
-        addRow("settings", { source_id: item.id, setting_label: item.setting_label, setting_name: item.setting_name, setting_value: item.setting_value || "", description: item.description || "", is_public: Boolean(item.is_public) });
+        addRow("settings", { source_id: item.id, setting_label: item.setting_label, setting_value: item.setting_value || "", description: item.description || "", is_public: Boolean(item.is_public) });
     };
 
-    const createQuickRoomType = async () => {
-        if (!quickRoomType.name.trim() || isCreatingRoomType) return;
 
-        try {
-            setIsCreatingRoomType(true);
-            const response = await createAdminRoomType({
-                name: quickRoomType.name.trim(),
-                description: quickRoomType.description.trim() || undefined,
-                status: Number(quickRoomType.status),
-            });
-            const roomType = response.result;
-            setRoomTypeCatalog((current) => [roomType, ...current.filter((item) => item.id !== roomType.id)]);
-            addRow("room_types", { source_id: roomType.id, name: roomType.name, description: roomType.description || "", status: Number(roomType.status || 1), rooms_count: 0 });
-            setQuickRoomType({ name: "", description: "", status: 1 });
-            setOpenCreateForms((current) => ({ ...current, room_types: false }));
-        } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh loại phòng.");
-        } finally {
-            setIsCreatingRoomType(false);
-        }
-    };
-
-    const createQuickAssetTemplate = async () => {
-        if (!quickAssetTemplate.name.trim() || isCreatingAssetTemplate) return;
-
-        try {
-            setIsCreatingAssetTemplate(true);
-            const response = await createAdminAssetTemplate({
-                name: quickAssetTemplate.name.trim(),
-                default_unit_name: Number(quickAssetTemplate.default_unit_name),
-                description: quickAssetTemplate.description.trim() || undefined,
-                status: Number(quickAssetTemplate.status),
-            });
-            const template = response.result;
-            setAssetTemplateCatalog((current) => [template, ...current.filter((item) => item.id !== template.id)]);
-            addRow("asset_templates", { source_id: template.id, name: template.name, default_unit_name: Number(template.default_unit_name || 1), description: template.description || "", status: Number(template.status || 1), room_assets_count: 0 });
-            setQuickAssetTemplate({ name: "", default_unit_name: 1, description: "", status: 1 });
-            setOpenCreateForms((current) => ({ ...current, asset_templates: false }));
-        } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh mẫu tài sản.");
-        } finally {
-            setIsCreatingAssetTemplate(false);
-        }
-    };
 
     const createQuickService = async () => {
-        if (!quickService.service_code.trim() || !quickService.name.trim() || isCreatingService) return;
+        if (!quickService.name.trim() || isCreatingService) return;
 
         try {
             setIsCreatingService(true);
             const response = await createAdminService({
-                service_code: quickService.service_code.trim(),
                 name: quickService.name.trim(),
-                service_type: quickService.service_type,
                 charge_method: Number(quickService.charge_method),
                 unit_name: quickService.unit_name.trim() || undefined,
                 is_required: quickService.is_required,
@@ -390,7 +334,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             const service = response.result;
             setServices((current) => [service, ...current.filter((item) => item.id !== service.id)]);
             addRow("service_prices", { service_id: String(service.id), price: "0", effective_from: getTodayIsoDate(), effective_to: "", status: 1 });
-            setQuickService({ service_code: "", name: "", service_type: "khac", charge_method: 5, unit_name: "", is_required: false, is_active: true });
+            setQuickService({ name: "", charge_method: 5, unit_name: "", is_required: false, is_active: true });
             setOpenCreateForms((current) => ({ ...current, service_prices: false }));
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh dịch vụ.");
@@ -400,21 +344,20 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     };
 
     const createQuickSetting = async () => {
-        if (!quickSetting.setting_label.trim() || !quickSetting.setting_name.trim() || isCreatingSetting) return;
+        if (!quickSetting.setting_label.trim() || isCreatingSetting) return;
 
         try {
             setIsCreatingSetting(true);
             const response = await createAdminSetting({
                 setting_label: quickSetting.setting_label.trim(),
-                setting_name: quickSetting.setting_name.trim(),
                 setting_value: quickSetting.setting_value.trim() || undefined,
                 description: quickSetting.description.trim() || undefined,
                 is_public: quickSetting.is_public,
             });
             const setting = response.result;
             setSettingCatalog((current) => [setting, ...current.filter((item) => item.id !== setting.id)]);
-            addRow("settings", { source_id: setting.id, setting_label: setting.setting_label, setting_name: setting.setting_name, setting_value: setting.setting_value || "", description: setting.description || "", is_public: Boolean(setting.is_public) });
-            setQuickSetting({ setting_label: "", setting_name: "", setting_value: "", description: "", is_public: true });
+            addRow("settings", { source_id: setting.id, setting_label: setting.setting_label, setting_value: setting.setting_value || "", description: setting.description || "", is_public: Boolean(setting.is_public) });
+            setQuickSetting({ setting_label: "", setting_value: "", description: "", is_public: true });
             setOpenCreateForms((current) => ({ ...current, settings: false }));
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh cài đặt.");
@@ -445,8 +388,6 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 deleteImageIds,
                 primaryImageId,
                 primaryNewImageIndex,
-                deleteRoomTypeIds,
-                deleteAssetTemplateIds,
                 deleteServicePriceIds,
                 deleteSettingIds,
             });
@@ -527,47 +468,44 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                         <FieldError message={errors.images} />
                         {visibleExistingImages.length > 0 && imagePreviewUrls.length > 0 && <p className="mt-2 px-1 text-xs font-bold text-gray-400">Ảnh mới sẽ được thêm sau ảnh hiện tại. Nếu muốn đặt ảnh mới làm ảnh chính, hãy xóa ảnh chính hiện tại trước.</p>}
                         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                            {visibleExistingImages.map((image) => <ImageCard key={image.id} src={image.image_url || stayHubImage} isPrimary={primaryImageId === image.id} onPrimary={() => { setPrimaryImageId(image.id); setPrimaryNewImageIndex(null); }} onRemove={() => removeExistingImage(image)} />)}
-                            {imagePreviewUrls.map((url, index) => <ImageCard key={url} src={url} isPrimary={primaryNewImageIndex === index} disabledPrimary={visibleExistingImages.length > 0} primaryLabel={primaryNewImageIndex === index ? "Chính" : "Mới"} onPrimary={() => { if (visibleExistingImages.length === 0) { setPrimaryImageId(null); setPrimaryNewImageIndex(index); } }} onRemove={() => removeNewImage(index)} removeIcon="x" />)}
+                            {visibleExistingImages.map((image) => <ImageCard key={image.id} src={image.image_url || stayHubImage} isPrimary={primaryImageId === image.id} onPrimary={() => { setPrimaryImageId(image.id); setPrimaryNewImageIndex(null); }} onRemove={() => removeExistingImage(image)} onView={() => setViewingImageSrc(image.image_url || stayHubImage)} />)}
+                            {imagePreviewUrls.map((url, index) => <ImageCard key={url} src={url} isPrimary={primaryNewImageIndex === index} disabledPrimary={visibleExistingImages.length > 0} primaryLabel={primaryNewImageIndex === index ? "Chính" : "Mới"} onPrimary={() => { if (visibleExistingImages.length === 0) { setPrimaryImageId(null); setPrimaryNewImageIndex(index); } }} onRemove={() => removeNewImage(index)} removeIcon="x" onView={() => setViewingImageSrc(url)} />)}
                             {visibleExistingImages.length === 0 && imagePreviewUrls.length === 0 && <div className="col-span-full rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center text-sm font-bold text-gray-400">Chưa có ảnh tòa nhà.</div>}
                         </div>
                     </section>
                 </div>
 
                 <aside className="space-y-6">
-                    <ConfigCard icon={Boxes} title="Loại phòng" count={form.room_types.length} isOpen={openConfigCards.room_types} error={errors.room_types} onToggle={() => setOpenConfigCards((current) => ({ ...current, room_types: !current.room_types }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, room_types: true })); setOpenCreateForms((current) => ({ ...current, room_types: !current.room_types })); }} addLabel={openCreateForms.room_types ? "Đóng" : "Tạo mới"}>
-                        <SelectionBlock title="Chọn loại phòng có sẵn" emptyText="Chưa có loại phòng mẫu để chọn.">
-                            {roomTypeOptions.map((item) => <CheckboxOption key={item.id} checked={findRoomTypeIndex(item) >= 0} title={item.name} onChange={() => toggleRoomType(item)} />)}
-                        </SelectionBlock>
-                        {openCreateForms.room_types && <QuickPanel actionLabel={isCreatingRoomType ? "Đang tạo" : "Tạo loại"} disabled={isCreatingRoomType || !quickRoomType.name.trim()} onAction={createQuickRoomType}><TextField label="Tên loại phòng" value={quickRoomType.name} onChange={(value) => setQuickRoomType((current) => ({ ...current, name: value }))} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={quickRoomType.status} options={activeStatusOptions} onChange={(value) => setQuickRoomType((current) => ({ ...current, status: Number(value) }))} /></div><TextField label="Mô tả" value={quickRoomType.description} onChange={(value) => setQuickRoomType((current) => ({ ...current, description: value }))} /></QuickPanel>}
-                        {form.room_types.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-room-${item.source_id}`} title={item.name} description="" onRemove={() => removeRow("room_types", index)} /> : <RowShell key={item.id || `room-${index}`} title={item.name || `Loại phòng ${index + 1}`} disabledRemove={!!item.rooms_count} onRemove={() => removeRow("room_types", index)}><TextField label="Tên loại phòng" value={item.name} onChange={(value) => updateRow("room_types", index, "name", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={activeStatusOptions} onChange={(value) => updateRow("room_types", index, "status", Number(value))} /></div><TextField label="Mô tả" value={item.description} onChange={(value) => updateRow("room_types", index, "description", value)} /></RowShell>) }
-                    </ConfigCard>
-
-                    <ConfigCard icon={Boxes} title="Mẫu tài sản" count={form.asset_templates.length} isOpen={openConfigCards.asset_templates} error={errors.asset_templates} onToggle={() => setOpenConfigCards((current) => ({ ...current, asset_templates: !current.asset_templates }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, asset_templates: true })); setOpenCreateForms((current) => ({ ...current, asset_templates: !current.asset_templates })); }} addLabel={openCreateForms.asset_templates ? "Đóng" : "Tạo mới"}>
-                        <SelectionBlock title="Chọn mẫu tài sản có sẵn" emptyText="Chưa có mẫu tài sản dùng chung.">
-                            {assetTemplateOptions.map((item) => <CheckboxOption key={item.id} checked={findAssetTemplateIndex(item) >= 0} title={item.name} onChange={() => toggleAssetTemplate(item)} />)}
-                        </SelectionBlock>
-                        {openCreateForms.asset_templates && <QuickPanel actionLabel={isCreatingAssetTemplate ? "Đang tạo" : "Tạo mẫu"} disabled={isCreatingAssetTemplate || !quickAssetTemplate.name.trim()} onAction={createQuickAssetTemplate}><TextField label="Tên mẫu" value={quickAssetTemplate.name} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, name: value }))} /><div className="grid grid-cols-2 gap-3"><div><label className={labelClass}>Đơn vị</label><AdminSelect value={quickAssetTemplate.default_unit_name} options={assetUnitOptions} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, default_unit_name: Number(value) }))} /></div><div><label className={labelClass}>Trạng thái</label><AdminSelect value={quickAssetTemplate.status} options={activeStatusOptions} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, status: Number(value) }))} /></div></div><TextField label="Mô tả" value={quickAssetTemplate.description} onChange={(value) => setQuickAssetTemplate((current) => ({ ...current, description: value }))} /></QuickPanel>}
-                        {form.asset_templates.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-asset-${item.source_id}`} title={item.name} description="" onRemove={() => removeRow("asset_templates", index)} /> : <RowShell key={item.id || `asset-${index}`} title={item.name || `Mẫu tài sản ${index + 1}`} disabledRemove={!!item.room_assets_count} onRemove={() => removeRow("asset_templates", index)}><TextField label="Tên mẫu" value={item.name} onChange={(value) => updateRow("asset_templates", index, "name", value)} /><div className="grid grid-cols-2 gap-3"><div><label className={labelClass}>Đơn vị</label><AdminSelect value={item.default_unit_name} options={assetUnitOptions} onChange={(value) => updateRow("asset_templates", index, "default_unit_name", Number(value))} /></div><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={activeStatusOptions} onChange={(value) => updateRow("asset_templates", index, "status", Number(value))} /></div></div><TextField label="Mô tả" value={item.description} onChange={(value) => updateRow("asset_templates", index, "description", value)} /></RowShell>)}
-                    </ConfigCard>
-
                     <ConfigCard icon={Zap} title="Bảng giá dịch vụ" count={form.service_prices.length} isOpen={openConfigCards.service_prices} error={errors.service_prices} onToggle={() => setOpenConfigCards((current) => ({ ...current, service_prices: !current.service_prices }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, service_prices: true })); setOpenCreateForms((current) => ({ ...current, service_prices: !current.service_prices })); }} addLabel={openCreateForms.service_prices ? "Đóng" : "Tạo mới"}>
                         <SelectionBlock title="Chọn dịch vụ có sẵn" emptyText="Chưa có dịch vụ đang hoạt động.">
-                            {serviceOptions.map((service) => <CheckboxOption key={service.id} checked={findServicePriceIndex(service) >= 0} title={service.name} onChange={() => toggleService(service)} />)}
+                            {serviceOptions.map((service) => {
+                                const isRequired = isRequiredService(service);
+                                return <CheckboxOption key={service.id} checked={findServicePriceIndex(service) >= 0} title={service.name} disabled={isRequired} onChange={() => toggleService(service)} />;
+                            })}
                         </SelectionBlock>
-                        {openCreateForms.service_prices && <QuickPanel actionLabel={isCreatingService ? "Đang tạo" : "Tạo dịch vụ"} disabled={isCreatingService || !quickService.name.trim() || !quickService.service_code.trim()} onAction={createQuickService}><div className="grid grid-cols-2 gap-3"><TextField label="Mã" value={quickService.service_code} onChange={(value) => setQuickService((current) => ({ ...current, service_code: value }))} /><TextField label="Tên dịch vụ" value={quickService.name} onChange={(value) => setQuickService((current) => ({ ...current, name: value }))} /><div><label className={labelClass}>Loại</label><AdminSelect value={quickService.service_type} options={serviceTypeOptions} onChange={(value) => setQuickService((current) => ({ ...current, service_type: String(value) }))} /></div><div><label className={labelClass}>Tính phí</label><AdminSelect value={quickService.charge_method} options={chargeMethodOptions} onChange={(value) => setQuickService((current) => ({ ...current, charge_method: Number(value) }))} /></div></div></QuickPanel>}
-                        {form.service_prices.map((item, index) => <RowShell key={item.id || `service-${item.service_id}-${index}`} title={services.find((service) => service.id === Number(item.service_id))?.name || `Bảng giá ${index + 1}`} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" type="number" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div><div><ReadOnlyField label="Hiệu lực từ" value={formatDateForDisplay(item.effective_from || getTodayIsoDate())} /><p className="mt-2 px-1 text-[11px] font-semibold text-gray-400"></p></div></RowShell>)}
+                        {openCreateForms.service_prices && <QuickPanel actionLabel={isCreatingService ? "Đang tạo" : "Tạo dịch vụ"} disabled={isCreatingService || !quickService.name.trim()} onAction={createQuickService}><div className="grid grid-cols-2 gap-3"><TextField label="Tên dịch vụ" value={quickService.name} onChange={(value) => setQuickService((current) => ({ ...current, name: value }))} /><div><label className={labelClass}>Tính phí</label><AdminSelect value={quickService.charge_method} options={chargeMethodOptions} onChange={(value) => setQuickService((current) => ({ ...current, charge_method: Number(value) }))} /></div></div></QuickPanel>}
+                        {form.service_prices.map((item, index) => {
+                            const service = services.find((s) => s.id === Number(item.service_id));
+                            const isRequired = isRequiredService(service);
+                            return <RowShell key={item.id || `service-${item.service_id}-${index}`} title={service?.name || item.service_name || `Bảng giá ${index + 1}`} disabledRemove={isRequired} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" type="number" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div><div><ReadOnlyField label="Hiệu lực từ" value={formatDateForDisplay(item.effective_from || getTodayIsoDate())} /><p className="mt-2 px-1 text-[11px] font-semibold text-gray-400"></p></div></RowShell>;
+                        })}
                     </ConfigCard>
 
                     <ConfigCard icon={Settings} title="Cài đặt" count={form.settings.length} isOpen={openConfigCards.settings} error={errors.settings} onToggle={() => setOpenConfigCards((current) => ({ ...current, settings: !current.settings }))} onAdd={() => { setOpenConfigCards((current) => ({ ...current, settings: true })); setOpenCreateForms((current) => ({ ...current, settings: !current.settings })); }} addLabel={openCreateForms.settings ? "Đóng" : "Tạo mới"}>
                         <SelectionBlock title="Chọn cài đặt có sẵn" emptyText="Chưa có cài đặt dùng chung.">
                             {settingOptions.map((item) => <CheckboxOption key={item.id} checked={findSettingIndex(item) >= 0} title={item.setting_label} onChange={() => toggleSetting(item)} />)}
                         </SelectionBlock>
-                        {openCreateForms.settings && <QuickPanel actionLabel={isCreatingSetting ? "Đang tạo" : "Tạo cài đặt"} disabled={isCreatingSetting || !quickSetting.setting_label.trim() || !quickSetting.setting_name.trim()} onAction={createQuickSetting}><TextField label="Tên hiển thị" value={quickSetting.setting_label} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_label: value }))} /><TextField label="Khóa" value={quickSetting.setting_name} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_name: value }))} /><TextField label="Giá trị" value={quickSetting.setting_value} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_value: value }))} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={quickSetting.is_public} onChange={(event) => setQuickSetting((current) => ({ ...current, is_public: event.target.checked }))} /> Công khai</label></QuickPanel>}
-                        {form.settings.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-setting-${item.source_id}`} title={item.setting_label} description={`${item.setting_name} `} onRemove={() => removeRow("settings", index)} /> : <RowShell key={item.id || `setting-${index}`} title={item.setting_label || `Cài đặt ${index + 1}`} onRemove={() => removeRow("settings", index)}><TextField label="Tên hiển thị" value={item.setting_label} onChange={(value) => updateRow("settings", index, "setting_label", value)} /><TextField label="Khóa" value={item.setting_name} onChange={(value) => updateRow("settings", index, "setting_name", value)} /><TextField label="Giá trị" value={item.setting_value} onChange={(value) => updateRow("settings", index, "setting_value", value)} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={item.is_public} onChange={(event) => updateRow("settings", index, "is_public", event.target.checked)} /> Công khai</label></RowShell>)}
+                        {openCreateForms.settings && <QuickPanel actionLabel={isCreatingSetting ? "Đang tạo" : "Tạo cài đặt"} disabled={isCreatingSetting || !quickSetting.setting_label.trim()} onAction={createQuickSetting}><TextField label="Tên hiển thị" value={quickSetting.setting_label} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_label: value }))} /><TextField label="Giá trị" value={quickSetting.setting_value} onChange={(value) => setQuickSetting((current) => ({ ...current, setting_value: value }))} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={quickSetting.is_public} onChange={(event) => setQuickSetting((current) => ({ ...current, is_public: event.target.checked }))} /> Công khai</label></QuickPanel>}
+                        {form.settings.map((item, index) => item.source_id && !item.id ? <SelectedTemplateRow key={`source-setting-${item.source_id}`} title={item.setting_label} onRemove={() => removeRow("settings", index)} /> : <RowShell key={item.id || `setting-${index}`} title={item.setting_label || `Cài đặt ${index + 1}`} onRemove={() => removeRow("settings", index)}><TextField label="Tên hiển thị" value={item.setting_label} onChange={(value) => updateRow("settings", index, "setting_label", value)} /><TextField label="Giá trị" value={item.setting_value} onChange={(value) => updateRow("settings", index, "setting_value", value)} /><label className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black text-gray-600"><input type="checkbox" checked={item.is_public} onChange={(event) => updateRow("settings", index, "is_public", event.target.checked)} /> Công khai</label></RowShell>)}
                     </ConfigCard>
                 </aside>
             </div>
+
+            <ImageViewerModal
+                isOpen={!!viewingImageSrc}
+                src={viewingImageSrc}
+                onClose={() => setViewingImageSrc(null)}
+            />
         </div>
     );
 }
@@ -688,43 +626,12 @@ function ConfigCard({ icon: Icon, title, children, onAdd, addLabel, error, count
     return <section className="rounded-4xl border border-gray-100 bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-gray-900"><Icon className="h-4 w-4" /></div><span className="min-w-0"><span className="block truncate font-black text-gray-900">{title}</span><span className="mt-0.5 block text-[11px] font-bold text-gray-400">Đã chọn {count} mục</span></span></button><div className="flex shrink-0 items-center gap-2"><button type="button" onClick={onAdd} className="inline-flex items-center gap-1 rounded-2xl bg-gray-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white"><Plus className="h-3 w-3" /> {addLabel}</button><button type="button" onClick={onToggle} className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-gray-100 bg-gray-50 text-gray-500 transition hover:border-gray-300 hover:bg-white hover:text-gray-900" aria-label={`${isOpen ? "Thu gọn" : "Mở rộng"} ${title}`} aria-expanded={isOpen}><ChevronRight className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`} /></button></div></div><FieldError message={error} />{isOpen && <div className="mt-4 space-y-3">{children}</div>}</section>;
 }
 
-function mergeRoomTypeOptions(catalog: AdminRoomTypeResource[], selectedRows: BuildingRoomTypeFormRow[]) {
-    const selectedOptions = selectedRows
-        .filter((row) => row.id && row.source_id)
-        .map((row) => ({
-            id: row.source_id!,
-            name: row.name,
-            description: row.description,
-            status: row.status,
-            rooms_count: row.rooms_count,
-        } as AdminRoomTypeResource));
-
-    return mergeOptionsById(catalog, selectedOptions);
-}
-
-function mergeAssetTemplateOptions(catalog: AdminAssetTemplateResource[], selectedRows: BuildingAssetTemplateFormRow[]) {
-    const selectedOptions = selectedRows
-        .filter((row) => row.id && row.source_id)
-        .map((row) => ({
-            id: row.source_id!,
-            name: row.name,
-            default_unit_name: row.default_unit_name,
-            description: row.description,
-            status: row.status,
-            room_assets_count: row.room_assets_count,
-        } as AdminAssetTemplateResource));
-
-    return mergeOptionsById(catalog, selectedOptions);
-}
-
 function mergeServiceOptions(catalog: AdminServiceResource[], selectedRows: BuildingServicePriceFormRow[]) {
     const selectedOptions = selectedRows
-        .filter((row) => row.service_id)
+        .filter((row) => row.service_id && row.service_name)
         .map((row) => ({
             id: Number(row.service_id),
-            service_code: "",
-            name: row.service_name || `Dịch vụ #${row.service_id}`,
-            service_type: "khac",
+            name: row.service_name || "",
             charge_method: 5,
             is_required: false,
             is_active: true,
@@ -739,7 +646,6 @@ function mergeSettingOptions(catalog: AdminSettingResource[], selectedRows: Buil
         .map((row) => ({
             id: row.source_id!,
             setting_label: row.setting_label,
-            setting_name: row.setting_name,
             setting_value: row.setting_value,
             description: row.description,
             is_public: row.is_public,
@@ -759,16 +665,16 @@ function SelectionBlock({ title, emptyText, children }: { title: string; emptyTe
     return <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50/70 p-4"><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">{title}</p><div className="max-h-60 space-y-2 overflow-y-auto pr-1">{hasChildren ? children : <p className="text-xs font-bold text-gray-400">{emptyText}</p>}</div></div>;
 }
 
-function CheckboxOption({ checked, title, description, onChange }: { checked: boolean; title: string; description?: string; onChange: () => void }) {
-    return <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 transition ${checked ? "border-gray-900 bg-white shadow-sm" : "border-gray-100 bg-white/70 hover:border-gray-300"}`}><input type="checkbox" checked={checked} onChange={onChange} className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-gray-900">{title}</span>{description && <span className="mt-0.5 block truncate text-[11px] font-semibold text-gray-400">{description}</span>}</span></label>;
+function CheckboxOption({ checked, title, description, disabled, onChange }: { checked: boolean; title: string; description?: string; disabled?: boolean; onChange: () => void }) {
+    return <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 transition ${checked ? "border-gray-900 bg-white shadow-sm" : "border-gray-100 bg-white/70 hover:border-gray-300"} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}><input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-gray-900">{title}</span>{description && <span className="mt-0.5 block truncate text-[11px] font-semibold text-gray-400">{description}</span>}</span></label>;
 }
 
 function QuickPanel({ children, actionLabel, disabled, onAction }: { children: ReactNode; actionLabel: string; disabled: boolean; onAction: () => void }) {
     return <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4"><div className="space-y-3">{children}</div><button type="button" onClick={onAction} disabled={disabled} className="mt-3 w-full rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-blue-700 disabled:opacity-50">{actionLabel}</button></div>;
 }
 
-function SelectedTemplateRow({ title, description, onRemove }: { title: string; description: string; onRemove: () => void }) {
-    return <div className="flex items-center justify-between gap-3 rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4"><div className="min-w-0"><p className="truncate text-xs font-black text-gray-900">{title}</p><p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700">{description}</p></div><button type="button" onClick={onRemove} className="rounded-full p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button></div>;
+function SelectedTemplateRow({ title, description, onRemove }: { title: string; description?: string; onRemove: () => void }) {
+    return <div className="flex items-center justify-between gap-3 rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4"><div className="min-w-0"><p className="truncate text-xs font-black text-gray-900">{title}</p>{description && <p className="mt-0.5 truncate text-[11px] font-semibold text-emerald-700">{description}</p>}</div><button type="button" onClick={onRemove} className="rounded-full p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button></div>;
 }
 
 function RowShell({ title, children, onRemove, disabledRemove = false }: { title: string; children: ReactNode; onRemove: () => void; disabledRemove?: boolean }) {
@@ -783,6 +689,6 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
     return <div><label className={labelClass}>{label}</label><div className={`${inputClass} bg-gray-50 text-gray-500`}>{value}</div></div>;
 }
 
-function ImageCard({ src, isPrimary, onPrimary, onRemove, disabledPrimary = false, primaryLabel = "Chính", removeIcon = "trash" }: { src: string; isPrimary: boolean; onPrimary: () => void; onRemove: () => void; disabledPrimary?: boolean; primaryLabel?: string; removeIcon?: "trash" | "x" }) {
-    return <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white"><img src={src || stayHubImage} alt="Ảnh tòa nhà" onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-32 w-full object-cover" /><button type="button" onClick={onPrimary} disabled={disabledPrimary} className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70 ${isPrimary ? "bg-amber-500" : "bg-black/60"}`}><Star className="mr-1 inline h-3 w-3" /> {primaryLabel}</button><button type="button" onClick={onRemove} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-rose-600">{removeIcon === "x" ? <X className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}</button></div>;
+function ImageCard({ src, isPrimary, disabledPrimary, primaryLabel = "Chính", onPrimary, onRemove, onView, removeIcon = "trash" }: { src: string; isPrimary: boolean; disabledPrimary?: boolean; primaryLabel?: string; onPrimary: () => void; onRemove: () => void; onView?: () => void; removeIcon?: "trash" | "x" }) {
+    return <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white"><img src={src || stayHubImage} alt="Ảnh tòa nhà" onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-32 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity" onClick={onView} /><button type="button" onClick={onPrimary} disabled={disabledPrimary} className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70 ${isPrimary ? "bg-amber-500" : "bg-black/60"}`}><Star className="mr-1 inline h-3 w-3" /> {primaryLabel}</button><button type="button" onClick={onRemove} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-rose-600">{removeIcon === "x" ? <X className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}</button></div>;
 }

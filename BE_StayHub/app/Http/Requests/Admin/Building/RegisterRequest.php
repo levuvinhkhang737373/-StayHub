@@ -43,13 +43,13 @@ class RegisterRequest extends FormRequest
             'image_metadata.*.sort_order' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'image_metadata.*.status' => ['nullable', 'integer', Rule::in(array_keys(BuildingImage::STATUS_LABELS))],
             'room_type_ids' => ['nullable', 'array', 'max:100'],
-            'room_type_ids.*' => ['required', 'integer', 'distinct', Rule::exists('room_types', 'id')->whereNull('building_id')],
+            'room_type_ids.*' => ['required', 'integer', 'distinct', Rule::exists('room_types', 'id')],
             'room_types' => ['nullable', 'array', 'max:100'],
             'room_types.*.name' => ['required_with:room_types', 'string', 'max:150'],
             'room_types.*.description' => ['nullable', 'string'],
             'room_types.*.status' => ['nullable', 'integer', Rule::in(array_keys(RoomType::STATUS_LABELS))],
             'asset_template_ids' => ['nullable', 'array', 'max:100'],
-            'asset_template_ids.*' => ['required', 'integer', 'distinct', Rule::exists('asset_templates', 'id')->whereNull('building_id')],
+            'asset_template_ids.*' => ['required', 'integer', 'distinct', Rule::exists('asset_templates', 'id')],
             'asset_templates' => ['nullable', 'array', 'max:100'],
             'asset_templates.*.name' => ['required_with:asset_templates', 'string', 'max:150'],
             'asset_templates.*.default_unit_name' => ['nullable', 'integer', Rule::in(array_keys(AssetTemplate::UNIT_LABELS))],
@@ -65,7 +65,6 @@ class RegisterRequest extends FormRequest
             'setting_ids.*' => ['required', 'integer', 'distinct', Rule::exists('settings', 'id')->whereNull('building_id')],
             'settings' => ['nullable', 'array', 'max:100'],
             'settings.*.setting_label' => ['required_with:settings', 'string', 'max:150'],
-            'settings.*.setting_name' => ['required_with:settings', 'string', 'max:255', 'regex:/^[A-Za-z0-9_.-]+$/'],
             'settings.*.setting_value' => ['nullable', 'string', 'max:500'],
             'settings.*.description' => ['nullable', 'string', 'max:500'],
             'settings.*.is_public' => ['nullable', 'boolean'],
@@ -79,9 +78,7 @@ class RegisterRequest extends FormRequest
                 $validator->errors()->add("room_types.{$index}.name", 'Tên loại phòng không được trùng trong cùng tòa nhà.');
             }
 
-            foreach ($this->duplicateIndexes('settings', 'setting_name') as $index) {
-                $validator->errors()->add("settings.{$index}.setting_name", 'Khóa cài đặt không được trùng trong cùng tòa nhà.');
-            }
+
 
             foreach ($this->servicePriceRows() as $index => $servicePrice) {
                 if (! is_array($servicePrice)) {
@@ -188,10 +185,6 @@ class RegisterRequest extends FormRequest
             'settings.*.setting_label.required_with' => 'Tên hiển thị cài đặt là bắt buộc.',
             'settings.*.setting_label.string' => 'Tên hiển thị cài đặt phải là chuỗi ký tự.',
             'settings.*.setting_label.max' => 'Tên hiển thị cài đặt không được vượt quá 150 ký tự.',
-            'settings.*.setting_name.required_with' => 'Khóa cài đặt là bắt buộc.',
-            'settings.*.setting_name.string' => 'Khóa cài đặt phải là chuỗi ký tự.',
-            'settings.*.setting_name.max' => 'Khóa cài đặt không được vượt quá 255 ký tự.',
-            'settings.*.setting_name.regex' => 'Khóa cài đặt chỉ được chứa chữ, số, dấu gạch dưới, gạch ngang hoặc dấu chấm.',
             'settings.*.setting_value.string' => 'Giá trị cài đặt phải là chuỗi ký tự.',
             'settings.*.setting_value.max' => 'Giá trị cài đặt không được vượt quá 500 ký tự.',
             'settings.*.description.string' => 'Mô tả cài đặt phải là chuỗi ký tự.',

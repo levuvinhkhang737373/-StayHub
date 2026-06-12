@@ -15,11 +15,8 @@ class ServiceResource extends JsonResource
 
         return [
             'id' => $this->id,
-            'service_code' => $this->service_code,
             'name' => $this->name,
             'slug' => $this->slug,
-            'service_type' => $this->service_type,
-            'service_type_label' => Service::SERVICE_TYPE_LABELS[$this->service_type] ?? null,
             'charge_method' => $this->charge_method,
             'charge_method_label' => Service::CHARGE_METHOD_LABELS[$this->charge_method] ?? null,
             'unit_name' => $this->unit_name,

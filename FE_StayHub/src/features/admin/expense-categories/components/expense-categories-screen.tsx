@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Database, Edit3, Eye, Plus, Power, ReceiptText, RefreshCw, Search, Tags, Trash2, X } from 'lucide-react'
+import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -248,13 +249,8 @@ export function ExpenseCategoriesScreen() {
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-[2rem] bg-[#f7f0e5] text-[#24170d] shadow-inner shadow-white/80">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(61,42,24,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(61,42,24,0.055)_1px,transparent_1px)] bg-[size:34px_34px]" />
-      <div className="pointer-events-none absolute -left-24 top-24 h-72 w-72 rounded-full bg-[#f3c56b]/25 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 -top-28 h-96 w-96 rounded-full bg-[#0f766e]/10 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-20 h-56 w-56 rounded-full bg-[#a65f16]/10 blur-3xl" />
-
-      <div className="relative space-y-5 p-4 sm:space-y-6 sm:p-6">
+    <>
+      <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
           <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
@@ -265,9 +261,7 @@ export function ExpenseCategoriesScreen() {
                 <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
                 </Link>
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#f3c56b]">
-                  <Tags className="h-3.5 w-3.5" /> Expense categories
-                </div>
+
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Danh mục chi phí</h1>
               </div>
               {isSuperAdmin && (
@@ -292,11 +286,7 @@ export function ExpenseCategoriesScreen() {
           </div>
         )}
 
-        {!isSuperAdmin && (
-          <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800 shadow-sm">
-            Bạn đang xem danh mục chi phí ở chế độ chỉ đọc. Chỉ quản trị tổng được thêm, sửa, xóa hoặc đổi trạng thái danh mục.
-          </div>
-        )}
+
 
         <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
@@ -441,7 +431,7 @@ export function ExpenseCategoriesScreen() {
             </aside>
           )}
         </div>
-      </div>
+      </section>
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="expense-category-detail-title">
@@ -483,7 +473,7 @@ export function ExpenseCategoriesScreen() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -515,16 +505,4 @@ function DetailTile({ label, value }: { label: string; value: string | number })
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return '—'
-
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }

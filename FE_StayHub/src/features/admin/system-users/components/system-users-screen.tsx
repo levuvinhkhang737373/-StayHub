@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Building2, ChevronLeft, ChevronRight, Edit3, Eye, LockKeyhole, Mail, Phone, Plus, Power, RefreshCw, Search, ShieldCheck, Trash2, UserCog, X } from 'lucide-react'
+import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { ApiError, type ApiValidationErrors } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
@@ -52,6 +54,7 @@ const defaultForm: AdminAccountFormValues = {
   role: ROLE_BUILDING_MANAGER,
   status: STATUS_ACTIVE,
   gender: null,
+  date_of_birth: '',
   address: '',
   avatar_url: '',
 }
@@ -86,7 +89,7 @@ const perPageOptions = [
   { value: 50, label: '50 dòng', tone: 'default' as const },
 ]
 
-const formErrorKeys: Array<keyof AdminAccountFormValues> = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'status', 'gender', 'address', 'avatar_url']
+const formErrorKeys: Array<keyof AdminAccountFormValues> = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'status', 'gender', 'date_of_birth', 'address', 'avatar_url']
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
@@ -155,6 +158,7 @@ export function SystemUsersScreen() {
   }, [loadAccounts])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1)
   }, [keyword, selectedRole, selectedStatus, perPage])
 
@@ -223,6 +227,7 @@ export function SystemUsersScreen() {
       role: Number(account.role || ROLE_BUILDING_MANAGER),
       status: Number(account.status || STATUS_ACTIVE),
       gender: account.gender ? Number(account.gender) : null,
+      date_of_birth: account.date_of_birth || '',
       address: account.address || '',
       avatar_url: account.avatar_url || '',
     })
@@ -289,6 +294,7 @@ export function SystemUsersScreen() {
         phone: form.phone.trim(),
         role: Number(form.role),
         gender: form.gender === null ? undefined : Number(form.gender),
+        date_of_birth: form.date_of_birth || null,
         address: form.address.trim() || null,
         avatar_url: form.avatar_url.trim() || null,
       }
@@ -381,13 +387,8 @@ export function SystemUsersScreen() {
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-[2rem] bg-[#f7f0e5] text-[#24170d] shadow-inner shadow-white/80">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(61,42,24,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(61,42,24,0.055)_1px,transparent_1px)] bg-[size:34px_34px]" />
-      <div className="pointer-events-none absolute -left-24 top-24 h-72 w-72 rounded-full bg-[#f3c56b]/25 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 -top-28 h-96 w-96 rounded-full bg-[#0f766e]/10 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-20 h-56 w-56 rounded-full bg-[#a65f16]/10 blur-3xl" />
-
-      <div className="relative space-y-5 p-4 sm:space-y-6 sm:p-6">
+    <>
+      <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
           <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
@@ -398,9 +399,7 @@ export function SystemUsersScreen() {
                 <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
                 </Link>
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#f3c56b]">
-                  <ShieldCheck className="h-3.5 w-3.5" /> Admin accounts
-                </div>
+                
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý tài khoản admin</h1>
               </div>
               {isSuperAdmin && (
@@ -518,7 +517,7 @@ export function SystemUsersScreen() {
                             {isSuperAdmin && (
                               <>
                                 <button type="button" onClick={() => editAccount(account)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa" aria-label={`Chỉnh sửa tài khoản ${account.username}`}><Edit3 className="h-5 w-5" /></button>
-                                <button type="button" disabled={statusChangingId === account.id || isSelf} onClick={() => void toggleAccountStatus(account)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45', active ? 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100')} title={active ? 'Ngừng hoạt động' : 'Kích hoạt'} aria-label={`${active ? 'Ngừng hoạt động' : 'Kích hoạt'} tài khoản ${account.username}`}><Power className="h-5 w-5" /></button>
+                                <button type="button" disabled={statusChangingId === account.id || isSelf} onClick={() => void toggleAccountStatus(account)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45', active ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100')} title={active ? 'Ngừng hoạt động' : 'Kích hoạt'} aria-label={`${active ? 'Ngừng hoạt động' : 'Kích hoạt'} tài khoản ${account.username}`}><Power className="h-5 w-5" /></button>
                                 <button type="button" disabled={deletingId === account.id || isSelf} onClick={() => void removeAccount(account)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title="Xóa" aria-label={`Xóa tài khoản ${account.username}`}><Trash2 className="h-5 w-5" /></button>
                               </>
                             )}
@@ -643,6 +642,11 @@ export function SystemUsersScreen() {
                   <FieldError message={errors.gender} />
                 </div>
                 <div>
+                  <label className={labelClass}>Ngày sinh</label>
+                  <AdminDateInput value={form.date_of_birth} onChange={(val) => updateForm('date_of_birth', val)} placeholder="dd/mm/yyyy" className={`${inputClass} ${errors.date_of_birth ? inputErrorClass : ''}`} maxDate={new Date()} />
+                  <FieldError message={errors.date_of_birth} />
+                </div>
+                <div>
                   <label className={labelClass}>Địa chỉ</label>
                   <textarea className={`${inputClass} min-h-24 resize-none ${errors.address ? inputErrorClass : ''}`} value={form.address} onChange={(event) => updateForm('address', event.target.value)} placeholder="Nhập địa chỉ liên hệ" />
                   <FieldError message={errors.address} />
@@ -658,7 +662,7 @@ export function SystemUsersScreen() {
             </aside>
           )}
         </div>
-      </div>
+      </section>
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="admin-account-detail-title">
@@ -702,14 +706,10 @@ export function SystemUsersScreen() {
                   <DetailTile label="Email" value={detailAccount?.email || '—'} />
                   <DetailTile label="Số điện thoại" value={detailAccount?.phone || '—'} />
                   <DetailTile label="Giới tính" value={detailAccount?.gender_label || '—'} />
+                  <DetailTile label="Ngày sinh" value={detailAccount?.date_of_birth ? formatDateTime(detailAccount.date_of_birth).split(' ')[0] : '—'} />
                   <DetailTile label="Địa Chỉ" value={detailAccount?.address || '—'} />
                 </div>
               </section>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <DetailTile label="Dịch vụ đã tạo" value={detailAccount?.created_services_count ?? 0} />
-                <DetailTile label="Mẫu tài sản đã tạo" value={detailAccount?.created_asset_templates_count ?? 0} />
-              </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <DetailTile label="Ngày tạo" value={formatDateTime(detailAccount?.created_at)} />
@@ -719,7 +719,7 @@ export function SystemUsersScreen() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -846,16 +846,4 @@ function getRoleBadgeClass(role?: string | number | null) {
   if (Number(role) === ROLE_SUPER_ADMIN) return 'border-[#f3c56b]/35 bg-[#f3c56b]/18 text-[#8a4f18]'
   if (Number(role) === ROLE_TECHNICIAN) return 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]'
   return 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]'
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return '—'
-
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }

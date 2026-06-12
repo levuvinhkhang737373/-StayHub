@@ -6,9 +6,11 @@ import { AssetTemplatesScreen } from '../features/admin/asset-templates/componen
 import { CreateBuildingScreen } from '../features/admin/facilities/components/create-building-screen'
 import { RoomTypesScreen } from '../features/admin/room-types/components/room-types-screen'
 import { ExpenseCategoriesScreen } from '../features/admin/expense-categories/components/expense-categories-screen'
+import { MetersScreen } from '../features/admin/meters/components/meters-screen'
 import { ServicesScreen } from '../features/admin/services/components/services-screen'
 import { SettingsScreen } from '../features/admin/settings/components/settings-screen'
 import { SystemUsersScreen } from '../features/admin/system-users'
+import { TenantsScreen } from '../features/admin/tenants'
 import { CreateRegionScreen } from '../features/admin/facilities/components/create-region-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
@@ -16,6 +18,9 @@ import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteG
 import { AdminLayout } from '../layouts/admin/AdminLayout'
 import {Rooms} from '../features/admin/rooms/components/rooms'
 import { Create } from '../features/admin/rooms/components/create'
+import { MaintenanceScreen } from '../features/admin/maintenance'
+import { NotificationsScreen } from '../features/admin/notifications'
+import { Update } from '../features/admin/rooms/components/Update'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -56,11 +61,11 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'asset-templates',
-        element: <AssetTemplatesScreen />,
+        element: <AdminRouteGuard access="superadmin"><AssetTemplatesScreen /></AdminRouteGuard>,
       },
       {
         path: 'room-types',
-        element: <RoomTypesScreen />,
+        element: <AdminRouteGuard access="superadmin"><RoomTypesScreen /></AdminRouteGuard>,
       },
       {
         path: 'rooms',
@@ -71,8 +76,12 @@ export const adminRoutes: RouteObject[] = [
         element: <AdminRouteGuard access='all'><Create/></AdminRouteGuard> ,
       },
       {
+            path: 'rooms/update/:id',
+        element: <AdminRouteGuard access='all'><Update/></AdminRouteGuard> ,
+      },
+      {
         path: 'tenants',
-        element: <AdminPlaceholderScreen title="Khách thuê" description="Quản lý hồ sơ khách thuê, thông tin liên hệ và trạng thái lưu trú." />,
+        element: <TenantsScreen />,
       },
       {
         path: 'contracts',
@@ -80,7 +89,7 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'services',
-        element: <ServicesScreen />,
+        element: <AdminRouteGuard access="superadmin"><ServicesScreen /></AdminRouteGuard>,
       },
       {
         path: 'expense-categories',
@@ -88,7 +97,11 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'meters',
-        element: <AdminPlaceholderScreen title="Chốt điện nước" description="Ghi nhận chỉ số điện nước định kỳ và đối soát dữ liệu tiêu thụ." />,
+        element: <MetersScreen />,
+      },
+      {
+        path: 'meter-readings',
+        element: <AdminPlaceholderScreen title="Chốt điện nước" description="Chốt chỉ số điện nước, tính toán hóa đơn và quản lý chu kỳ thanh toán." />,
       },
       {
         path: 'invoices',
@@ -108,11 +121,11 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'maintenance',
-        element: <AdminPlaceholderScreen title="Bảo trì" description="Tiếp nhận, phân công và theo dõi tiến độ xử lý yêu cầu bảo trì." />,
+        element: <MaintenanceScreen />,
       },
       {
         path: 'notifications',
-        element: <AdminPlaceholderScreen title="Thông báo" description="Tạo và quản lý thông báo gửi tới khách thuê hoặc nhân sự vận hành." />,
+        element: <NotificationsScreen />,
       },
       {
         path: 'system-users',

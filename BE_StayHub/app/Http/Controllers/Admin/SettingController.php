@@ -39,6 +39,7 @@ class SettingController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách cài đặt tòa nhà', 200, SettingResource::collection($settings), 200);
         } catch (\Exception $e) {
+            logger()->error('SettingController index error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -56,10 +57,6 @@ class SettingController extends Controller
 
             if (! $this->canMutateSettingForBuilding($admin, $validated['building_id'] ?? null)) {
                 return ApiResponse::responseJson(false, 'Bạn không có quyền tạo cài đặt cho tòa nhà này', 403, null, 403);
-            }
-
-            if ($this->settingNameExists($validated['setting_name'], $validated['building_id'] ?? null)) {
-                return ApiResponse::responseJson(false, 'Khóa cài đặt đã tồn tại trong phạm vi tòa nhà này', 422, null, 422);
             }
 
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
@@ -128,13 +125,6 @@ class SettingController extends Controller
                     return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật cài đặt này', 403, null, 403);
                 }
 
-                $targetBuildingId = array_key_exists('building_id', $validated) ? $validated['building_id'] : $settingModel->building_id;
-                $targetName = $validated['setting_name'] ?? $settingModel->setting_name;
-
-                if ($this->settingNameExists($targetName, $targetBuildingId, $settingModel->id)) {
-                    return ApiResponse::responseJson(false, 'Khóa cài đặt đã tồn tại trong phạm vi tòa nhà này', 422, null, 422);
-                }
-
                 $oldData = $settingModel->toArray();
                 $settingModel->fill($this->payload($validated, null, true))->save();
 
@@ -147,6 +137,44 @@ class SettingController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
+    public function togglePublic(Request $request, int $setting): JsonResponse
+    {
+        try {
+            $admin = $request->user('admin');
+
+            if (! $admin || ! $this->canViewSettings($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật cài đặt tòa nhà', 403, null, 403);
+            }
+
+            $response = DB::transaction(function () use ($setting, $admin, $request): JsonResponse {
+                $settingModel = $this->findAccessibleSetting($admin, $setting, true);
+
+                if (! $settingModel) {
+                    return ApiResponse::responseJson(false, 'Không tìm thấy cài đặt', 404, null, 404);
+                }
+
+                if (! $this->canMutateSettingForBuilding($admin, $settingModel->building_id)) {
+                    return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật cài đặt này', 403, null, 403);
+                }
+
+                $oldData = $settingModel->toArray();
+                $settingModel->is_public = !$settingModel->is_public;
+                $settingModel->save();
+
+                AdminActivityLogger::write($admin, 'update_setting_public', Setting::class, $settingModel->id, $oldData, $settingModel->fresh()->toArray(), $request);
+
+                $settingModel->load($this->detailRelations());
+
+                return ApiResponse::responseJson(true, 'Cập nhật trạng thái hiển thị thành công', 200, new SettingDetailResource($settingModel), 200);
+            });
+
+            return $response;
+        } catch (\Exception $e) {
+            logger()->error('SettingController togglePublic error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -188,7 +216,7 @@ class SettingController extends Controller
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public'];
+        $fields = ['building_id', 'setting_label', 'setting_value', 'description', 'is_public'];
 
         foreach ($fields as $field) {
             if (array_key_exists($field, $validated)) {
@@ -206,7 +234,7 @@ class SettingController extends Controller
 
     private function columns(): array
     {
-        return ['id', 'building_id', 'setting_label', 'setting_name', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'building_id', 'setting_label', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at'];
     }
 
     private function listRelations(): array
@@ -228,7 +256,6 @@ class SettingController extends Controller
             ->with($this->listRelations())
             ->when($keyword !== '', fn (Builder $query): Builder => $query->where(function (Builder $keywordQuery) use ($keyword): void {
                 $keywordQuery->where('setting_label', 'like', "%{$keyword}%")
-                    ->orWhere('setting_name', 'like', "%{$keyword}%")
                     ->orWhere('setting_value', 'like', "%{$keyword}%")
                     ->orWhere('description', 'like', "%{$keyword}%");
             }))
@@ -283,16 +310,5 @@ class SettingController extends Controller
         return AdminScope::ensureBuildingAccess($admin, (int) $buildingId);
     }
 
-    private function settingNameExists(string $settingName, mixed $buildingId, ?int $ignoreId = null): bool
-    {
-        return Setting::query()
-            ->where('setting_name', $settingName)
-            ->when(
-                empty($buildingId),
-                fn (Builder $query): Builder => $query->whereNull('building_id'),
-                fn (Builder $query): Builder => $query->where('building_id', $buildingId)
-            )
-            ->when($ignoreId !== null, fn (Builder $query): Builder => $query->whereKeyNot($ignoreId))
-            ->exists();
-    }
+
 }

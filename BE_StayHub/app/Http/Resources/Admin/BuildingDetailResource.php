@@ -38,6 +38,7 @@ class BuildingDetailResource extends JsonResource
             'primary_image' => new BuildingImageResource($this->whenLoaded('primaryImage')),
             'images' => BuildingImageResource::collection($this->whenLoaded('images')),
             'room_types' => RoomTypeResource::collection($this->whenLoaded('roomTypes')),
+            'rooms' => RoomResource::collection($this->whenLoaded('rooms')),
             'asset_templates' => AssetTemplateResource::collection($this->whenLoaded('assetTemplates')),
             'service_prices' => ServicePriceResource::collection($this->whenLoaded('servicePrices')),
             'settings' => SettingResource::collection($this->whenLoaded('settings')),

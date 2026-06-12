@@ -11,11 +11,8 @@ export interface AdminServicePriceResource {
 
 export interface AdminServiceResource {
   id: number
-  service_code: string
   name: string
   slug?: string | null
-  service_type: string
-  service_type_label?: string | null
   charge_method: number
   charge_method_label?: string | null
   unit_name?: string | null
@@ -38,9 +35,7 @@ export interface AdminServiceResource {
 }
 
 export interface AdminServicePayload {
-  service_code: string
   name: string
-  service_type: string
   charge_method: number
   unit_name?: string
   is_required?: boolean

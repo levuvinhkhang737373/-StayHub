@@ -20,7 +20,7 @@ class MaintenanceRequest extends Model
 
     public const STATUS_LABELS = [
         self::STATUS_CREATED => 'Mới tạo',
-        self::STATUS_RECEIVED => 'Đã tiếp nhận',
+        // self::STATUS_RECEIVED => 'Đã tiếp nhận',
         self::STATUS_PROCESSING => 'Đang xử lý',
         self::STATUS_COMPLETED => 'Đã hoàn thành',
         self::STATUS_CANCELLED => 'Đã hủy',

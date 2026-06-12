@@ -74,40 +74,7 @@ export interface AdminBuildingImageMetadata {
   status?: number
 }
 
-export interface AdminBuildingRoomTypeResource {
-  id: number
-  name: string
-  slug?: string | null
-  building_id?: number | null
-  building_name?: string | null
-  description?: string | null
-  status: number
-  status_label?: string | null
-  is_active?: boolean
-  created_by?: number | null
-  creator_name?: string | null
-  rooms_count?: number
-  created_at?: string | null
-  updated_at?: string | null
-}
 
-export interface AdminBuildingAssetTemplateResource {
-  id: number
-  building_id?: number | null
-  building_name?: string | null
-  name: string
-  slug?: string | null
-  default_unit_name?: number | null
-  default_unit_label?: string | null
-  description?: string | null
-  status: number
-  status_label?: string | null
-  created_by?: number | null
-  creator_name?: string | null
-  room_assets_count?: number
-  created_at?: string | null
-  updated_at?: string | null
-}
 
 export interface AdminBuildingServicePriceResource {
   id: number
@@ -130,7 +97,6 @@ export interface AdminBuildingSettingResource {
   building_id?: number | null
   building_name?: string | null
   setting_label: string
-  setting_name: string
   setting_value?: string | null
   description?: string | null
   is_public: boolean
@@ -141,20 +107,7 @@ export interface AdminBuildingSettingResource {
   updated_at?: string | null
 }
 
-export interface AdminBuildingRoomTypePayload {
-  id?: number
-  name: string
-  description?: string
-  status?: number
-}
 
-export interface AdminBuildingAssetTemplatePayload {
-  id?: number
-  name: string
-  default_unit_name?: number
-  description?: string
-  status?: number
-}
 
 export interface AdminBuildingServicePricePayload {
   id?: number
@@ -168,7 +121,6 @@ export interface AdminBuildingServicePricePayload {
 export interface AdminBuildingSettingPayload {
   id?: number
   setting_label: string
-  setting_name: string
   setting_value?: string
   description?: string
   is_public?: boolean
@@ -187,12 +139,7 @@ export interface AdminBuildingPayload {
   image_metadata?: AdminBuildingImageMetadata[]
   delete_image_ids?: number[]
   primary_image_id?: number
-  room_type_ids?: number[]
-  room_types?: AdminBuildingRoomTypePayload[]
-  delete_room_type_ids?: number[]
-  asset_template_ids?: number[]
-  asset_templates?: AdminBuildingAssetTemplatePayload[]
-  delete_asset_template_ids?: number[]
+
   service_prices?: AdminBuildingServicePricePayload[]
   delete_service_price_ids?: number[]
   setting_ids?: number[]
@@ -227,18 +174,23 @@ export interface AdminBuildingResource {
   creator_name?: string | null
   primary_image?: AdminBuildingImageResource | null
   images?: AdminBuildingImageResource[]
-  room_types?: AdminBuildingRoomTypeResource[]
-  asset_templates?: AdminBuildingAssetTemplateResource[]
+
   service_prices?: AdminBuildingServicePriceResource[]
   settings?: AdminBuildingSettingResource[]
+  rooms?: Array<{
+    id: number
+    building_id: number
+    room_number: string
+    status: number
+  }>
   images_count?: number
   rooms_count?: number
-  room_types_count?: number
+
   service_prices_count?: number
   settings_count?: number
   notifications_count?: number
   expenses_count?: number
-  asset_templates_count?: number
+
   created_at?: string | null
   updated_at?: string | null
 }

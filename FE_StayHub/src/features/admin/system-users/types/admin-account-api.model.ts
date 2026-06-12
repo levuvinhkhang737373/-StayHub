@@ -35,6 +35,7 @@ export interface AdminAccountResource {
   status_label?: string | null
   gender?: number | null
   gender_label?: string | null
+  date_of_birth?: string | null
   address?: string | null
   has_faceid: boolean
   image_path_faceid?: string | null
@@ -47,8 +48,6 @@ export interface AdminAccountResource {
   created_buildings_count?: number
   created_room_types_count?: number
   created_rooms_count?: number
-  created_asset_templates_count?: number
-  created_services_count?: number
   settings_count?: number
   logs_count?: number
   created_at?: string | null
@@ -72,6 +71,7 @@ export interface AdminAccountPayload {
   role: number
   status?: number
   gender?: number | null
+  date_of_birth?: string | null
   address?: string | null
   avatar_url?: string | null
 }

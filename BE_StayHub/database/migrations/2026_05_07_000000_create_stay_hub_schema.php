@@ -202,15 +202,15 @@ return new class extends Migration
 
         Schema::create('asset_templates', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('building_id')->nullable()->constrained('buildings')->nullOnDelete();
             $table->string('name', 150);
             $table->string('slug')->nullable();
-            $table->foreignId('building_id')->nullable()->constrained('buildings')->nullOnDelete();
             $table->unsignedTinyInteger('default_unit_name')->nullable()->default(1);
             $table->text('description')->nullable();
             $table->unsignedTinyInteger('status')->default(1);
             $table->foreignId('created_by')->nullable()->constrained('admins')->nullOnDelete();
             $table->timestamps();
-            $table->index(['building_id', 'status']);
+            $table->index('status');
         });
 
         Schema::create('room_assets', function (Blueprint $table) {
@@ -226,10 +226,8 @@ return new class extends Migration
 
         Schema::create('services', function (Blueprint $table) {
             $table->id();
-            $table->string('service_code', 50)->unique();
             $table->string('name');
             $table->string('slug')->nullable()->unique();
-            $table->string('service_type');
             $table->unsignedTinyInteger('charge_method')->default(1);
             $table->string('unit_name', 50)->nullable();
             $table->boolean('is_required')->default(false);
@@ -307,7 +305,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
             $table->unsignedTinyInteger('vehicle_type')->default(1);
-            $table->string('license_plate', 30)->nullable()->unique();
+            $table->string('license_plate', 30)->unique();
             $table->string('brand', 100)->nullable();
             $table->string('color', 50)->nullable();
             $table->boolean('is_active')->default(true);
@@ -345,7 +343,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('room_id')->constrained('rooms')->restrictOnDelete();
             $table->foreignId('service_id')->constrained('services')->restrictOnDelete();
-            $table->string('meter_code', 100)->nullable()->unique();
             $table->unsignedTinyInteger('meter_type')->default(1);
             $table->decimal('initial_reading', 12, 2);
             $table->date('installed_at')->nullable();
@@ -517,7 +514,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('building_id')->nullable()->constrained('buildings')->cascadeOnDelete();
             $table->string('setting_label', 150);
-            $table->string('setting_name')->nullable();
             $table->string('setting_value', 500)->nullable();
             $table->string('description', 500)->nullable();
             $table->boolean('is_public')->default(true);

@@ -38,8 +38,6 @@ export function createDefaultBuildingForm(): BuildingFormValues {
         gender_policy: 1,
         description: "",
         total_floors: 1,
-        room_types: [],
-        asset_templates: [],
         service_prices: [],
         settings: [],
     };
@@ -64,23 +62,7 @@ export function mapBuildingDetailToForm(
         gender_policy: Number(building?.gender_policy || currentForm.gender_policy),
         description: building?.description || currentForm.description,
         total_floors: building?.total_floors || currentForm.total_floors,
-        room_types: (building?.room_types || []).map((item) => ({
-            id: item.id,
-            source_id: item.id,
-            name: item.name || "",
-            description: item.description || "",
-            status: Number(item.status || 1),
-            rooms_count: item.rooms_count || 0,
-        })),
-        asset_templates: (building?.asset_templates || []).map((item) => ({
-            id: item.id,
-            source_id: item.id,
-            name: item.name || "",
-            default_unit_name: Number(item.default_unit_name || 1),
-            description: item.description || "",
-            status: Number(item.status || 1),
-            room_assets_count: item.room_assets_count || 0,
-        })),
+
         service_prices: (building?.service_prices || []).filter(isCurrentActiveServicePrice).map((item) => ({
             id: item.id,
             service_id: String(item.service_id || ""),
@@ -94,7 +76,6 @@ export function mapBuildingDetailToForm(
             id: item.id,
             source_id: item.id,
             setting_label: item.setting_label || "",
-            setting_name: item.setting_name || "",
             setting_value: item.setting_value || "",
             description: item.description || "",
             is_public: Boolean(item.is_public),
@@ -109,8 +90,7 @@ export function buildBuildingPayload({
     deleteImageIds,
     primaryImageId,
     primaryNewImageIndex,
-    deleteRoomTypeIds,
-    deleteAssetTemplateIds,
+
     deleteServicePriceIds,
     deleteSettingIds,
 }: {
@@ -120,8 +100,6 @@ export function buildBuildingPayload({
     deleteImageIds: number[];
     primaryImageId: number | null;
     primaryNewImageIndex: number | null;
-    deleteRoomTypeIds: number[];
-    deleteAssetTemplateIds: number[];
     deleteServicePriceIds: number[];
     deleteSettingIds: number[];
 }): AdminBuildingPayload {
@@ -140,23 +118,7 @@ export function buildBuildingPayload({
         image_metadata: imageFiles.map((_, index) => ({ is_primary: fallbackNewPrimary === index, sort_order: visibleExistingImages.length + index, status: 1 })),
         delete_image_ids: deleteImageIds,
         primary_image_id: primaryImageId || undefined,
-        room_type_ids: form.room_types.filter((item) => item.source_id && !item.id).map((item) => item.source_id!),
-        room_types: form.room_types.filter((item) => !item.source_id || item.id).map((item) => ({
-            id: item.id,
-            name: item.name.trim(),
-            description: item.description.trim() || undefined,
-            status: Number(item.status),
-        })),
-        delete_room_type_ids: deleteRoomTypeIds,
-        asset_template_ids: form.asset_templates.filter((item) => item.source_id && !item.id).map((item) => item.source_id!),
-        asset_templates: form.asset_templates.filter((item) => !item.source_id || item.id).map((item) => ({
-            id: item.id,
-            name: item.name.trim(),
-            default_unit_name: Number(item.default_unit_name),
-            description: item.description.trim() || undefined,
-            status: Number(item.status),
-        })),
-        delete_asset_template_ids: deleteAssetTemplateIds,
+
         service_prices: form.service_prices.map((item) => ({
             id: item.id,
             service_id: Number(item.service_id),
@@ -170,7 +132,6 @@ export function buildBuildingPayload({
         settings: form.settings.filter((item) => !item.source_id || item.id).map((item) => ({
             id: item.id,
             setting_label: item.setting_label.trim(),
-            setting_name: item.setting_name.trim(),
             setting_value: item.setting_value.trim() || undefined,
             description: item.description.trim() || undefined,
             is_public: item.is_public,

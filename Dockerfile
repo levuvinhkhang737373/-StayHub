@@ -2,7 +2,7 @@
 FROM php:8.3-cli
 
 # 2. Khai báo biến user để đồng bộ với máy Host
-ARG user=khang
+ARG user=martyr
 ARG uid=1000
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
@@ -67,7 +67,9 @@ RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-s
 
 # 10. Copy source backend để image vẫn tự chạy được khi không bind mount
 COPY ./BE_StayHub ./
-RUN chown -R ${user}:${user} /var/www/html/BE_StayHub
+RUN mkdir -p /opt/stayhub-backend \
+    && cp -a /var/www/html/BE_StayHub/. /opt/stayhub-backend/ \
+    && chown -R ${user}:${user} /var/www/html/BE_StayHub /opt/stayhub-backend
 
 # 11. Chuẩn bị Supervisor và startup script để quản lý Octane + queue worker
 RUN mkdir -p /var/log/supervisor

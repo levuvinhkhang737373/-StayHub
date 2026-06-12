@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import type { AdminNavItem } from '../config/admin-navigation'
 import { getActiveAdminNavItem } from '../config/admin-navigation'
+import { useAdminNotifications } from '../../notifications/hooks/admin-notification-context'
 
 interface AdminNavListProps {
   items: AdminNavItem[]
@@ -13,6 +14,7 @@ interface AdminNavListProps {
 
 export const AdminNavList = memo(function AdminNavList({ items, variant, onNavigate }: AdminNavListProps) {
   const location = useLocation()
+  useAdminNotifications()
   const activeItem = useMemo(() => getActiveAdminNavItem(location.pathname, items), [items, location.pathname])
   const groupedItems = useMemo(() => {
     return items.reduce<Record<string, AdminNavItem[]>>((acc, item) => {
@@ -38,6 +40,7 @@ export const AdminNavList = memo(function AdminNavList({ items, variant, onNavig
                 <>
                   <Icon className={cn('h-4 w-4 shrink-0 transition-colors duration-200', isActive ? 'text-[#f3c56b] stroke-[2.8]' : item.disabled ? 'text-[#8b5e34]/45' : 'text-[#8b5e34]/70 group-hover:text-[#24170d]')} />
                   <span className={cn('min-w-0 flex-1 tracking-tight', variant === 'drawer' ? 'truncate' : 'whitespace-nowrap text-[13px]', isActive && 'font-black text-[#fff4df]')}>{item.label}</span>
+                  {/* Notification count badge removed per request */}
                   {item.readOnlyForAdmin && variant === 'drawer' ? <span className="ml-auto rounded-full bg-[#0f766e]/10 px-2 py-0.5 text-[10px] font-black text-[#0f5f59]">Xem</span> : null}
                   {isActive && variant === 'sidebar' ? <motion.div layoutId="active-nav" className="absolute right-3 h-1.5 w-1.5 rounded-full bg-[#0f766e] ring-2 ring-[#f3c56b]/35" /> : null}
                 </>

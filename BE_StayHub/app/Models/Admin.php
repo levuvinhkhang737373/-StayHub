@@ -39,7 +39,7 @@ class Admin extends Authenticatable
         self::GENDER_FEMALE => 'Nữ',
     ];
 
-    protected $fillable = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'avatar_url', 'image_path_faceid', 'created_faceid_at', 'updated_faceid_at', 'status', 'gender', 'address'];
+    protected $fillable = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'avatar_url', 'image_path_faceid', 'created_faceid_at', 'updated_faceid_at', 'status', 'gender', 'date_of_birth', 'address'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -52,6 +52,7 @@ class Admin extends Authenticatable
             'gender' => 'integer',
             'created_faceid_at' => 'datetime',
             'updated_faceid_at' => 'datetime',
+            'date_of_birth' => 'date',
         ];
     }
 

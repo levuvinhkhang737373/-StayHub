@@ -16,10 +16,10 @@ function buildQuery(params: Record<string, string | number | boolean | null | un
 export async function fetchAdminServices(
   params: {
     keyword?: string
-    service_type?: string
     charge_method?: number
     is_required?: boolean
     is_active?: boolean
+    created_by_role?: number
     per_page?: number
   } = {},
 ) {

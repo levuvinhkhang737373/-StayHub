@@ -19,7 +19,6 @@ class RegisterRequest extends FormRequest
         return [
             'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
             'setting_label' => ['required', 'string', 'max:150'],
-            'setting_name' => ['required', 'string', 'max:255', 'regex:/^[A-Za-z0-9_.-]+$/'],
             'setting_value' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string', 'max:500'],
             'is_public' => ['nullable', 'boolean'],
@@ -34,10 +33,6 @@ class RegisterRequest extends FormRequest
             'setting_label.required' => 'Tên hiển thị cài đặt là bắt buộc.',
             'setting_label.string' => 'Tên hiển thị cài đặt phải là chuỗi ký tự.',
             'setting_label.max' => 'Tên hiển thị cài đặt không được vượt quá 150 ký tự.',
-            'setting_name.required' => 'Khóa cài đặt là bắt buộc.',
-            'setting_name.string' => 'Khóa cài đặt phải là chuỗi ký tự.',
-            'setting_name.max' => 'Khóa cài đặt không được vượt quá 255 ký tự.',
-            'setting_name.regex' => 'Khóa cài đặt chỉ được chứa chữ, số, dấu gạch dưới, gạch ngang hoặc dấu chấm.',
             'setting_value.string' => 'Giá trị cài đặt phải là chuỗi ký tự.',
             'setting_value.max' => 'Giá trị cài đặt không được vượt quá 500 ký tự.',
             'description.string' => 'Mô tả cài đặt phải là chuỗi ký tự.',

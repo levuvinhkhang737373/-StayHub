@@ -28,12 +28,8 @@ class RoomTypeController extends Controller
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseRoomTypes($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xem loại phòng', 403, null, 403);
-            }
-
-            if (isset($validated['building_id']) && ! AdminScope::ensureBuildingAccess($admin, (int) $validated['building_id'])) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xem loại phòng của tòa nhà này', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền xem loại phòng', 403, null, 403);
             }
 
             $roomTypes = $this->queryRoomTypes($validated, $admin)->paginate($validated['per_page'] ?? 20);
@@ -51,16 +47,12 @@ class RoomTypeController extends Controller
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseRoomTypes($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền tạo loại phòng', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới được tạo loại phòng', 403, null, 403);
             }
 
-            if (! $this->canWriteRoomTypeForBuilding($admin, $validated['building_id'] ?? null)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền tạo loại phòng cho tòa nhà này', 403, null, 403);
-            }
-
-            if ($this->roomTypeNameExists($validated['name'], $validated['building_id'] ?? null)) {
-                return ApiResponse::responseJson(false, 'Tên loại phòng đã tồn tại trong phạm vi tòa nhà này', 422, null, 422);
+            if ($this->roomTypeNameExists($validated['name'])) {
+                return ApiResponse::responseJson(false, 'Tên loại phòng đã tồn tại', 422, null, 422);
             }
 
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
@@ -84,11 +76,11 @@ class RoomTypeController extends Controller
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseRoomTypes($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xem loại phòng', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền xem loại phòng', 403, null, 403);
             }
 
-            $roomTypeModel = $this->accessibleQuery($admin)
+            $roomTypeModel = RoomType::query()
                 ->select($this->columns())
                 ->with($this->detailRelations())
                 ->withCount($this->counts())
@@ -111,30 +103,21 @@ class RoomTypeController extends Controller
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseRoomTypes($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật loại phòng', 403, null, 403);
-            }
-
-            if (array_key_exists('building_id', $validated) && ! $this->canWriteRoomTypeForBuilding($admin, $validated['building_id'])) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền chuyển loại phòng sang tòa nhà này', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền cập nhật loại phòng', 403, null, 403);
             }
 
             $response = DB::transaction(function () use ($validated, $roomType, $admin, $request): JsonResponse {
-                $roomTypeModel = $this->accessibleQuery($admin)->lockForUpdate()->find($roomType);
+                $roomTypeModel = RoomType::query()->lockForUpdate()->find($roomType);
 
                 if (! $roomTypeModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy loại phòng', 404, null, 404);
                 }
 
-                if (! $this->canWriteRoomTypeForBuilding($admin, $roomTypeModel->building_id)) {
-                    return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật loại phòng này', 403, null, 403);
-                }
-
-                $targetBuildingId = array_key_exists('building_id', $validated) ? $validated['building_id'] : $roomTypeModel->building_id;
                 $targetName = $validated['name'] ?? $roomTypeModel->name;
 
-                if ($this->roomTypeNameExists($targetName, $targetBuildingId, $roomTypeModel->id)) {
-                    return ApiResponse::responseJson(false, 'Tên loại phòng đã tồn tại trong phạm vi tòa nhà này', 422, null, 422);
+                if ($this->roomTypeNameExists($targetName, $roomTypeModel->id)) {
+                    return ApiResponse::responseJson(false, 'Tên loại phòng đã tồn tại', 422, null, 422);
                 }
 
                 $oldData = $roomTypeModel->toArray();
@@ -160,19 +143,15 @@ class RoomTypeController extends Controller
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseRoomTypes($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền đổi trạng thái loại phòng', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền đổi trạng thái loại phòng', 403, null, 403);
             }
 
             $response = DB::transaction(function () use ($validated, $roomType, $admin, $request): JsonResponse {
-                $roomTypeModel = $this->accessibleQuery($admin)->lockForUpdate()->find($roomType);
+                $roomTypeModel = RoomType::query()->lockForUpdate()->find($roomType);
 
                 if (! $roomTypeModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy loại phòng', 404, null, 404);
-                }
-
-                if (! $this->canWriteRoomTypeForBuilding($admin, $roomTypeModel->building_id)) {
-                    return ApiResponse::responseJson(false, 'Bạn không có quyền đổi trạng thái loại phòng này', 403, null, 403);
                 }
 
                 $oldData = $roomTypeModel->toArray();
@@ -196,19 +175,15 @@ class RoomTypeController extends Controller
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canUseRoomTypes($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xóa loại phòng', 403, null, 403);
+            if (! $admin || ! AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Chỉ super admin mới có quyền xóa loại phòng', 403, null, 403);
             }
 
             $response = DB::transaction(function () use ($roomType, $admin, $request): JsonResponse {
-                $roomTypeModel = $this->accessibleQuery($admin)->withCount($this->counts())->lockForUpdate()->find($roomType);
+                $roomTypeModel = RoomType::query()->withCount($this->counts())->lockForUpdate()->find($roomType);
 
                 if (! $roomTypeModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy loại phòng', 404, null, 404);
-                }
-
-                if (! $this->canWriteRoomTypeForBuilding($admin, $roomTypeModel->building_id)) {
-                    return ApiResponse::responseJson(false, 'Bạn không có quyền xóa loại phòng này', 403, null, 403);
                 }
 
                 if ((int) $roomTypeModel->rooms_count > 0) {
@@ -232,7 +207,7 @@ class RoomTypeController extends Controller
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['name', 'building_id', 'description', 'status'];
+        $fields = ['name', 'description', 'status'];
 
         foreach ($fields as $field) {
             if (array_key_exists($field, $validated)) {
@@ -250,22 +225,22 @@ class RoomTypeController extends Controller
 
     private function columns(): array
     {
-        return ['id', 'name', 'slug', 'building_id', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'name', 'slug', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
     }
 
     private function listRelations(): array
     {
-        return ['building:id,name,slug,status', 'creator:id,full_name'];
+        return ['creator:id,full_name'];
     }
 
     private function storeRelations(): array
     {
-        return ['building:id,name,slug,status', 'creator:id,full_name'];
+        return ['creator:id,full_name'];
     }
 
     private function detailRelations(): array
     {
-        return ['building:id,name,slug,status', 'creator:id,full_name', 'rooms:id,room_type_id,building_id,room_number,slug,base_price,max_occupants,current_occupants,status', 'rooms.building:id,name,slug'];
+        return ['creator:id,full_name', 'rooms:id,room_type_id,building_id,room_number,slug,base_price,max_occupants,current_occupants,status', 'rooms.building:id,name,slug'];
     }
 
     private function counts(): array
@@ -277,7 +252,7 @@ class RoomTypeController extends Controller
     {
         $keyword = trim($validated['keyword'] ?? '');
 
-        return $this->accessibleQuery($admin)
+        return RoomType::query()
             ->select($this->columns())
             ->with($this->listRelations())
             ->withCount($this->counts())
@@ -285,56 +260,16 @@ class RoomTypeController extends Controller
                 $keywordQuery->where('name', 'like', "%{$keyword}%")
                     ->orWhere('description', 'like', "%{$keyword}%");
             }))
-            ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', $validated['building_id']))
-            ->when((bool) ($validated['only_global'] ?? false), fn (Builder $query): Builder => $query->whereNull('building_id'))
-            ->when((bool) ($validated['created_by_me'] ?? false), fn (Builder $query): Builder => $query->where('created_by', $admin->id))
             ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', $validated['status']))
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }
 
-    private function accessibleQuery(Admin $admin): Builder
-    {
-        $query = RoomType::query();
-
-        if (AdminScope::isSuperAdmin($admin)) {
-            return $query;
-        }
-
-        if (AdminScope::isBuildingManager($admin)) {
-            return $query->where(function (Builder $scopeQuery) use ($admin): void {
-                $scopeQuery->whereNull('room_types.building_id')
-                    ->orWhereHas('building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('manager_admin_id', $admin->id));
-            });
-        }
-
-        return $query->whereRaw('1 = 0');
-    }
-
-    private function canUseRoomTypes(Admin $admin): bool
-    {
-        return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
-    }
-
-    private function roomTypeNameExists(string $name, mixed $buildingId, ?int $ignoreId = null): bool
+    private function roomTypeNameExists(string $name, ?int $ignoreId = null): bool
     {
         return RoomType::query()
             ->where('name', $name)
-            ->where('building_id', $buildingId)
             ->when($ignoreId !== null, fn (Builder $query): Builder => $query->whereKeyNot($ignoreId))
             ->exists();
-    }
-
-    private function canWriteRoomTypeForBuilding(Admin $admin, mixed $buildingId): bool
-    {
-        if (AdminScope::isSuperAdmin($admin)) {
-            return true;
-        }
-
-        if (! AdminScope::isBuildingManager($admin) || empty($buildingId)) {
-            return false;
-        }
-
-        return AdminScope::ensureBuildingAccess($admin, (int) $buildingId);
     }
 }
