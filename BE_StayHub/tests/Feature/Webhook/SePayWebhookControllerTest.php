@@ -107,7 +107,7 @@ class SePayWebhookControllerTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJson([
-                'status' => 'success',
+                'status' => true,
                 'message' => 'Payment processed successfully.'
             ]);
 
@@ -163,7 +163,8 @@ class SePayWebhookControllerTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJson([
-                'status' => 'ignored',
+                'status' => true,
+                'message' => 'Only incoming transfers are processed.'
             ]);
     }
 
@@ -197,7 +198,7 @@ class SePayWebhookControllerTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJson([
-                'status' => 'ignored',
+                'status' => true,
                 'message' => 'Transaction already processed.'
             ]);
     }
@@ -223,7 +224,7 @@ class SePayWebhookControllerTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJson([
-                'status' => 'success',
+                'status' => true,
                 'message' => 'Test webhook received successfully.'
             ]);
     }

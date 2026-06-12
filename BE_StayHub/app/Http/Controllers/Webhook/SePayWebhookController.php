@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Webhook;
 
+use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
@@ -26,17 +27,14 @@ class SePayWebhookController extends Controller
             }
             if (!$isValid) {
                 Log::warning('SePay Webhook unauthorized request.');
-                return response()->json(['message' => 'Unauthorized'], 401);
+                return ApiResponse::responseJson(false, 'Unauthorized', 401, null, 401);
             }
         }
 
         // Only process incoming transfers ("in")
         $transferType = $request->input('transferType');
         if ($transferType && strtolower($transferType) !== 'in') {
-            return response()->json([
-                'status' => 'ignored',
-                'message' => 'Only incoming transfers are processed.'
-            ]);
+            return ApiResponse::responseJson(true, 'Only incoming transfers are processed.', 0, ['status' => 'ignored'], 200);
         }
 
         $content = $request->input('content') ?? $request->input('transferDesc') ?? '';
@@ -46,38 +44,26 @@ class SePayWebhookController extends Controller
         // Check if it's a SePay test webhook delivery
         if ($reference === 'SEPAYTEST' || $content === 'SEPAY TEST WEBHOOK') {
             Log::info('SePay Webhook: Test request bypassed successfully.');
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Test webhook received successfully.'
-            ]);
+            return ApiResponse::responseJson(true, 'Test webhook received successfully.', 0, null, 200);
         }
 
         // Read transaction details
         $amount = (float) ($request->input('amount') ?? $request->input('transferAmount') ?? 0);
         if ($amount <= 0) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Transaction amount must be positive.'
-            ], 400);
+            return ApiResponse::responseJson(false, 'Transaction amount must be positive.', 400, null, 400);
         }
         
         // Use bank reference code first, fallback to SePay transaction ID
         $transactionReference = !empty($reference) ? $reference : $sepayId;
 
         if (empty($transactionReference)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Missing transaction reference code.'
-            ], 400);
+            return ApiResponse::responseJson(false, 'Missing transaction reference code.', 400, null, 400);
         }
 
         // Check for duplicate transaction reference to ensure idempotency
         $existingTransaction = ContractDepositTransaction::where('transaction_reference', $transactionReference)->first();
         if ($existingTransaction) {
-            return response()->json([
-                'status' => 'ignored',
-                'message' => 'Transaction already processed.'
-            ]);
+            return ApiResponse::responseJson(true, 'Transaction already processed.', 0, ['status' => 'ignored'], 200);
         }
 
         // Extract contract code using regex matching COC <contract_code>
@@ -88,20 +74,14 @@ class SePayWebhookController extends Controller
 
         if (empty($contractCode)) {
             Log::warning("SePay Webhook: Contract code could not be extracted from content: {$content}");
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Could not extract contract code from transaction description.'
-            ], 400);
+            return ApiResponse::responseJson(false, 'Could not extract contract code from transaction description.', 400, null, 400);
         }
 
         // Find the contract
         $contract = Contract::where('contract_code', $contractCode)->first();
         if (!$contract) {
             Log::warning("SePay Webhook: Contract not found for code: {$contractCode}");
-            return response()->json([
-                'status' => 'error',
-                'message' => "Contract with code {$contractCode} not found."
-            ], 404);
+            return ApiResponse::responseJson(false, "Contract with code {$contractCode} not found.", 404, null, 404);
         }
 
         // Create the transaction
@@ -120,17 +100,11 @@ class SePayWebhookController extends Controller
             });
         } catch (\Exception $e) {
             Log::error('SePay Webhook transaction error: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to process deposit transaction.'
-            ], 500);
+            return ApiResponse::responseJson(false, 'Failed to process deposit transaction.', 500, null, 500);
         }
 
         Log::info("SePay Webhook: Successfully processed payment for contract {$contractCode}, amount: {$amount}");
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Payment processed successfully.'
-        ]);
+        return ApiResponse::responseJson(true, 'Payment processed successfully.', 0, null, 200);
     }
 }
