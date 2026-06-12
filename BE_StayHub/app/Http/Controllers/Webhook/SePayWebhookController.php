@@ -57,8 +57,22 @@ class SePayWebhookController extends Controller
             }
 
             $contractCode = null;
-            if (preg_match('/COC\s+([A-Za-z0-9_\-\.]+)/i', $content, $matches)) {
+            if (preg_match('/(HD-[A-Za-z0-9_\-\.]+)/i', $content, $matches)) {
                 $contractCode = $matches[1];
+            }
+
+            if (empty($contractCode) && preg_match('/COC\s+([A-Za-z0-9_\-\.]+)/i', $content, $matches)) {
+                $contractCode = $matches[1];
+            }
+
+            if (empty($contractCode)) {
+                $pendingContracts = Contract::where('payment_status', Contract::PAYMENT_STATUS_PENDING)->get();
+                foreach ($pendingContracts as $pc) {
+                    if (stripos($content, $pc->contract_code) !== false) {
+                        $contractCode = $pc->contract_code;
+                        break;
+                    }
+                }
             }
 
             if (empty($contractCode)) {
