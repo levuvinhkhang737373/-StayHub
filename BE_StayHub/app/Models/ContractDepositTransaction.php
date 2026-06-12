@@ -30,15 +30,30 @@ class ContractDepositTransaction extends Model
         self::PAYMENT_METHOD_BANK_TRANSFER => 'Chuyển khoản',
     ];
 
-    protected $fillable = ['contract_id', 'transaction_type', 'amount', 'transaction_date', 'payment_method', 'note', 'created_by'];
+    protected $fillable = ['contract_id', 'transaction_type', 'amount', 'transaction_date', 'payment_method', 'transaction_reference', 'note', 'created_by'];
 
     public const UPDATED_AT = null;
 
     protected function casts(): array
     {
-        return ['transaction_type' => 'integer',
+        return [
+            'transaction_type' => 'integer',
             'amount' => 'decimal:2',
-            'payment_method' => 'integer', 'transaction_date' => 'date'];
+            'payment_method' => 'integer',
+            'transaction_date' => 'date',
+            'transaction_reference' => 'string'
+        ];
+    }
+
+    protected static function booted()
+    {
+        static::saved(function ($transaction) {
+            $transaction->contract?->updatePaymentStatus();
+        });
+
+        static::deleted(function ($transaction) {
+            $transaction->contract?->updatePaymentStatus();
+        });
     }
 
     public function contract(): BelongsTo

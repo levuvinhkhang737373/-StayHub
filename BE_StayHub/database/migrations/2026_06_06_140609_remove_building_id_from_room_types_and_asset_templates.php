@@ -45,70 +45,84 @@ return new class extends Migration
             }
         }
 
-        Schema::table('room_types', function (Blueprint $table) {
-            $indexes = collect(Schema::getIndexes('room_types'))->pluck('name');
-            
-            if (collect(Schema::getForeignKeys('room_types'))->contains('name', 'room_types_building_id_foreign')) {
-                $table->dropForeign(['building_id']);
-            }
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('room_types', function (Blueprint $table) {
+                $indexes = collect(Schema::getIndexes('room_types'))->pluck('name');
+                
+                if (collect(Schema::getForeignKeys('room_types'))->contains('name', 'room_types_building_id_foreign')) {
+                    $table->dropForeign(['building_id']);
+                }
 
-            if ($indexes->contains('room_types_building_name_unique')) {
-                $table->dropUnique('room_types_building_name_unique');
-            }
-            if ($indexes->contains('room_types_building_slug_unique')) {
-                $table->dropUnique('room_types_building_slug_unique');
-            }
-            if ($indexes->contains('room_types_building_status_index')) {
-                $table->dropIndex('room_types_building_status_index');
-            }
-            
-            if (Schema::hasColumn('room_types', 'building_id')) {
-                $table->dropColumn('building_id');
-            }
+                if ($indexes->contains('room_types_building_name_unique')) {
+                    $table->dropUnique('room_types_building_name_unique');
+                }
+                if ($indexes->contains('room_types_building_slug_unique')) {
+                    $table->dropUnique('room_types_building_slug_unique');
+                }
+                if ($indexes->contains('room_types_building_status_index')) {
+                    $table->dropIndex('room_types_building_status_index');
+                }
+                
+                if (Schema::hasColumn('room_types', 'building_id')) {
+                    $table->dropColumn('building_id');
+                }
 
-            if (!$indexes->contains('room_types_name_unique')) {
-                $table->unique('name', 'room_types_name_unique');
-            }
-            if (Schema::hasColumn('room_types', 'slug') && !$indexes->contains('room_types_slug_unique')) {
-                $table->unique('slug', 'room_types_slug_unique');
-            }
-        });
+                if (!$indexes->contains('room_types_name_unique')) {
+                    $table->unique('name', 'room_types_name_unique');
+                }
+                if (Schema::hasColumn('room_types', 'slug') && !$indexes->contains('room_types_slug_unique')) {
+                    $table->unique('slug', 'room_types_slug_unique');
+                }
+            });
 
-        Schema::table('asset_templates', function (Blueprint $table) {
-            $indexes = collect(Schema::getIndexes('asset_templates'))->pluck('name');
-            if ($indexes->contains('asset_templates_building_id_status_index')) {
-                $table->dropIndex('asset_templates_building_id_status_index');
-            }
-            
-            $foreignKeys = collect(Schema::getForeignKeys('asset_templates'));
-            $hasForeign = $foreignKeys->contains(fn ($fk) => in_array('building_id', $fk['columns'] ?? []))
-                || $foreignKeys->contains('name', 'asset_templates_building_id_foreign');
-            if ($hasForeign) {
-                $table->dropForeign(['building_id']);
-            }
-            
-            if (Schema::hasColumn('asset_templates', 'building_id')) {
-                $table->dropColumn('building_id');
-            }
-        });
+            Schema::table('asset_templates', function (Blueprint $table) {
+                $indexes = collect(Schema::getIndexes('asset_templates'))->pluck('name');
+                if ($indexes->contains('asset_templates_building_id_status_index')) {
+                    $table->dropIndex('asset_templates_building_id_status_index');
+                }
+                
+                $foreignKeys = collect(Schema::getForeignKeys('asset_templates'));
+                $hasForeign = $foreignKeys->contains(fn ($fk) => in_array('building_id', $fk['columns'] ?? []))
+                    || $foreignKeys->contains('name', 'asset_templates_building_id_foreign');
+                if ($hasForeign) {
+                    $table->dropForeign(['building_id']);
+                }
+                
+                if (Schema::hasColumn('asset_templates', 'building_id')) {
+                    $table->dropColumn('building_id');
+                }
+            });
+        } else {
+            Schema::table('room_types', function (Blueprint $table) {
+                $indexes = collect(Schema::getIndexes('room_types'))->pluck('name');
+                if (!$indexes->contains('room_types_name_unique')) {
+                    $table->unique('name', 'room_types_name_unique');
+                }
+                if (Schema::hasColumn('room_types', 'slug') && !$indexes->contains('room_types_slug_unique')) {
+                    $table->unique('slug', 'room_types_slug_unique');
+                }
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('asset_templates', function (Blueprint $table) {
-            $table->foreignId('building_id')->nullable()->constrained('buildings')->nullOnDelete();
-            $table->index(['building_id', 'status'], 'asset_templates_building_id_status_index');
-        });
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('asset_templates', function (Blueprint $table) {
+                $table->foreignId('building_id')->nullable()->constrained('buildings')->nullOnDelete();
+                $table->index(['building_id', 'status'], 'asset_templates_building_id_status_index');
+            });
 
-        Schema::table('room_types', function (Blueprint $table) {
-            $table->dropUnique('room_types_name_unique');
-            if (Schema::hasColumn('room_types', 'slug')) {
-                $table->dropUnique('room_types_slug_unique');
-            }
-            $table->foreignId('building_id')->nullable()->after('slug')->constrained('buildings')->nullOnDelete();
-            $table->index(['building_id', 'status'], 'room_types_building_status_index');
-            $table->unique(['building_id', 'name'], 'room_types_building_name_unique');
-            $table->unique(['building_id', 'slug'], 'room_types_building_slug_unique');
-        });
+            Schema::table('room_types', function (Blueprint $table) {
+                $table->dropUnique('room_types_name_unique');
+                if (Schema::hasColumn('room_types', 'slug')) {
+                    $table->dropUnique('room_types_slug_unique');
+                }
+                $table->foreignId('building_id')->nullable()->after('slug')->constrained('buildings')->nullOnDelete();
+                $table->index(['building_id', 'status'], 'room_types_building_status_index');
+                $table->unique(['building_id', 'name'], 'room_types_building_name_unique');
+                $table->unique(['building_id', 'slug'], 'room_types_building_slug_unique');
+            });
+        }
     }
 };

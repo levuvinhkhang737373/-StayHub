@@ -15,10 +15,11 @@ export interface AdminDateInputProps {
   className?: string
   minDate?: Date
   maxDate?: Date
+  disabled?: boolean
 }
 
 export const AdminDateInput = forwardRef<DatePicker, AdminDateInputProps>(
-  ({ value, onChange, placeholder = 'dd/mm/yyyy', className, minDate, maxDate }, ref) => {
+  ({ value, onChange, placeholder = 'dd/mm/yyyy', className, minDate, maxDate, disabled }, ref) => {
     // Parse value YYYY-MM-DD to local Date object
     let selectedDate: Date | null = null
     if (value) {
@@ -50,7 +51,7 @@ export const AdminDateInput = forwardRef<DatePicker, AdminDateInputProps>(
         dateFormat="dd/MM/yyyy"
         placeholderText={placeholder}
         locale="vi"
-        isClearable
+        isClearable={!disabled}
         showYearDropdown
         showMonthDropdown
         dropdownMode="select"
@@ -58,6 +59,7 @@ export const AdminDateInput = forwardRef<DatePicker, AdminDateInputProps>(
         wrapperClassName="w-full"
         minDate={minDate}
         maxDate={maxDate}
+        disabled={disabled}
       />
     )
   }

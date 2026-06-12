@@ -28,6 +28,10 @@ export function isBuildingManagerRole(role?: string | number | null): boolean {
   return role === BUILDING_MANAGER_ROLE || role === BUILDING_MANAGER_ROLE_ID || role === String(BUILDING_MANAGER_ROLE_ID)
 }
 
+export function canManageContractsRole(role?: string | number | null): boolean {
+  return isSuperAdminRole(role) || isBuildingManagerRole(role)
+}
+
 export function useAdminSession() {
   const context = useContext(AdminSessionContext)
 

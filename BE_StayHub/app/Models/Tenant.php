@@ -114,10 +114,7 @@ class Tenant extends Authenticatable
         return $this->belongsTo(Room::class, 'room_id');
     }
 
-    public function representedContracts(): HasMany
-    {
-        return $this->hasMany(Contract::class, 'representative_tenant_id');
-    }
+
 
     public function contractTenants(): HasMany
     {
@@ -126,7 +123,7 @@ class Tenant extends Authenticatable
 
     public function contracts(): BelongsToMany
     {
-        return $this->belongsToMany(Contract::class, 'contract_tenants')->withPivot(['join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_representative', 'is_staying', 'created_by'])->withTimestamps();
+        return $this->belongsToMany(Contract::class, 'contract_tenants')->withPivot(['join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying', 'created_by'])->withTimestamps();
     }
 
     public function roomMovements(): HasMany

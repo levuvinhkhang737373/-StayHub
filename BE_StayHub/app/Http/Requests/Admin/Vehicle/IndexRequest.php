@@ -23,6 +23,7 @@ class IndexRequest extends FormRequest
             'vehicle_type' => ['nullable', 'integer', Rule::in(array_keys(Vehicle::VEHICLE_TYPE_LABELS))],
             'license_plate' => ['nullable', 'string', 'max:50'],
             'is_active' => ['nullable', 'boolean'],
+            'without_active_contract' => ['nullable', 'boolean'],
             'keyword' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];

@@ -13,6 +13,7 @@ use App\Http\Requests\Admin\Vehicle\UpdateRequest;
 use App\Http\Resources\Admin\VehicleDetailResource;
 use App\Http\Resources\Admin\VehicleResource;
 use App\Models\Admin;
+use App\Models\Contract;
 use App\Models\Tenant;
 use App\Models\Vehicle;
 use Illuminate\Database\Eloquent\Builder;
@@ -262,6 +263,15 @@ class VehicleController extends Controller
             ->when(isset($validated['tenant_id']), fn (Builder $query): Builder => $query->where('tenant_id', $validated['tenant_id']))
             ->when(isset($validated['vehicle_type']), fn (Builder $query): Builder => $query->where('vehicle_type', $validated['vehicle_type']))
             ->when(array_key_exists('is_active', $validated), fn (Builder $query): Builder => $query->where('is_active', (bool) $validated['is_active']))
+            ->when(isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN), function (Builder $query): Builder {
+                return $query->where('is_active', true)
+                    ->whereDoesntHave('contractVehicles', function (Builder $q): void {
+                        $q->where('is_active', true)
+                            ->whereHas('contract', function (Builder $cq): void {
+                                $cq->where('status', Contract::STATUS_ACTIVE);
+                            });
+                    });
+            })
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }

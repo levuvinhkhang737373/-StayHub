@@ -11,6 +11,7 @@ import { ServicesScreen } from '../features/admin/services/components/services-s
 import { SettingsScreen } from '../features/admin/settings/components/settings-screen'
 import { SystemUsersScreen } from '../features/admin/system-users'
 import { TenantsScreen } from '../features/admin/tenants'
+import { ContractsScreen } from '../features/admin/contracts'
 import { CreateRegionScreen } from '../features/admin/facilities/components/create-region-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
@@ -74,7 +75,7 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'contracts',
-        element: <AdminPlaceholderScreen title="Hợp đồng" description="Theo dõi hợp đồng thuê, thời hạn, phụ lục và trạng thái hiệu lực." />,
+        element: <AdminRouteGuard access="contract-manager"><ContractsScreen /></AdminRouteGuard>,
       },
       {
         path: 'services',

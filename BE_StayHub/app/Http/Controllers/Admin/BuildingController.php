@@ -765,7 +765,7 @@ class BuildingController extends Controller
             'servicePrices' => fn ($query) => $query->select('id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status', 'created_at', 'updated_at')->with('service:id,name,slug,charge_method,unit_name,is_required,is_active,created_by,created_at,updated_at')->orderByDesc('effective_from')->orderByDesc('id'),
             'settings' => fn ($query) => $query->select('id', 'building_id', 'setting_label', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at')->orderBy('setting_label'),
             'settings.creator:id,full_name',
-            'rooms:id,building_id,room_number,status',
+            'rooms:id,building_id,room_number,status,max_occupants,current_occupants,base_price',
         ];
     }
 

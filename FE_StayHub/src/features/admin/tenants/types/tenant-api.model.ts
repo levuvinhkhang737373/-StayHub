@@ -73,6 +73,7 @@ export interface AdminTenantFilters {
   building_id?: number
   page?: number
   per_page?: number
+  without_active_contract?: boolean
 }
 
 export interface AdminTenantPayload {

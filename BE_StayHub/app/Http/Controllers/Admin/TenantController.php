@@ -333,13 +333,19 @@ class TenantController extends Controller
             ->when(isset($validated['identity_type']), fn (Builder $query): Builder => $query->where('identity_type', (int) $validated['identity_type']))
             ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', (int) $validated['building_id']))
             ->when(AdminScope::isSuperAdmin($admin) && isset($validated['created_by']), fn (Builder $query): Builder => $query->where('created_by', (int) $validated['created_by']))
+            ->when(isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN), function (Builder $query): Builder {
+                return $query->where('status', Tenant::STATUS_RENTING)
+                    ->whereDoesntHave('contracts', function (Builder $q): void {
+                        $q->where('status', Contract::STATUS_ACTIVE);
+                    });
+            })
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }
 
     private function searchTenants(string $keyword, array $validated, Admin $admin): LengthAwarePaginator
     {
-        if (AdminScope::isBuildingManager($admin)) {
+        if (AdminScope::isBuildingManager($admin) || (isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN))) {
             return $this->applyKeywordFilter($this->queryTenants($validated, $admin), $keyword)
                 ->paginate($validated['per_page'] ?? 20);
         }

@@ -10,6 +10,13 @@ Broadcast::channel('admin-maintenance', function ($user) {
     return $user instanceof \App\Models\Admin;
 }, ['guards' => ['admin']]);
 
+Broadcast::channel('admin-building.{buildingId}', function ($user, $buildingId) {
+    if (! ($user instanceof \App\Models\Admin)) {
+        return false;
+    }
+    return \App\Helpers\AdminScope::ensureBuildingAccess($user, (int) $buildingId);
+}, ['guards' => ['admin']]);
+
 Broadcast::channel('tenant.{id}', function ($user, $id) {
     return $user instanceof \App\Models\Tenant && (int) $user->id === (int) $id;
 }, ['guards' => ['tenant']]);

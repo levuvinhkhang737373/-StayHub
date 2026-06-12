@@ -60,7 +60,7 @@ class AdminScope
     }
 
     /**
-     * Áp quyền xem khách thuê theo tòa nhà thông qua hợp đồng/phòng, không dựa vào created_by.
+     * Quyền xem khách thuê theo tòa nhà.
      */
     public static function applyTenantScope(Builder $query, Admin $admin): Builder
     {

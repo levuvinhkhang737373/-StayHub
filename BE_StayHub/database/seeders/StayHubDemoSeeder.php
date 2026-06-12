@@ -491,7 +491,6 @@ class StayHubDemoSeeder extends Seeder
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
             $key => $this->upsertAndGetId('contracts', ['contract_code' => $row[0]], [
                 'room_id' => $row[1],
-                'representative_tenant_id' => $row[2],
                 'start_date' => $row[3],
                 'end_date' => $row[4],
                 'actual_end_date' => null,
@@ -510,11 +509,11 @@ class StayHubDemoSeeder extends Seeder
     private function seedContractTenants(array $admins, array $contracts, array $tenants): void
     {
         $rows = [
-            [$contracts['sg_a101'], $tenants['an'], true],
-            [$contracts['sg_a101'], $tenants['binh'], false],
-            [$contracts['td_b201'], $tenants['chi'], true],
-            [$contracts['bc_c301'], $tenants['duy'], true],
-            [$contracts['bc_c301'], $tenants['em'], false],
+            [$contracts['sg_a101'], $tenants['an']],
+            [$contracts['sg_a101'], $tenants['binh']],
+            [$contracts['td_b201'], $tenants['chi']],
+            [$contracts['bc_c301'], $tenants['duy']],
+            [$contracts['bc_c301'], $tenants['em']],
         ];
 
         foreach ($rows as $row) {
@@ -523,7 +522,6 @@ class StayHubDemoSeeder extends Seeder
                 'leave_date' => null,
                 'billing_start_date' => '2026-05-01',
                 'billing_end_date' => null,
-                'is_representative' => $row[2] ? ContractTenant::REPRESENTATIVE : ContractTenant::NOT_REPRESENTATIVE,
                 'is_staying' => ContractTenant::STAYING,
                 'created_by' => $admins['manager_sg'],
                 ...$this->timestamps(),
@@ -1130,14 +1128,13 @@ class StayHubDemoSeeder extends Seeder
 
             $contracts[$roomKey] = $this->upsertAndGetId('contracts', ['contract_code' => $code], [
                 'room_id' => $rooms[$roomKey],
-                'representative_tenant_id' => $tenants[$tenantKey],
                 'start_date' => '2026-05-01',
                 'end_date' => '2027-04-30',
                 'actual_end_date' => null,
                 'billing_cycle_day' => 5,
                 'room_price' => $room->base_price,
                 'deposit_amount' => $room->base_price * 2,
-                'status' => $i > 27 ? Contract::STATUS_DRAFT : Contract::STATUS_ACTIVE,
+                'status' => $i > 27 ? Contract::STATUS_EXPIRED : Contract::STATUS_ACTIVE,
                 'contract_files' => $this->json(["/storage/demo/contracts/expanded/{$code}.pdf"]),
                 'note' => 'Hợp đồng mở rộng dùng kiểm thử dữ liệu lớn.',
                 'created_by' => $admins['manager_sg'],
@@ -1159,7 +1156,6 @@ class StayHubDemoSeeder extends Seeder
                 'leave_date' => null,
                 'billing_start_date' => '2026-05-01',
                 'billing_end_date' => null,
-                'is_representative' => ContractTenant::REPRESENTATIVE,
                 'is_staying' => ContractTenant::STAYING,
                 'created_by' => $admins['manager_sg'],
                 ...$this->timestamps(),
@@ -1171,7 +1167,6 @@ class StayHubDemoSeeder extends Seeder
                     'leave_date' => null,
                     'billing_start_date' => '2026-05-03',
                     'billing_end_date' => null,
-                    'is_representative' => ContractTenant::NOT_REPRESENTATIVE,
                     'is_staying' => ContractTenant::STAYING,
                     'created_by' => $admins['manager_sg'],
                     ...$this->timestamps(),

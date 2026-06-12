@@ -19,9 +19,9 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
-import { isSuperAdminRole } from '../../auth/hooks/use-admin-session'
+import { canManageContractsRole, isSuperAdminRole } from '../../auth/hooks/use-admin-session'
 
-export type AdminRouteAccess = 'all' | 'superadmin'
+export type AdminRouteAccess = 'all' | 'superadmin' | 'contract-manager'
 
 export interface AdminNavItem {
   id: string
@@ -42,7 +42,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'rooms', label: 'Quản lý Phòng', icon: DoorOpen, group: 'Cơ sở vật chất', href: '/admin/rooms', access: 'superadmin' },
   { id: 'meters', label: 'Quản lý đồng hồ', icon: Gauge, group: 'Cơ sở vật chất', href: '/admin/meters', access: 'all' },
   { id: 'tenants', label: 'Khách thuê', icon: Users, group: 'Khách thuê & HĐ', href: '/admin/tenants', access: 'all' },
-  { id: 'contracts', label: 'Hợp đồng', icon: FileText, group: 'Khách thuê & HĐ', href: '/admin/contracts', access: 'all' },
+  { id: 'contracts', label: 'Hợp đồng', icon: FileText, group: 'Khách thuê & HĐ', href: '/admin/contracts', access: 'contract-manager' },
   { id: 'services', label: 'Danh mục dịch vụ', icon: Settings, group: 'Tài chính', href: '/admin/services', access: 'superadmin' },
   { id: 'expense_categories', label: 'Danh mục chi phí', icon: Tags, group: 'Tài chính', href: '/admin/expense-categories', access: 'all', readOnlyForAdmin: true },
   { id: 'meter_readings', label: 'Chốt điện nước', icon: Zap, group: 'Tài chính', href: '/admin/meter-readings', access: 'all' },
@@ -66,7 +66,9 @@ export const SUPERADMIN_ROUTE_PREFIXES = [
 ]
 
 export function canAccessAdminItem(item: AdminNavItem, role?: string | number | null) {
-  return item.access !== 'superadmin' || isSuperAdminRole(role)
+  if (item.access === 'superadmin') return isSuperAdminRole(role)
+  if (item.access === 'contract-manager') return canManageContractsRole(role)
+  return true
 }
 
 export function getVisibleAdminNavItems(role?: string | number | null) {
@@ -84,5 +86,7 @@ export function isSuperadminRoutePath(pathname: string) {
 }
 
 export function getAdminRoleLabel(role?: string | number | null) {
-  return isSuperAdminRole(role) ? 'Quản trị tổng' : 'Quản trị viên'
+  if (isSuperAdminRole(role)) return 'Quản trị tổng'
+  if (canManageContractsRole(role)) return 'Quản lý tòa nhà'
+  return 'Kỹ thuật'
 }

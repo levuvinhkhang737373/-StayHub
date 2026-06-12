@@ -45,4 +45,17 @@ return [
         'face_threshold' => (float) env('FACEID_MATCH_THRESHOLD', 0.9),
     ],
 
+    'vietqr' => [
+        'bank_bin' => env('VIETQR_BANK_BIN', '970423'),
+        'account_number' => env('SEPAY_ACCOUNT_NUMBER', '99928876789'),
+        'account_name' => env('VIETQR_ACCOUNT_NAME', 'LE VU VINH KHANG'),
+        'template' => env('VIETQR_TEMPLATE', 'VNnocPH'),
+    ],
+
+    'sepay' => [
+        'webhook_token' => env('SEPAY_WEBHOOK_TOKEN'),
+    ],
+
 ];
+
+
