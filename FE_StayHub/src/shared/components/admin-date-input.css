@@ -66,3 +66,8 @@
   background-color: rgba(243, 197, 107, 0.3);
   color: #24170d;
 }
+
+/* Ensure portal calendar dropdown is rendered on top of everything */
+.react-datepicker-popper {
+  z-index: 9999 !important;
+}

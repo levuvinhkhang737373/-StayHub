@@ -60,6 +60,7 @@ export const AdminDateInput = forwardRef<DatePicker, AdminDateInputProps>(
         minDate={minDate}
         maxDate={maxDate}
         disabled={disabled}
+        portalId="admin-datepicker-portal"
       />
     )
   }

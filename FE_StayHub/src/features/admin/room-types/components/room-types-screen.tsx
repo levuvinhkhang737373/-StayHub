@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, BedDouble, Edit3, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, BedDouble, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
+import { RoomTypeModal } from './room-type-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import {
-  createAdminRoomType,
   deleteAdminRoomType,
   fetchAdminRoomTypeDetail,
   fetchAdminRoomTypes,
-  updateAdminRoomType,
   updateAdminRoomTypeStatus,
 } from '../services/room-types.service'
 import type { AdminRoomTypeResource } from '../types/room-type-api.model'
-import { validateRoomTypeForm, type RoomTypeFormErrors, type RoomTypeFormValues } from '../validations/room-type.validation'
+import type { RoomTypeFormValues } from '../validations/room-type.validation'
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
   if (!result) return []
@@ -37,23 +36,15 @@ const statusOptions = [
   { value: '2', label: 'Ngừng hoạt động', tone: 'danger' as const },
 ]
 
-const formStatusOptions = [
-  { value: 1, label: 'Hoạt động', tone: 'success' as const },
-  { value: 2, label: 'Ngừng hoạt động', tone: 'danger' as const },
-]
-
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
-const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
-const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function RoomTypesScreen() {
   const [keyword, setKeyword] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [roomTypes, setRoomTypes] = useState<AdminRoomTypeResource[]>([])
-  const [editingRoomType, setEditingRoomType] = useState<AdminRoomTypeResource | null>(null)
+  const [editingRoomTypeId, setEditingRoomTypeId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [form, setForm] = useState<RoomTypeFormValues>(defaultForm)
-  const [errors, setErrors] = useState<RoomTypeFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailRoomType, setDetailRoomType] = useState<AdminRoomTypeResource | null>(null)
@@ -61,7 +52,6 @@ export function RoomTypesScreen() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
 
   const loadRoomTypes = useCallback(async () => {
@@ -94,39 +84,27 @@ export function RoomTypesScreen() {
 
   const activeRoomTypes = useMemo(() => roomTypes.filter((item) => Number(item.status) === 1).length, [roomTypes])
   const totalRooms = useMemo(() => roomTypes.reduce((sum, item) => sum + Number(item.rooms_count || 0), 0), [roomTypes])
-  const updateForm = (key: keyof RoomTypeFormValues, value: string | number) => {
-    setForm((current) => ({ ...current, [key]: value }))
-    setErrors((current) => ({ ...current, [key]: undefined }))
-    setSuccessMessage(null)
-  }
-
   const openCreateForm = () => {
-    setEditingRoomType(null)
-    setForm({ ...defaultForm })
-    setErrors({})
+    if (editingRoomTypeId !== null) {
+      setForm({ ...defaultForm })
+    }
+    setEditingRoomTypeId(null)
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
   }
 
-  const resetForm = () => {
-    setEditingRoomType(null)
-    setForm({ ...defaultForm })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
-  }
-
   const editRoomType = (roomType: AdminRoomTypeResource) => {
-    setEditingRoomType(roomType)
-    setForm({
-      name: roomType.name || '',
-      description: roomType.description || '',
-      status: Number(roomType.status || 1),
-    })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
+    if (editingRoomTypeId !== roomType.id) {
+      setEditingRoomTypeId(roomType.id)
+      setForm({
+        name: roomType.name || '',
+        description: roomType.description || '',
+        status: Number(roomType.status || 1),
+      })
+      setErrorMessage(null)
+      setSuccessMessage(null)
+    }
     setIsFormOpen(true)
   }
 
@@ -152,44 +130,22 @@ export function RoomTypesScreen() {
     setDetailErrorMessage(null)
   }
 
-  const submit = async () => {
-    if (isSaving) return
+  const handleCancelForm = () => {
+    setIsFormOpen(false)
+    setEditingRoomTypeId(null)
+    setForm({ ...defaultForm })
+  }
 
-    const nextErrors = validateRoomTypeForm(form)
-    setErrors(nextErrors)
+  const handleCloseForm = () => {
+    setIsFormOpen(false)
+  }
 
-    if (Object.keys(nextErrors).length > 0) {
-      setErrorMessage('Vui lòng kiểm tra lại thông tin loại phòng.')
-      return
-    }
-
-    try {
-      setIsSaving(true)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-
-      const payload = {
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        status: Number(form.status),
-      }
-
-      if (editingRoomType) {
-        await updateAdminRoomType(editingRoomType.id, payload)
-        setSuccessMessage('Cập nhật loại phòng thành công.')
-      } else {
-        await createAdminRoomType(payload)
-        setSuccessMessage('Tạo loại phòng thành công.')
-      }
-
-      resetForm()
-      setIsFormOpen(false)
-      await loadRoomTypes()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu loại phòng.')
-    } finally {
-      setIsSaving(false)
-    }
+  const handleSubmitSuccess = () => {
+    setIsFormOpen(false)
+    setEditingRoomTypeId(null)
+    setForm({ ...defaultForm })
+    setSuccessMessage(editingRoomTypeId ? 'Cập nhật loại phòng thành công.' : 'Tạo loại phòng thành công.')
+    void loadRoomTypes()
   }
 
   const toggleRoomTypeStatus = async (roomType: AdminRoomTypeResource) => {
@@ -264,7 +220,7 @@ export function RoomTypesScreen() {
           </div>
         )}
 
-        <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_360px]')}>
+        <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff7e8]/72 p-4 sm:p-5">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -346,51 +302,15 @@ export function RoomTypesScreen() {
             </div>
           </section>
 
-          {isFormOpen && (
-            <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 p-5 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-black tracking-tight text-[#24170d]">{editingRoomType ? 'Cập nhật loại phòng' : 'Thêm loại phòng'}</h2>
-                <p className="text-xs font-bold text-[#8b5e34]/60">Khai báo thông tin loại phòng.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form">
-                  <RefreshCw className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Tên loại phòng</label>
-                <input className={`${inputClass} ${errors.name ? inputErrorClass : ''}`} value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Ví dụ: Studio cao cấp" />
-                <FieldError message={errors.name} />
-              </div>
-              <div>
-                <label className={labelClass}>Trạng thái</label>
-                <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
-                <FieldError message={errors.status} />
-              </div>
-              <div>
-                <label className={labelClass}>Mô tả</label>
-                <textarea className={`${inputClass} min-h-24 ${errors.description ? inputErrorClass : ''}`} value={form.description} onChange={(event) => updateForm('description', event.target.value)} placeholder="Ghi chú tiêu chuẩn diện tích, nội thất hoặc đối tượng phù hợp..." />
-                <FieldError message={errors.description} />
-              </div>
-
-            
-
-              <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
-                <button type="button" disabled={isSaving} onClick={() => void submit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60">
-                  {isSaving ? 'Đang lưu...' : editingRoomType ? 'Cập nhật' : 'Tạo loại phòng'}
-                </button>
-              
-              </div>
-            </div>
-            </aside>
-          )}
+          <RoomTypeModal
+            isOpen={isFormOpen}
+            onClose={handleCloseForm}
+            editingRoomTypeId={editingRoomTypeId}
+            form={form}
+            setForm={setForm}
+            onCancel={handleCancelForm}
+            onSubmitSuccess={handleSubmitSuccess}
+          />
         </div>
       </section>
 
@@ -468,7 +388,3 @@ function DetailTile({ label, value }: { label: string; value: string | number })
   )
 }
 
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
-}

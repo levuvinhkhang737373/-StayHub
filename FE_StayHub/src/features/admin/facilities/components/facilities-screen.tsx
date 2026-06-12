@@ -3,7 +3,8 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Building2, ChevronLeft, ChevronRight, Eye, MapPin, Pencil, Plus, Power, Search, Trash2, X } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
 import { BuildingDetailModal } from "./building-detail-modal";
-import { deleteAdminBuilding, deleteAdminRegion, fetchAdminBuildingDetail, fetchAdminBuildings, fetchAdminRegions, updateAdminBuildingStatus, updateAdminRegionStatus } from "../services/facilities.service";
+import { RegionModal } from "./region-modal";
+import { deleteAdminBuilding, deleteAdminRegion, fetchAdminBuildingDetail, fetchAdminBuildings, fetchAdminRegions, fetchAdminRegionDetail, updateAdminBuildingStatus, updateAdminRegionStatus } from "../services/facilities.service";
 import type { AdminRegionResource } from "../types/facility-api.model";
 import type { Building, BuildingStatus } from "../types/building.model";
 import { cn } from "../../../../shared/lib/utils/cn";
@@ -69,6 +70,78 @@ export function FacilitiesScreen() {
     const navigate = useNavigate();
     const { session } = useAdminSession();
     const isSuperAdmin = isSuperAdminRole(session?.admin.role);
+
+    // Region modal state and handlers
+    const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
+    const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
+    const [isRegionFormLoading, setIsRegionFormLoading] = useState(false);
+    const [regionForm, setRegionForm] = useState({
+        parent_id: "",
+        code: "",
+        name: "",
+        description: "",
+        is_active: true,
+    });
+
+    const defaultRegionForm = useMemo(() => ({
+        parent_id: "",
+        code: "",
+        name: "",
+        description: "",
+        is_active: true,
+    }), []);
+
+    const openCreateRegionModal = () => {
+        if (editingRegionId !== null) {
+            setRegionForm(defaultRegionForm);
+        }
+        setEditingRegionId(null);
+        setIsRegionModalOpen(true);
+    };
+
+    const openEditRegionModal = async (region: AdminRegionResource) => {
+        if (editingRegionId !== region.id) {
+            setEditingRegionId(region.id);
+            setIsRegionFormLoading(true);
+            setIsRegionModalOpen(true);
+            try {
+                const response = await fetchAdminRegionDetail(region.id);
+                const detail = response.result;
+                setRegionForm({
+                    parent_id: detail.parent_id ? String(detail.parent_id) : "",
+                    code: detail.code || "",
+                    name: detail.name || "",
+                    description: detail.description || "",
+                    is_active: detail.status,
+                });
+            } catch (error) {
+                window.alert(error instanceof Error ? error.message : "Không thể tải thông tin khu vực.");
+                setIsRegionModalOpen(false);
+                setEditingRegionId(null);
+            } finally {
+                setIsRegionFormLoading(false);
+            }
+        } else {
+            setIsRegionModalOpen(true);
+        }
+    };
+
+    const handleCancelRegionModal = () => {
+        setIsRegionModalOpen(false);
+        setEditingRegionId(null);
+        setRegionForm(defaultRegionForm);
+    };
+
+    const handleCloseRegionModal = () => {
+        setIsRegionModalOpen(false);
+    };
+
+    const handleRegionSubmitSuccess = async () => {
+        setIsRegionModalOpen(false);
+        setEditingRegionId(null);
+        setRegionForm(defaultRegionForm);
+        await loadFacilities();
+    };
 
     const isSearchingRegions = regionKeyword.trim() !== "";
     const activeRegions = useMemo(() => regions.filter((region) => region.status), [regions]);
@@ -203,7 +276,7 @@ export function FacilitiesScreen() {
     };
 
     const editRegion = (region: AdminRegionResource) => {
-        navigate(`/admin/facilities/regions/${region.id}/edit`);
+        void openEditRegionModal(region);
     };
 
     const toggleRegionStatus = async (region: AdminRegionResource) => {
@@ -347,10 +420,10 @@ export function FacilitiesScreen() {
                                 </div>
                                 <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end xl:w-auto">
                                     {isSuperAdmin && (
-                                        <Link to="/admin/facilities/regions/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 px-4 text-sm font-black text-[#fff4df] shadow-xl shadow-black/20 transition-all hover:bg-[#f8e8c8]/15 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98] sm:w-auto xl:min-w-40">
+                                        <button type="button" onClick={openCreateRegionModal} className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 px-4 text-sm font-black text-[#fff4df] shadow-xl shadow-black/20 transition-all hover:bg-[#f8e8c8]/15 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98] sm:w-auto xl:min-w-40 cursor-pointer">
                                             <Plus className="h-4 w-4 shrink-0 text-[#f3c56b] stroke-[2.8]" />
                                             <span>Thêm khu vực</span>
-                                        </Link>
+                                        </button>
                                     )}
                                     <Link to="/admin/facilities/buildings/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:w-auto xl:min-w-40">
                                         <Building2 className="h-4 w-4 shrink-0 stroke-[2.8]" />
@@ -550,6 +623,18 @@ export function FacilitiesScreen() {
                         isOpen={!!viewingImageSrc}
                         src={viewingImageSrc}
                         onClose={() => setViewingImageSrc(null)}
+                    />
+
+                    <RegionModal
+                        isOpen={isRegionModalOpen}
+                        onClose={handleCloseRegionModal}
+                        regions={regions}
+                        editingRegionId={editingRegionId}
+                        form={regionForm}
+                        setForm={setRegionForm}
+                        onCancel={handleCancelRegionModal}
+                        onSubmitSuccess={handleRegionSubmitSuccess}
+                        isFormLoading={isRegionFormLoading}
                     />
                 </section>
             </>

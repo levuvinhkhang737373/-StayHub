@@ -13,6 +13,7 @@ import { SystemUsersScreen } from '../features/admin/system-users'
 import { TenantsScreen } from '../features/admin/tenants'
 import { ContractsScreen } from '../features/admin/contracts'
 import { CreateRegionScreen } from '../features/admin/facilities/components/create-region-screen'
+import { CreateTenantScreen } from '../features/admin/tenants/components/create-tenant-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
 import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
@@ -41,14 +42,7 @@ export const adminRoutes: RouteObject[] = [
         path: 'facilities',
         element: <AdminRouteGuard access="superadmin"><FacilitiesScreen /></AdminRouteGuard>,
       },
-      {
-        path: 'facilities/regions/create',
-        element: <AdminRouteGuard access="superadmin"><CreateRegionScreen /></AdminRouteGuard>,
-      },
-      {
-        path: 'facilities/regions/:regionId/edit',
-        element: <AdminRouteGuard access="superadmin"><CreateRegionScreen /></AdminRouteGuard>,
-      },
+
       {
         path: 'facilities/buildings/create',
         element: <AdminRouteGuard access="superadmin"><CreateBuildingScreen /></AdminRouteGuard>,
@@ -72,6 +66,14 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'tenants',
         element: <TenantsScreen />,
+      },
+      {
+        path: 'tenants/create',
+        element: <CreateTenantScreen />,
+      },
+      {
+        path: 'tenants/:tenantId/edit',
+        element: <CreateTenantScreen />,
       },
       {
         path: 'contracts',

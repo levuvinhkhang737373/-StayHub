@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Boxes, Edit3, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Boxes, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
+import { AssetTemplateModal } from './asset-template-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import {
-  createAdminAssetTemplate,
   deleteAdminAssetTemplate,
   fetchAdminAssetTemplateDetail,
   fetchAdminAssetTemplates,
-  updateAdminAssetTemplate,
   updateAdminAssetTemplateStatus,
 } from '../services/asset-templates.service'
 import type { AdminAssetTemplateResource } from '../types/asset-template-api.model'
-import { validateAssetTemplateForm, type AssetTemplateFormErrors, type AssetTemplateFormValues } from '../validations/asset-template.validation'
+import type { AssetTemplateFormValues } from '../validations/asset-template.validation'
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
   if (!result) return []
@@ -44,29 +43,15 @@ const statusOptions = [
   { value: '2', label: 'Ngừng hoạt động', tone: 'danger' as const },
 ]
 
-const formStatusOptions = [
-  { value: 1, label: 'Hoạt động', tone: 'success' as const },
-  { value: 2, label: 'Ngừng hoạt động', tone: 'danger' as const },
-]
-
-const unitOptions = [
-  { value: 1, label: 'cái', tone: 'default' as const },
-  { value: 2, label: 'bộ', tone: 'default' as const },
-  { value: 3, label: 'chiếc', tone: 'default' as const },
-]
-
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
-const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
-const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function AssetTemplatesScreen() {
   const [keyword, setKeyword] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [assetTemplates, setAssetTemplates] = useState<AdminAssetTemplateResource[]>([])
-  const [editingAssetTemplate, setEditingAssetTemplate] = useState<AdminAssetTemplateResource | null>(null)
+  const [editingAssetTemplateId, setEditingAssetTemplateId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [form, setForm] = useState<AssetTemplateFormValues>(defaultForm)
-  const [errors, setErrors] = useState<AssetTemplateFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailAssetTemplate, setDetailAssetTemplate] = useState<AdminAssetTemplateResource | null>(null)
@@ -74,7 +59,6 @@ export function AssetTemplatesScreen() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
 
   const loadAssetTemplates = useCallback(async () => {
@@ -106,40 +90,28 @@ export function AssetTemplatesScreen() {
 
   const activeAssetTemplates = useMemo(() => assetTemplates.filter((item) => Number(item.status) === 1).length, [assetTemplates])
 
-  const updateForm = (key: keyof AssetTemplateFormValues, value: string | number) => {
-    setForm((current) => ({ ...current, [key]: value }))
-    setErrors((current) => ({ ...current, [key]: undefined }))
-    setSuccessMessage(null)
-  }
-
   const openCreateForm = () => {
-    setEditingAssetTemplate(null)
-    setForm({ ...defaultForm })
-    setErrors({})
+    if (editingAssetTemplateId !== null) {
+      setForm({ ...defaultForm })
+    }
+    setEditingAssetTemplateId(null)
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsFormOpen(true)
   }
 
-  const resetForm = () => {
-    setEditingAssetTemplate(null)
-    setForm({ ...defaultForm })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
-  }
-
   const editAssetTemplate = (assetTemplate: AdminAssetTemplateResource) => {
-    setEditingAssetTemplate(assetTemplate)
-    setForm({
-      name: assetTemplate.name || '',
-      default_unit_name: Number(assetTemplate.default_unit_name || 1),
-      description: assetTemplate.description || '',
-      status: Number(assetTemplate.status || 1),
-    })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
+    if (editingAssetTemplateId !== assetTemplate.id) {
+      setEditingAssetTemplateId(assetTemplate.id)
+      setForm({
+        name: assetTemplate.name || '',
+        default_unit_name: Number(assetTemplate.default_unit_name || 1),
+        description: assetTemplate.description || '',
+        status: Number(assetTemplate.status || 1),
+      })
+      setErrorMessage(null)
+      setSuccessMessage(null)
+    }
     setIsFormOpen(true)
   }
 
@@ -165,45 +137,22 @@ export function AssetTemplatesScreen() {
     setDetailErrorMessage(null)
   }
 
-  const submit = async () => {
-    if (isSaving) return
+  const handleCancelForm = () => {
+    setIsFormOpen(false)
+    setEditingAssetTemplateId(null)
+    setForm({ ...defaultForm })
+  }
 
-    const nextErrors = validateAssetTemplateForm(form)
-    setErrors(nextErrors)
+  const handleCloseForm = () => {
+    setIsFormOpen(false)
+  }
 
-    if (Object.keys(nextErrors).length > 0) {
-      setErrorMessage('Vui lòng kiểm tra lại thông tin mẫu tài sản.')
-      return
-    }
-
-    try {
-      setIsSaving(true)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-
-      const payload = {
-        name: form.name.trim(),
-        default_unit_name: Number(form.default_unit_name),
-        description: form.description.trim() || undefined,
-        status: Number(form.status),
-      }
-
-      if (editingAssetTemplate) {
-        await updateAdminAssetTemplate(editingAssetTemplate.id, payload)
-        setSuccessMessage('Cập nhật mẫu tài sản thành công.')
-      } else {
-        await createAdminAssetTemplate(payload)
-        setSuccessMessage('Tạo mẫu tài sản thành công.')
-      }
-
-      resetForm()
-      setIsFormOpen(false)
-      await loadAssetTemplates()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu mẫu tài sản.')
-    } finally {
-      setIsSaving(false)
-    }
+  const handleSubmitSuccess = () => {
+    setIsFormOpen(false)
+    setEditingAssetTemplateId(null)
+    setForm({ ...defaultForm })
+    setSuccessMessage(editingAssetTemplateId ? 'Cập nhật mẫu tài sản thành công.' : 'Tạo mẫu tài sản thành công.')
+    void loadAssetTemplates()
   }
 
   const toggleAssetTemplateStatus = async (assetTemplate: AdminAssetTemplateResource) => {
@@ -277,7 +226,7 @@ export function AssetTemplatesScreen() {
           </div>
         )}
 
-        <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_360px]')}>
+        <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff7e8]/72 p-4 sm:p-5">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -361,59 +310,15 @@ export function AssetTemplatesScreen() {
             </div>
           </section>
 
-          {isFormOpen && (
-            <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 p-5 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-black tracking-tight text-[#24170d]">{editingAssetTemplate ? 'Cập nhật mẫu tài sản' : 'Thêm mẫu tài sản'}</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form">
-                  <RefreshCw className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Tên mẫu tài sản</label>
-                <input className={`${inputClass} ${errors.name ? inputErrorClass : ''}`} value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Ví dụ: Máy lạnh" />
-                <FieldError message={errors.name} />
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-1">
-                <div>
-                  <label className={labelClass}>Đơn vị</label>
-                  <AdminSelect value={form.default_unit_name} options={unitOptions} invalid={!!errors.default_unit_name} onChange={(nextValue) => updateForm('default_unit_name', Number(nextValue))} />
-                  <FieldError message={errors.default_unit_name} />
-                </div>
-                <div>
-                  <label className={labelClass}>Trạng thái</label>
-                  <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
-                  <FieldError message={errors.status} />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Mô tả</label>
-                <textarea className={`${inputClass} min-h-24 ${errors.description ? inputErrorClass : ''}`} value={form.description} onChange={(event) => updateForm('description', event.target.value)} placeholder="Ghi chú cách dùng hoặc tiêu chuẩn tài sản..." />
-                <FieldError message={errors.description} />
-              </div>
-
-              <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
-                <button type="button" disabled={isSaving} onClick={() => void submit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60">
-                  {isSaving ? 'Đang lưu...' : editingAssetTemplate ? 'Cập nhật' : 'Tạo mẫu'}
-                </button>
-                {editingAssetTemplate && (
-                  <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="inline-flex min-h-14 flex-1 items-center justify-center rounded-[1.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] px-5 py-3.5 text-base font-black text-[#8b5e34] transition hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]">
-                    Hủy sửa
-                  </button>
-                )}
-              </div>
-            </div>
-            </aside>
-          )}
+          <AssetTemplateModal
+            isOpen={isFormOpen}
+            onClose={handleCloseForm}
+            editingAssetTemplateId={editingAssetTemplateId}
+            form={form}
+            setForm={setForm}
+            onCancel={handleCancelForm}
+            onSubmitSuccess={handleSubmitSuccess}
+          />
         </div>
       </section>
 
@@ -484,7 +389,3 @@ function DetailTile({ label, value }: { label: string; value: string | number })
   )
 }
 
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
-}

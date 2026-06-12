@@ -59,10 +59,12 @@ export function validateTenantForm(form: TenantFormValues, isSuperAdmin = false)
     errors.email = 'Email khách thuê tối đa 150 ký tự.'
   }
 
+  const VIETNAMESE_PHONE_REGEX = /^(032|033|034|035|036|037|038|039|086|096|097|098|081|082|083|084|085|088|091|094|070|076|077|078|079|089|090|093|056|058|092|059|099|087)\d{7}$/
+
   if (!phone) {
     errors.phone = 'Vui lòng nhập số điện thoại khách thuê.'
-  } else if (phone.length > 30) {
-    errors.phone = 'Số điện thoại khách thuê tối đa 30 ký tự.'
+  } else if (!VIETNAMESE_PHONE_REGEX.test(phone)) {
+    errors.phone = 'Số điện thoại phải gồm 10 số và thuộc nhà mạng Việt Nam hợp lệ.'
   }
 
   if (!form.date_of_birth) {
@@ -85,8 +87,19 @@ export function validateTenantForm(form: TenantFormValues, isSuperAdmin = false)
 
   if (!identityNumber) {
     errors.identity_number = 'Vui lòng nhập số giấy tờ khách thuê.'
-  } else if (identityNumber.length > 30) {
-    errors.identity_number = 'Số giấy tờ khách thuê tối đa 30 ký tự.'
+  } else {
+    const idType = Number(form.identity_type)
+    if (idType === 1) { // CCCD
+      if (!/^\d{12}$/.test(identityNumber)) {
+        errors.identity_number = 'Số CCCD phải gồm đúng 12 chữ số.'
+      }
+    } else if (idType === 3) { // Hộ chiếu
+      if (!/^[A-Za-z0-9]{9}$/.test(identityNumber)) {
+        errors.identity_number = 'Số hộ chiếu phải gồm đúng 9 ký tự (chữ và số).'
+      }
+    } else if (identityNumber.length > 30) {
+      errors.identity_number = 'Số giấy tờ khách thuê tối đa 30 ký tự.'
+    }
   }
 
   if (permanentAddress.length > 500) {

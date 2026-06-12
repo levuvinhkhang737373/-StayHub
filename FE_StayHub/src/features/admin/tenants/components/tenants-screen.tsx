@@ -1,24 +1,19 @@
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Building2, Camera, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, RefreshCw, Search, Trash2, UploadCloud, UserRound, X } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Building2, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, Search, Trash2, UserRound, X, ArrowLeft } from 'lucide-react'
 import { formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
-import { ApiError, type ApiValidationErrors } from '../../../../shared/lib/api/api-client'
+import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
-import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import {
-  createAdminTenant,
   deleteAdminTenant,
   fetchAdminTenantDetail,
   fetchAdminTenants,
-  updateAdminTenant,
   updateAdminTenantStatus,
 } from '../services/tenants.service'
-import type { AdminPaginationMeta, AdminPaginator, AdminTenantPayload, AdminTenantResource } from '../types/tenant-api.model'
-import { validateTenantForm, type TenantFormErrors, type TenantFormValues } from '../validations/tenant.validation'
-import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
-import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
+import type { AdminPaginationMeta, AdminPaginator, AdminTenantResource } from '../types/tenant-api.model'
+import { useAdminSession } from '../../auth/hooks/use-admin-session'
 
 type AdminTenantsResult = AdminPaginator<AdminTenantResource> | AdminTenantResource[]
 type AdminTenantsResponse = Omit<Awaited<ReturnType<typeof fetchAdminTenants>>, 'result'> & {
@@ -50,32 +45,11 @@ const IDENTITY_TYPE_CCCD = 1
 const IDENTITY_TYPE_CMND = 2
 const IDENTITY_TYPE_PASSPORT = 3
 
-const defaultForm: TenantFormValues = {
-  building_id: '',
-  username: '',
-  full_name: '',
-  email: '',
-  phone: '',
-  date_of_birth: '',
-  gender: GENDER_MALE,
-  status: STATUS_RENTING,
-  identity_type: IDENTITY_TYPE_CCCD,
-  identity_number: '',
-  permanent_address: '',
-  current_address: '',
-  front_image: null,
-  back_image: null,
-  delete_front_image: false,
-  delete_back_image: false,
-}
-
 const statusOptions = [
   { value: '', label: 'Tất cả trạng thái', tone: 'default' as const },
   { value: STATUS_RENTING, label: 'Đang thuê', tone: 'success' as const },
   { value: STATUS_STOPPED_RENTING, label: 'Ngừng thuê', tone: 'danger' as const },
 ]
-
-const formStatusOptions = statusOptions.filter((option) => option.value !== '')
 
 const genderOptions = [
   { value: '', label: 'Tất cả giới tính', tone: 'default' as const },
@@ -83,16 +57,11 @@ const genderOptions = [
   { value: GENDER_FEMALE, label: 'Nữ', tone: 'default' as const },
 ]
 
-const formGenderOptions = genderOptions.filter((option) => option.value !== '')
-
 const identityTypeOptions = [
   { value: '', label: 'Tất cả giấy tờ', tone: 'default' as const },
   { value: IDENTITY_TYPE_CCCD, label: 'CCCD', tone: 'success' as const },
-  { value: IDENTITY_TYPE_CMND, label: 'CMND', tone: 'warning' as const },
   { value: IDENTITY_TYPE_PASSPORT, label: 'Hộ chiếu', tone: 'default' as const },
 ]
-
-const formIdentityTypeOptions = identityTypeOptions.filter((option) => option.value !== '')
 
 const perPageOptions = [
   { value: 5, label: '5 dòng', tone: 'default' as const },
@@ -101,15 +70,11 @@ const perPageOptions = [
   { value: 50, label: '50 dòng', tone: 'default' as const },
 ]
 
-const formErrorKeys: Array<keyof TenantFormValues> = ['building_id', 'username', 'full_name', 'email', 'phone', 'date_of_birth', 'gender', 'status', 'identity_type', 'identity_number', 'permanent_address', 'current_address', 'front_image', 'back_image', 'delete_front_image', 'delete_back_image']
-
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
-const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
-const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function TenantsScreen() {
   const { session } = useAdminSession()
-  const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session])
+  const navigate = useNavigate()
   const defaultBuildingId = session?.admin?.managed_buildings?.[0]?.id
 
   const [keyword, setKeyword] = useState('')
@@ -120,10 +85,6 @@ export function TenantsScreen() {
   const [currentPage, setCurrentPage] = useState(1)
   const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
-  const [editingTenant, setEditingTenant] = useState<AdminTenantResource | null>(null)
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [form, setForm] = useState<TenantFormValues>(defaultForm)
-  const [errors, setErrors] = useState<TenantFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailTenant, setDetailTenant] = useState<AdminTenantResource | null>(null)
@@ -131,22 +92,8 @@ export function TenantsScreen() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [buildingOptions, setBuildingOptions] = useState<{ value: string | number; label: string; tone: 'default' }[]>([])
-
-  useEffect(() => {
-    if (isSuperAdmin) {
-      fetchAdminBuildings().then((response) => {
-        const list = response.result || []
-        setBuildingOptions([
-          { value: '', label: 'Chọn tòa nhà', tone: 'default' },
-          ...list.map(b => ({ value: b.id, label: b.name, tone: 'default' as const }))
-        ])
-      }).catch(console.error)
-    }
-  }, [isSuperAdmin])
 
   const loadTenants = useCallback(async () => {
     setIsLoading(true)
@@ -201,67 +148,12 @@ export function TenantsScreen() {
       .sort((a, b) => a - b)
   }, [safeCurrentPage, totalPages])
   const hasActiveFilters = Boolean(keyword.trim() || selectedStatus || selectedGender || selectedIdentityType)
-  const updateForm = (key: keyof TenantFormValues, value: string | number | boolean | File | null) => {
-    setForm((current) => ({ ...current, [key]: value }))
-    setErrors((current) => ({ ...current, [key]: undefined }))
-    setSuccessMessage(null)
-  }
-
-  const applyApiValidationErrors = (validationErrors: ApiValidationErrors) => {
-    const nextErrors: TenantFormErrors = {}
-
-    formErrorKeys.forEach((key) => {
-      const messages = validationErrors[key]
-
-      if (messages?.[0]) {
-        nextErrors[key] = messages[0]
-      }
-    })
-
-    setErrors(nextErrors)
-  }
-
   const openCreateForm = () => {
-    setEditingTenant(null)
-    setForm({ ...defaultForm })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
-    setIsFormOpen(true)
-  }
-
-  const resetForm = () => {
-    setEditingTenant(null)
-    setForm({ ...defaultForm })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
+    navigate('/admin/tenants/create')
   }
 
   const editTenant = (tenant: AdminTenantResource) => {
-    setEditingTenant(tenant)
-    setForm({
-      building_id: tenant.building_id || '',
-      username: tenant.username || '',
-      full_name: tenant.full_name || '',
-      email: tenant.email || '',
-      phone: tenant.phone || '',
-      date_of_birth: tenant.date_of_birth || '',
-      gender: Number(tenant.gender || GENDER_MALE),
-      status: Number(tenant.status || STATUS_RENTING),
-      identity_type: Number(tenant.identity_type || IDENTITY_TYPE_CCCD),
-      identity_number: tenant.identity_number || '',
-      permanent_address: tenant.permanent_address || '',
-      current_address: tenant.current_address || '',
-      front_image: null,
-      back_image: null,
-      delete_front_image: false,
-      delete_back_image: false,
-    })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
-    setIsFormOpen(true)
+    navigate(`/admin/tenants/${tenant.id}/edit`)
   }
 
   const viewTenant = async (tenant: AdminTenantResource) => {
@@ -298,63 +190,6 @@ export function TenantsScreen() {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
-
-  const submit = async () => {
-    if (isSaving) return
-
-    const nextErrors = validateTenantForm(form, isSuperAdmin)
-    setErrors(nextErrors)
-
-    if (Object.keys(nextErrors).length > 0) {
-      setErrorMessage(null)
-      return
-    }
-
-    try {
-      setIsSaving(true)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-
-      const payload: AdminTenantPayload = {
-        building_id: isSuperAdmin ? (form.building_id ? Number(form.building_id) : undefined) : defaultBuildingId,
-        username: form.username.trim(),
-        full_name: form.full_name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        date_of_birth: form.date_of_birth,
-        gender: Number(form.gender),
-        status: Number(form.status),
-        identity_type: Number(form.identity_type),
-        identity_number: form.identity_number.trim(),
-        permanent_address: form.permanent_address.trim() || null,
-        current_address: form.current_address.trim() || null,
-        front_image: form.front_image,
-        back_image: form.back_image,
-        delete_front_image: form.delete_front_image,
-        delete_back_image: form.delete_back_image,
-      }
-
-      if (editingTenant) {
-        const response = await updateAdminTenant(editingTenant.id, payload)
-        setSuccessMessage(response.message || 'Cập nhật khách thuê thành công.')
-      } else {
-        const response = await createAdminTenant(payload)
-        setSuccessMessage(response.message || 'Tạo khách thuê thành công. Mật khẩu đã được gửi qua email.')
-      }
-
-      resetForm()
-      setIsFormOpen(false)
-      await loadTenants()
-    } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        applyApiValidationErrors(error.validationErrors)
-      }
-
-      setErrorMessage(getVisibleErrorMessage(error, editingTenant ? 'Không thể cập nhật khách thuê.' : 'Không thể tạo khách thuê.'))
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   const toggleTenantStatus = async (tenant: AdminTenantResource) => {
     const nextStatus = isTenantRenting(tenant) ? STATUS_STOPPED_RENTING : STATUS_RENTING
@@ -452,7 +287,7 @@ export function TenantsScreen() {
             </div>
           )}
 
-          <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_430px]')}>
+          <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
             <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
               <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
                 <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)]">
@@ -593,108 +428,6 @@ export function TenantsScreen() {
               </div>
             </section>
 
-            {isFormOpen && (
-              <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md 2xl:sticky 2xl:top-6 2xl:self-start">
-                <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="mt-1 text-xl font-black tracking-tight text-[#24170d]">{editingTenant ? 'Cập nhật khách thuê' : 'Thêm khách thuê'}</h2>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form" aria-label="Làm mới form khách thuê">
-                        <RefreshCw className="h-4 w-4" />
-                      </button>
-                      <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form" aria-label="Đóng form khách thuê">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
-                  {isSuperAdmin && (
-                    <div>
-                      <label className={labelClass}>Tòa nhà <span className="text-rose-500">*</span></label>
-                      <AdminSelect value={form.building_id || ""} options={buildingOptions} invalid={!!errors.building_id} onChange={(nextValue) => updateForm('building_id', nextValue)} />
-                      <FieldError message={errors.building_id} />
-                    </div>
-                  )}
-                  <div>
-                    <label className={labelClass}>Tên đăng nhập</label>
-                    <input className={cn(inputClass, errors.username && inputErrorClass)} value={form.username} onChange={(event) => updateForm('username', event.target.value)} placeholder="Ví dụ: tenant_nguyenvana" autoComplete="off" />
-                    <FieldError message={errors.username} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Họ tên</label>
-                    <input className={cn(inputClass, errors.full_name && inputErrorClass)} value={form.full_name} onChange={(event) => updateForm('full_name', event.target.value)} placeholder="Nhập họ tên khách thuê" />
-                    <FieldError message={errors.full_name} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Email</label>
-                    <input className={cn(inputClass, errors.email && inputErrorClass)} value={form.email} onChange={(event) => updateForm('email', event.target.value)} placeholder="tenant@stayhub.vn" type="email" />
-                    <FieldError message={errors.email} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Số điện thoại</label>
-                    <input className={cn(inputClass, errors.phone && inputErrorClass)} value={form.phone} onChange={(event) => updateForm('phone', event.target.value)} placeholder="Nhập số điện thoại" />
-                    <FieldError message={errors.phone} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Ngày sinh (Tùy chọn)</label>
-                    <AdminDateInput
-                      className={cn(inputClass, errors.date_of_birth && inputErrorClass)}
-                      value={form.date_of_birth}
-                      onChange={(value) => updateForm('date_of_birth', value)}
-                      maxDate={new Date()}
-                    />
-                    <FieldError message={errors.date_of_birth} />
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className={labelClass}>Giới tính</label>
-                      <AdminSelect value={form.gender} options={formGenderOptions} invalid={!!errors.gender} onChange={(nextValue) => updateForm('gender', Number(nextValue))} />
-                      <FieldError message={errors.gender} />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Trạng thái</label>
-                      <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
-                      <FieldError message={errors.status} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className={labelClass}>Loại giấy tờ</label>
-                      <AdminSelect value={form.identity_type} options={formIdentityTypeOptions} invalid={!!errors.identity_type} onChange={(nextValue) => updateForm('identity_type', Number(nextValue))} />
-                      <FieldError message={errors.identity_type} />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Số giấy tờ</label>
-                      <input className={cn(inputClass, errors.identity_number && inputErrorClass)} value={form.identity_number} onChange={(event) => updateForm('identity_number', event.target.value)} placeholder="Nhập số CCCD/CMND" />
-                      <FieldError message={errors.identity_number} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Địa chỉ thường trú</label>
-                    <textarea className={cn(inputClass, 'min-h-20 resize-none', errors.permanent_address && inputErrorClass)} value={form.permanent_address} onChange={(event) => updateForm('permanent_address', event.target.value)} placeholder="Nhập địa chỉ thường trú" />
-                    <FieldError message={errors.permanent_address} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Địa chỉ hiện tại</label>
-                    <textarea className={cn(inputClass, 'min-h-20 resize-none', errors.current_address && inputErrorClass)} value={form.current_address} onChange={(event) => updateForm('current_address', event.target.value)} placeholder="Nhập địa chỉ hiện tại" />
-                    <FieldError message={errors.current_address} />
-                  </div>
-
-                  <FileInputField label="Ảnh mặt trước CCCD" file={form.front_image} currentUrl={editingTenant?.front_image_url} deleteChecked={form.delete_front_image} error={errors.front_image} onFileChange={(file) => updateForm('front_image', file)} onDeleteChange={(checked) => updateForm('delete_front_image', checked)} />
-                  <FileInputField label="Ảnh mặt sau CCCD" file={form.back_image} currentUrl={editingTenant?.back_image_url} deleteChecked={form.delete_back_image} error={errors.back_image} onFileChange={(file) => updateForm('back_image', file)} onDeleteChange={(checked) => updateForm('delete_back_image', checked)} />
-
-                  <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
-                    <button type="button" disabled={isSaving} onClick={() => void submit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60">
-                      <BadgeCheck className="h-5 w-5" /> {isSaving ? 'Đang lưu...' : editingTenant ? 'Cập nhật' : 'Tạo khách thuê'}
-                    </button>
-                  </div>
-                </div>
-              </aside>
-            )}
           </div>
         </section>
 
@@ -859,99 +592,6 @@ function handleImageFallback(event: SyntheticEvent<HTMLImageElement>) {
   image.src = DEFAULT_AVATAR_URL
 }
 
-function FileInputField({ label, file, currentUrl, deleteChecked, error, onFileChange, onDeleteChange }: { label: string; file: File | null; currentUrl?: string | null; deleteChecked: boolean; error?: string; onFileChange: (file: File | null) => void; onDeleteChange: (checked: boolean) => void }) {
-  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file])
-  const [isZoomed, setIsZoomed] = useState(false)
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-    }
-  }, [previewUrl])
-
-  useEffect(() => {
-    if (!isZoomed) return
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setIsZoomed(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isZoomed])
-
-  const visibleUrl = previewUrl || (!deleteChecked ? currentUrl : null)
-
-  const handleRemove = () => {
-    if (previewUrl) {
-      onFileChange(null)
-    } else if (currentUrl) {
-      onDeleteChange(true)
-    }
-  }
-
-  const handleUndoDelete = () => {
-    onDeleteChange(false)
-  }
-
-  return (
-    <>
-      <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/55 p-3">
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className={labelClass}>{label}</label>
-          {deleteChecked && !previewUrl && currentUrl && (
-            <button type="button" onClick={handleUndoDelete} className="text-[10px] font-black text-[#a65f16] hover:text-[#8b5e34] hover:underline">Hoàn tác xóa</button>
-          )}
-        </div>
-        {visibleUrl ? (
-          <div className="relative mb-3 group">
-            <img src={visibleUrl} alt={label} onClick={() => setIsZoomed(true)} className="h-32 w-full rounded-2xl border border-[#3d2a18]/10 object-cover cursor-zoom-in transition hover:opacity-90" />
-            <button type="button" onClick={handleRemove} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/90 text-white shadow-sm backdrop-blur-sm transition hover:bg-rose-600 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-rose-400 sm:opacity-0 sm:group-hover:opacity-100" title="Xóa ảnh">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="mb-3 flex h-24 w-full items-center justify-center rounded-2xl border border-dashed border-[#3d2a18]/12 bg-[#efe2cf]/45 text-[#8b5e34]"><Camera className="h-6 w-6" /></div>
-        )}
-        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
-          <UploadCloud className="h-4 w-4" /> {file ? 'Chọn ảnh khác' : 'Chọn ảnh'}
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => {
-            onFileChange(event.target.files?.[0] ?? null)
-            if (deleteChecked) onDeleteChange(false)
-          }} />
-        </label>
-        {file && <p className="mt-2 truncate text-xs font-bold text-[#6f6254]">{file.name}</p>}
-        <FieldError message={error} />
-      </div>
-
-      {isZoomed && visibleUrl && createPortal(
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/80 p-4 backdrop-blur-sm cursor-zoom-out"
-          onClick={() => setIsZoomed(false)}
-        >
-          <button
-            type="button"
-            className="absolute right-6 top-6 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
-            onClick={(e) => { e.stopPropagation(); setIsZoomed(false) }}
-            aria-label="Đóng ảnh"
-          >
-            <X className="h-6 w-6" />
-          </button>
-          <img
-            src={visibleUrl}
-            alt={label}
-            className="max-h-[75vh] max-w-[90vw] lg:max-w-[70vw] rounded-lg object-contain shadow-2xl cursor-default"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>,
-        document.body
-      )}
-    </>
-  )
-}
-
 function ImageTile({ label, url }: { label: string; url?: string | null }) {
   const isAvatar = label === 'Ảnh đại diện'
   const visibleUrl = url || (isAvatar ? DEFAULT_AVATAR_URL : null)
@@ -1022,10 +662,6 @@ function DetailTile({ label, value }: { label: string; value?: string | number |
   )
 }
 
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="mt-1.5 px-1 text-xs font-bold text-rose-600">{message}</p>
-}
 
 function isTenantRenting(tenant: AdminTenantResource) {
   return Number(tenant.status) === STATUS_RENTING
