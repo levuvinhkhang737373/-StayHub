@@ -39,7 +39,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'facilities', label: 'Khu vực & Tòa nhà', icon: Building2, group: 'Cơ sở vật chất', href: '/admin/facilities', access: 'superadmin' },
   { id: 'asset_templates', label: 'Mẫu tài sản', icon: Boxes, group: 'Cơ sở vật chất', href: '/admin/asset-templates', access: 'superadmin' },
   { id: 'room_types', label: 'Loại phòng', icon: BedDouble, group: 'Cơ sở vật chất', href: '/admin/room-types', access: 'superadmin' },
-  { id: 'rooms', label: 'Quản lý Phòng', icon: DoorOpen, group: 'Cơ sở vật chất', href: '/admin/rooms', access: 'superadmin' },
+  { id: 'rooms', label: 'Quản lý Phòng', icon: DoorOpen, group: 'Cơ sở vật chất', href: '/admin/rooms', access: 'all' },
   { id: 'meters', label: 'Quản lý đồng hồ', icon: Gauge, group: 'Cơ sở vật chất', href: '/admin/meters', access: 'all' },
   { id: 'tenants', label: 'Khách thuê', icon: Users, group: 'Khách thuê & HĐ', href: '/admin/tenants', access: 'all' },
   { id: 'contracts', label: 'Hợp đồng', icon: FileText, group: 'Khách thuê & HĐ', href: '/admin/contracts', access: 'contract-manager' },

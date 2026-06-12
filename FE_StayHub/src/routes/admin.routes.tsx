@@ -18,9 +18,12 @@ import { FacilitiesScreen } from '../features/admin/facilities/components/facili
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
 import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
 import { AdminLayout } from '../layouts/admin/AdminLayout'
+import { Rooms } from '../features/admin/rooms/components/rooms'
+import { Create } from '../features/admin/rooms/components/create'
 import { MaintenanceScreen } from '../features/admin/maintenance'
 import { NotificationsScreen } from '../features/admin/notifications'
 import { VehiclesScreen } from '../features/admin/vehicles'
+import { Update } from '../features/admin/rooms/components/Update'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -62,7 +65,15 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'rooms',
-        element: <AdminRouteGuard access="superadmin"><AdminPlaceholderScreen title="Quản lý Phòng" description="Quản lý danh sách phòng, trạng thái phòng và cấu hình vận hành phòng." /></AdminRouteGuard>,
+        element: <AdminRouteGuard access='all'><Rooms /></AdminRouteGuard>,
+      },
+      {
+        path: 'room',
+        element: <AdminRouteGuard access='all'><Create /></AdminRouteGuard>,
+      },
+      {
+        path: 'rooms/update/:id',
+        element: <AdminRouteGuard access='all'><Update /></AdminRouteGuard>,
       },
       {
         path: 'tenants',

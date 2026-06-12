@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\MaintenanceRequestController as AdminMaintenanceC
 use App\Http\Controllers\Admin\MeterController;
 use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Admin\RegionController;
+use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
@@ -92,6 +93,10 @@ Route::prefix('admin')->group(function (): void {
         Route::post('contracts/{contract}/renew', [ContractController::class, 'renew']);
         Route::post('contracts/{contract}/deposit-transactions', [ContractController::class, 'addDepositTransaction']);
         Route::apiResource('contracts', ContractController::class);
+
+        //==========================Rooms===================================
+        Route::apiResource('/room', RoomController::class);
+        Route::patch('/room/{id}/status', [RoomController::class, 'updateStatus']);
     });
 });
 
