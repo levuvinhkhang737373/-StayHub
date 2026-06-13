@@ -324,21 +324,37 @@ class TenantController extends Controller
 
     private function queryTenants(array $validated, Admin $admin): Builder
     {
-        return $this->tenantQueryFor($admin)
+        $query = $this->tenantQueryFor($admin)
             ->select($this->listColumns())
             ->with($this->listRelations())
             ->withCount($this->listCounts())
-            ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', (int) $validated['status']))
-            ->when(isset($validated['gender']), fn (Builder $query): Builder => $query->where('gender', (int) $validated['gender']))
-            ->when(isset($validated['identity_type']), fn (Builder $query): Builder => $query->where('identity_type', (int) $validated['identity_type']))
-            ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', (int) $validated['building_id']))
-            ->when(AdminScope::isSuperAdmin($admin) && isset($validated['created_by']), fn (Builder $query): Builder => $query->where('created_by', (int) $validated['created_by']))
-            ->when(isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN), function (Builder $query): Builder {
-                return $query->where('status', Tenant::STATUS_RENTING)
-                    ->whereDoesntHave('contracts', function (Builder $q): void {
-                        $q->where('status', Contract::STATUS_ACTIVE);
-                    });
-            })
+            ->when(isset($validated['status']), fn (Builder $q): Builder => $q->where('status', (int) $validated['status']))
+            ->when(isset($validated['gender']), fn (Builder $q): Builder => $q->where('gender', (int) $validated['gender']))
+            ->when(isset($validated['identity_type']), fn (Builder $q): Builder => $q->where('identity_type', (int) $validated['identity_type']));
+
+        $isContractSearch = isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN);
+
+        if ($isContractSearch) {
+            if (!isset($validated['building_id'])) {
+                return $query->whereRaw('1 = 0');
+            }
+
+            $buildingId = (int) $validated['building_id'];
+            $query->where(function (Builder $q) use ($buildingId): void {
+                $q->where('building_id', $buildingId)
+                    ->orWhereNull('building_id');
+            });
+
+            $query->where('status', Tenant::STATUS_RENTING)
+                ->whereDoesntHave('contracts', function (Builder $q): void {
+                    $q->where('status', Contract::STATUS_ACTIVE);
+                });
+        } else {
+            $query->when(isset($validated['building_id']), fn (Builder $q): Builder => $q->where('building_id', (int) $validated['building_id']));
+        }
+
+        return $query
+            ->when(AdminScope::isSuperAdmin($admin) && isset($validated['created_by']), fn (Builder $q): Builder => $q->where('created_by', (int) $validated['created_by']))
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }

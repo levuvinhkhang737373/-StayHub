@@ -192,6 +192,9 @@ export function ContractsScreen() {
   const filterRoomOptions = useMemo(() => [{ value: '', label: 'Tất cả phòng', tone: 'default' as const }, ...roomOptions], [roomOptions])
 
   const tenantOptions = useMemo(() => {
+    if (!form.building_id || !form.room_id) {
+      return []
+    }
     const merged = [...tenants]
     const existingIds = new Set(merged.map((t) => t.id))
     for (const t of currentContractTenants) {
@@ -205,7 +208,7 @@ export function ContractsScreen() {
       description: tenant.phone || tenant.email || tenant.identity_number || undefined,
       tone: 'default' as const
     }))
-  }, [tenants, currentContractTenants])
+  }, [tenants, currentContractTenants, form.building_id, form.room_id])
 
   const vehicleOptions = useMemo(() => {
     const merged = [...vehicles]
@@ -274,8 +277,12 @@ export function ContractsScreen() {
   }, [])
 
   const loadTenants = useCallback(async (buildingId: string) => {
+    if (!buildingId) {
+      setTenants([])
+      return
+    }
     try {
-      const response = await fetchAdminTenants({ building_id: buildingId ? Number(buildingId) : undefined, status: 1, without_active_contract: true, per_page: 100 })
+      const response = await fetchAdminTenants({ building_id: Number(buildingId), status: 1, without_active_contract: true, per_page: 100 })
       setTenants(getResourceList(response.result))
     } catch (error) {
       setTenants([])
@@ -1088,7 +1095,7 @@ function ContractFormPanel({
                   {form.tenants.length > 1 && <button type="button" onClick={() => onRemoveTenant(index)} className="text-xs font-black text-rose-600">Xóa</button>}
                 </div>
                 <div className="mt-3 space-y-3">
-                  <AdminSelect value={tenant.tenant_id} options={tenantOptions} invalid={!!errors[`tenants.${index}`]} placeholder="Chọn khách thuê" onChange={(value) => onUpdateTenant(index, { tenant_id: String(value) })} />
+                  <AdminSelect value={tenant.tenant_id} options={tenantOptions} invalid={!!errors[`tenants.${index}`]} disabled={!form.building_id || !form.room_id} placeholder={!form.building_id || !form.room_id ? "Vui lòng chọn tòa nhà & phòng trước" : "Chọn khách thuê"} onChange={(value) => onUpdateTenant(index, { tenant_id: String(value) })} />
                   <div className={cn("grid grid-cols-1 gap-3", (editing || renewing) && "sm:grid-cols-2")}>
                     <AdminDateInput className={inputClass} value={tenant.join_date} onChange={(value) => onUpdateTenant(index, { join_date: value, billing_start_date: tenant.billing_start_date || value })} />
                     {(editing || renewing) && (
