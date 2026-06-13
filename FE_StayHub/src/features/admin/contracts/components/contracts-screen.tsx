@@ -190,7 +190,7 @@ export function ContractsScreen() {
   const filterBuildingOptions = useMemo(() => [{ value: '', label: isSuperAdmin ? 'Tất cả tòa nhà' : 'Tòa nhà được phân quyền', tone: 'default' as const }, ...buildingOptions], [buildingOptions, isSuperAdmin])
   const roomOptions = useMemo(() => rooms.map((room) => ({ value: room.id, label: `Phòng ${room.room_number || room.id}`, description: `Đang ở ${room.current_occupants ?? 0}/${room.max_occupants ?? '—'} người`, tone: room.status === 1 ? 'success' as const : 'warning' as const })), [rooms])
   const filterRoomOptions = useMemo(() => [{ value: '', label: 'Tất cả phòng', tone: 'default' as const }, ...roomOptions], [roomOptions])
-  
+
   const tenantOptions = useMemo(() => {
     const merged = [...tenants]
     const existingIds = new Set(merged.map((t) => t.id))
@@ -777,7 +777,7 @@ export function ContractsScreen() {
                     <td colSpan={7} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-stone-100" /></td>
                   </tr>
                 ))}
- 
+
                 {!isLoading && contracts.map((contract) => (
                   <tr key={contract.id} className="transition hover:bg-[#f3c56b]/10">
                     <td className="px-5 py-4">
@@ -818,7 +818,7 @@ export function ContractsScreen() {
                     </td>
                   </tr>
                 ))}
- 
+
                 {!isLoading && contracts.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-5 py-20 text-center">
@@ -917,28 +917,9 @@ export function ContractsScreen() {
       {qrModalContract && (
         <DepositQRModal
           contract={qrModalContract}
-          isSaving={isConfirmingDeposit}
           onClose={() => {
             setQrModalContract(null)
             void loadContracts()
-          }}
-          onConfirm={async () => {
-            try {
-              setIsConfirmingDeposit(true)
-              await createAdminContractDepositTransaction(qrModalContract.id, {
-                transaction_type: 1, // COLLECT
-                amount: qrModalContract.deposit_amount || '0.00',
-                transaction_date: new Date().toISOString().slice(0, 10),
-                payment_method: 2, // QR
-                note: 'Xác nhận thu cọc chuyển khoản QR tại chỗ khi ký hợp đồng'
-              })
-              setQrModalContract(null)
-              void loadContracts()
-            } catch (error) {
-              alert(getVisibleErrorMessage(error, 'Không thể ghi nhận giao dịch cọc.'))
-            } finally {
-              setIsConfirmingDeposit(false)
-            }
           }}
         />
       )}
@@ -1506,16 +1487,35 @@ function PayDepositModal({
   onClose: () => void
   onConfirm: (method: number) => Promise<void>
 }) {
+  const { echo } = useAdminSocket()
   const [method, setMethod] = useState<number | null>(null) // null, 1: Cash, 2: QR
   const [timeLeft, setTimeLeft] = useState(1800) // 30 minutes in seconds
+  const [isPaidSuccess, setIsPaidSuccess] = useState(false)
 
   useEffect(() => {
-    if (method !== 2 || timeLeft <= 0) return
+    if (!echo || method !== 2) return
+    const channel = echo.private('admin-maintenance')
+    channel.listen('.ContractDepositPaid', (event: any) => {
+      const updatedContract = event.contract
+      if (updatedContract && Number(updatedContract.id) === Number(contract.id) && updatedContract.is_deposit_paid) {
+        setIsPaidSuccess(true)
+        setTimeout(() => {
+          onClose()
+        }, 2000)
+      }
+    })
+    return () => {
+      channel.stopListening('.ContractDepositPaid')
+    }
+  }, [echo, method, contract.id, onClose])
+
+  useEffect(() => {
+    if (method !== 2 || timeLeft <= 0 || isPaidSuccess) return
     const timer = setInterval(() => {
       setTimeLeft((prev) => prev - 1)
     }, 1000)
     return () => clearInterval(timer)
-  }, [method, timeLeft])
+  }, [method, timeLeft, isPaidSuccess])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -1589,7 +1589,15 @@ function PayDepositModal({
         ) : (
           <div className="mt-4 flex flex-col items-center">
             <div className="rounded-3xl border border-[#3d2a18]/10 bg-white p-4 shadow-sm">
-              {isExpired ? (
+              {isPaidSuccess ? (
+                <div className="flex h-[240px] w-[240px] flex-col items-center justify-center text-center p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 animate-bounce">
+                    <BadgeCheck className="h-7 w-7" />
+                  </div>
+                  <p className="mt-4 text-sm font-black text-emerald-700">Thanh toán thành công!</p>
+                  <p className="mt-1.5 text-xs text-emerald-600/80 font-bold">Hệ thống đang tự động cập nhật...</p>
+                </div>
+              ) : isExpired ? (
                 <div className="flex h-[240px] w-[240px] flex-col items-center justify-center text-center p-4 bg-stone-50 rounded-2xl">
                   <p className="text-sm font-bold text-rose-500">Mã QR đã hết hạn (30 phút)</p>
                   <p className="mt-2 text-xs text-stone-500">Vui lòng đóng modal và mở lại để tạo mã mới.</p>
@@ -1625,21 +1633,13 @@ function PayDepositModal({
               </div>
             </div>
 
-            <div className="mt-4 flex w-full gap-3">
+            <div className="mt-4 w-full">
               <button
                 type="button"
                 onClick={() => setMethod(null)}
-                className="h-12 flex-1 rounded-xl border border-[#3d2a18]/10 bg-white text-sm font-black text-[#8b5e34]"
+                className="h-12 w-full rounded-xl border border-[#3d2a18]/10 bg-white text-sm font-black text-[#8b5e34]"
               >
                 Quay lại
-              </button>
-              <button
-                type="button"
-                disabled={isSaving || isExpired}
-                onClick={handleConfirm}
-                className="h-12 flex-1 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60"
-              >
-                {isSaving ? 'Đang xác nhận...' : 'Xác nhận đã nhận'}
               </button>
             </div>
           </div>
@@ -1651,14 +1651,10 @@ function PayDepositModal({
 
 function DepositQRModal({
   contract,
-  isSaving,
   onClose,
-  onConfirm
 }: {
   contract: AdminContractResource
-  isSaving: boolean
   onClose: () => void
-  onConfirm: () => void
 }) {
   const { echo } = useAdminSocket()
   const [timeLeft, setTimeLeft] = useState(1800) // 30 minutes in seconds
@@ -1752,26 +1748,18 @@ function DepositQRModal({
             </div>
             <div className="flex justify-between">
               <span>Nội dung chuyển khoản:</span>
-              <span className="font-black text-[#a65f16]">{`COC ${contract.contract_code}`}</span>
+              <span className="font-black text-[#a65f16]">{contract.contract_code}</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 flex gap-3">
+        <div className="mt-5">
           <button
             type="button"
             onClick={onClose}
-            className="h-12 flex-1 rounded-xl border border-[#3d2a18]/10 bg-white text-sm font-black text-[#8b5e34]"
+            className="h-12 w-full rounded-xl border border-[#3d2a18]/10 bg-white text-sm font-black text-[#8b5e34]"
           >
             Đóng / Thu sau
-          </button>
-          <button
-            type="button"
-            disabled={isSaving || isExpired}
-            onClick={onConfirm}
-            className="h-12 flex-1 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60"
-          >
-            {isSaving ? 'Đang xác nhận...' : 'Xác nhận đã nhận'}
           </button>
         </div>
       </div>

@@ -247,7 +247,7 @@ class ContractControllerTest extends TestCase
         $this->assertTrue((bool)$contractVehicle->is_active);
     }
 
-    public function test_room_with_active_contract_but_not_full_is_available_for_new_contracts()
+    public function test_room_with_active_contract_is_not_available_for_new_contracts()
     {
         // 1. Create first contract for the room (max_occupants = 5)
         $contract1 = Contract::create([
@@ -273,16 +273,16 @@ class ContractControllerTest extends TestCase
         // Update current occupants of room
         $this->room->update(['current_occupants' => 1]);
 
-        // 2. Query available rooms - should contain this room
+        // 2. Query available rooms - should NOT contain this room
         $response = $this->actingAs($this->superAdmin, 'admin')
             ->getJson("/api/admin/contracts/available-rooms?building_id={$this->building->id}");
 
         $response->assertStatus(200);
         $rooms = $response->json('result');
         $roomIds = collect($rooms)->pluck('id')->all();
-        $this->assertContains($this->room->id, $roomIds);
+        $this->assertNotContains($this->room->id, $roomIds);
 
-        // 3. Create second contract for the same room (with tenant2) - should succeed
+        // 3. Create second contract for the same room (with tenant2) - should fail
         $payload = [
             'room_id' => $this->room->id,
             'start_date' => '2026-06-01',
@@ -303,7 +303,8 @@ class ContractControllerTest extends TestCase
         $createResponse = $this->actingAs($this->superAdmin, 'admin')
             ->postJson('/api/admin/contracts', $payload);
 
-        $createResponse->assertStatus(201);
+        $createResponse->assertStatus(422);
+        $createResponse->assertJsonPath('message', 'Phòng này đã có hợp đồng đang hiệu lực, không thể tạo thêm hợp đồng mới.');
     }
 
     public function test_create_contract_violates_room_capacity()

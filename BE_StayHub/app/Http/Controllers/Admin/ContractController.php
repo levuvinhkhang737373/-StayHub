@@ -60,9 +60,8 @@ class ContractController extends Controller
                 ->select(['id', 'building_id', 'room_number', 'status', 'base_price', 'max_occupants', 'current_occupants'])
                 ->where('building_id', $buildingId)
                 ->where('status', Room::STATUS_ACTIVE)
-                ->where(function (Builder $query): void {
-                    $query->where('max_occupants', 0)
-                        ->orWhereColumn('current_occupants', '<', 'max_occupants');
+                ->whereDoesntHave('contracts', function (Builder $query): void {
+                    $query->where('status', Contract::STATUS_ACTIVE);
                 })
                 ->orderBy('room_number')
                 ->get();
@@ -962,19 +961,14 @@ class ContractController extends Controller
             $this->throwResponse('Không tìm thấy phòng.', 404);
         }
 
-        $otherOccupants = ContractTenant::query()
-            ->where('is_staying', true)
-            ->whereNull('leave_date')
-            ->whereHas('contract', function (Builder $query) use ($roomId, $ignoreContractId): Builder {
-                return $query->where('room_id', $roomId)
-                    ->where('status', Contract::STATUS_ACTIVE)
-                    ->when($ignoreContractId !== null, fn (Builder $q) => $q->whereKeyNot($ignoreContractId));
-            })
-            ->distinct('tenant_id')
-            ->count('tenant_id');
+        $hasActiveContract = Contract::query()
+            ->where('room_id', $roomId)
+            ->where('status', Contract::STATUS_ACTIVE)
+            ->when($ignoreContractId !== null, fn (Builder $query) => $query->whereKeyNot($ignoreContractId))
+            ->exists();
 
-        if ((int) $room->max_occupants > 0 && $otherOccupants >= (int) $room->max_occupants) {
-            $this->throwResponse('Phòng này đã đầy, không thể tạo thêm hợp đồng mới.', 422);
+        if ($hasActiveContract) {
+            $this->throwResponse('Phòng này đã có hợp đồng đang hiệu lực, không thể tạo thêm hợp đồng mới.', 422);
         }
     }
 

@@ -108,7 +108,7 @@ class SePayWebhookControllerTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'status' => true,
-                'message' => 'Payment processed successfully.'
+                'message' => 'Xử lý thanh toán thành công.'
             ]);
 
         // Verify transaction is created
@@ -164,7 +164,7 @@ class SePayWebhookControllerTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'status' => true,
-                'message' => 'Only incoming transfers are processed.'
+                'message' => 'Chỉ xử lý giao dịch nhận tiền.'
             ]);
     }
 
@@ -199,7 +199,7 @@ class SePayWebhookControllerTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'status' => true,
-                'message' => 'Transaction already processed.'
+                'message' => 'Giao dịch đã được xử lý.'
             ]);
     }
 
@@ -225,7 +225,7 @@ class SePayWebhookControllerTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'status' => true,
-                'message' => 'Test webhook received successfully.'
+                'message' => 'Nhận webhook thử nghiệm thành công.'
             ]);
     }
 }

@@ -701,7 +701,7 @@ function DepositQRModal({
             </div>
             <div className="flex justify-between">
               <span>Nội dung chuyển khoản:</span>
-              <span className="font-black text-[#a65f16]">{`COC ${contract.contract_code}`}</span>
+              <span className="font-black text-[#a65f16]">{contract.contract_code}</span>
             </div>
           </div>
         </div>

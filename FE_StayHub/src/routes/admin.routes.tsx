@@ -12,7 +12,6 @@ import { SettingsScreen } from '../features/admin/settings/components/settings-s
 import { SystemUsersScreen } from '../features/admin/system-users'
 import { TenantsScreen } from '../features/admin/tenants'
 import { ContractsScreen } from '../features/admin/contracts'
-import { CreateRegionScreen } from '../features/admin/facilities/components/create-region-screen'
 import { CreateTenantScreen } from '../features/admin/tenants/components/create-tenant-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
