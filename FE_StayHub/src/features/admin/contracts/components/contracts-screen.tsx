@@ -1095,7 +1095,7 @@ function ContractFormPanel({
                   {form.tenants.length > 1 && <button type="button" onClick={() => onRemoveTenant(index)} className="text-xs font-black text-rose-600">Xóa</button>}
                 </div>
                 <div className="mt-3 space-y-3">
-                  <AdminSelect value={tenant.tenant_id} options={tenantOptions} invalid={!!errors[`tenants.${index}`]} disabled={!form.building_id || !form.room_id} placeholder={!form.building_id || !form.room_id ? "Vui lòng chọn tòa nhà & phòng trước" : "Chọn khách thuê"} onChange={(value) => onUpdateTenant(index, { tenant_id: String(value) })} />
+                  <AdminSelect value={tenant.tenant_id} options={tenantOptions} invalid={!!errors[`tenants.${index}`]} placeholder="Chọn khách thuê" onChange={(value) => onUpdateTenant(index, { tenant_id: String(value) })} />
                   <div className={cn("grid grid-cols-1 gap-3", (editing || renewing) && "sm:grid-cols-2")}>
                     <AdminDateInput className={inputClass} value={tenant.join_date} onChange={(value) => onUpdateTenant(index, { join_date: value, billing_start_date: tenant.billing_start_date || value })} />
                     {(editing || renewing) && (

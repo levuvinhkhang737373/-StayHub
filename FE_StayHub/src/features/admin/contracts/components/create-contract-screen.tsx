@@ -503,7 +503,7 @@ export function CreateContractScreen() {
           <FormSection title="Khách thuê" icon={<UserPlus className="h-5 w-5" />} action={<button type="button" onClick={() => updateForm('tenants', [...form.tenants, { ...defaultTenantRow, join_date: form.start_date, billing_start_date: form.start_date }])} className="rounded-xl bg-[#24170d] px-3 py-2 text-xs font-black text-[#fff4df]"><Plus className="mr-1 inline h-3.5 w-3.5" />Thêm khách</button>}>
             <FieldError message={errors.tenants} />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {form.tenants.map((tenant, index) => <TenantRow key={index} index={index} row={tenant} options={tenantOptions} disabled={!form.building_id || !form.room_id} error={errors[`tenants.${index}`]} canRemove={form.tenants.length > 1} onChange={(patch) => updateTenantRow(index, patch)} onRemove={() => updateForm('tenants', form.tenants.filter((_, rowIndex) => rowIndex !== index))} isEditMode={isEditMode} />)}
+              {form.tenants.map((tenant, index) => <TenantRow key={index} index={index} row={tenant} options={tenantOptions} error={errors[`tenants.${index}`]} canRemove={form.tenants.length > 1} onChange={(patch) => updateTenantRow(index, patch)} onRemove={() => updateForm('tenants', form.tenants.filter((_, rowIndex) => rowIndex !== index))} isEditMode={isEditMode} />)}
             </div>
           </FormSection>
 
@@ -845,12 +845,12 @@ function Field({ label, required, error, children }: { label: string; required?:
   return <div><label className={labelClass}>{label} {required && <span className="text-rose-500">*</span>}</label>{children}<FieldError message={error} /></div>
 }
 
-function TenantRow({ index, row, options, error, canRemove, onChange, onRemove, isEditMode, disabled }: { index: number; row: ContractTenantFormRow; options: Array<{ value: string | number; label: string; description?: string }>; error?: string; canRemove: boolean; onChange: (patch: Partial<ContractTenantFormRow>) => void; onRemove: () => void; isEditMode: boolean; disabled?: boolean }) {
+function TenantRow({ index, row, options, error, canRemove, onChange, onRemove, isEditMode }: { index: number; row: ContractTenantFormRow; options: Array<{ value: string | number; label: string; description?: string }>; error?: string; canRemove: boolean; onChange: (patch: Partial<ContractTenantFormRow>) => void; onRemove: () => void; isEditMode: boolean }) {
   return (
     <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3">
       <RowHeader title={`Khách #${index + 1}`} canRemove={canRemove} onRemove={onRemove} />
       <div className="mt-3 space-y-3">
-        <AdminSelect value={row.tenant_id} options={options} invalid={!!error} disabled={disabled} placeholder={disabled ? "Vui lòng chọn tòa nhà & phòng trước" : "Chọn khách thuê"} onChange={(value) => onChange({ tenant_id: String(value) })} />
+        <AdminSelect value={row.tenant_id} options={options} invalid={!!error} placeholder="Chọn khách thuê" onChange={(value) => onChange({ tenant_id: String(value) })} />
         <div className={cn("grid grid-cols-1 gap-3", isEditMode && "sm:grid-cols-2")}>
           <AdminDateInput className={inputClass} value={row.join_date} onChange={(value) => onChange({ join_date: value, billing_start_date: row.billing_start_date || value })} />
           {isEditMode && (
