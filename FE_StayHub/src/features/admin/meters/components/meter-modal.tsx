@@ -116,7 +116,7 @@ export function MeterModal({
         meter_type: form.meter_type,
         initial_reading: Number(form.initial_reading),
         installed_at: form.installed_at || undefined,
-        final_reading: form.final_reading.trim() ? Number(form.final_reading) : undefined,
+        final_reading: form.final_reading?.trim() ? Number(form.final_reading) : undefined,
         status: form.status,
         replaced_by_meter_id: form.replaced_by_meter_id.trim() ? Number(form.replaced_by_meter_id) : undefined,
         note: form.note.trim() || undefined,
@@ -262,7 +262,7 @@ export function MeterModal({
                     min={0}
                     step="any"
                     className={cn(inputClass, errors.final_reading && inputErrorClass)}
-                    value={form.final_reading}
+                    value={form.final_reading || ''}
                     onChange={(event) => updateForm('final_reading', event.target.value)}
                     placeholder="Tùy chọn"
                     disabled={isSaving}

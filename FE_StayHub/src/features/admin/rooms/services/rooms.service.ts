@@ -1,5 +1,5 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
-import type {  AdminRoomResource, AssetResource, BuildingResource, RoomFormDataPayload, RoomTypeResource } from '../types/rooms.model'
+import type {  AdminRoomResource, AssetResource, BuildingResource, RoomTypeResource } from '../types/rooms.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
   const query = new URLSearchParams()

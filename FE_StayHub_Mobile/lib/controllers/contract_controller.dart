@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/contract.dart';
+import '../services/api_service.dart';
 
 class ContractController extends ChangeNotifier {
+  final ApiService _apiService = ApiService();
+
   final List<Contract> _mockContracts = [
     InvoiceContract(
       id: 1,
@@ -15,7 +18,7 @@ class ContractController extends ChangeNotifier {
       billingCycleDay: 5,
       roomPrice: 3500000,
       depositAmount: 3500000,
-      status: 2, // ACTIVE (Expiring soon)
+      status: Contract.STATUS_ACTIVE,
     ),
     InvoiceContract(
       id: 2,
@@ -29,7 +32,7 @@ class ContractController extends ChangeNotifier {
       billingCycleDay: 5,
       roomPrice: 3500000,
       depositAmount: 3500000,
-      status: 2, // ACTIVE
+      status: Contract.STATUS_ACTIVE,
     ),
     InvoiceContract(
       id: 3,
@@ -43,18 +46,89 @@ class ContractController extends ChangeNotifier {
       billingCycleDay: 5,
       roomPrice: 3800000,
       depositAmount: 3800000,
-      status: 3, // EXPIRED
+      status: Contract.STATUS_EXPIRED,
     ),
   ];
 
+  List<Contract>? _realContracts;
   bool _isLoading = false;
+  String? _errorMessage;
 
-  List<Contract> get contracts => _mockContracts;
+  List<Contract> get contracts => _realContracts ?? [];
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+
+  /// Clear the error message
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
 
   /// Get count of contracts expiring within 30 days
   int get expiringContractsCount {
-    return 1;
+    final activeContracts = contracts.where((c) => c.status == Contract.STATUS_ACTIVE).toList();
+    int count = 0;
+    final now = DateTime.now();
+    final thirtyDaysLater = now.add(const Duration(days: 30));
+    for (var c in activeContracts) {
+      if (c.endDate != null) {
+        try {
+          final end = DateTime.parse(c.endDate!);
+          if (end.isAfter(now) && end.isBefore(thirtyDaysLater)) {
+            count++;
+          }
+        } catch (_) {}
+      }
+    }
+    return count;
+  }
+
+  /// Fetch contracts from real API
+  Future<void> fetchContracts(String role) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      if (role == 'admin') {
+        final response = await _apiService.get<List<Contract>>(
+          '/admin/contracts',
+          fromJsonT: (json) {
+            final dataList = json['data'] as List<dynamic>;
+            return dataList.map((item) => Contract.fromJson(item as Map<String, dynamic>)).toList();
+          },
+        );
+
+        if (response.status && response.result != null) {
+          _realContracts = response.result;
+        } else {
+          _errorMessage = response.message;
+        }
+      } else if (role == 'tenant') {
+        final response = await _apiService.get<List<Contract>>(
+          '/tenant/contracts',
+          fromJsonT: (json) {
+            final dataList = json as List<dynamic>;
+            return dataList.map((item) => Contract.fromJson(item as Map<String, dynamic>)).toList();
+          },
+        );
+
+        if (response.status && response.result != null) {
+          _realContracts = response.result;
+        } else {
+          _errorMessage = response.message;
+          _realContracts = [];
+        }
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối API: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
   }
 
   /// Create a new contract (Admin action)
@@ -68,44 +142,133 @@ class ContractController extends ChangeNotifier {
     required double depositAmount,
   }) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      await _apiService.init();
 
-    final newContract = InvoiceContract(
-      id: _mockContracts.length + 1,
-      contractCode: contractCode,
-      roomId: 1,
-      roomNumber: roomNumber,
-      representativeTenantId: 1,
-      tenantName: tenantName,
-      startDate: startDate,
-      endDate: endDate,
-      billingCycleDay: 5,
-      roomPrice: rentalPrice,
-      depositAmount: depositAmount,
-      status: 2, // ACTIVE
-    );
+      // 1. Fetch room to find corresponding room_id
+      final roomResponse = await _apiService.get<List<dynamic>>(
+        '/admin/room',
+        fromJsonT: (json) => json as List<dynamic>,
+      );
 
-    _mockContracts.insert(0, newContract);
+      int? roomId;
+      if (roomResponse.status && roomResponse.result != null) {
+        for (var r in roomResponse.result!) {
+          if (r['room_number']?.toString() == roomNumber) {
+            roomId = r['id'] as int?;
+            break;
+          }
+        }
+      }
+
+      if (roomId == null) {
+        _errorMessage = 'Không tìm thấy phòng số $roomNumber trong hệ thống.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      // 2. Fetch tenant to find corresponding tenant_id
+      final tenantResponse = await _apiService.get<List<dynamic>>(
+        '/admin/tenants',
+        fromJsonT: (json) => json['data'] as List<dynamic>,
+      );
+
+      int? tenantId;
+      if (tenantResponse.status && tenantResponse.result != null) {
+        for (var t in tenantResponse.result!) {
+          if (t['full_name']?.toString().toLowerCase().trim() == tenantName.toLowerCase().trim()) {
+            tenantId = t['id'] as int?;
+            break;
+          }
+        }
+      }
+
+      if (tenantId == null) {
+        _errorMessage = 'Không tìm thấy khách thuê "$tenantName" trong hệ thống.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      // 3. Post contract to API
+      final payload = {
+        if (contractCode.isNotEmpty) 'contract_code': contractCode,
+        'room_id': roomId,
+        'start_date': startDate,
+        'end_date': endDate,
+        'billing_cycle_day': 5,
+        'room_price': rentalPrice.toStringAsFixed(2),
+        'deposit_amount': depositAmount.toStringAsFixed(2),
+        'tenants': [
+          {
+            'tenant_id': tenantId,
+            'join_date': startDate,
+            'is_staying': true,
+          }
+        ],
+        'is_deposit_paid': true,
+      };
+
+      final response = await _apiService.post<Map<String, dynamic>>(
+        '/admin/contracts',
+        data: payload,
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status) {
+        await fetchContracts('admin');
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối API: $e';
+    }
+
     _isLoading = false;
     notifyListeners();
-    return true;
+    return false;
   }
 
   /// Update contract details (Admin action)
   Future<bool> updateContract(Contract contract) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      await _apiService.init();
+      final payload = {
+        'room_id': contract.roomId,
+        'start_date': contract.startDate,
+        'end_date': contract.endDate,
+        'room_price': contract.roomPrice.toStringAsFixed(2),
+        'deposit_amount': contract.depositAmount.toStringAsFixed(2),
+        'note': contract.note,
+      };
 
-    final index = _mockContracts.indexWhere((c) => c.id == contract.id);
-    if (index != -1) {
-      _mockContracts[index] = contract;
-      _isLoading = false;
-      notifyListeners();
-      return true;
+      final response = await _apiService.put<Map<String, dynamic>>(
+        '/admin/contracts/${contract.id}',
+        data: payload,
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status) {
+        await fetchContracts('admin');
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối API: $e';
     }
 
     _isLoading = false;
@@ -116,30 +279,85 @@ class ContractController extends ChangeNotifier {
   /// Extend a contract (Gia hạn)
   Future<bool> extendContract(int id, String newEndDate) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 500));
 
-    final index = _mockContracts.indexWhere((c) => c.id == id);
-    if (index != -1) {
-      final old = _mockContracts[index];
-      _mockContracts[index] = InvoiceContract(
-        id: old.id,
-        contractCode: old.contractCode,
-        roomId: old.roomId,
-        roomNumber: old.roomNumber,
-        representativeTenantId: old.representativeTenantId,
-        tenantName: old.tenantName,
-        startDate: old.startDate,
-        endDate: newEndDate,
-        billingCycleDay: old.billingCycleDay,
-        roomPrice: old.roomPrice,
-        depositAmount: old.depositAmount,
-        status: 2, // Reset to ACTIVE
+    try {
+      await _apiService.init();
+
+      // 1. Fetch details of contract to be extended
+      final responseDetail = await _apiService.get<Map<String, dynamic>>(
+        '/admin/contracts/$id',
+        fromJsonT: (json) => json as Map<String, dynamic>,
       );
-      _isLoading = false;
-      notifyListeners();
-      return true;
+
+      if (!responseDetail.status || responseDetail.result == null) {
+        _errorMessage = 'Không lấy được chi tiết hợp đồng: ${responseDetail.message}';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      final contractData = responseDetail.result!;
+      final double roomPrice = double.tryParse(contractData['room_price']?.toString() ?? '0') ?? 0.0;
+      final double depositAmount = double.tryParse(contractData['deposit_amount']?.toString() ?? '0') ?? 0.0;
+      final int roomId = contractData['room_id'] as int? ?? 0;
+      final int billingCycleDay = contractData['billing_cycle_day'] as int? ?? 5;
+      
+      final oldEndDateStr = contractData['end_date'] as String?;
+      String newStartDate = DateTime.now().toString().split(' ')[0]; // default today
+      if (oldEndDateStr != null && oldEndDateStr.isNotEmpty) {
+        try {
+          final oldEndDate = DateTime.parse(oldEndDateStr);
+          final nextDay = oldEndDate.add(const Duration(days: 1));
+          newStartDate = nextDay.toString().split(' ')[0];
+        } catch (_) {}
+      }
+
+      final tenantsList = contractData['contract_tenants'] as List<dynamic>? ?? [];
+      final List<Map<String, dynamic>> mappedTenants = tenantsList.map((ct) {
+        return {
+          'tenant_id': ct['tenant_id'],
+          'join_date': newStartDate,
+          'is_staying': true,
+        };
+      }).toList();
+
+      if (mappedTenants.isEmpty) {
+        _errorMessage = 'Không tìm thấy khách thuê trong hợp đồng cũ để gia hạn.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      final renewPayload = {
+        'room_id': roomId,
+        'start_date': newStartDate,
+        'end_date': newEndDate,
+        'billing_cycle_day': billingCycleDay,
+        'room_price': roomPrice.toStringAsFixed(2),
+        'deposit_amount': depositAmount.toStringAsFixed(2),
+        'tenants': mappedTenants,
+      };
+
+      final renewResponse = await _apiService.post<Map<String, dynamic>>(
+        '/admin/contracts/$id/renew',
+        data: renewPayload,
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (renewResponse.status) {
+        await fetchContracts('admin');
+        return true;
+      } else {
+        _errorMessage = renewResponse.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối API: $e';
     }
+
     _isLoading = false;
     notifyListeners();
     return false;
@@ -148,31 +366,36 @@ class ContractController extends ChangeNotifier {
   /// Terminate a contract (Kết thúc)
   Future<bool> terminateContract(int id) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 500));
 
-    final index = _mockContracts.indexWhere((c) => c.id == id);
-    if (index != -1) {
-      final old = _mockContracts[index];
-      _mockContracts[index] = InvoiceContract(
-        id: old.id,
-        contractCode: old.contractCode,
-        roomId: old.roomId,
-        roomNumber: old.roomNumber,
-        representativeTenantId: old.representativeTenantId,
-        tenantName: old.tenantName,
-        startDate: old.startDate,
-        endDate: old.endDate,
-        actualEndDate: old.endDate,
-        billingCycleDay: old.billingCycleDay,
-        roomPrice: old.roomPrice,
-        depositAmount: old.depositAmount,
-        status: 4, // TERMINATED / LIQUIDATED
+    try {
+      await _apiService.init();
+      final todayStr = DateTime.now().toString().split(' ')[0];
+      final payload = {
+        'status': Contract.STATUS_LIQUIDATED,
+        'actual_end_date': todayStr,
+        'note': 'Chấm dứt hợp đồng qua Mobile App',
+      };
+
+      final response = await _apiService.patch<Map<String, dynamic>>(
+        '/admin/contracts/$id/status',
+        data: payload,
+        fromJsonT: (json) => json as Map<String, dynamic>,
       );
-      _isLoading = false;
-      notifyListeners();
-      return true;
+
+      if (response.status) {
+        await fetchContracts('admin');
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối API: $e';
     }
+
     _isLoading = false;
     notifyListeners();
     return false;
@@ -181,30 +404,59 @@ class ContractController extends ChangeNotifier {
   /// Change room (Chuyển phòng)
   Future<bool> changeRoom(int id, String newRoomNumber, double newRentalPrice) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 500));
 
-    final index = _mockContracts.indexWhere((c) => c.id == id);
-    if (index != -1) {
-      final old = _mockContracts[index];
-      _mockContracts[index] = InvoiceContract(
-        id: old.id,
-        contractCode: old.contractCode,
-        roomId: old.roomId,
-        roomNumber: newRoomNumber,
-        representativeTenantId: old.representativeTenantId,
-        tenantName: old.tenantName,
-        startDate: old.startDate,
-        endDate: old.endDate,
-        billingCycleDay: old.billingCycleDay,
-        roomPrice: newRentalPrice,
-        depositAmount: old.depositAmount,
-        status: old.status,
+    try {
+      await _apiService.init();
+
+      // 1. Fetch room list to find the room_id matching newRoomNumber
+      final roomResponse = await _apiService.get<List<dynamic>>(
+        '/admin/room',
+        fromJsonT: (json) => json as List<dynamic>,
       );
-      _isLoading = false;
-      notifyListeners();
-      return true;
+
+      int? roomId;
+      if (roomResponse.status && roomResponse.result != null) {
+        for (var r in roomResponse.result!) {
+          if (r['room_number']?.toString() == newRoomNumber) {
+            roomId = r['id'] as int?;
+            break;
+          }
+        }
+      }
+
+      if (roomId == null) {
+        _errorMessage = 'Không tìm thấy phòng số $newRoomNumber trong hệ thống.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      // 2. Put to admin/contracts/{id}
+      final payload = {
+        'room_id': roomId,
+        'room_price': newRentalPrice.toStringAsFixed(2),
+      };
+
+      final response = await _apiService.put<Map<String, dynamic>>(
+        '/admin/contracts/$id',
+        data: payload,
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status) {
+        await fetchContracts('admin');
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối API: $e';
     }
+
     _isLoading = false;
     notifyListeners();
     return false;

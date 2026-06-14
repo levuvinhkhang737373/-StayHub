@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useNavigate, useParams, Navigate } from 'react-router-dom'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { ArrowLeft, Camera, IdCard, Save, UploadCloud, UserRound, X } from 'lucide-react'
 import { ApiError, type ApiValidationErrors } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -21,7 +21,6 @@ const STATUS_STOPPED_RENTING = 2
 const GENDER_MALE = 1
 const GENDER_FEMALE = 2
 const IDENTITY_TYPE_CCCD = 1
-const IDENTITY_TYPE_CMND = 2
 const IDENTITY_TYPE_PASSPORT = 3
 
 const defaultForm: TenantFormValues = {
@@ -227,17 +226,17 @@ export function CreateTenantScreen() {
     <div className="space-y-6 text-[#24170d]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <Link to="/admin/tenants" className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-[#8b5e34] hover:text-[#24170d] transition">
+          <button onClick={() => navigate(-1)} className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-[#8b5e34] hover:text-[#24170d] transition">
             <ArrowLeft className="h-4 w-4" /> Quay lại danh sách
-          </Link>
+          </button>
           <h1 className="text-3xl font-black tracking-tight text-[#24170d]">
             {isEditMode ? 'Chỉnh sửa khách thuê' : 'Thêm khách thuê'}
           </h1>
         </div>
         <div className="flex gap-2">
-          <Link to="/admin/tenants" className="inline-flex items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 py-3 text-xs font-black uppercase tracking-widest text-[#6f6254] transition hover:bg-[#efe2cf]">
+          <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 py-3 text-xs font-black uppercase tracking-widest text-[#6f6254] transition hover:bg-[#efe2cf]">
             Hủy
-          </Link>
+          </button>
           <button onClick={() => void submit()} disabled={isSaving || isLoading} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-5 py-3 text-xs font-black uppercase tracking-widest text-[#fff4df] shadow-xl shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:opacity-50">
             <Save className="h-4 w-4 text-[#f3c56b] stroke-[2.8]" />
             {isSaving ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Lưu khách thuê'}

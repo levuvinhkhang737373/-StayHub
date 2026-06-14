@@ -3,11 +3,11 @@ import 'room.dart';
 
 class Contract {
   // Status constants matching backend:
-  static const int STATUS_DRAFT = 1;
-  static const int STATUS_ACTIVE = 2;
-  static const int STATUS_EXPIRED = 3;
-  static const int STATUS_LIQUIDATED = 4;
-  static const int STATUS_CANCELLED = 5;
+  static const int STATUS_DRAFT = 0;
+  static const int STATUS_ACTIVE = 1;
+  static const int STATUS_EXPIRED = 2;
+  static const int STATUS_LIQUIDATED = 3;
+  static const int STATUS_CANCELLED = 4;
 
   final int id;
   final String contractCode;
@@ -21,7 +21,7 @@ class Contract {
   final int billingCycleDay;
   final double roomPrice;
   final double depositAmount;
-  final int status; // 1: Draft, 2: Active, 3: Expired, 4: Liquidated, 5: Cancelled
+  final int status; // 1: Active, 2: Expired, 3: Liquidated, 4: Cancelled, 0: Draft
   final List<String>? contractFiles;
   final String? note;
   final int? createdBy;
@@ -29,6 +29,12 @@ class Contract {
   final String? representativeName;
   final Tenant? representativeTenant;
   final Room? room;
+  
+  // Payment fields
+  final bool isDepositPaid;
+  final int? paymentStatus;
+  final String? paymentStatusLabel;
+  final String? depositQrUrl;
 
   Contract({
     required this.id,
@@ -51,6 +57,10 @@ class Contract {
     this.representativeName,
     this.representativeTenant,
     this.room,
+    this.isDepositPaid = true,
+    this.paymentStatus,
+    this.paymentStatusLabel,
+    this.depositQrUrl,
   });
 
   // Alias fields for backward compatibility
@@ -58,12 +68,18 @@ class Contract {
   double get rentalPrice => roomPrice;
 
   factory Contract.fromJson(Map<String, dynamic> json) {
-    // Deserialize contract files if present
+    // Deserialize contract files if present (handling Map list from API)
     List<String>? files;
-    if (json['contract_files'] != null) {
-      if (json['contract_files'] is List) {
-        files = (json['contract_files'] as List).map((f) => f.toString()).toList();
-      }
+    if (json['contract_files'] != null && json['contract_files'] is List) {
+      files = (json['contract_files'] as List)
+          .map((f) {
+            if (f is Map) {
+              return f['url']?.toString() ?? f['path']?.toString() ?? '';
+            }
+            return f.toString();
+          })
+          .where((url) => url.isNotEmpty)
+          .toList();
     }
 
     return Contract(
@@ -91,6 +107,10 @@ class Contract {
           ? Tenant.fromJson(json['representative_tenant'] as Map<String, dynamic>)
           : null,
       room: json['room'] != null ? Room.fromJson(json['room'] as Map<String, dynamic>) : null,
+      isDepositPaid: json['is_deposit_paid'] == true || json['is_deposit_paid'] == 1,
+      paymentStatus: json['payment_status'] as int?,
+      paymentStatusLabel: json['payment_status_label'] as String?,
+      depositQrUrl: json['deposit_qr_url'] as String?,
     );
   }
 
@@ -118,6 +138,10 @@ class Contract {
       'representative_name': representativeName,
       'representative_tenant': representativeTenant?.toJson(),
       'room': room?.toJson(),
+      'is_deposit_paid': isDepositPaid,
+      'payment_status': paymentStatus,
+      'payment_status_label': paymentStatusLabel,
+      'deposit_qr_url': depositQrUrl,
     };
   }
 

@@ -168,6 +168,10 @@ class ContractController extends Controller
                 return $contract;
             });
 
+            // Dispatch notifications to tenants of the new contract
+            $this->notifyTenantsOfNewContract($contract, $admin->id);
+
+
             return ApiResponse::responseJson(true, 'Tạo hợp đồng thành công', 201, new ContractDetailResource($contract), 201);
         } catch (HttpResponseException $e) {
             $this->deleteDiskFiles($uploadedPaths);
@@ -501,10 +505,10 @@ class ContractController extends Controller
                 $tenantPayloads = $this->normalizedTenantPayloads($validated, null);
                 $tenantIds = collect($tenantPayloads)->pluck('tenant_id')->all();
 
-                $this->assertTenantPayloads($admin, $tenantPayloads, $room, null, $status);
+                $this->assertTenantPayloads($admin, $tenantPayloads, $room, $oldContract->id, $status);
 
                 $vehiclePayloads = $this->normalizedVehiclePayloads($validated, true);
-                $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, null, $status);
+                $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, $oldContract->id, $status);
 
                 
                 $oldContractActualEndDate = date('Y-m-d', strtotime($validated['start_date'] . ' - 1 day'));
@@ -587,6 +591,9 @@ class ContractController extends Controller
 
                 return $contract;
             });
+
+            // Dispatch notifications to tenants of the renewed contract
+            $this->notifyTenantsOfNewContract($newContract, $admin->id);
 
             return ApiResponse::responseJson(true, 'Gia hạn hợp đồng thành công', 201, new ContractDetailResource($newContract), 201);
         } catch (HttpResponseException $e) {
@@ -1334,6 +1341,8 @@ class ContractController extends Controller
             'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
             'room.building:id,name,slug,manager_admin_id,status',
             'creator:id,username,full_name,email,role,status',
+            'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
+            'contractTenants.tenant:id,full_name,phone,email,identity_number',
         ];
     }
 
@@ -1368,4 +1377,31 @@ class ContractController extends Controller
     {
         return ['depositTransactions', 'roomMovements', 'invoices'];
     }
+
+    private function notifyTenantsOfNewContract(Contract $contract, $adminId): void
+    {
+        try {
+            $contract->loadMissing(['room.building', 'tenants']);
+            foreach ($contract->tenants as $tenant) {
+                $tenantNotification = \App\Models\Notification::create([
+                    'title' => 'Hợp đồng mới được tạo',
+                    'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng " . ($contract->room?->room_number ?? 'không rõ') . " đã được tạo thành công.",
+                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+                    'building_id' => $contract->room?->building_id,
+                    'room_id' => $contract->room_id,
+                    'tenant_id' => $tenant->id,
+                    'published_at' => now(),
+                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'created_by' => $adminId,
+                ]);
+
+                // Broadcast real-time notification to the tenant
+                broadcast(new \App\Events\NotificationSent($tenantNotification));
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error notifying tenants of new contract: ' . $e->getMessage());
+        }
+    }
 }
+

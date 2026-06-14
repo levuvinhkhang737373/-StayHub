@@ -115,6 +115,10 @@ Route::prefix('tenant')->group(function (): void {
         // =========================Notifications=======================
         Route::get('notifications', [TenantNotificationController::class, 'index']);
         Route::post('notifications/{id}/read', [TenantNotificationController::class, 'read']);
+
+        // =========================Contract============================
+        Route::get('contract', [\App\Http\Controllers\Tenant\ContractController::class, 'show']);
+        Route::get('contracts', [\App\Http\Controllers\Tenant\ContractController::class, 'index']);
     });
 });
 

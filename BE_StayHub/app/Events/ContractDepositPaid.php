@@ -14,10 +14,12 @@ class ContractDepositPaid implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $contract;
+    protected $tenantIds = [];
 
     public function __construct(Contract $contract)
     {
-        $contract->loadMissing(['room.building']);
+        $contract->loadMissing(['room.building', 'tenants']);
+        $this->tenantIds = $contract->tenants->pluck('id')->toArray();
 
         $this->contract = [
             'id' => $contract->id,
@@ -31,9 +33,15 @@ class ContractDepositPaid implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        return [
+        $channels = [
             new PrivateChannel('admin-maintenance'),
         ];
+
+        foreach ($this->tenantIds as $tenantId) {
+            $channels[] = new PrivateChannel('tenant.' . $tenantId);
+        }
+
+        return $channels;
     }
 
     public function broadcastWith(): array

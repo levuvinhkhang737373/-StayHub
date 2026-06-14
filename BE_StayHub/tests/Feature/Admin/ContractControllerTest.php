@@ -522,4 +522,199 @@ class ContractControllerTest extends TestCase
             'note' => 'Đóng thêm cọc',
         ]);
     }
+
+    public function test_expired_contract_notification_triggers_for_active_tenants()
+    {
+        \Illuminate\Support\Facades\Event::fake([
+            \App\Events\NotificationSent::class
+        ]);
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-TEST-EXPIRED-NOTIF',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant1->id,
+            'join_date' => '2026-06-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant2->id,
+            'join_date' => '2026-06-01',
+            'is_staying' => false,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $contract->status = Contract::STATUS_EXPIRED;
+        $contract->save();
+
+        $this->assertDatabaseHas('notifications', [
+            'tenant_id' => $this->tenant1->id,
+            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'room_id' => $this->room->id,
+            'title' => 'Hợp đồng hết hạn',
+        ]);
+
+        $this->assertDatabaseMissing('notifications', [
+            'tenant_id' => $this->tenant2->id,
+            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'title' => 'Hợp đồng hết hạn',
+        ]);
+
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+            return $event->notification->tenant_id === $this->tenant1->id &&
+                   $event->notification->title === 'Hợp đồng hết hạn';
+        });
+    }
+
+    public function test_create_contract_sends_notification_to_tenants()
+    {
+        \Illuminate\Support\Facades\Event::fake([
+            \App\Events\NotificationSent::class
+        ]);
+
+        $payload = [
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'tenants' => [
+                [
+                    'tenant_id' => $this->tenant1->id,
+                    'join_date' => '2026-06-01',
+                    'is_staying' => true,
+                ],
+                [
+                    'tenant_id' => $this->tenant2->id,
+                    'join_date' => '2026-06-01',
+                    'is_staying' => true,
+                ]
+            ]
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/admin/contracts', $payload);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('notifications', [
+            'tenant_id' => $this->tenant1->id,
+            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'title' => 'Hợp đồng mới được tạo',
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'tenant_id' => $this->tenant2->id,
+            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'title' => 'Hợp đồng mới được tạo',
+        ]);
+
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+            return $event->notification->tenant_id === $this->tenant1->id &&
+                   $event->notification->title === 'Hợp đồng mới được tạo';
+        });
+
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+            return $event->notification->tenant_id === $this->tenant2->id &&
+                   $event->notification->title === 'Hợp đồng mới được tạo';
+        });
+    }
+
+    public function test_renew_contract_sends_notification_to_tenants()
+    {
+        \Illuminate\Support\Facades\Event::fake([
+            \App\Events\NotificationSent::class
+        ]);
+
+        $oldContract = Contract::create([
+            'contract_code' => 'HD-OLD',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-06-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $oldContract->id,
+            'tenant_id' => $this->tenant1->id,
+            'join_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $payload = [
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-02',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'tenants' => [
+                [
+                    'tenant_id' => $this->tenant1->id,
+                    'join_date' => '2026-06-02',
+                    'is_staying' => true,
+                ],
+                [
+                    'tenant_id' => $this->tenant2->id,
+                    'join_date' => '2026-06-02',
+                    'is_staying' => true,
+                ]
+            ]
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson("/api/admin/contracts/{$oldContract->id}/renew", $payload);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('notifications', [
+            'tenant_id' => $this->tenant1->id,
+            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'title' => 'Hợp đồng mới được tạo',
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'tenant_id' => $this->tenant2->id,
+            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'title' => 'Hợp đồng mới được tạo',
+        ]);
+
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+            return $event->notification->tenant_id === $this->tenant1->id &&
+                   $event->notification->title === 'Hợp đồng mới được tạo';
+        });
+
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+            return $event->notification->tenant_id === $this->tenant2->id &&
+                   $event->notification->title === 'Hợp đồng mới được tạo';
+        });
+    }
 }
+

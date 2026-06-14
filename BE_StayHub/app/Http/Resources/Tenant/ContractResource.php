@@ -1,23 +1,21 @@
 <?php
 
-namespace App\Http\Resources\Admin;
+namespace App\Http\Resources\Tenant;
 
+use App\Helpers\ImageHelper;
+use App\Helpers\VietQRHelper;
 use App\Models\Contract;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ContractResource extends JsonResource
 {
-    /**
-     * Dữ liệu hợp đồng .
-     */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
             'contract_code' => $this->contract_code,
             'room_id' => $this->room_id,
-            'room_code' => $this->whenLoaded('room', fn (): ?string => $this->room?->room_code),
             'room_number' => $this->whenLoaded('room', fn (): ?string => $this->room?->room_number),
             'building_id' => $this->whenLoaded('room', fn () => $this->room?->building_id),
             'building_name' => $this->whenLoaded('room', fn (): ?string => $this->room?->relationLoaded('building') ? $this->room?->building?->name : null),
@@ -33,15 +31,42 @@ class ContractResource extends JsonResource
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,
             'is_deposit_paid' => $this->is_deposit_paid,
             'deposit_balance' => (string) $this->deposit_balance,
+            'deposit_qr_url' => $this->is_deposit_paid ? null : VietQRHelper::generateLink(
+                null,
+                null,
+                null,
+                (float) $this->deposit_amount,
+                $this->contract_code
+            ),
+            'contract_files' => $this->contractFiles(),
+            'representative_tenant' => $this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()
+                ? [
+                    'id' => $this->contractTenants->first()->tenant?->id,
+                    'full_name' => $this->contractTenants->first()->tenant?->full_name,
+                    'phone' => $this->contractTenants->first()->tenant?->phone,
+                    'email' => $this->contractTenants->first()->tenant?->email,
+                    'identity_number' => $this->contractTenants->first()->tenant?->identity_number,
+                ]
+                : null,
             'tenant_name' => $this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()
                 ? ($this->contractTenants->first()->tenant?->full_name ?? '')
                 : null,
-            'contract_tenants_count' => $this->whenCounted('contractTenants'),
-            'tenants_count' => $this->whenCounted('tenants'),
-            'vehicles_count' => $this->whenCounted('vehicles'),
-            'deposit_transactions_count' => $this->whenCounted('depositTransactions'),
             'created_at' => optional($this->created_at)->toDateTimeString(),
             'updated_at' => optional($this->updated_at)->toDateTimeString(),
         ];
     }
+
+    private function contractFiles(): array
+    {
+        return collect($this->contract_files ?? [])
+            ->filter(fn ($path): bool => filled($path))
+            ->map(fn (string $path): array => [
+                'path' => $path,
+                'name' => basename($path),
+                'url' => ImageHelper::urlFromDisk($path, 'public'),
+            ])
+            ->values()
+            ->all();
+    }
 }
+

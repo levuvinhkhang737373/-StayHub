@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ElementType, ReactNode } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Building2, ChevronRight, ImagePlus, MapPin, Plus, Save, Search, Settings, Star, Trash2, X, Zap } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
 import { createAdminService, fetchAdminServices } from "../../services/services/services.service";
@@ -410,13 +410,13 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
         <div className="space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <Link to="/admin/facilities" className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
+                    <button onClick={() => navigate(-1)} className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
                         <ArrowLeft className="h-4 w-4" /> Quay lại danh sách
-                    </Link>
+                    </button>
                     <h1 className="text-2xl font-black tracking-tight text-gray-900">{isEditMode ? "Chỉnh sửa Tòa nhà" : "Thêm Tòa nhà"}</h1>
                 </div>
                 <div className="flex gap-2">
-                    <Link to="/admin/facilities" className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-500 transition hover:bg-gray-50 hover:text-gray-900">Hủy</Link>
+                    <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-500 transition hover:bg-gray-50 hover:text-gray-900">Hủy</button>
                     <button onClick={submit} disabled={isSaving || isLoading} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#333333] px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-xl shadow-black/10 transition hover:bg-gray-800 disabled:opacity-50">
                         <Save className="h-4 w-4 text-white stroke-[2.8]" /> {isSaving ? "Đang lưu..." : isEditMode ? "Cập nhật" : "Lưu tòa nhà"}
                     </button>

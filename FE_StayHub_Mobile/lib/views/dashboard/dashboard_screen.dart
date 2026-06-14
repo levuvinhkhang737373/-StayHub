@@ -7,6 +7,7 @@ import '../../controllers/room_controller.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../controllers/contract_controller.dart';
 import '../../controllers/maintenance_controller.dart';
+import '../../controllers/notification_controller.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import '../settings/settings_screen.dart';
@@ -21,6 +22,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
   StreamSubscription? _debugSubscription;
+  StreamSubscription? _wsAdminEventsSubscription;
   final Set<String> _readNotificationKeys = {};
 
   @override
@@ -29,6 +31,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardController>().fetchDashboardStats();
       context.read<MaintenanceController>().fetchAdminRequests();
+      context.read<ContractController>().fetchContracts('admin');
+      context.read<NotificationController>().fetchNotifications(isAdmin: true);
       
       final wsService = context.read<WebSocketService>();
       
@@ -50,6 +54,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
       wsService.subscribeToAdminMaintenance(() {
         if (mounted) {
           context.read<MaintenanceController>().fetchAdminRequests();
+          context.read<NotificationController>().fetchNotifications(isAdmin: true);
+        }
+      });
+
+      // Lắng nghe sự kiện đóng tiền cọc thành công thời gian thực
+      _wsAdminEventsSubscription = wsService.notificationsStream.listen((event) {
+        if (event['type'] == 'admin_contract_deposit_paid') {
+          final data = event['data'] as Map<String, dynamic>?;
+          final contract = data != null ? data['contract'] as Map<String, dynamic>? : null;
+          
+          if (contract != null && mounted) {
+            // Làm mới các chỉ số vận hành và hợp đồng của admin
+            context.read<DashboardController>().fetchDashboardStats();
+            context.read<ContractController>().fetchContracts('admin');
+            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+            
+            final contractCode = contract['contract_code'] ?? '';
+            final roomNumber = contract['room_number'] ?? '';
+            final amountVal = contract['deposit_amount'] != null
+                ? double.tryParse(contract['deposit_amount'].toString()) ?? 0.0
+                : 0.0;
+            
+            final amountFormatted = amountVal > 0 
+                ? '${amountVal.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}đ' 
+                : 'tiền cọc';
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Phòng $roomNumber đã đóng cọc thành công $amountFormatted (HĐ: $contractCode)',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 5),
+                backgroundColor: const Color(0xFF16A34A), // Premium green color
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            );
+          }
+        } else if (event['type'] == 'admin_notification_sent') {
+          if (mounted) {
+            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+            context.read<DashboardController>().fetchDashboardStats();
+          }
         }
       });
     });
@@ -58,6 +114,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _debugSubscription?.cancel();
+    _wsAdminEventsSubscription?.cancel();
     super.dispose();
   }
 
@@ -72,7 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildNotificationsTab(List<Map<String, dynamic>> items) {
     return RefreshIndicator(
       color: const Color(0xFF1C1917),
-      onRefresh: () => context.read<MaintenanceController>().fetchAdminRequests(),
+      onRefresh: () => context.read<NotificationController>().fetchNotifications(isAdmin: true),
       child: Stack(
         children: [
           Positioned.fill(child: CustomPaint(painter: GridPainter())),
@@ -116,7 +173,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               _readNotificationKeys.add(item['key'] as String);
                             });
                           }
-                          Navigator.pushNamed(context, '/admin/maintenance');
+                          if (item['type'] == 'request') {
+                            Navigator.pushNamed(context, '/admin/maintenance');
+                          } else {
+                            Navigator.pushNamed(context, '/admin/contracts');
+                          }
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: Padding(
@@ -186,41 +247,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final invoiceController = context.watch<InvoiceController>();
     final contractController = context.watch<ContractController>();
     final maintenanceController = context.watch<MaintenanceController>();
+    final notificationController = context.watch<NotificationController>();
     
     final admin = authController.currentAdmin;
 
-    // Filter notification items:
-    // 1. New maintenance requests (status == 1)
-    // 2. Completed requests with feedback
+    // Filter notification items from database:
     final List<Map<String, dynamic>> items = [];
 
-    for (final req in maintenanceController.requests) {
-      if (req.status == 1) {
-        final key = 'req_status_1_${req.id}';
-        items.add({
-          'key': key,
-          'type': 'request',
-          'title': 'Yêu cầu sửa chữa mới — Phòng ${req.roomNumber}',
-          'subtitle': '${req.title}: ${req.description}',
-          'date': req.createdAt,
-          'icon': Icons.handyman_outlined,
-          'color': Colors.orange,
-          'isRead': _readNotificationKeys.contains(key),
-        });
+    for (final notif in notificationController.notifications) {
+      final key = 'db_notif_${notif.id}';
+      final isReadLocal = _readNotificationKeys.contains(key) || notif.isRead;
+      
+      IconData icon = Icons.notifications_none_rounded;
+      Color color = Colors.blue;
+      
+      if (notif.notificationType == 1) {
+        icon = Icons.handyman_outlined;
+        color = Colors.deepOrange;
+      } else if (notif.notificationType == 2) {
+        icon = Icons.receipt_long_outlined;
+        color = Colors.indigo;
+      } else if (notif.notificationType == 3) {
+        icon = Icons.campaign_rounded;
+        color = const Color(0xFFEAB308);
+      } else if (notif.notificationType == 4) {
+        icon = Icons.warning_amber_rounded;
+        color = Colors.redAccent;
       }
-      if (req.feedback != null && req.feedback!.isNotEmpty) {
-        final key = 'req_feedback_${req.id}';
-        items.add({
-          'key': key,
-          'type': 'feedback',
-          'title': 'Phản hồi mới — Phòng ${req.roomNumber}',
-          'subtitle': 'Khách ${req.tenantName}: "${req.feedback}"',
-          'date': req.createdAt,
-          'icon': Icons.rate_review_outlined,
-          'color': Colors.green,
-          'isRead': _readNotificationKeys.contains(key),
-        });
-      }
+
+      // Format date
+      String displayDate = notif.createdAt;
+      try {
+        final parsed = DateTime.parse(notif.createdAt).toLocal();
+        displayDate = '${parsed.hour.toString().padLeft(2, "0")}:${parsed.minute.toString().padLeft(2, "0")} ${parsed.day.toString().padLeft(2, "0")}/${parsed.month.toString().padLeft(2, "0")}/${parsed.year}';
+      } catch (_) {}
+
+      items.add({
+        'key': key,
+        'id': notif.id,
+        'type': notif.notificationType == 1 ? 'request' : 'system',
+        'title': notif.title,
+        'subtitle': notif.content,
+        'date': displayDate,
+        'icon': icon,
+        'color': color,
+        'isRead': isReadLocal,
+      });
     }
 
     int notificationCount = items.where((item) => !item['isRead']).length;

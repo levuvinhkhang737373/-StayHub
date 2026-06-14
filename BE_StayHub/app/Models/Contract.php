@@ -54,6 +54,35 @@ class Contract extends Model
                 $contract->payment_status = self::PAYMENT_STATUS_PENDING;
             }
         });
+
+        static::updated(function ($contract) {
+            if ($contract->wasChanged('status') && (int) $contract->status === self::STATUS_EXPIRED) {
+                $contract->loadMissing('room');
+
+                // Lấy danh sách khách thuê đang ở của hợp đồng
+                $activeTenants = $contract->contractTenants()
+                    ->where('is_staying', true)
+                    ->get();
+
+                foreach ($activeTenants as $contractTenant) {
+                    $tenantNotification = Notification::create([
+                        'title' => 'Hợp đồng hết hạn',
+                        'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng " . ($contract->room?->room_number ?? 'không rõ') . " đã hết thời hạn.",
+                        'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                        'target_type' => Notification::TARGET_TYPE_TENANT,
+                        'building_id' => $contract->room?->building_id,
+                        'room_id' => $contract->room_id,
+                        'tenant_id' => $contractTenant->tenant_id,
+                        'published_at' => now(),
+                        'status' => Notification::STATUS_SENT,
+                        'created_by' => null,
+                    ]);
+
+                    // Bắn realtime thông báo cho khách thuê qua Reverb
+                    broadcast(new \App\Events\NotificationSent($tenantNotification));
+                }
+            }
+        });
     }
 
     public function updatePaymentStatus(): void

@@ -149,6 +149,29 @@ class SePayWebhookController extends Controller
                 }
             });
 
+            // Create database notification for building admins
+            try {
+                $contract->loadMissing(['room.building']);
+                $room = $contract->room;
+                $building = $room?->building;
+                
+                $adminNotif = \App\Models\Notification::create([
+                    'title' => 'Thanh toán đặt cọc thành công',
+                    'content' => "Hợp đồng {$contract->contract_code} (Phòng " . ($room?->room_number ?? 'Chưa rõ') . " - Tòa nhà " . ($building?->name ?? 'Chưa rõ') . ") đã thanh toán tiền cọc thành công qua cổng SePay. Số tiền: " . number_format($amount, 0, ',', '.') . " VND.",
+                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => \App\Models\Notification::TARGET_TYPE_ADMIN,
+                    'building_id' => $room?->building_id,
+                    'room_id' => $contract->room_id,
+                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'published_at' => now(),
+                ]);
+
+                // Broadcast real-time notification to building manager
+                broadcast(new \App\Events\NotificationSent($adminNotif));
+            } catch (\Exception $e) {
+                Log::error('SePay Webhook: Error creating/broadcasting admin notification: ' . $e->getMessage());
+            }
+
             Log::info("SePay Webhook: Successfully processed payment for contract {$contractCode}, amount: {$amount}");
 
             return ApiResponse::responseJson(true, 'Xử lý thanh toán thành công.', 0, null, 200);

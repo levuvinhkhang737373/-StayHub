@@ -609,7 +609,7 @@ export function MetersScreen() {
         {activeMessage || errorMessage || successMessage}
       </div>
 
-      <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
+      <div className="min-w-0">
         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
           <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
             <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_200px_200px]">
@@ -729,111 +729,117 @@ export function MetersScreen() {
             </div>
           </div>
         </section>
+      </div>
 
-        {isFormOpen && (
-          <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 p-5 shadow-sm shadow-[#6b3f1d]/5">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#24170d]">{editingMeter ? 'Cập nhật đồng hồ' : 'Thông tin đồng hồ mới'}</p>
-                  <p className="text-xs font-medium text-[#6f6254]">Điền thông tin bắt buộc và nhấn lưu.</p>
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
+            <div className="bg-[#24170d] p-5 text-[#fff4df]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black tracking-tight">{editingMeter ? 'Cập nhật đồng hồ' : 'Thông tin đồng hồ mới'}</h2>
+                  <p className="mt-1 text-xs font-semibold text-[#f8e8c8]/72">Điền thông tin bắt buộc và nhấn lưu.</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <button type="button" onClick={resetForm} className="flex flex-col items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">
+                  <button type="button" onClick={resetForm} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" title="Làm mới form">
                     <RefreshCw className="h-4 w-4" />
-                    <span className="whitespace-nowrap mt-1">Làm mới</span>
                   </button>
-                  <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="flex flex-col items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-2 text-xs font-black text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-700">
+                  <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" title="Đóng form">
                     <X className="h-4 w-4" />
-                    <span className="whitespace-nowrap mt-1">Đóng</span>
                   </button>
                 </div>
               </div>
+            </div>
 
+            <div className="max-h-[70vh] overflow-y-auto p-6 space-y-4">
               {successMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{successMessage}</div>}
               {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{errorMessage}</div>}
 
-            <div className="grid gap-4">
-              <div>
-                <label className={labelClass}>Tòa nhà</label>
-                <AdminSelect
-                  value={form.building_id}
-                  options={buildings.map((b) => ({ value: b.id, label: b.name }))}
-                  invalid={!!errors.building_id}
-                  placeholder="Chọn tòa nhà"
-                  onChange={(nextValue) => {
-                    updateForm('building_id', String(nextValue))
-                    updateForm('room_id', '')
-                  }}
-                />
-                <FieldError message={errors.building_id} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Phòng</label>
-                <AdminSelect
-                  value={form.room_id}
-                  options={rooms.map((r) => ({ value: r.id, label: r.room_number }))}
-                  disabled={!form.building_id}
-                  invalid={!!errors.room_id}
-                  placeholder={form.building_id ? "Chọn phòng" : "Vui lòng chọn tòa nhà trước"}
-                  onChange={(nextValue) => updateForm('room_id', String(nextValue))}
-                />
-                <FieldError message={errors.room_id} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Loại đồng hồ</label>
-                <AdminSelect value={form.meter_type} options={meterTypeOptions} invalid={!!errors.meter_type} onChange={(nextValue) => updateForm('meter_type', Number(nextValue))} />
-                <FieldError message={errors.meter_type} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Chỉ số</label>
-                <input type="number" min={0} step="any" className={cn(inputClass, errors.initial_reading && inputErrorClass)} value={form.initial_reading} onChange={(event) => updateForm('initial_reading', event.target.value)} placeholder="0" />
-                <FieldError message={errors.initial_reading} />
-              </div>
-
-
-
-              <div>
-                <label className={labelClass}>Ngày lắp</label>
-                <AdminDateInput 
-                  className={cn(inputClass, errors.installed_at && inputErrorClass)} 
-                  value={form.installed_at} 
-                  onChange={(value) => updateForm('installed_at', value)} 
-                />
-                <FieldError message={errors.installed_at} />
-              </div>
-
-              <div>
-                <label className={labelClass}>Trạng thái</label>
-                <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
-                <FieldError message={errors.status} />
-              </div>
-
-              {(!!findCurrentMeterForRoomAndType(Number(form.room_id), Number(form.meter_type), editingMeter?.id) || !!form.replaced_by_meter_id) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className={labelClass}>Đồng hồ thay thế</label>
-                  <AdminSelect value={form.replaced_by_meter_id} options={[{ value: '', label: 'Chọn đồng hồ thay thế', tone: 'default' }, ...replacementOptions]} invalid={!!errors.replaced_by_meter_id} disabled={true} onChange={(nextValue) => updateForm('replaced_by_meter_id', String(nextValue))} />
-                  <FieldError message={errors.replaced_by_meter_id} />
+                  <label className={labelClass}>Tòa nhà</label>
+                  <AdminSelect
+                    value={form.building_id}
+                    options={buildings.map((b) => ({ value: b.id, label: b.name }))}
+                    invalid={!!errors.building_id}
+                    placeholder="Chọn tòa nhà"
+                    onChange={(nextValue) => {
+                      updateForm('building_id', String(nextValue))
+                      updateForm('room_id', '')
+                    }}
+                  />
+                  <FieldError message={errors.building_id} />
                 </div>
-              )}
 
-              <div>
-                <label className={labelClass}>Ghi chú</label>
-                <textarea className={cn(inputClass, 'min-h-[120px]', errors.note && inputErrorClass)} value={form.note} onChange={(event) => updateForm('note', event.target.value)} placeholder="Ghi chú vận hành hoặc vị trí lắp" />
-                <FieldError message={errors.note} />
+                <div>
+                  <label className={labelClass}>Phòng</label>
+                  <AdminSelect
+                    value={form.room_id}
+                    options={rooms.map((r) => ({ value: r.id, label: r.room_number }))}
+                    disabled={!form.building_id}
+                    invalid={!!errors.room_id}
+                    placeholder={form.building_id ? "Chọn phòng" : "Vui lòng chọn tòa nhà trước"}
+                    onChange={(nextValue) => updateForm('room_id', String(nextValue))}
+                  />
+                  <FieldError message={errors.room_id} />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Loại đồng hồ</label>
+                  <AdminSelect value={form.meter_type} options={meterTypeOptions} invalid={!!errors.meter_type} onChange={(nextValue) => updateForm('meter_type', Number(nextValue))} />
+                  <FieldError message={errors.meter_type} />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Chỉ số</label>
+                  <input type="number" min={0} step="any" className={cn(inputClass, errors.initial_reading && inputErrorClass)} value={form.initial_reading} onChange={(event) => updateForm('initial_reading', event.target.value)} placeholder="0" />
+                  <FieldError message={errors.initial_reading} />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Ngày lắp</label>
+                  <AdminDateInput 
+                    className={cn(inputClass, errors.installed_at && inputErrorClass)} 
+                    value={form.installed_at} 
+                    onChange={(value) => updateForm('installed_at', value)} 
+                  />
+                  <FieldError message={errors.installed_at} />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Trạng thái</label>
+                  <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
+                  <FieldError message={errors.status} />
+                </div>
+
+                {(!!findCurrentMeterForRoomAndType(Number(form.room_id), Number(form.meter_type), editingMeter?.id) || !!form.replaced_by_meter_id) && (
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Đồng hồ thay thế</label>
+                    <AdminSelect value={form.replaced_by_meter_id} options={[{ value: '', label: 'Chọn đồng hồ thay thế', tone: 'default' }, ...replacementOptions]} invalid={!!errors.replaced_by_meter_id} disabled={true} onChange={(nextValue) => updateForm('replaced_by_meter_id', String(nextValue))} />
+                    <FieldError message={errors.replaced_by_meter_id} />
+                  </div>
+                )}
+
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Ghi chú</label>
+                  <textarea className={cn(inputClass, 'min-h-[100px]', errors.note && inputErrorClass)} value={form.note} onChange={(event) => updateForm('note', event.target.value)} placeholder="Ghi chú vận hành hoặc vị trí lắp" />
+                  <FieldError message={errors.note} />
+                </div>
               </div>
 
-              <button type="button" onClick={submit} disabled={isSaving} className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#24170d] px-5 text-sm font-black text-[#fff4df] transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-55">
-                {isSaving ? 'Đang lưu...' : editingMeter ? 'Lưu cập nhật' : 'Lưu đồng hồ'}
-              </button>
+              <div className="flex justify-end gap-3 pt-4 border-t border-[#3d2a18]/10">
+                <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 text-sm font-black text-[#8b5e34] hover:bg-stone-100 transition">
+                  Hủy
+                </button>
+                <button type="button" onClick={submit} disabled={isSaving} className="inline-flex h-12 min-w-32 items-center justify-center rounded-2xl bg-[#24170d] px-5 text-sm font-black text-[#fff4df] hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-55 transition">
+                  {isSaving ? 'Đang lưu...' : editingMeter ? 'Lưu cập nhật' : 'Lưu đồng hồ'}
+                </button>
+              </div>
             </div>
           </div>
-        </aside>
+        </div>
       )}
-      </div>
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

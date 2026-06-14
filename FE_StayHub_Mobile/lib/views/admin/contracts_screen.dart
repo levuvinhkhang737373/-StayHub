@@ -12,6 +12,14 @@ class ContractsScreen extends StatefulWidget {
 }
 
 class _ContractsScreenState extends State<ContractsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ContractController>().fetchContracts('admin');
+    });
+  }
+
   void _showAddContractDialog() {
     final formKey = GlobalKey<FormState>();
     final codeController = TextEditingController();
@@ -134,6 +142,11 @@ class _ContractsScreenState extends State<ContractsScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Lập hợp đồng thành công!'), backgroundColor: Colors.green),
                         );
+                      } else if (mounted) {
+                        final errMsg = context.read<ContractController>().errorMessage ?? 'Lập hợp đồng thất bại';
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
+                        );
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -174,6 +187,11 @@ class _ContractsScreenState extends State<ContractsScreen> {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Gia hạn thành công!'), backgroundColor: Colors.green),
+                  );
+                } else if (mounted) {
+                  final errMsg = context.read<ContractController>().errorMessage ?? 'Gia hạn thất bại';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
                   );
                 }
               },
@@ -222,6 +240,11 @@ class _ContractsScreenState extends State<ContractsScreen> {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Chuyển phòng thành công!'), backgroundColor: Colors.green),
+                    );
+                  } else if (mounted) {
+                    final errMsg = context.read<ContractController>().errorMessage ?? 'Chuyển phòng thất bại';
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
                     );
                   }
                 }
@@ -330,6 +353,11 @@ class _ContractsScreenState extends State<ContractsScreen> {
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             const SnackBar(content: Text('Hợp đồng đã chấm dứt'), backgroundColor: Colors.redAccent),
                                           );
+                                        } else if (mounted) {
+                                          final errMsg = contractController.errorMessage ?? 'Chấm dứt hợp đồng thất bại';
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
+                                          );
                                         }
                                       },
                                       style: ElevatedButton.styleFrom(
@@ -376,11 +404,11 @@ class _ContractsScreenState extends State<ContractsScreen> {
 
   Widget _buildStatusBadge(Contract contract) {
     Color color = Colors.grey;
-    if (contract.status == 2) color = Colors.green; // Active
-    if (contract.status == 3) color = const Color(0xFFEAB308); // Expired
-    if (contract.status == 4) color = Colors.redAccent; // Liquidated
-    if (contract.status == 5) color = Colors.grey; // Cancelled
-    if (contract.status == 1) color = Colors.grey; // Draft
+    if (contract.status == Contract.STATUS_ACTIVE) color = Colors.green; // Active
+    if (contract.status == Contract.STATUS_EXPIRED) color = const Color(0xFFEAB308); // Expired
+    if (contract.status == Contract.STATUS_LIQUIDATED) color = Colors.redAccent; // Liquidated
+    if (contract.status == Contract.STATUS_CANCELLED) color = Colors.grey; // Cancelled
+    if (contract.status == Contract.STATUS_DRAFT) color = Colors.grey; // Draft
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

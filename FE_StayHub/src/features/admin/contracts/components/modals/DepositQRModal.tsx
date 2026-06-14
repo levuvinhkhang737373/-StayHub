@@ -1,0 +1,134 @@
+import { useEffect, useState } from 'react'
+import { BadgeCheck, X } from 'lucide-react'
+import { useAdminSocket } from '../../../../../shared/lib/socket/socket-context'
+import { cn } from '../../../../../shared/lib/utils/cn'
+import { formatCurrency } from '../../../../../shared/lib/utils/format'
+import type { AdminContractResource } from '../../types/contract-api.model'
+
+export function DepositQRModal({
+  contract,
+  isSaving = false,
+  onClose,
+  onConfirm,
+}: {
+  contract: AdminContractResource
+  isSaving?: boolean
+  onClose: () => void
+  onConfirm?: () => void
+}) {
+  const { echo } = useAdminSocket()
+  const [timeLeft, setTimeLeft] = useState(1800) // 30 minutes in seconds
+  const [isPaidSuccess, setIsPaidSuccess] = useState(false)
+
+  useEffect(() => {
+    if (!echo) return
+    const channel = echo.private('admin-maintenance')
+    channel.listen('.ContractDepositPaid', (event: any) => {
+      const updatedContract = event.contract
+      if (updatedContract && Number(updatedContract.id) === Number(contract.id) && updatedContract.is_deposit_paid) {
+        setIsPaidSuccess(true)
+        setTimeout(() => {
+          onClose()
+        }, 2000)
+      }
+    })
+    return () => {
+      channel.stopListening('.ContractDepositPaid')
+    }
+  }, [echo, contract.id, onClose])
+
+  useEffect(() => {
+    if (timeLeft <= 0 || isPaidSuccess) return
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [timeLeft, isPaidSuccess])
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }
+
+  const isExpired = timeLeft <= 0
+
+  return (
+    <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+      <button type="button" className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" onClick={onClose} aria-label="Đóng QR" />
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-5 shadow-2xl">
+        <div className="flex items-center justify-between gap-3 border-b border-[#3d2a18]/10 pb-3">
+          <h2 className="text-lg font-black text-[#24170d]">Thanh toán cọc VietQR</h2>
+          <button type="button" onClick={onClose} className="rounded-xl p-1.5 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-col items-center">
+          <div className="rounded-3xl border border-[#3d2a18]/10 bg-white p-4 shadow-sm">
+            {isPaidSuccess ? (
+              <div className="flex h-[280px] w-[280px] flex-col items-center justify-center text-center p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 animate-bounce">
+                  <BadgeCheck className="h-9 w-9" />
+                </div>
+                <p className="mt-4 text-sm font-black text-emerald-700">Thanh toán thành công!</p>
+                <p className="mt-1.5 text-xs text-emerald-600/80 font-bold">Hệ thống đang tự động cập nhật...</p>
+              </div>
+            ) : isExpired ? (
+              <div className="flex h-[280px] w-[280px] flex-col items-center justify-center text-center p-4 bg-stone-50 rounded-2xl">
+                <p className="text-sm font-bold text-rose-500">Mã QR đã hết hạn (30 phút)</p>
+                <p className="mt-2 text-xs text-stone-500">Vui lòng đóng modal và tải lại để lấy mã mới.</p>
+              </div>
+            ) : contract.deposit_qr_url ? (
+              <img src={contract.deposit_qr_url} alt="VietQR Deposit Code" className="h-[280px] w-[280px] rounded-2xl object-contain" />
+            ) : (
+              <div className="flex h-[280px] w-[280px] items-center justify-center bg-stone-50 text-xs font-bold text-stone-500">Không tìm thấy mã QR</div>
+            )}
+          </div>
+
+          <div className="mt-4 w-full text-center">
+            <p className="text-xs font-bold text-[#8b5e34]/70">Mã QR hết hạn trong:</p>
+            <p className={cn('text-lg font-black mt-1', isExpired ? 'text-rose-500' : 'text-[#a65f16] animate-pulse')}>{formatTime(timeLeft)}</p>
+          </div>
+
+          <div className="mt-4 w-full space-y-2.5 rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3 text-xs font-bold text-[#6f6254]">
+            <div className="flex justify-between">
+              <span>Mã hợp đồng:</span>
+              <span className="font-black text-[#24170d]">{contract.contract_code}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Số tiền cọc:</span>
+              <span className="font-black text-[#24170d]">{formatCurrency(contract.deposit_amount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Nội dung chuyển khoản:</span>
+              <span className="font-black text-[#a65f16]">{contract.contract_code}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          {onConfirm ? (
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className="h-12 flex-1 rounded-xl border border-[#3d2a18]/10 bg-white text-sm font-black text-[#8b5e34]">
+                Đóng / Thu sau
+              </button>
+              <button
+                type="button"
+                disabled={isSaving || isExpired}
+                onClick={onConfirm}
+                className="h-12 flex-1 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60"
+              >
+                {isSaving ? 'Đang xác nhận...' : 'Xác nhận đã nhận'}
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={onClose} className="h-12 w-full rounded-xl border border-[#3d2a18]/10 bg-white text-sm font-black text-[#8b5e34]">
+              Đóng / Thu sau
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
