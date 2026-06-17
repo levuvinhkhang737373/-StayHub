@@ -19,7 +19,6 @@ import { AdminLayout } from '../layouts/admin/AdminLayout'
 import { MaintenanceScreen } from '../features/admin/maintenance'
 import { NotificationsScreen } from '../features/admin/notifications'
 import { VehiclesScreen } from '../features/admin/vehicles'
-import { Update } from '../features/admin/rooms/components/Update'
 import { MeterReadingsScreen } from '../features/admin/meter-readings'
 
 export const adminRoutes: RouteObject[] = [
