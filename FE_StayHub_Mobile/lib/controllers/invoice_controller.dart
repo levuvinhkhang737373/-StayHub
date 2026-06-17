@@ -1,147 +1,201 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../models/invoice.dart';
+import '../services/api_service.dart';
 
 class InvoiceController extends ChangeNotifier {
-  final List<Invoice> _mockInvoices = [
-    Invoice(
-      id: 1,
-      invoiceCode: 'HD-202605-101',
-      contractId: 1,
-      roomId: 1,
-      roomNumber: '101',
-      billingMonth: 5,
-      billingYear: 2026,
-      periodStart: '2026-05-01',
-      periodEnd: '2026-05-31',
-      previousDebtAmount: 0.0,
-      totalAmount: 3850000,
-      paidAmount: 0,
-      remainingAmount: 3850000,
-      dueDate: '2026-06-05',
-      status: 2, // UNPAID
-      issuedAt: '2026-05-28',
-    ),
-    Invoice(
-      id: 2,
-      invoiceCode: 'HD-202605-102',
-      contractId: 2,
-      roomId: 2,
-      roomNumber: '102',
-      billingMonth: 5,
-      billingYear: 2026,
-      periodStart: '2026-05-01',
-      periodEnd: '2026-05-31',
-      previousDebtAmount: 0.0,
-      totalAmount: 4120000,
-      paidAmount: 4120000,
-      remainingAmount: 0,
-      dueDate: '2026-06-05',
-      status: 4, // PAID
-      issuedAt: '2026-05-28',
-    ),
-    Invoice(
-      id: 3,
-      invoiceCode: 'HD-202605-201',
-      contractId: 3,
-      roomId: 5,
-      roomNumber: '201',
-      billingMonth: 5,
-      billingYear: 2026,
-      periodStart: '2026-05-01',
-      periodEnd: '2026-05-31',
-      previousDebtAmount: 0.0,
-      totalAmount: 4500000,
-      paidAmount: 1500000,
-      remainingAmount: 3000000,
-      dueDate: '2026-06-05',
-      status: 3, // PARTIALLY PAID
-      issuedAt: '2026-05-28',
-    ),
-    Invoice(
-      id: 4,
-      invoiceCode: 'HD-202604-101',
-      contractId: 1,
-      roomId: 1,
-      roomNumber: '101',
-      billingMonth: 4,
-      billingYear: 2026,
-      periodStart: '2026-04-01',
-      periodEnd: '2026-04-30',
-      previousDebtAmount: 0.0,
-      totalAmount: 3700000,
-      paidAmount: 3700000,
-      remainingAmount: 0,
-      dueDate: '2026-05-05',
-      status: 4, // PAID
-      issuedAt: '2026-04-28',
-    ),
-    Invoice(
-      id: 5,
-      invoiceCode: 'HD-202604-201',
-      contractId: 3,
-      roomId: 5,
-      roomNumber: '201',
-      billingMonth: 4,
-      billingYear: 2026,
-      periodStart: '2026-04-01',
-      periodEnd: '2026-04-30',
-      previousDebtAmount: 0.0,
-      totalAmount: 4400000,
-      paidAmount: 0,
-      remainingAmount: 4400000,
-      dueDate: '2026-05-05',
-      status: 5, // OVERDUE
-      issuedAt: '2026-04-28',
-    ),
-  ];
+  final ApiService _apiService = ApiService();
 
-  final List<Invoice> _filteredInvoices = [];
+  List<Invoice> _invoices = [];
   bool _isLoading = false;
+  String? _errorMessage;
 
-  List<Invoice> get invoices => _filteredInvoices.isEmpty ? _mockInvoices : _filteredInvoices;
+  List<Invoice> get invoices => _invoices;
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
 
   /// Get count of unpaid invoices
   int get unpaidInvoicesCount {
-    return _mockInvoices.where((i) => i.isUnpaid).length;
+    return _invoices.where((i) => i.isUnpaid).length;
   }
 
   /// Fetch invoices for specific room (for Tenant view)
   List<Invoice> getInvoicesForRoom(String roomNumber) {
-    return _mockInvoices.where((i) => i.roomNumber == roomNumber).toList();
+    // Both Admin and Tenant search can filter by room, but
+    // for tenant we fetch their room's invoices from `/tenant/invoices` anyway.
+    return _invoices;
+  }
+
+  /// Clear the error message
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Fetch invoices from the API
+  Future<void> fetchInvoices({required bool isAdmin}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final path = isAdmin ? '/admin/invoices' : '/tenant/invoices';
+      final response = await _apiService.get<List<dynamic>>(
+        path,
+        fromJsonT: (json) {
+          if (json is Map && json.containsKey('data')) {
+            return json['data'] as List<dynamic>;
+          }
+          return json as List<dynamic>;
+        },
+      );
+
+      if (response.status && response.result != null) {
+        _invoices = response.result!
+            .map((item) => Invoice.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = 'Lỗi tải danh sách hóa đơn: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
   }
 
   /// Confirm payment of an invoice (Admin action)
   Future<bool> confirmPayment(int id) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    final index = _mockInvoices.indexWhere((i) => i.id == id);
-    if (index != -1) {
-      final old = _mockInvoices[index];
-      _mockInvoices[index] = Invoice(
-        id: old.id,
-        invoiceCode: old.invoiceCode,
-        contractId: old.contractId,
-        roomId: old.roomId,
-        roomNumber: old.roomNumber,
-        billingMonth: old.billingMonth,
-        billingYear: old.billingYear,
-        periodStart: old.periodStart,
-        periodEnd: old.periodEnd,
-        previousDebtAmount: old.previousDebtAmount,
-        totalAmount: old.totalAmount,
-        paidAmount: old.totalAmount,
-        remainingAmount: 0,
-        dueDate: old.dueDate,
-        status: 4, // PAID
-        issuedAt: old.issuedAt,
+    try {
+      final invoice = _invoices.firstWhere((i) => i.id == id);
+      final response = await _apiService.post<dynamic>(
+        '/admin/invoices/$id/payments',
+        data: {
+          'amount': invoice.remainingAmount.toString(),
+          'payment_method': 1, // Cash
+          'note': 'Ghi nhận thanh toán thủ công bằng tiền mặt từ Mobile App',
+        },
+        fromJsonT: (json) => json,
       );
+
+      if (response.status) {
+        // Refresh invoices list
+        await fetchInvoices(isAdmin: true);
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = 'Lỗi xác nhận thanh toán: $e';
+      }
+    } finally {
       _isLoading = false;
       notifyListeners();
-      return true;
+    }
+    return false;
+  }
+
+  /// Upload payment proof image (Tenant action)
+  Future<bool> uploadPaymentProof({
+    required int invoiceId,
+    required double amount,
+    String? transactionReference,
+    String? note,
+    required String imagePath,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final fileName = imagePath.split('/').last;
+      final formData = FormData.fromMap({
+        'amount': amount.toString(),
+        if (transactionReference != null && transactionReference.isNotEmpty)
+          'transaction_reference': transactionReference,
+        if (note != null && note.isNotEmpty)
+          'note': note,
+        'proof_image': await MultipartFile.fromFile(
+          imagePath,
+          filename: fileName,
+        ),
+      });
+
+      final response = await _apiService.post<dynamic>(
+        '/tenant/invoices/$invoiceId/payment-proof',
+        data: formData,
+        fromJsonT: (json) => json,
+      );
+
+      if (response.status) {
+        // Refresh invoices list
+        await fetchInvoices(isAdmin: false);
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = 'Lỗi tải ảnh minh chứng: $e';
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+    return false;
+  }
+
+  /// Pay invoice directly (Tenant action, if we just mock or handle it)
+  Future<bool> payInvoice(int id) async {
+    // For tenant, they must upload a proof, they don't just "confirm payment"
+    // So we return false here; they should use uploadPaymentProof.
+    return false;
+  }
+
+  /// Send Debt Reminder notification (Admin action)
+  Future<bool> sendDebtReminder(int id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final invoice = _invoices.firstWhere((i) => i.id == id);
+      final response = await _apiService.post<dynamic>(
+        '/admin/notifications',
+        data: {
+          'title': 'Nhắc nhở thanh toán hóa đơn',
+          'content': 'StayHub nhắc nhở thanh toán hóa đơn ${invoice.invoiceCode}. Số tiền cần đóng: ${invoice.remainingAmount.toStringAsFixed(0)} VNĐ. Hạn chót: ${invoice.dueDate}.',
+          'notification_type': 1, // 1: Invoice Notification
+          'target_type': 3, // 3: Single Tenant
+          'room_id': invoice.roomId,
+          'status': 2, // SENT
+        },
+        fromJsonT: (json) => json,
+      );
+
+      if (response.status) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = 'Lỗi nhắc nợ: $e';
+      }
     }
 
     _isLoading = false;
@@ -149,18 +203,19 @@ class InvoiceController extends ChangeNotifier {
     return false;
   }
 
-  /// Mock payment action (Tenant action)
-  Future<bool> payInvoice(int id) async {
-    return confirmPayment(id);
-  }
-
-  /// Send Debt Reminder notification mock
-  Future<bool> sendDebtReminder(int id) async {
-    _isLoading = true;
-    notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 600));
-    _isLoading = false;
-    notifyListeners();
-    return true;
+  /// Handle WebSocket updates: updates or inserts an invoice
+  void updateInvoiceRealtime(Map<String, dynamic> invoiceJson) {
+    try {
+      final updatedInvoice = Invoice.fromJson(invoiceJson);
+      final index = _invoices.indexWhere((i) => i.id == updatedInvoice.id);
+      if (index != -1) {
+        _invoices[index] = updatedInvoice;
+      } else {
+        _invoices.insert(0, updatedInvoice);
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating invoice realtime: $e');
+    }
   }
 }

@@ -12,6 +12,7 @@ import { SettingsScreen } from '../features/admin/settings/components/settings-s
 import { SystemUsersScreen } from '../features/admin/system-users'
 import { TenantsScreen } from '../features/admin/tenants'
 import { ContractsScreen, CreateContractScreen } from '../features/admin/contracts'
+import { InvoicesScreen } from '../features/admin/invoices'
 import { CreateTenantScreen } from '../features/admin/tenants/components/create-tenant-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
@@ -120,7 +121,7 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'invoices',
-        element: <AdminPlaceholderScreen title="Phiếu thu" description="Quản lý hóa đơn, khoản thu và tình trạng thanh toán của khách thuê." />,
+        element: <AdminRouteGuard access="all"><InvoicesScreen /></AdminRouteGuard>,
       },
       {
         path: 'expenses',

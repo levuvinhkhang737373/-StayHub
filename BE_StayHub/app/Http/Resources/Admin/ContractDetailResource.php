@@ -36,7 +36,7 @@ class ContractDetailResource extends JsonResource
                 null,
                 null,
                 null,
-                (float) $this->deposit_amount,
+                (string) $this->deposit_amount,
                 $this->contract_code
             ),
             'contract_files' => $this->contractFiles(),

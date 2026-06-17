@@ -80,7 +80,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               id: notifId,
               title: item.title,
               description: item.content || '',
-              link: item.notification_type === 1 ? '/admin/maintenance' : '/admin/contracts',
+              link: item.notification_type === 1 ? '/admin/maintenance' : item.notification_type === 2 ? '/admin/invoices' : '/admin/contracts',
               read: localItem ? localItem.read : false,
               createdAt: item.created_at,
               type: notifType,
@@ -211,6 +211,20 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
+    channel.listen('.InvoicePaid', (event: any) => {
+      console.log('WS: Received InvoicePaid', event)
+      const invoice = event.invoice
+      if (invoice) {
+        addNotification({
+          title: 'Hóa đơn đã thanh toán',
+          description: `Phòng ${invoice.room_number ?? '?'} đã thanh toán hóa đơn ${invoice.invoice_code ?? ''}`,
+          link: '/admin/invoices',
+          type: 'invoice',
+        })
+        window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: invoice }))
+      }
+    })
+
     channel.listen('.NotificationSent', (event: any) => {
       console.log('WS: Received NotificationSent', event)
       const notification = event.notification
@@ -223,9 +237,13 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           addNotification({
             title: notification.title,
             description: notification.content,
-            link: notification.notification_type === 1 ? '/admin/maintenance' : '/admin/contracts',
-            type: notification.notification_type === 1 ? 'maintenance' : 'system',
+            link: notification.notification_type === 1 ? '/admin/maintenance' : notification.notification_type === 2 ? '/admin/invoices' : '/admin/contracts',
+            type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : 'system',
           })
+
+          if (notification.notification_type === 2) {
+            window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: notification }))
+          }
         }
       }
     })
@@ -237,6 +255,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       channel.stopListening('.MaintenanceRequestCompleted')
       channel.stopListening('.MaintenanceFeedbackCreated')
       channel.stopListening('.ContractDepositPaid')
+      channel.stopListening('.InvoicePaid')
       channel.stopListening('.NotificationSent')
     }
   }, [adminId, echo, session, addNotification])
