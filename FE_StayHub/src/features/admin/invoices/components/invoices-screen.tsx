@@ -398,7 +398,7 @@ export function InvoicesScreen() {
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <IconButton title="Xem chi tiết" onClick={() => void viewInvoice(invoice)}><Eye className="h-5 w-5" /></IconButton>
-                      {Number(invoice.status) === INVOICE_STATUS_DRAFT && <IconButton title="Phát hành" onClick={() => void issueInvoice(invoice)}><Send className="h-5 w-5" /></IconButton>}
+                      
                       {[INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status)) && <IconButton title="Ghi nhận thanh toán" onClick={() => { setPaymentInvoice(invoice); setIsPaymentOpen(true) }}><Banknote className="h-5 w-5" /></IconButton>}
                     </div>
                   </td>
@@ -440,7 +440,7 @@ export function InvoicesScreen() {
           const response = await generateAdminInvoice(payload)
           setIsGenerateOpen(false)
           setDetailInvoice(response.result)
-          setSuccessMessage('Lập hóa đơn nháp thành công.')
+          setSuccessMessage('Lập hóa đơn thành công.')
           await loadInvoices()
         } catch (error) {
           setErrorMessage(getVisibleErrorMessage(error, 'Không thể lập hóa đơn.'))
@@ -481,7 +481,7 @@ function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { cont
   const adjustments = useMemo(() => parseAdjustments(adjustmentText), [adjustmentText])
 
   return (
-    <ModalFrame title="Lập hóa đơn nháp" onClose={onClose}>
+    <ModalFrame title="Lập hóa đơn" onClose={onClose}>
       <div className="space-y-3">
         <AdminSelect value={contractId} options={[{ value: '', label: 'Chọn hợp đồng', tone: 'default' as const }, ...contracts]} onChange={(nextValue) => setContractId(String(nextValue))} />
         <div className="grid grid-cols-2 gap-3">
@@ -492,7 +492,7 @@ function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { cont
         <textarea className={textAreaClass} value={adjustmentText} onChange={(event) => setAdjustmentText(event.target.value)} placeholder="Điều chỉnh tùy chọn, mỗi dòng: phu_thu|Mô tả|100000 hoặc giam_tru|Mô tả|50000" />
         <p className="text-xs font-bold text-[#6f6254]">Hệ thống tự tính tiền phòng, điện nước, dịch vụ, xe và nợ cũ theo plan. Phần điều chỉnh dùng mã: phu_thu, giam_tru, tang, giam.</p>
         <button type="button" disabled={isSaving || !contractId} onClick={() => onSubmit({ contract_id: Number(contractId), billing_month: Number(month), billing_year: Number(year), due_date: dueDate || null, adjustments })} className="h-12 w-full rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60">
-          {isSaving ? 'Đang lập...' : 'Lập hóa đơn nháp'}
+          {isSaving ? 'Đang lập...' : 'Lập hóa đơn'}
         </button>
       </div>
     </ModalFrame>
@@ -544,12 +544,6 @@ function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onIssue, on
             <DetailTile label="Đã trả" value={formatCurrency(invoice.paid_amount)} />
             <DetailTile label="Còn lại" value={formatCurrency(invoice.remaining_amount)} />
           </div>
-          {invoice.payment_qr_url && canPay && (
-            <div className="flex flex-col gap-4 rounded-3xl border border-[#3d2a18]/10 bg-white/70 p-4 sm:flex-row sm:items-center">
-              <img src={invoice.payment_qr_url} alt="VietQR hóa đơn" className="h-44 w-44 rounded-2xl border border-[#3d2a18]/10 bg-white object-contain p-2" />
-              <div className="text-sm font-bold text-[#6f6254]"><p className="text-base font-black text-[#24170d]">QR thanh toán động</p><p>Nội dung chuyển khoản: <span className="font-black text-[#a65f16]">{invoice.invoice_code}</span></p></div>
-            </div>
-          )}
           <div className="overflow-x-auto rounded-3xl border border-[#3d2a18]/10">
             <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="bg-[#24170d] text-[#fff4df]"><tr><th className="px-4 py-3">Khoản mục</th><th className="px-4 py-3">SL</th><th className="px-4 py-3">Đơn giá</th><th className="px-4 py-3 text-right">Thành tiền</th></tr></thead>
@@ -566,7 +560,7 @@ function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onIssue, on
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            {Number(invoice.status) === INVOICE_STATUS_DRAFT && <button disabled={isSaving} type="button" onClick={onIssue} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-black text-white disabled:opacity-60"><Send className="h-4 w-4" /> Phát hành</button>}
+            
             {canPay && <button disabled={isSaving} type="button" onClick={onPay} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#24170d] px-4 text-sm font-black text-[#fff4df] disabled:opacity-60"><WalletCards className="h-4 w-4" /> Ghi nhận thanh toán</button>}
             {![INVOICE_STATUS_PAID, INVOICE_STATUS_CANCELLED].includes(Number(invoice.status)) && <button disabled={isSaving} type="button" onClick={onCancel} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-700 disabled:opacity-60"><X className="h-4 w-4" /> Hủy</button>}
           </div>

@@ -212,18 +212,26 @@ class InvoiceController extends Controller
                     'paid_amount' => '0.00',
                     'remaining_amount' => $totalAmount,
                     'due_date' => $dueDate->toDateString(),
-                    'status' => Invoice::STATUS_DRAFT,
-                    'issued_at' => null,
+                    'status' => DecimalMoney::compare($totalAmount, '0') <= 0 ? Invoice::STATUS_PAID : Invoice::STATUS_UNPAID,
+                    'issued_at' => now(),
                     'created_by' => $admin->id,
                 ]);
 
                 $invoice->items()->createMany($items);
 
-                AdminActivityLogger::write($admin, 'generate_invoice_draft', Invoice::class, $invoice->id, null, $invoice->toArray(), $request);
+                $this->markMeterReadingsInvoiced($invoice);
+                $tenantNotifications = $this->createInvoiceIssuedNotifications($invoice, $admin);
+
+                AdminActivityLogger::write($admin, 'generate_and_issue_invoice', Invoice::class, $invoice->id, null, $invoice->toArray(), $request);
+
+                DB::afterCommit(function () use ($invoice, $tenantNotifications): void {
+                    event(new AppEventsInvoiceIssued($invoice->fresh($this->detailRelations())));
+                    $this->broadcastNotifications($tenantNotifications);
+                });
 
                 $invoice->load($this->detailRelations());
 
-                return ApiResponse::responseJson(true, 'Lập hóa đơn nháp thành công', 201, new InvoiceDetailResource($invoice), 201);
+                return ApiResponse::responseJson(true, 'Lập và phát hành hóa đơn thành công', 201, new InvoiceDetailResource($invoice), 201);
             });
 
             return $response;
