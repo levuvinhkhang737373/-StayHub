@@ -13,7 +13,7 @@ import {
   deleteAdminVehicle,
 } from '../services/vehicles.service'
 import { fetchAdminTenants } from '../../tenants/services/tenants.service'
-import { fetchAdminBuildings, fetchAdminBuildingDetail } from '../../facilities/services/facilities.service'
+import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminVehicleResource, AdminVehicleFormValues, AdminVehicleFormErrors } from '../types/vehicle.model'
 import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -27,7 +27,6 @@ function getVisibleErrorMessage(error: unknown, fallback: string) {
 
 const defaultForm: AdminVehicleFormValues = {
   building_id: '',
-  room_id: '',
   tenant_id: '',
   vehicle_type: 1,
   license_plate: '',
@@ -67,7 +66,6 @@ export function VehiclesScreen() {
   const [vehicles, setVehicles] = useState<AdminVehicleResource[]>([])
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
-  const [rooms, setRooms] = useState<Array<{ id: number; building_id: number; room_number: string; status: number }>>([])
   
   const [keyword, setKeyword] = useState('')
   const [selectedType, setSelectedType] = useState('')
@@ -112,21 +110,6 @@ export function VehiclesScreen() {
     }
   }, [])
 
-  const loadRoomsForBuilding = useCallback(async (buildingId: number) => {
-    if (!buildingId) {
-      setRooms([])
-      return
-    }
-    try {
-      const response = await fetchAdminBuildingDetail(buildingId)
-      const buildingDetail = response.result
-      setRooms(buildingDetail?.rooms || [])
-    } catch (error) {
-      console.error('Failed to load rooms:', error)
-      setRooms([])
-    }
-  }, [])
-
   const loadVehicles = useCallback(async () => {
     setIsLoading(true)
     setErrorMessage(null)
@@ -149,14 +132,6 @@ export function VehiclesScreen() {
     void loadTenants()
     void loadBuildings()
   }, [loadTenants, loadBuildings])
-
-  useEffect(() => {
-    if (form.building_id) {
-      void loadRoomsForBuilding(Number(form.building_id))
-    } else {
-      setRooms([])
-    }
-  }, [form.building_id, loadRoomsForBuilding])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -209,25 +184,28 @@ export function VehiclesScreen() {
   }, [vehicles])
 
   const tenantSelectOptions = useMemo(() => {
-    if (!form.room_id) return []
-    const roomIdNum = Number(form.room_id)
+    if (!form.building_id) return []
+    const buildingIdNum = Number(form.building_id)
     return tenants
-      .filter((t) => t.room_id === roomIdNum || t.current_room?.room_id === roomIdNum)
-      .map((t) => ({
-        value: t.id,
-        label: `${t.full_name || t.username} (${t.phone || 'Không có sđt'})`,
-        tone: 'default' as const,
-      }))
-  }, [tenants, form.room_id])
+      .filter((t) => t.building_id === buildingIdNum || t.current_room?.building_id === buildingIdNum)
+      .map((t) => {
+        const roomLabel = t.room_number || t.current_room?.room_number ? `Phòng ${t.room_number || t.current_room?.room_number}` : 'Chưa có phòng'
+        return {
+          value: t.id,
+          label: `${t.full_name || t.username} (${roomLabel} - ${t.phone || 'Không có sđt'})`,
+          tone: 'default' as const,
+        }
+      })
+  }, [tenants, form.building_id])
 
   useEffect(() => {
-    if (form.room_id && tenantSelectOptions.length === 1) {
+    if (form.building_id && tenantSelectOptions.length === 1) {
       const singleTenantId = String(tenantSelectOptions[0].value)
       if (form.tenant_id !== singleTenantId) {
         updateForm('tenant_id', singleTenantId)
       }
     }
-  }, [form.room_id, tenantSelectOptions, form.tenant_id])
+  }, [form.building_id, tenantSelectOptions, form.tenant_id])
 
   const hasActiveFilters = Boolean(keyword.trim() || selectedType || selectedStatus)
 
@@ -256,13 +234,8 @@ export function VehiclesScreen() {
     if (editingVehicle) {
       const t = tenants.find((t) => t.id === editingVehicle.tenant_id)
       const bId = t ? String(t.building_id || '') : ''
-      const rId = t ? String(t.room_id || t.current_room?.room_id || '') : ''
-      if (bId) {
-        void loadRoomsForBuilding(Number(bId))
-      }
       setForm({
         building_id: bId,
-        room_id: rId,
         tenant_id: String(editingVehicle.tenant_id),
         vehicle_type: editingVehicle.vehicle_type,
         license_plate: editingVehicle.license_plate,
@@ -281,14 +254,9 @@ export function VehiclesScreen() {
   const openEditForm = (vehicle: AdminVehicleResource) => {
     const t = tenants.find((t) => t.id === vehicle.tenant_id)
     const bId = t ? String(t.building_id || '') : ''
-    const rId = t ? String(t.room_id || t.current_room?.room_id || '') : ''
-    if (bId) {
-      void loadRoomsForBuilding(Number(bId))
-    }
     setEditingVehicle(vehicle)
     setForm({
       building_id: bId,
-      room_id: rId,
       tenant_id: String(vehicle.tenant_id),
       vehicle_type: vehicle.vehicle_type,
       license_plate: vehicle.license_plate,
@@ -595,7 +563,6 @@ export function VehiclesScreen() {
                       invalid={!!errors.building_id}
                       onChange={(nextValue) => {
                         updateForm('building_id', String(nextValue))
-                        updateForm('room_id', '')
                         updateForm('tenant_id', '')
                       }}
                     />
@@ -603,29 +570,13 @@ export function VehiclesScreen() {
                   </div>
 
                   <div>
-                    <label className={labelClass}>Phòng</label>
-                    <AdminSelect
-                      value={form.room_id}
-                      options={[{ value: '', label: 'Chọn phòng', tone: 'default' }, ...rooms.map((r) => ({ value: r.id, label: r.room_number }))]}
-                      disabled={!form.building_id}
-                      invalid={!!errors.room_id}
-                      placeholder={form.building_id ? "Chọn phòng" : "Vui lòng chọn tòa nhà trước"}
-                      onChange={(nextValue) => {
-                        updateForm('room_id', String(nextValue))
-                        updateForm('tenant_id', '')
-                      }}
-                    />
-                    <FieldError message={errors.room_id} />
-                  </div>
-
-                  <div>
                     <label className={labelClass}>Khách thuê sở hữu</label>
                     <AdminSelect
                       value={form.tenant_id}
                       options={[{ value: '', label: 'Chọn khách thuê', tone: 'default' }, ...tenantSelectOptions]}
-                      disabled={!form.room_id}
+                      disabled={!form.building_id}
                       invalid={!!errors.tenant_id}
-                      placeholder={form.room_id ? (tenantSelectOptions.length > 0 ? "Chọn khách thuê" : "Không có khách thuê nào") : "Vui lòng chọn phòng trước"}
+                      placeholder={form.building_id ? (tenantSelectOptions.length > 0 ? "Chọn khách thuê" : "Không có khách thuê nào") : "Vui lòng chọn tòa nhà trước"}
                       onChange={(nextValue) => updateForm('tenant_id', String(nextValue))}
                     />
                     <FieldError message={errors.tenant_id} />
@@ -655,7 +606,7 @@ export function VehiclesScreen() {
                     <input className={cn(inputClass, errors.color && inputErrorClass)} value={form.color} onChange={(event) => updateForm('color', event.target.value)} placeholder="Ví dụ: Đỏ đen, Trắng, Xanh lá" />
                     <FieldError message={errors.color} />
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
                     <label className={labelClass}>Trạng thái hoạt động</label>
                     <AdminSelect
                       value={form.is_active ? 1 : 0}

@@ -24,6 +24,7 @@ import { UpdateRoomScreen } from '../features/admin/rooms/components/update-room
 import { MaintenanceScreen } from '../features/admin/maintenance'
 import { NotificationsScreen } from '../features/admin/notifications'
 import { VehiclesScreen } from '../features/admin/vehicles'
+import { MeterReadingsScreen } from '../features/admin/meter-readings'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -117,7 +118,7 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'meter-readings',
-        element: <AdminPlaceholderScreen title="Chốt điện nước" description="Chốt chỉ số điện nước, tính toán hóa đơn và quản lý chu kỳ thanh toán." />,
+        element: <MeterReadingsScreen />,
       },
       {
         path: 'invoices',

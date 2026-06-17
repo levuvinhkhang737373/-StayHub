@@ -11,6 +11,7 @@ import 'controllers/maintenance_controller.dart';
 import 'controllers/contract_controller.dart';
 import 'controllers/notification_controller.dart';
 import 'services/websocket_service.dart';
+import 'controllers/meter_reading_controller.dart';
 
 import 'views/auth/login_screen.dart';
 import 'views/dashboard/dashboard_screen.dart';
@@ -48,6 +49,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => ContractController()),
         ChangeNotifierProvider(create: (_) => NotificationController()),
         ChangeNotifierProvider(create: (_) => WebSocketService()),
+        ChangeNotifierProvider(create: (_) => MeterReadingController()),
       ],
       child: const MyApp(),
     ),

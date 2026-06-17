@@ -7,10 +7,6 @@ export function validateVehicleForm(form: AdminVehicleFormValues) {
     errors.building_id = 'Phải chọn tòa nhà.'
   }
 
-  if (!form.room_id || !form.room_id.trim()) {
-    errors.room_id = 'Phải chọn phòng.'
-  }
-
   if (!form.tenant_id || !form.tenant_id.trim()) {
     errors.tenant_id = 'Phải chọn khách thuê.'
   }
