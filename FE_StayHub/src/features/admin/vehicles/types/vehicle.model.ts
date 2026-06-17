@@ -47,7 +47,6 @@ export interface AdminVehiclePayload {
 
 export interface AdminVehicleFormValues {
   building_id: string
-  room_id: string
   tenant_id: string
   vehicle_type: number
   license_plate: string

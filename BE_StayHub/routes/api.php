@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
 use App\Http\Controllers\Admin\MeterController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
+use App\Http\Controllers\Admin\MeterReadingController;
 use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
@@ -56,6 +57,10 @@ Route::prefix('admin')->group(function (): void {
         //=========================Meter Devices================================
         Route::patch('meter-devices/{meterDevice}/status', [MeterController::class, 'updateStatus']);
         Route::apiResource('meter-devices', MeterController::class);
+
+        // =========================Meter Readings ==============================
+        Route::get('meter-readings/init', [MeterReadingController::class, 'init']);
+        Route::post('meter-readings', [MeterReadingController::class, 'store']);
 
         //=========================Expense Categories================================
         Route::patch('expense-categories/{expenseCategory}/status', [ExpenseCategoryController::class, 'updateStatus']);
