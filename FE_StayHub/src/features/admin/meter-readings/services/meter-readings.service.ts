@@ -1,4 +1,4 @@
-import { apiRequest } from '../../../../shared/lib/api/api-client'
+import { apiRequest } from "../../../../shared/lib/api/api-client"
 import type { MeterReadingsInitResponse, SaveMeterReadingPayload } from '../types/meter-readings.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
@@ -25,6 +25,34 @@ export async function fetchMeterReadingsInit(params: {
 export async function saveMeterReading(payload: SaveMeterReadingPayload) {
   return apiRequest<any>({
     url: 'admin/meter-readings',
+    method: 'POST',
+    data: payload,
+  })
+}
+
+export async function bulkGenerateInvoices(payload: {
+  building_id: number
+  billing_month: number
+  billing_year: number
+}) {
+  return apiRequest<any>({
+    url: `admin/buildings/${payload.building_id}/invoices/bulk-generate`,
+    method: 'POST',
+    data: {
+      building_id: payload.building_id,
+      billing_month: payload.billing_month,
+      billing_year: payload.billing_year
+    },
+  })
+}
+
+export async function generateSingleInvoice(payload: {
+  contract_id: number
+  billing_month: number
+  billing_year: number
+}) {
+  return apiRequest<any>({
+    url: 'admin/invoices/generate',
     method: 'POST',
     data: payload,
   })

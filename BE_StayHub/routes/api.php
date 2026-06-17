@@ -102,6 +102,7 @@ Route::prefix('admin')->group(function (): void {
         Route::apiResource('contracts', ContractController::class);
 
         // =========================Invoices================================
+        Route::post('buildings/{building}/invoices/bulk-generate', [\App\Http\Controllers\Admin\BulkGenerateInvoiceController::class, '__invoke']);
         Route::post('invoices/generate', [AdminInvoiceController::class, 'generate']);
         Route::post('invoices/{invoice}/issue', [AdminInvoiceController::class, 'issue']);
         Route::post('invoices/{invoice}/payments', [AdminInvoiceController::class, 'recordPayment']);

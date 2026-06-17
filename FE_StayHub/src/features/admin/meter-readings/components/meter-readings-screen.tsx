@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, Droplet, Edit3, RefreshCw, Save, X, Zap } from 'lucide-react'
+import { ArrowLeft, FileText, Layers, Calendar, Droplet, Edit3, RefreshCw, Save, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
-import { fetchMeterReadingsInit, saveMeterReading } from '../services/meter-readings.service'
+import { fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, generateSingleInvoice } from '../services/meter-readings.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import type { RoomReadingInit, ServicePriceInit } from '../types/meter-readings.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -37,6 +38,9 @@ export function MeterReadingsScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isGeneratingBulk, setIsGeneratingBulk] = useState(false)
+  const [isGeneratingSingle, setIsGeneratingSingle] = useState<number | null>(null)
+  const { echo } = useAdminSocket()
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -92,6 +96,23 @@ export function MeterReadingsScreen() {
     }
   }, [selectedBuildingId, selectedMonth, selectedYear, loadReadingsData])
 
+
+  useEffect(() => {
+    if (echo && selectedBuildingId) {
+      const channelName = `admin.invoices.building.${selectedBuildingId}`
+      const channel = echo.channel(channelName)
+      channel.listen('.BulkInvoiceGenerated', (e: any) => {
+        setSuccessMessage(e.message)
+        setIsGeneratingBulk(false)
+        void loadReadingsData()
+      })
+      return () => {
+        echo.leave(channelName)
+      }
+    }
+  }, [echo, selectedBuildingId, loadReadingsData])
+
+
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(null), 5000)
@@ -116,6 +137,47 @@ export function MeterReadingsScreen() {
       waterUnit: waterPrice ? waterPrice.unit_name || 'm³' : 'm³',
     }
   }, [servicePrices])
+
+  
+  const handleBulkGenerate = async () => {
+    if (isGeneratingBulk || !selectedBuildingId) return
+    setIsGeneratingBulk(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    try {
+      await bulkGenerateInvoices({
+        building_id: Number(selectedBuildingId),
+        billing_month: selectedMonth,
+        billing_year: selectedYear
+      })
+      // Success modal handled by socket mostly, but show a toast for queuing
+      setSuccessMessage('Đang xếp hàng tạo hóa đơn hàng loạt, vui lòng đợi giây lát...')
+    } catch (error) {
+      setIsGeneratingBulk(false)
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tạo hóa đơn hàng loạt.'))
+    }
+  }
+
+  const handleGenerateSingle = async (contractId: number) => {
+    if (isGeneratingSingle === contractId) return
+    setIsGeneratingSingle(contractId)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    try {
+      await generateSingleInvoice({
+        contract_id: contractId,
+        billing_month: selectedMonth,
+        billing_year: selectedYear
+      })
+      setSuccessMessage('Tạo hóa đơn thành công.')
+      await loadReadingsData()
+    } catch (e) {
+      setErrorMessage(getVisibleErrorMessage(e, 'Không thể tạo hóa đơn.'))
+    } finally {
+      setIsGeneratingSingle(null)
+    }
+  }
+
 
   const openReadingModal = (room: RoomReadingInit) => {
     setActiveRoom(room)
@@ -297,6 +359,17 @@ export function MeterReadingsScreen() {
                     onChange={(val) => setSelectedYear(Number(val))}
                   />
                 </div>
+                
+                <button
+                  type="button"
+                  onClick={() => void handleBulkGenerate()}
+                  disabled={isGeneratingBulk}
+                  className="inline-flex h-12 px-4 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/20 text-emerald-100 font-bold backdrop-blur-md transition hover:bg-emerald-500/30 disabled:opacity-50"
+                >
+                  {isGeneratingBulk ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Layers className="h-4 w-4" />}
+                  <span className="hidden sm:inline">Tạo tất cả Hóa đơn</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => void loadReadingsData()}
@@ -370,7 +443,7 @@ export function MeterReadingsScreen() {
                   <th className="px-5 py-4 w-[28%]">Chỉ số Điện (kWh)</th>
                   <th className="px-5 py-4 w-[28%]">Chỉ số Nước (m³)</th>
                   <th className="px-5 py-4 w-[12%] text-right">Tổng thành tiền</th>
-                  <th className="px-5 py-4 text-center w-[12%]">Thao tác</th>
+                  <th className="px-5 py-4 text-center w-[16%]">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -475,27 +548,48 @@ export function MeterReadingsScreen() {
 
                       {/* Actions Column */}
                       <td className="px-5 py-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => openReadingModal(room)}
-                          disabled={room.meters.length === 0}
-                          className={cn(
-                            'inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-xs font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
-                            (isChotElec && isChotWater)
-                              ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15'
-                              : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] shadow-sm shadow-[#24170d]/10'
-                          )}
-                        >
-                          {(isChotElec && isChotWater) ? (
-                            <>
-                              <Edit3 className="h-3.5 w-3.5" /> Sửa chỉ số
-                            </>
-                          ) : (
-                            <>
-                              <Calendar className="h-3.5 w-3.5" /> Ghi số
-                            </>
-                          )}
-                        </button>
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openReadingModal(room)}
+                            disabled={room.meters.length === 0}
+                            className={cn(
+                              'inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
+                              (isChotElec && isChotWater)
+                                ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15'
+                                : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] shadow-sm shadow-[#24170d]/10'
+                            )}
+                          >
+                            {(isChotElec && isChotWater) ? (
+                              <>
+                                <Edit3 className="h-3.5 w-3.5" /> Sửa số
+                              </>
+                            ) : (
+                              <>
+                                <Calendar className="h-3.5 w-3.5" /> Ghi số
+                              </>
+                            )}
+                          </button>
+                          
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!room.contract_id) return;
+                                void handleGenerateSingle(room.contract_id)
+                              }}
+                              disabled={!room.contract_id || isGeneratingSingle === room.contract_id || (elec && !isChotElec) || (water && !isChotWater)}
+                              title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : 'Tạo hóa đơn'}
+                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5 mt-1 sm:mt-0 sm:ml-2"
+                            >
+                              {isGeneratingSingle === room.contract_id && room.contract_id ? (
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <FileText className="h-3.5 w-3.5" />
+                              )}
+                              Tạo HĐ
+                            </button>
+
+                        </div>
                       </td>
                     </tr>
                   )
