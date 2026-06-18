@@ -336,7 +336,7 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.between,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     'Thanh toán Hóa đơn',
@@ -434,7 +434,7 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
                           children: [
                             const Text('Nội dung chuyển khoản', style: TextStyle(fontSize: 10, color: Colors.grey)),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.between,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   invoice.invoiceCode,
@@ -466,7 +466,7 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
                           children: [
                             const Text('Số tiền chuyển khoản', style: TextStyle(fontSize: 10, color: Colors.grey)),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.between,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   '${invoice.remainingAmount.toStringAsFixed(0)}đ',
