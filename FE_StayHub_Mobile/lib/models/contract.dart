@@ -21,7 +21,7 @@ class Contract {
   final int billingCycleDay;
   final double roomPrice;
   final double depositAmount;
-  final int status; // 1: Active, 2: Expired, 3: Liquidated, 4: Cancelled, 0: Draft
+  final int status; // 1: Active, 2: Expired, 3: Liquidated, 4: Cancelled, 0: Draft/Pending
   final List<String>? contractFiles;
   final String? note;
   final int? createdBy;
@@ -29,6 +29,8 @@ class Contract {
   final String? representativeName;
   final Tenant? representativeTenant;
   final Room? room;
+  final String? tenantSignedAt;
+  final String? tenantSignatureUrl;
   
   // Payment fields
   final bool isDepositPaid;
@@ -57,6 +59,8 @@ class Contract {
     this.representativeName,
     this.representativeTenant,
     this.room,
+    this.tenantSignedAt,
+    this.tenantSignatureUrl,
     this.isDepositPaid = true,
     this.paymentStatus,
     this.paymentStatusLabel,
@@ -107,6 +111,8 @@ class Contract {
           ? Tenant.fromJson(json['representative_tenant'] as Map<String, dynamic>)
           : null,
       room: json['room'] != null ? Room.fromJson(json['room'] as Map<String, dynamic>) : null,
+      tenantSignedAt: json['tenant_signed_at'] as String?,
+      tenantSignatureUrl: json['tenant_signature_url'] as String?,
       isDepositPaid: json['is_deposit_paid'] == true || json['is_deposit_paid'] == 1,
       paymentStatus: json['payment_status'] as int?,
       paymentStatusLabel: json['payment_status_label'] as String?,
@@ -138,6 +144,8 @@ class Contract {
       'representative_name': representativeName,
       'representative_tenant': representativeTenant?.toJson(),
       'room': room?.toJson(),
+      'tenant_signed_at': tenantSignedAt,
+      'tenant_signature_url': tenantSignatureUrl,
       'is_deposit_paid': isDepositPaid,
       'payment_status': paymentStatus,
       'payment_status_label': paymentStatusLabel,
@@ -148,7 +156,7 @@ class Contract {
   String get statusLabel {
     switch (status) {
       case STATUS_DRAFT:
-        return 'Bản nháp';
+        return 'Chờ ký';
       case STATUS_ACTIVE:
         return 'Hiệu lực';
       case STATUS_EXPIRED:

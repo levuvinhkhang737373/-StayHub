@@ -106,6 +106,7 @@ Route::prefix('tenant')->group(function (): void {
 
     Route::middleware(['auth.tenant'])->group(function (): void {
         Route::get('/me', [TenantAuthController::class, 'me']);
+        Route::patch('/profile', [TenantAuthController::class, 'updateProfile']);
         Route::post('/logout', [TenantAuthController::class, 'logout']);
 
         // =========================Maintenance=========================
@@ -114,11 +115,13 @@ Route::prefix('tenant')->group(function (): void {
 
         // =========================Notifications=======================
         Route::get('notifications', [TenantNotificationController::class, 'index']);
+        Route::post('notifications/read-all', [TenantNotificationController::class, 'readAll']);
         Route::post('notifications/{id}/read', [TenantNotificationController::class, 'read']);
 
         // =========================Contract============================
         Route::get('contract', [\App\Http\Controllers\Tenant\ContractController::class, 'show']);
         Route::get('contracts', [\App\Http\Controllers\Tenant\ContractController::class, 'index']);
+        Route::post('contracts/{id}/sign', [\App\Http\Controllers\Tenant\ContractController::class, 'sign']);
     });
 });
 

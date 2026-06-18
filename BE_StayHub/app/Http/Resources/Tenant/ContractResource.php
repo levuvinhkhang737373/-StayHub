@@ -31,7 +31,7 @@ class ContractResource extends JsonResource
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,
             'is_deposit_paid' => $this->is_deposit_paid,
             'deposit_balance' => (string) $this->deposit_balance,
-            'deposit_qr_url' => $this->is_deposit_paid ? null : VietQRHelper::generateLink(
+            'deposit_qr_url' => ($this->is_deposit_paid || $this->status === Contract::STATUS_PENDING_SIGN) ? null : VietQRHelper::generateLink(
                 null,
                 null,
                 null,
@@ -51,6 +51,8 @@ class ContractResource extends JsonResource
             'tenant_name' => $this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()
                 ? ($this->contractTenants->first()->tenant?->full_name ?? '')
                 : null,
+            'tenant_signed_at' => optional($this->tenant_signed_at)->toDateTimeString(),
+            'tenant_signature_url' => $this->tenant_signature_url ? ImageHelper::urlFromDisk($this->tenant_signature_url, 'public') : null,
             'created_at' => optional($this->created_at)->toDateTimeString(),
             'updated_at' => optional($this->updated_at)->toDateTimeString(),
         ];

@@ -114,7 +114,7 @@ class ContractController extends Controller
             }
 
             $contract = DB::transaction(function () use ($validated, $admin, $request, &$uploadedPaths): Contract {
-                $status = (int) ($validated['status'] ?? Contract::STATUS_ACTIVE);
+                $status = (int) ($validated['status'] ?? Contract::STATUS_PENDING_SIGN);
 
                 $room = Room::query()->with('building:id,manager_admin_id,name')->lockForUpdate()->find((int) $validated['room_id']);
 
@@ -138,6 +138,25 @@ class ContractController extends Controller
                 $this->assertRoomCapacity($room, $tenantPayloads);
 
                 $contract = Contract::query()->create($this->payload($validated, $admin, $status));
+
+                // Copy placeholder/fake signature to a contract-specific path
+                $fakeSignaturePath = "upload/signatures/{$contract->contract_code}_fake.png";
+                $fullFakePath = public_path($fakeSignaturePath);
+                $placeholderPath = public_path('upload/signatures/placeholder.png');
+
+                // Ensure signatures directory exists
+                if (!is_dir(dirname($fullFakePath))) {
+                    mkdir(dirname($fullFakePath), 0777, true);
+                }
+
+                if (file_exists($placeholderPath)) {
+                    copy($placeholderPath, $fullFakePath);
+                } else {
+                    file_put_contents($fullFakePath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='));
+                }
+
+                $contract->forceFill(['tenant_signature_url' => $fakeSignaturePath])->save();
+
                 $contractFiles = $this->storeContractFiles($request, $contract, $uploadedPaths);
 
                 if ($contractFiles !== []) {
@@ -221,6 +240,7 @@ class ContractController extends Controller
             }
 
             $contractModel = $this->accessibleQuery($admin)->findOrFail($contract);
+            $existingTenantIds = $contractModel->contractTenants()->pluck('tenant_id')->toArray();
 
             $updatedContract = DB::transaction(function () use ($validated, $contractModel, $admin, $request, &$uploadedPaths, &$pathsToDelete): Contract {
                 if ($this->isTerminalContract($contractModel) && $this->hasStructuralUpdate($validated)) {
@@ -325,6 +345,15 @@ class ContractController extends Controller
             });
 
             $this->deleteDiskFiles($pathsToDelete);
+
+            if (array_key_exists('tenants', $validated)) {
+                $tenantPayloads = $this->normalizedTenantPayloads($validated, $contractModel);
+                $currentTenantIds = collect($tenantPayloads)->pluck('tenant_id')->all();
+                $newTenantIds = array_diff($currentTenantIds, $existingTenantIds);
+                if ($newTenantIds !== []) {
+                    $this->notifyNewTenantsAdded($updatedContract, $newTenantIds, $admin->id);
+                }
+            }
 
             return ApiResponse::responseJson(true, 'Cập nhật hợp đồng thành công', 200, new ContractDetailResource($updatedContract), 200);
         } catch (HttpResponseException $e) {
@@ -1332,7 +1361,7 @@ class ContractController extends Controller
 
     private function detailColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'contract_files', 'note', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'contract_files', 'note', 'created_by', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url'];
     }
 
     private function listRelations(): array
@@ -1354,7 +1383,7 @@ class ContractController extends Controller
             'room.roomType:id,name,slug,status',
             'creator:id,username,full_name,email,phone,role,status',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying', 'created_by', 'created_at', 'updated_at'])->orderBy('join_date')->orderBy('id'),
-            'contractTenants.tenant:id,full_name,phone,email,identity_number,status,building_id',
+            'contractTenants.tenant:id,full_name,phone,email,identity_number,identity_date,identity_place,permanent_address,status,building_id',
             'contractVehicles' => fn ($query) => $query->select(['id', 'contract_id', 'vehicle_id', 'started_at', 'ended_at', 'billing_start_date', 'billing_end_date', 'monthly_fee', 'charge_policy', 'is_active', 'created_at', 'updated_at'])->orderByDesc('is_active')->orderBy('started_at')->orderBy('id'),
             'contractVehicles.vehicle:id,tenant_id,vehicle_type,license_plate,brand,color,is_active',
             'contractVehicles.vehicle.tenant:id,full_name,phone,email',
@@ -1383,9 +1412,22 @@ class ContractController extends Controller
         try {
             $contract->loadMissing(['room.building', 'tenants']);
             foreach ($contract->tenants as $tenant) {
+                $isMissingInfo = blank($tenant->identity_number) 
+                    || blank($tenant->identity_date) 
+                    || blank($tenant->identity_place) 
+                    || blank($tenant->permanent_address);
+
+                $title = $isMissingInfo ? 'Bổ sung thông tin & ký hợp đồng' : 'Hợp đồng mới được tạo';
+                $content = "Hợp đồng {$contract->contract_code} của bạn tại phòng " . ($contract->room?->room_number ?? 'không rõ') . " đã được tạo thành công.";
+                if ($isMissingInfo) {
+                    $content .= " Vui lòng bổ sung thông tin định danh và thực hiện ký hợp đồng.";
+                } else {
+                    $content .= " Vui lòng thực hiện ký hợp đồng.";
+                }
+
                 $tenantNotification = \App\Models\Notification::create([
-                    'title' => 'Hợp đồng mới được tạo',
-                    'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng " . ($contract->room?->room_number ?? 'không rõ') . " đã được tạo thành công.",
+                    'title' => $title,
+                    'content' => $content,
                     'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
                     'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
                     'building_id' => $contract->room?->building_id,
@@ -1401,6 +1443,46 @@ class ContractController extends Controller
             }
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Error notifying tenants of new contract: ' . $e->getMessage());
+        }
+    }
+
+    private function notifyNewTenantsAdded(Contract $contract, array $tenantIds, $adminId): void
+    {
+        try {
+            $contract->loadMissing(['room.building']);
+            $tenants = Tenant::query()->whereIn('id', $tenantIds)->get();
+            foreach ($tenants as $tenant) {
+                $isMissingInfo = blank($tenant->identity_number) 
+                    || blank($tenant->identity_date) 
+                    || blank($tenant->identity_place) 
+                    || blank($tenant->permanent_address);
+
+                $title = $isMissingInfo ? 'Bổ sung thông tin & ký hợp đồng' : 'Bạn đã được thêm vào hợp đồng';
+                $content = "Bạn đã được thêm vào hợp đồng {$contract->contract_code} tại phòng " . ($contract->room?->room_number ?? 'không rõ') . ".";
+                if ($isMissingInfo) {
+                    $content .= " Vui lòng bổ sung thông tin định danh và thực hiện ký hợp đồng.";
+                } else {
+                    $content .= " Vui lòng thực hiện ký hợp đồng.";
+                }
+
+                $tenantNotification = \App\Models\Notification::create([
+                    'title' => $title,
+                    'content' => $content,
+                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+                    'building_id' => $contract->room?->building_id,
+                    'room_id' => $contract->room_id,
+                    'tenant_id' => $tenant->id,
+                    'published_at' => now(),
+                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'created_by' => $adminId,
+                ]);
+
+                // Broadcast real-time notification to the tenant
+                broadcast(new \App\Events\NotificationSent($tenantNotification));
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error notifying newly added tenants: ' . $e->getMessage());
         }
     }
 }

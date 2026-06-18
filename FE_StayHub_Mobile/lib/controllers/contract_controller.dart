@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart' as dio;
 import '../models/contract.dart';
 import '../services/api_service.dart';
 
@@ -447,6 +448,60 @@ class ContractController extends ChangeNotifier {
 
       if (response.status) {
         await fetchContracts('admin');
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối API: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Sign contract (Tenant action)
+  Future<bool> signContract({
+    required int contractId,
+    required String fullName,
+    required String identityNumber,
+    required int identityType,
+    required String identityDate,
+    required String identityPlace,
+    required String permanentAddress,
+    required List<int> signatureBytes,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+
+      final formData = dio.FormData.fromMap({
+        'full_name': fullName,
+        'identity_number': identityNumber,
+        'identity_type': identityType,
+        'identity_date': identityDate,
+        'identity_place': identityPlace,
+        'permanent_address': permanentAddress,
+        'signature_file': dio.MultipartFile.fromBytes(
+          signatureBytes,
+          filename: 'signature.png',
+        ),
+      });
+
+      final response = await _apiService.post<Map<String, dynamic>>(
+        '/tenant/contracts/$contractId/sign',
+        data: formData,
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status) {
+        await fetchContracts('tenant');
         return true;
       } else {
         _errorMessage = response.message;

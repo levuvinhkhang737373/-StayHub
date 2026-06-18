@@ -37,12 +37,6 @@ class AuthController extends ChangeNotifier {
 
     try {
       await _apiService.init();
-      if (_currentRole != null) {
-        _isLoading = false;
-        notifyListeners();
-        return true;
-      }
-      
       // Try checking admin session
       try {
         final adminEnvelope = await _apiService.get<Admin>(
@@ -214,5 +208,51 @@ class AuthController extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
     return true;
+  }
+
+  /// Update tenant identity profile
+  Future<bool> updateTenantProfile({
+    required String fullName,
+    required String identityNumber,
+    required int identityType,
+    required String identityDate,
+    required String identityPlace,
+    required String permanentAddress,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.patch<Tenant>(
+        '/tenant/profile',
+        data: {
+          'full_name': fullName,
+          'identity_number': identityNumber,
+          'identity_type': identityType,
+          'identity_date': identityDate,
+          'identity_place': identityPlace,
+          'permanent_address': permanentAddress,
+        },
+        fromJsonT: (json) => Tenant.fromJson(json as Map<String, dynamic>),
+      );
+
+      if (response.status && response.result != null) {
+        _currentTenant = response.result;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi cập nhật thông tin: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
 }

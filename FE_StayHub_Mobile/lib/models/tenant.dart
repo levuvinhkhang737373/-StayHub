@@ -15,6 +15,8 @@ class Tenant {
   final String? buildingName;
   final int identityType;
   final String identityNumber;
+  final String? identityDate;
+  final String? identityPlace;
   final String? frontImageUrl;
   final String? backImageUrl;
   final int? createdBy;
@@ -37,6 +39,8 @@ class Tenant {
     this.buildingName,
     required this.identityType,
     required this.identityNumber,
+    this.identityDate,
+    this.identityPlace,
     this.frontImageUrl,
     this.backImageUrl,
     this.createdBy,
@@ -61,6 +65,8 @@ class Tenant {
       buildingName: json['building_name'] as String?,
       identityType: json['identity_type'] as int? ?? 1,
       identityNumber: json['identity_number'] as String? ?? '',
+      identityDate: json['identity_date'] as String?,
+      identityPlace: json['identity_place'] as String?,
       frontImageUrl: json['front_image_url'] as String?,
       backImageUrl: json['back_image_url'] as String?,
       createdBy: json['created_by'] as int?,
@@ -86,6 +92,8 @@ class Tenant {
       'building_name': buildingName,
       'identity_type': identityType,
       'identity_number': identityNumber,
+      'identity_date': identityDate,
+      'identity_place': identityPlace,
       'front_image_url': frontImageUrl,
       'back_image_url': backImageUrl,
       'created_by': createdBy,

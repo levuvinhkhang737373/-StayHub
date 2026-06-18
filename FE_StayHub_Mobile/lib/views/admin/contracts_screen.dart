@@ -312,63 +312,64 @@ class _ContractsScreenState extends State<ContractsScreen> {
                             _buildInfoRow('Đặt cọc:', '${contract.depositAmount.toStringAsFixed(0)}đ'),
                             
                             // Actions strip
-                            if (contract.isActive) ...[
+                            if (contract.status == Contract.STATUS_ACTIVE || contract.status == Contract.STATUS_EXPIRED) ...[
                               const Divider(height: 24, color: Color(0xFFE4E2D7)),
                               Row(
                                 children: [
-                                  // Extend Button
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () => _showExtendDialog(contract.id),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: const Color(0xFFEAB308),
-                                        side: const BorderSide(color: Color(0xFFEAB308)),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  if (contract.status == Contract.STATUS_EXPIRED)
+                                    // Extend Button
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => _showExtendDialog(contract.id),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: const Color(0xFFEAB308),
+                                          side: const BorderSide(color: Color(0xFFEAB308)),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                        child: const Text('Gia hạn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                       ),
-                                      child: const Text('Gia hạn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
+                                  if (contract.status == Contract.STATUS_ACTIVE) ...[
+                                    // Change Room Button
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => _showChangeRoomDialog(contract.id),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: const Color(0xFF1C1917),
+                                          side: const BorderSide(color: Color(0xFF1C1917)),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                        child: const Text('Chuyển phòng', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
 
-                                  // Change Room Button
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () => _showChangeRoomDialog(contract.id),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: const Color(0xFF1C1917),
-                                        side: const BorderSide(color: Color(0xFF1C1917)),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    // Terminate Button
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () async {
+                                          final success = await contractController.terminateContract(contract.id);
+                                          if (success && mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Hợp đồng đã chấm dứt'), backgroundColor: Colors.redAccent),
+                                            );
+                                          } else if (mounted) {
+                                            final errMsg = contractController.errorMessage ?? 'Chấm dứt hợp đồng thất bại';
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
+                                            );
+                                          }
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.redAccent,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                        child: const Text('Kết thúc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                       ),
-                                      child: const Text('Chuyển phòng', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-
-                                  // Terminate Button
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: () async {
-                                        final success = await contractController.terminateContract(contract.id);
-                                        if (success && mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Hợp đồng đã chấm dứt'), backgroundColor: Colors.redAccent),
-                                          );
-                                        } else if (mounted) {
-                                          final errMsg = contractController.errorMessage ?? 'Chấm dứt hợp đồng thất bại';
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
-                                          );
-                                        }
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.redAccent,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                      ),
-                                      child: const Text('Kết thúc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                    ),
-                                  ),
+                                  ],
                                 ],
                               )
                             ]

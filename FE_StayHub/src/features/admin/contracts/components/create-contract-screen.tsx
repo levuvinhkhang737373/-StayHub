@@ -29,7 +29,7 @@ import type {
 import { validateContractForm } from '../validations/contract.validation'
 
 import {
-  STATUS_ACTIVE,
+  STATUS_PENDING_SIGN,
   CHARGE_MONTHLY,
   defaultTenantRow,
   defaultForm,
@@ -268,7 +268,7 @@ export function CreateContractScreen() {
           actual_end_date: '',
           parent_contract_id: String(contract.parent_contract_id || contract.id),
           renew_from_contract_id: String(contract.id),
-          status: STATUS_ACTIVE,
+          status: STATUS_PENDING_SIGN,
           vehicles: formValues.vehicles.map((v) => ({
             ...v,
             started_at: nextStartDate,
@@ -379,7 +379,7 @@ export function CreateContractScreen() {
           actual_end_date: '',
           parent_contract_id: String(editingContract.parent_contract_id || editingContract.id),
           renew_from_contract_id: String(editingContract.id),
-          status: STATUS_ACTIVE,
+          status: STATUS_PENDING_SIGN,
           vehicles: formValues.vehicles.map((v) => ({
             ...v,
             started_at: nextStartDate,
@@ -447,7 +447,7 @@ export function CreateContractScreen() {
       } else if (isRenewMode && editingContract) {
         const response = await renewContract(editingContract.id, payload)
         const createdContract = response.result
-        if (createdContract && form.is_deposit_paid && form.deposit_payment_method === '2' && Number(createdContract.deposit_amount) > 0) {
+        if (createdContract && Number(createdContract.status) !== STATUS_PENDING_SIGN && form.is_deposit_paid && form.deposit_payment_method === '2' && Number(createdContract.deposit_amount) > 0) {
           setQrModalContract(createdContract)
           setSuccessMessage('Gia hạn hợp đồng thành công. Vui lòng quét mã QR để đóng cọc.')
         } else {
@@ -457,7 +457,7 @@ export function CreateContractScreen() {
       } else {
         const response = await createAdminContract(payload)
         const createdContract = response.result
-        if (createdContract && form.is_deposit_paid && form.deposit_payment_method === '2' && Number(createdContract.deposit_amount) > 0) {
+        if (createdContract && Number(createdContract.status) !== STATUS_PENDING_SIGN && form.is_deposit_paid && form.deposit_payment_method === '2' && Number(createdContract.deposit_amount) > 0) {
           setQrModalContract(createdContract)
           setSuccessMessage('Tạo hợp đồng thành công. Vui lòng quét mã QR để đóng cọc.')
         } else {

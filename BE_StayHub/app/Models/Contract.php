@@ -13,12 +13,14 @@ class Contract extends Model
     use HasFactory;
 
 
+    public const STATUS_PENDING_SIGN = 0;
     public const STATUS_ACTIVE = 1;
     public const STATUS_EXPIRED = 2;
     public const STATUS_LIQUIDATED = 3;
     public const STATUS_CANCELLED = 4;
 
     public const STATUS_LABELS = [
+        self::STATUS_PENDING_SIGN => 'Chờ ký',
         self::STATUS_ACTIVE => 'Đang hiệu lực',
         self::STATUS_EXPIRED => 'Hết hạn',
         self::STATUS_LIQUIDATED => 'Đã thanh lý',
@@ -37,11 +39,11 @@ class Contract extends Model
         self::PAYMENT_STATUS_EXPIRED => 'Hết hạn',
     ];
 
-    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'parent_contract_id', 'renew_from_contract_id'];
+    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'parent_contract_id', 'renew_from_contract_id', 'tenant_signed_at', 'tenant_signature_url'];
 
     protected function casts(): array
     {
-        return ['start_date' => 'date', 'end_date' => 'date', 'actual_end_date' => 'date', 'billing_cycle_day' => 'integer', 'room_price' => 'decimal:2', 'deposit_amount' => 'decimal:2', 'status' => 'integer', 'payment_status' => 'integer', 'contract_files' => 'array', 'parent_contract_id' => 'integer', 'renew_from_contract_id' => 'integer'];
+        return ['start_date' => 'date', 'end_date' => 'date', 'actual_end_date' => 'date', 'billing_cycle_day' => 'integer', 'room_price' => 'decimal:2', 'deposit_amount' => 'decimal:2', 'status' => 'integer', 'payment_status' => 'integer', 'contract_files' => 'array', 'parent_contract_id' => 'integer', 'renew_from_contract_id' => 'integer', 'tenant_signed_at' => 'datetime'];
     }
 
     protected static function booted()
