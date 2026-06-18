@@ -8,6 +8,7 @@ import '../../models/contract.dart';
 import '../../models/tenant.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
+import 'sign_contract_screen.dart';
 
 class TenantContractScreen extends StatefulWidget {
   const TenantContractScreen({super.key});
@@ -168,6 +169,7 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
     if (contract.status == Contract.STATUS_EXPIRED) statusColor = const Color(0xFFD97706);
     if (contract.status == Contract.STATUS_LIQUIDATED) statusColor = const Color(0xFF2563EB);
     if (contract.status == Contract.STATUS_CANCELLED) statusColor = const Color(0xFFDC2626);
+    if (contract.status == Contract.STATUS_DRAFT) statusColor = const Color(0xFF4B5563);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -264,6 +266,41 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                       ),
                     ],
                   ),
+                  if (contract.status == Contract.STATUS_DRAFT &&
+                      (tenant == null ||
+                       tenant.identityNumber.isEmpty ||
+                       tenant.identityDate == null ||
+                       tenant.identityDate!.isEmpty ||
+                       tenant.identityPlace == null ||
+                       tenant.identityPlace!.isEmpty ||
+                       tenant.permanentAddress == null ||
+                       tenant.permanentAddress!.isEmpty)) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 16),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Thiếu thông tin định danh. Nhấp để bổ sung.',
+                              style: TextStyle(
+                                color: Color(0xFF991B1B),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   const Divider(height: 1, color: Color(0xFFF1F0EA)),
                   const SizedBox(height: 12),
@@ -341,6 +378,185 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
     return '${str.replaceAllMapped(reg, mathFunc)}đ';
   }
 
+  void _showSupplementInfoDialog(BuildContext context, Tenant? tenant) {
+    final formKey = GlobalKey<FormState>();
+    final fullNameController = TextEditingController(text: tenant?.fullName ?? widget.contract.tenantName);
+    final identityNumberController = TextEditingController(text: tenant?.identityNumber ?? '');
+    final identityDateController = TextEditingController();
+    final identityPlaceController = TextEditingController(text: tenant?.identityPlace ?? '');
+    final permanentAddressController = TextEditingController(text: tenant?.permanentAddress ?? '');
+    DateTime? selectedDate;
+    
+    final idDate = tenant?.identityDate;
+    if (idDate != null && idDate.isNotEmpty) {
+      try {
+        selectedDate = DateTime.parse(idDate);
+        final day = selectedDate.day.toString().padLeft(2, '0');
+        final month = selectedDate.month.toString().padLeft(2, '0');
+        final year = selectedDate.year.toString();
+        identityDateController.text = '$day/$month/$year';
+      } catch (_) {}
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final auth = Provider.of<AuthController>(context);
+
+            Future<void> pickDate() async {
+              final DateTime? picked = await showDatePicker(
+                context: context,
+                initialDate: selectedDate ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
+                firstDate: DateTime(1900),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                setStateDialog(() {
+                  selectedDate = picked;
+                  final day = picked.day.toString().padLeft(2, '0');
+                  final month = picked.month.toString().padLeft(2, '0');
+                  final year = picked.year.toString();
+                  identityDateController.text = '$day/$month/$year';
+                });
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text(
+                'Bổ sung thông tin cá nhân',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917), fontSize: 16),
+              ),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: fullNameController,
+                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
+                        decoration: const InputDecoration(labelText: 'Họ và tên'),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập họ và tên' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: identityNumberController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
+                        decoration: const InputDecoration(labelText: 'Số CMND/CCCD/Hộ chiếu'),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) return 'Vui lòng nhập số định danh';
+                          if (val.trim().length < 9) return 'Số định danh không hợp lệ';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: pickDate,
+                        child: IgnorePointer(
+                          child: TextFormField(
+                            controller: identityDateController,
+                            style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
+                            decoration: const InputDecoration(
+                              labelText: 'Ngày cấp',
+                              suffixIcon: Icon(Icons.calendar_today, size: 16),
+                            ),
+                            validator: (val) => val == null || val.isEmpty ? 'Vui lòng chọn ngày cấp' : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: identityPlaceController,
+                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
+                        decoration: const InputDecoration(labelText: 'Nơi cấp'),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập nơi cấp' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: permanentAddressController,
+                        maxLines: 2,
+                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
+                        decoration: const InputDecoration(labelText: 'Địa chỉ thường trú'),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập địa chỉ thường trú' : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('HỦY', style: TextStyle(color: Colors.grey)),
+                ),
+                TextButton(
+                  onPressed: auth.isLoading
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          if (selectedDate == null) return;
+                          
+                          final year = selectedDate!.year.toString();
+                          final month = selectedDate!.month.toString().padLeft(2, '0');
+                          final day = selectedDate!.day.toString().padLeft(2, '0');
+                          final dateDbStr = '$year-$month-$day';
+
+                          final success = await auth.updateTenantProfile(
+                            fullName: fullNameController.text.trim(),
+                            identityNumber: identityNumberController.text.trim(),
+                            identityType: 1, // CCCD
+                            identityDate: dateDbStr,
+                            identityPlace: identityPlaceController.text.trim(),
+                            permanentAddress: permanentAddressController.text.trim(),
+                          );
+
+                          if (success) {
+                            Navigator.pop(dialogContext);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Bổ sung thông tin cá nhân thành công!'),
+                                  backgroundColor: Colors.green,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                              // Refresh auth user session and contract listing
+                              context.read<AuthController>().checkSession();
+                              context.read<ContractController>().fetchContracts('tenant');
+                            }
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(auth.errorMessage ?? 'Cập nhật thất bại. Vui lòng thử lại.'),
+                                  backgroundColor: Colors.redAccent,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: auth.isLoading
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(color: Color(0xFF1C1917), strokeWidth: 2),
+                        )
+                      : const Text('LƯU LẠI', style: TextStyle(color: Color(0xFF1C1917), fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final contractController = context.watch<ContractController>();
@@ -349,6 +565,15 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       orElse: () => widget.contract,
     );
     final tenant = widget.tenant;
+
+    final isProfileIncomplete = tenant == null ||
+        tenant.identityNumber.isEmpty ||
+        tenant.identityDate == null ||
+        tenant.identityDate!.isEmpty ||
+        tenant.identityPlace == null ||
+        tenant.identityPlace!.isEmpty ||
+        tenant.permanentAddress == null ||
+        tenant.permanentAddress!.isEmpty;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
@@ -360,6 +585,46 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
           onPressed: () => Navigator.pop(context),
         ),
       ),
+      bottomNavigationBar: contract.status == Contract.STATUS_DRAFT
+          ? SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    top: BorderSide(color: Color(0xFFE4E2D7), width: 1),
+                  ),
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final signed = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SignContractScreen(contract: contract),
+                      ),
+                    );
+                    if (signed == true) {
+                      contractController.fetchContracts('tenant');
+                    }
+                  },
+                  icon: const Icon(Icons.draw_rounded),
+                  label: const Text(
+                    'KÝ HỢP ĐỒNG THUÊ PHÒNG',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1C1917),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: Stack(
         children: [
           Positioned.fill(child: CustomPaint(painter: GridPainter())),
@@ -376,8 +641,106 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     _buildErrorDisplay(contractController),
                     const SizedBox(height: 16),
                   ],
-                  // VietQR Deposit Payment Panel (displayed if not paid)
-                  if (!contract.isDepositPaid) ...[
+                  if (contract.status == Contract.STATUS_DRAFT && isProfileIncomplete) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Yêu cầu bổ sung thông tin định danh',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF92400E),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Hợp đồng này chưa đầy đủ thông tin định danh của bạn. Vui lòng bấm vào nút "KÝ HỢP ĐỒNG THUÊ PHÒNG" ở phía dưới để bổ sung và ký kết.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFFB45309),
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (contract.status == Contract.STATUS_ACTIVE && isProfileIncomplete) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Hồ sơ hợp đồng chưa đầy đủ thông tin',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF991B1B),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Hợp đồng đã có hiệu lực nhưng hồ sơ định danh của bạn vẫn chưa đầy đủ thông tin (CCCD/CMND, ngày cấp, nơi cấp, địa chỉ thường trú).',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFF7F1D1D),
+                              height: 1.45,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _showSupplementInfoDialog(context, tenant),
+                              icon: const Icon(Icons.edit_note_rounded),
+                              label: const Text('BỔ SUNG THÔNG TIN NGAY'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFDC2626),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  // VietQR Deposit Payment Panel (displayed if not paid and contract is active/signed)
+                  if (!contract.isDepositPaid && contract.status == Contract.STATUS_ACTIVE) ...[
                     _buildPaymentPanel(contract, contractController),
                     const SizedBox(height: 8),
                   ],

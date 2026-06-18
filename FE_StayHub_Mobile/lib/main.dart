@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'config/app_config.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/dashboard_controller.dart';
 import 'controllers/facility_controller.dart';
@@ -33,8 +34,9 @@ import 'views/tenant/tenant_chat_screen.dart';
 import 'views/tenant/tenant_contract_screen.dart';
 import 'views/tenant/tenant_utility_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppConfig.checkServerConnection();
   runApp(
     MultiProvider(
       providers: [

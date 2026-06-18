@@ -32,7 +32,7 @@ class ContractDetailResource extends JsonResource
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,
             'is_deposit_paid' => $this->is_deposit_paid,
             'deposit_balance' => (string) $this->deposit_balance,
-            'deposit_qr_url' => $this->is_deposit_paid ? null : VietQRHelper::generateLink(
+            'deposit_qr_url' => ($this->is_deposit_paid || $this->status === Contract::STATUS_PENDING_SIGN) ? null : VietQRHelper::generateLink(
                 null,
                 null,
                 null,
@@ -40,6 +40,13 @@ class ContractDetailResource extends JsonResource
                 $this->contract_code
             ),
             'contract_files' => $this->contractFiles(),
+            'tenant_signed_at' => optional($this->tenant_signed_at)->toDateTimeString(),
+            'tenant_signature_url' => $this->tenant_signature_url ? ImageHelper::urlFromDisk($this->tenant_signature_url, 'public') : null,
+            'landlord_info' => array_merge(config('contract.landlord') ?? [], [
+                'signature_url' => config('contract.landlord.signature_url') ? ImageHelper::urlFromDisk(config('contract.landlord.signature_url'), 'public') : null,
+            ]),
+            'building_name' => $this->relationLoaded('room') && $this->room?->relationLoaded('building') ? $this->room?->building?->name : null,
+            'building_address' => $this->relationLoaded('room') && $this->room?->relationLoaded('building') ? $this->room?->building?->address : null,
             'note' => $this->note,
             'created_by' => $this->created_by,
             'creator_name' => $this->whenLoaded('creator', fn (): ?string => $this->creator?->full_name),

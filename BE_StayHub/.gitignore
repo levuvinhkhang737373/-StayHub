@@ -23,3 +23,8 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Dynamic Uploads
+/public/upload/maintenance/
+/public/upload/signatures/contract_*
+/public/upload/signatures/HD-*

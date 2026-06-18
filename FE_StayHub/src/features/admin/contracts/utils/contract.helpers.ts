@@ -7,6 +7,7 @@ import type {
   ContractTenantFormRow,
 } from '../types/contract-api.model'
 
+export const STATUS_PENDING_SIGN = 0
 export const STATUS_ACTIVE = 1
 export const STATUS_EXPIRED = 2
 export const STATUS_LIQUIDATED = 3
@@ -42,7 +43,7 @@ export const defaultForm: ContractFormValues = {
   billing_cycle_day: '1',
   room_price: '',
   deposit_amount: '0.00',
-  status: STATUS_ACTIVE,
+  status: STATUS_PENDING_SIGN,
   contract_files: [],
   delete_contract_files: [],
   note: '',
@@ -57,13 +58,14 @@ export const defaultForm: ContractFormValues = {
 
 export const statusOptions = [
   { value: '', label: 'Tất cả trạng thái', tone: 'default' as const },
+  { value: STATUS_PENDING_SIGN, label: 'Chờ ký', tone: 'warning' as const },
   { value: STATUS_ACTIVE, label: 'Đang hiệu lực', tone: 'success' as const },
   { value: STATUS_EXPIRED, label: 'Hết hạn', tone: 'warning' as const },
   { value: STATUS_LIQUIDATED, label: 'Đã thanh lý', tone: 'success' as const },
   { value: STATUS_CANCELLED, label: 'Đã hủy', tone: 'danger' as const },
 ]
 
-export const createStatusOptions = statusOptions.filter((option) => [STATUS_ACTIVE].includes(Number(option.value)))
+export const createStatusOptions = statusOptions.filter((option) => [STATUS_ACTIVE, STATUS_PENDING_SIGN].includes(Number(option.value)))
 export const statusChangeOptions = statusOptions.filter((option) => option.value !== '')
 
 export const chargePolicyOptions = [
@@ -100,6 +102,7 @@ export function getVisibleErrorMessage(error: unknown, fallback: string) {
 }
 
 export function getStatusLabel(status?: number | null) {
+  if (Number(status) === STATUS_PENDING_SIGN) return 'Chờ ký'
   if (Number(status) === STATUS_ACTIVE) return 'Đang hiệu lực'
   if (Number(status) === STATUS_EXPIRED) return 'Hết hạn'
   if (Number(status) === STATUS_LIQUIDATED) return 'Đã thanh lý'

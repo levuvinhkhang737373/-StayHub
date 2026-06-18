@@ -464,7 +464,7 @@ export function ContractsScreen() {
                           <IconButton title="Xem chi tiết" onClick={() => void viewContract(contract)}>
                             <Eye className="h-5 w-5" />
                           </IconButton>
-                          {[STATUS_ACTIVE, STATUS_EXPIRED].includes(Number(contract.status)) && (
+                          {Number(contract.status) === STATUS_EXPIRED && (
                             <IconButton title="Gia hạn" onClick={() => navigate(`/admin/contracts/${contract.id}/renew`)}>
                               <CalendarPlus className="h-5 w-5" />
                             </IconButton>
