@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Events\InvoiceIssued;
 use App\Events\InvoicePaid;
 use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
@@ -46,7 +45,7 @@ class InvoiceController extends Controller
             'page' => 'nullable|integer|min:1',
             'per_page' => 'nullable|integer|min:1|max:100',
             'keyword' => 'nullable|string|max:100',
-            'status' => 'nullable|integer|in:1,2,3,4,5,6',
+            'status' => 'nullable|integer|in:2,3,4,5,6',
             'building_id' => 'nullable|integer|exists:buildings,id',
             'room_id' => 'nullable|integer|exists:rooms,id',
             'contract_id' => 'nullable|integer|exists:contracts,id',
@@ -92,10 +91,10 @@ class InvoiceController extends Controller
                     'per_page' => $invoices->perPage(),
                     'total' => $invoices->total(),
                     'last_page' => $invoices->lastPage(),
-                ]
+                ],
             ], 200);
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
@@ -118,7 +117,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết hóa đơn', 200, new InvoiceDetailResource($invoiceModel), 200);
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
@@ -236,7 +235,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
@@ -261,6 +260,7 @@ class InvoiceController extends Controller
             $response = DB::transaction(function () use ($validated, $invoice, $admin, $request): JsonResponse {
                 $invoiceModel = $this->accessibleInvoiceQuery($admin)
                     ->with('items')
+                    ->withCount('payments')
                     ->lockForUpdate()
                     ->find($invoice);
 
@@ -268,8 +268,12 @@ class InvoiceController extends Controller
                     return ApiResponse::responseJson(false, 'Không tìm thấy hóa đơn', 404, null, 404);
                 }
 
-                if ((int) $invoiceModel->status !== Invoice::STATUS_DRAFT) {
-                    return ApiResponse::responseJson(false, 'Chỉ được sửa hóa đơn nháp', 422, null, 422);
+                if (! in_array((int) $invoiceModel->status, [Invoice::STATUS_UNPAID, Invoice::STATUS_OVERDUE], true)) {
+                    return ApiResponse::responseJson(false, 'Chỉ được sửa hóa đơn chưa thanh toán hoặc quá hạn', 422, null, 422);
+                }
+
+                if ((int) $invoiceModel->payments_count > 0) {
+                    return ApiResponse::responseJson(false, 'Không thể sửa hóa đơn đã phát sinh giao dịch thanh toán', 422, null, 422);
                 }
 
                 $oldData = $invoiceModel->load($this->detailRelations())->toArray();
@@ -301,76 +305,19 @@ class InvoiceController extends Controller
                     'paid_amount' => '0.00',
                     'remaining_amount' => $totalAmount,
                     'previous_debt_amount' => (string) $invoiceModel->items()->where('item_type', InvoiceItem::ITEM_TYPE_OLD_DEBT)->sum('amount'),
+                    'status' => DecimalMoney::compare($totalAmount, '0') <= 0 ? Invoice::STATUS_PAID : Invoice::STATUS_UNPAID,
                 ])->save();
 
-                AdminActivityLogger::write($admin, 'update_invoice_draft', Invoice::class, $invoiceModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'update_invoice', Invoice::class, $invoiceModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
 
                 $invoiceModel->load($this->detailRelations());
 
-                return ApiResponse::responseJson(true, 'Cập nhật hóa đơn nháp thành công', 200, new InvoiceDetailResource($invoiceModel), 200);
+                return ApiResponse::responseJson(true, 'Cập nhật hóa đơn thành công', 200, new InvoiceDetailResource($invoiceModel), 200);
             });
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
-        }
-    }
-
-    public function issue(Request $request, int $invoice): JsonResponse
-    {
-        try {
-            $admin = $request->user('admin');
-
-            if (! $admin || ! $this->canManageInvoices($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền phát hành hóa đơn', 403, null, 403);
-            }
-
-            $response = DB::transaction(function () use ($invoice, $admin, $request): JsonResponse {
-                $invoiceModel = $this->accessibleInvoiceQuery($admin)
-                    ->with($this->detailRelations())
-                    ->lockForUpdate()
-                    ->find($invoice);
-
-                if (! $invoiceModel) {
-                    return ApiResponse::responseJson(false, 'Không tìm thấy hóa đơn', 404, null, 404);
-                }
-
-                if ((int) $invoiceModel->status !== Invoice::STATUS_DRAFT) {
-                    return ApiResponse::responseJson(false, 'Chỉ phát hành hóa đơn đang ở trạng thái nháp', 422, null, 422);
-                }
-
-                if (DecimalMoney::compare($invoiceModel->total_amount, '0') < 0) {
-                    return ApiResponse::responseJson(false, 'Tổng tiền hóa đơn không hợp lệ', 422, null, 422);
-                }
-
-                $oldData = $invoiceModel->toArray();
-                $nextStatus = DecimalMoney::compare($invoiceModel->remaining_amount, '0') <= 0
-                    ? Invoice::STATUS_PAID
-                    : Invoice::STATUS_UNPAID;
-
-                $invoiceModel->forceFill([
-                    'status' => $nextStatus,
-                    'issued_at' => now(),
-                ])->save();
-
-                $this->markMeterReadingsInvoiced($invoiceModel);
-                $tenantNotifications = $this->createInvoiceIssuedNotifications($invoiceModel, $admin);
-
-                AdminActivityLogger::write($admin, 'issue_invoice', Invoice::class, $invoiceModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
-
-                DB::afterCommit(function () use ($invoiceModel, $tenantNotifications): void {
-                    event(new InvoiceIssued($invoiceModel->fresh($this->detailRelations())));
-                    $this->broadcastNotifications($tenantNotifications);
-                });
-
-                $invoiceModel->load($this->detailRelations());
-
-                return ApiResponse::responseJson(true, 'Phát hành hóa đơn thành công', 200, new InvoiceDetailResource($invoiceModel), 200);
-            });
-
-            return $response;
-        } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
@@ -392,7 +339,7 @@ class InvoiceController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền ghi nhận thanh toán', 403, null, 403);
             }
 
-            $lockName = $this->paymentLockName($validated['transaction_reference'] ?? 'manual-' . $invoice);
+            $lockName = $this->paymentLockName($validated['transaction_reference'] ?? 'manual-'.$invoice);
             $lock = Cache::lock($lockName, 10);
 
             if (! $lock->get()) {
@@ -460,7 +407,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
@@ -527,7 +474,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
@@ -574,7 +521,7 @@ class InvoiceController extends Controller
                         'service_id' => null,
                         'meter_reading_id' => null,
                         'item_type' => InvoiceItem::ITEM_TYPE_ADJUST_DECREASE,
-                        'description' => 'Ghi chú hủy hóa đơn: ' . $note,
+                        'description' => 'Ghi chú hủy hóa đơn: '.$note,
                         'quantity' => '1.00',
                         'unit_price' => '0.00',
                         'amount' => '0.00',
@@ -590,7 +537,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
@@ -607,7 +554,7 @@ class InvoiceController extends Controller
             'service_id' => null,
             'meter_reading_id' => null,
             'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
-            'description' => 'Tiền phòng tháng ' . str_pad((string) $billingMonth, 2, '0', STR_PAD_LEFT) . '/' . $billingYear,
+            'description' => 'Tiền phòng tháng '.str_pad((string) $billingMonth, 2, '0', STR_PAD_LEFT).'/'.$billingYear,
             'quantity' => '1.00',
             'unit_price' => DecimalMoney::normalize($contract->room_price),
             'amount' => $roomAmount,
@@ -642,16 +589,19 @@ class InvoiceController extends Controller
 
                 if (! $meterDevice) {
                     $errors[] = "Phòng {$contract->room?->room_number} chưa có đồng hồ đang hoạt động cho dịch vụ {$service->name}.";
+
                     continue;
                 }
 
                 if (! $reading) {
                     $errors[] = "Thiếu chỉ số {$service->name} tháng {$billingMonth}/{$billingYear} cho phòng {$contract->room?->room_number}.";
+
                     continue;
                 }
 
                 if ((int) $reading->status === MeterReading::STATUS_DRAFT) {
                     $errors[] = "Chỉ số {$service->name} tháng {$billingMonth}/{$billingYear} chưa được xác nhận.";
+
                     continue;
                 }
 
@@ -659,7 +609,7 @@ class InvoiceController extends Controller
                     'service_id' => $service->id,
                     'meter_reading_id' => $reading->id,
                     'item_type' => $this->meterItemType($meterDevice, $service),
-                    'description' => $service->name . ' (' . $reading->previous_reading . ' → ' . $reading->current_reading . ')',
+                    'description' => $service->name.' ('.$reading->previous_reading.' → '.$reading->current_reading.')',
                     'quantity' => DecimalMoney::normalize($reading->consumption),
                     'unit_price' => $unitPrice,
                     'amount' => DecimalMoney::multiply($reading->consumption, $unitPrice),
@@ -681,7 +631,7 @@ class InvoiceController extends Controller
                     'service_id' => $service->id,
                     'meter_reading_id' => null,
                     'item_type' => $this->serviceItemType($service),
-                    'description' => $service->name . ' (' . $tenantCount . ' người)',
+                    'description' => $service->name.' ('.$tenantCount.' người)',
                     'quantity' => DecimalMoney::normalize((string) $tenantCount),
                     'unit_price' => $unitPrice,
                     'amount' => DecimalMoney::multiply((string) $tenantCount, $unitPrice),
@@ -716,7 +666,7 @@ class InvoiceController extends Controller
                 'service_id' => $vehicleServiceId,
                 'meter_reading_id' => null,
                 'item_type' => InvoiceItem::ITEM_TYPE_PARKING,
-                'description' => 'Gửi xe ' . ($contractVehicle->vehicle?->license_plate ?? ('#' . $contractVehicle->vehicle_id)),
+                'description' => 'Gửi xe '.($contractVehicle->vehicle?->license_plate ?? ('#'.$contractVehicle->vehicle_id)),
                 'quantity' => '1.00',
                 'unit_price' => DecimalMoney::normalize($contractVehicle->monthly_fee),
                 'amount' => DecimalMoney::normalize($contractVehicle->monthly_fee),
@@ -815,8 +765,8 @@ class InvoiceController extends Controller
                 $amount = DecimalMoney::multiply($quantity, $unitPrice);
 
                 if (in_array((int) $adjustment['item_type'], [InvoiceItem::ITEM_TYPE_DISCOUNT, InvoiceItem::ITEM_TYPE_ADJUST_DECREASE], true)) {
-                    $amount = '-' . DecimalMoney::normalize($amount);
-                    $unitPrice = '-' . $unitPrice;
+                    $amount = '-'.DecimalMoney::normalize($amount);
+                    $unitPrice = '-'.$unitPrice;
                 }
 
                 return [
@@ -876,7 +826,7 @@ class InvoiceController extends Controller
             ->filter(fn ($contractTenant): bool => (bool) $contractTenant->is_staying)
             ->map(fn ($contractTenant): Notification => Notification::query()->create([
                 'title' => 'Hóa đơn mới đã được phát hành',
-                'content' => "Hóa đơn {$invoice->invoice_code} tháng " . str_pad((string) $invoice->billing_month, 2, '0', STR_PAD_LEFT) . "/{$invoice->billing_year} của phòng " . ($invoice->room?->room_number ?? 'chưa rõ') . ' đã được phát hành. Số tiền: ' . number_format(DecimalMoney::toIntegerAmount($invoice->total_amount), 0, ',', '.') . ' VND.',
+                'content' => "Hóa đơn {$invoice->invoice_code} tháng ".str_pad((string) $invoice->billing_month, 2, '0', STR_PAD_LEFT)."/{$invoice->billing_year} của phòng ".($invoice->room?->room_number ?? 'chưa rõ').' đã được phát hành. Số tiền: '.number_format(DecimalMoney::toIntegerAmount($invoice->total_amount), 0, ',', '.').' VND.',
                 'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
                 'target_type' => Notification::TARGET_TYPE_TENANT,
                 'building_id' => $invoice->room?->building_id,
@@ -892,12 +842,12 @@ class InvoiceController extends Controller
     private function createInvoicePaidNotifications(Invoice $invoice, Payment $payment, ?Admin $admin = null): Collection
     {
         $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
-        $amountText = number_format(DecimalMoney::toIntegerAmount($payment->amount), 0, ',', '.') . ' VND';
+        $amountText = number_format(DecimalMoney::toIntegerAmount($payment->amount), 0, ',', '.').' VND';
         $tenantNotifications = $invoice->contract->contractTenants
             ->filter(fn ($contractTenant): bool => (bool) $contractTenant->is_staying)
             ->map(fn ($contractTenant): Notification => Notification::query()->create([
                 'title' => 'Thanh toán hóa đơn thành công',
-                'content' => "Hệ thống đã ghi nhận thanh toán {$amountText} cho hóa đơn {$invoice->invoice_code}. Trạng thái hiện tại: " . (Invoice::STATUS_LABELS[$invoice->status] ?? 'Đã cập nhật') . '.',
+                'content' => "Hệ thống đã ghi nhận thanh toán {$amountText} cho hóa đơn {$invoice->invoice_code}. Trạng thái hiện tại: ".(Invoice::STATUS_LABELS[$invoice->status] ?? 'Đã cập nhật').'.',
                 'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
                 'target_type' => Notification::TARGET_TYPE_TENANT,
                 'building_id' => $invoice->room?->building_id,
@@ -910,7 +860,7 @@ class InvoiceController extends Controller
 
         $adminNotification = Notification::query()->create([
             'title' => 'Hóa đơn đã được thanh toán',
-            'content' => 'Phòng ' . ($invoice->room?->room_number ?? 'chưa rõ') . ' của tòa nhà ' . ($invoice->room?->building?->name ?? 'chưa rõ') . " đã thanh toán hóa đơn {$invoice->invoice_code}. Số tiền ghi nhận: {$amountText}.",
+            'content' => 'Phòng '.($invoice->room?->room_number ?? 'chưa rõ').' của tòa nhà '.($invoice->room?->building?->name ?? 'chưa rõ')." đã thanh toán hóa đơn {$invoice->invoice_code}. Số tiền ghi nhận: {$amountText}.",
             'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
             'target_type' => Notification::TARGET_TYPE_ADMIN,
             'building_id' => $invoice->room?->building_id,
@@ -944,7 +894,7 @@ class InvoiceController extends Controller
 
     private function serviceItemType(Service $service): int
     {
-        $searchText = mb_strtolower(($service->slug ?? '') . ' ' . ($service->name ?? ''));
+        $searchText = mb_strtolower(($service->slug ?? '').' '.($service->name ?? ''));
 
         if (str_contains($searchText, 'internet')) {
             return InvoiceItem::ITEM_TYPE_INTERNET;
@@ -963,14 +913,14 @@ class InvoiceController extends Controller
 
     private function makeInvoiceCode(Carbon $period): string
     {
-        $prefix = 'INV-' . $period->format('Y-m') . '-';
+        $prefix = 'INV-'.$period->format('Y-m').'-';
         $next = Invoice::query()
-            ->where('invoice_code', 'like', $prefix . '%')
+            ->where('invoice_code', 'like', $prefix.'%')
             ->lockForUpdate()
             ->count() + 1;
 
         do {
-            $code = $prefix . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            $code = $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
             $next++;
         } while (Invoice::query()->where('invoice_code', $code)->exists());
 
@@ -979,14 +929,14 @@ class InvoiceController extends Controller
 
     private function makePaymentCode(): string
     {
-        $prefix = 'PAY-' . now()->format('Y-m') . '-';
+        $prefix = 'PAY-'.now()->format('Y-m').'-';
         $next = Payment::query()
-            ->where('payment_code', 'like', $prefix . '%')
+            ->where('payment_code', 'like', $prefix.'%')
             ->lockForUpdate()
             ->count() + 1;
 
         do {
-            $code = $prefix . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            $code = $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
             $next++;
         } while (Payment::query()->where('payment_code', $code)->exists());
 
@@ -995,7 +945,7 @@ class InvoiceController extends Controller
 
     private function paymentLockName(string $reference): string
     {
-        return 'invoice-payment:' . sha1($reference);
+        return 'invoice-payment:'.sha1($reference);
     }
 
     private function accessibleInvoiceQuery(Admin $admin): Builder

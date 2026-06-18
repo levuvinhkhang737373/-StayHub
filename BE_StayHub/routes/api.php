@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminAccountController;
 use App\Http\Controllers\Admin\AssetTemplateController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
+use App\Http\Controllers\Admin\BulkGenerateInvoiceController;
 use App\Http\Controllers\Admin\ContractController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
 use App\Http\Controllers\Admin\InvoiceController as AdminInvoiceController;
@@ -102,15 +103,14 @@ Route::prefix('admin')->group(function (): void {
         Route::apiResource('contracts', ContractController::class);
 
         // =========================Invoices================================
-        Route::post('buildings/{building}/invoices/bulk-generate', [\App\Http\Controllers\Admin\BulkGenerateInvoiceController::class, '__invoke']);
+        Route::post('buildings/{building}/invoices/bulk-generate', [BulkGenerateInvoiceController::class, '__invoke']);
         Route::post('invoices/generate', [AdminInvoiceController::class, 'generate']);
-        Route::post('invoices/{invoice}/issue', [AdminInvoiceController::class, 'issue']);
         Route::post('invoices/{invoice}/payments', [AdminInvoiceController::class, 'recordPayment']);
         Route::post('invoices/{invoice}/payments/{payment}/confirm', [AdminInvoiceController::class, 'confirmPayment']);
         Route::patch('invoices/{invoice}/cancel', [AdminInvoiceController::class, 'cancel']);
         Route::apiResource('invoices', AdminInvoiceController::class)->only(['index', 'show', 'update']);
 
-        //==========================Rooms===================================
+        // ==========================Rooms===================================
         Route::apiResource('/room', RoomController::class);
         Route::patch('/room/{id}/status', [RoomController::class, 'updateStatus']);
     });
@@ -133,8 +133,8 @@ Route::prefix('tenant')->group(function (): void {
         Route::post('notifications/{id}/read', [TenantNotificationController::class, 'read']);
 
         // =========================Contract============================
-        Route::get('contract', [\App\Http\Controllers\Tenant\ContractController::class, 'show']);
-        Route::get('contracts', [\App\Http\Controllers\Tenant\ContractController::class, 'index']);
+        Route::get('contract', [App\Http\Controllers\Tenant\ContractController::class, 'show']);
+        Route::get('contracts', [App\Http\Controllers\Tenant\ContractController::class, 'index']);
 
         // =========================Invoices============================
         Route::get('invoices', [TenantInvoiceController::class, 'index']);
@@ -145,4 +145,3 @@ Route::prefix('tenant')->group(function (): void {
 
 // =========================Webhooks API Group=========================
 Route::post('sepay-webhook', [SePayWebhookController::class, 'handle']);
-

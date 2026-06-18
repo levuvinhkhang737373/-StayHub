@@ -63,13 +63,6 @@ export async function updateAdminInvoice(invoiceId: number, payload: AdminInvoic
   })
 }
 
-export async function issueAdminInvoice(invoiceId: number) {
-  return apiRequest<AdminInvoiceResource>({
-    url: `admin/invoices/${invoiceId}/issue`,
-    method: 'POST',
-  })
-}
-
 export async function recordAdminInvoicePayment(invoiceId: number, payload: AdminInvoicePaymentPayload) {
   return apiRequest<AdminInvoiceResource>({
     url: `admin/invoices/${invoiceId}/payments`,

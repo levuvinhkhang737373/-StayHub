@@ -22,7 +22,6 @@ import {
 import type { TenantInvoiceResource } from '../types/invoice.types'
 import {
   INVOICE_STATUS_CANCELLED,
-  INVOICE_STATUS_DRAFT,
   INVOICE_STATUS_OVERDUE,
   INVOICE_STATUS_PAID,
   INVOICE_STATUS_PARTIALLY_PAID,
@@ -264,9 +263,6 @@ export function TenantInvoicesScreen() {
   const getStatusBadge = (status: number, label: string) => {
     let classes = ''
     switch (status) {
-      case INVOICE_STATUS_DRAFT:
-        classes = 'bg-[#f59e0b]/10 text-[#d97706]'
-        break
       case INVOICE_STATUS_UNPAID:
         classes = 'bg-[#ef4444]/10 text-[#dc2626]'
         break

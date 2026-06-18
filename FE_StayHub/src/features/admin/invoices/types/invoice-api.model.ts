@@ -140,7 +140,6 @@ export interface AdminInvoicePaymentPayload {
   proof_image?: File | null
 }
 
-export const INVOICE_STATUS_DRAFT = 1
 export const INVOICE_STATUS_UNPAID = 2
 export const INVOICE_STATUS_PARTIALLY_PAID = 3
 export const INVOICE_STATUS_PAID = 4

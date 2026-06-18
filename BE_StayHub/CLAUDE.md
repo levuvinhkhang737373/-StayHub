@@ -22,7 +22,7 @@ return response()->json([
             sài cái này cho tôi nhé
 ## 2. Quy chuẩn Code trong Controller
 - **Bất đồng bộ Octane Swoolee** Sử dụng Octane::concurrently() nếu function đó có thể áp dụng 
-- **Validation:** Sử dụng `$request->validate([...])` ngay đầu mỗi function trong Controller. Không tạo file Request riêng validate chuẩn và chất nhất có thể .
+- **Validation:** Tất cả validation phải nằm trong file Request/FormRequest riêng. Controller không dùng `$request->validate([...])` nữa, mà nhận FormRequest và lấy dữ liệu bằng `$request->validated()` ngay đầu function.
 - **Business Logic:** Viết trực tiếp logic xử lý (Eloquent queries, tính toán, gửi mail...) bên trong function của Controller.
 - **Database:** Sử dụng Eloquent Model trực tiếp hoặc querybuilder  và  sử dụng with để tránh N+1 query  bắt buộc cái nào cũng vậy tránh N+1 và tối ưu hóa query nhất cho tôi tối ưu nhất nhất cho tôi
 - ** luôn luôn xử lí tất cả các trường hợp không thiếu 1 trường hợp nào có thể xảy ra
@@ -32,13 +32,14 @@ return response()->json([
 Mỗi khi tôi yêu cầu một tính năng, AI hãy làm theo các bước sau:
 1. **Đọc Context:** Quét `@Codebase` để hiểu các bảng Database liên quan.
 2. **Viết Route:** Thêm route vào `api.php` 
-3. **Viết Controller:** - Bước 1: Validate dữ liệu đầu vào.
+3. **Viết Request/FormRequest:** Validate dữ liệu đầu vào trong file Request riêng.
+4. **Viết Controller:** - Bước 1: Nhận FormRequest và lấy `$request->validated()`.
    - Bước 2: Xử lý logic nghiệp vụ và tương tác Database.
    - Bước 3: hãy query tối ưu nhất, đạt tốc độ gần như là 100% ,không bao giờ bị N+1 Query, tránh tất cả các luồng xử lí gây ra N+1 query  
    - Bước 4: Trả về kết quả JSON kèm theo status code .
     - Nếu có lưu , sửa , xóa ảnh thì dùng ImageHelper
     -Nếu mà hành động của admin thì luôn luôn đưa vô log trong model của admin cho tôi nhé file này nè AdminLog.php sài Helper AdminActivityLogger
-4. **Tối ưu:** Sử dụng `try-catch` bọc quanh logic chính để bắt lỗi và trả về thông báo lỗi thân thiện. chỉ cần 1 try cath  từ đầu và cuối function
+5. **Tối ưu:** Sử dụng `try-catch` bọc quanh logic chính để bắt lỗi và trả về thông báo lỗi thân thiện. chỉ cần 1 try cath  từ đầu và cuối function
 ví dụ  public function sendMessage(RegisterRequest $request)
     {
         try {

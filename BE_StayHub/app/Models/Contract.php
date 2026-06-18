@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\NotificationSent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,10 +13,12 @@ class Contract extends Model
 {
     use HasFactory;
 
-
     public const STATUS_ACTIVE = 1;
+
     public const STATUS_EXPIRED = 2;
+
     public const STATUS_LIQUIDATED = 3;
+
     public const STATUS_CANCELLED = 4;
 
     public const STATUS_LABELS = [
@@ -26,8 +29,11 @@ class Contract extends Model
     ];
 
     public const PAYMENT_STATUS_PENDING = 1;
+
     public const PAYMENT_STATUS_SUCCESS = 2;
+
     public const PAYMENT_STATUS_CANCELLED = 3;
+
     public const PAYMENT_STATUS_EXPIRED = 4;
 
     public const PAYMENT_STATUS_LABELS = [
@@ -47,6 +53,10 @@ class Contract extends Model
     protected static function booted()
     {
         static::creating(function ($contract) {
+            if ($contract->payment_status !== null) {
+                return;
+            }
+
             $required = (float) $contract->deposit_amount;
             if ($required <= 0) {
                 $contract->payment_status = self::PAYMENT_STATUS_SUCCESS;
@@ -67,7 +77,7 @@ class Contract extends Model
                 foreach ($activeTenants as $contractTenant) {
                     $tenantNotification = Notification::create([
                         'title' => 'Hợp đồng hết hạn',
-                        'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng " . ($contract->room?->room_number ?? 'không rõ') . " đã hết thời hạn.",
+                        'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng ".($contract->room?->room_number ?? 'không rõ').' đã hết thời hạn.',
                         'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
                         'target_type' => Notification::TARGET_TYPE_TENANT,
                         'building_id' => $contract->room?->building_id,
@@ -79,7 +89,7 @@ class Contract extends Model
                     ]);
 
                     // Bắn realtime thông báo cho khách thuê qua Reverb
-                    broadcast(new \App\Events\NotificationSent($tenantNotification));
+                    broadcast(new NotificationSent($tenantNotification));
                 }
             }
         });
@@ -117,8 +127,6 @@ class Contract extends Model
     {
         return $this->belongsTo(Room::class);
     }
-
-
 
     public function creator(): BelongsTo
     {
@@ -162,8 +170,8 @@ class Contract extends Model
 
     public function getDepositBalanceAttribute(): string
     {
-        $transactions = $this->relationLoaded('depositTransactions') 
-            ? $this->depositTransactions 
+        $transactions = $this->relationLoaded('depositTransactions')
+            ? $this->depositTransactions
             : $this->depositTransactions()->get();
 
         $balance = $transactions->reduce(function (float $balance, ContractDepositTransaction $transaction): float {
@@ -171,7 +179,7 @@ class Contract extends Model
 
             if (in_array((int) $transaction->transaction_type, [
                 ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
-                ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER
+                ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER,
             ], true)) {
                 return $balance + $amount;
             }
@@ -188,6 +196,7 @@ class Contract extends Model
         if ($required <= 0) {
             return true;
         }
+
         return (float) $this->deposit_balance >= $required;
     }
 }

@@ -10,7 +10,6 @@ import {
   Eye,
   Plus,
   Receipt,
-  Send,
   WalletCards,
   X,
 } from 'lucide-react'
@@ -27,13 +26,11 @@ import {
   fetchAdminInvoiceDetail,
   fetchAdminInvoices,
   generateAdminInvoice,
-  issueAdminInvoice,
   recordAdminInvoicePayment,
 } from '../services/invoices.service'
 import type { AdminInvoiceAdjustmentPayload, AdminInvoiceResource } from '../types/invoice-api.model'
 import {
   INVOICE_STATUS_CANCELLED,
-  INVOICE_STATUS_DRAFT,
   INVOICE_STATUS_OVERDUE,
   INVOICE_STATUS_PAID,
   INVOICE_STATUS_PARTIALLY_PAID,
@@ -117,7 +114,6 @@ export function InvoicesScreen() {
     total: paginationMeta?.total ?? invoices.length,
     unpaid: invoices.filter((invoice) => [INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status))).length,
     paid: invoices.filter((invoice) => Number(invoice.status) === INVOICE_STATUS_PAID).length,
-    draft: invoices.filter((invoice) => Number(invoice.status) === INVOICE_STATUS_DRAFT).length,
   }), [invoices, paginationMeta?.total])
 
   const safeCurrentPage = Math.max(1, Math.min(currentPage, paginationMeta?.last_page ?? currentPage))
@@ -240,22 +236,6 @@ export function InvoicesScreen() {
     }
   }
 
-  const issueInvoice = async (invoice: AdminInvoiceResource) => {
-    if (!window.confirm(`Phát hành hóa đơn ${invoice.invoice_code} cho khách thuê?`)) return
-
-    try {
-      setIsSaving(true)
-      const response = await issueAdminInvoice(invoice.id)
-      setSuccessMessage('Phát hành hóa đơn thành công.')
-      setDetailInvoice(response.result)
-      await loadInvoices()
-    } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể phát hành hóa đơn.'))
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   const cancelInvoice = async (invoice: AdminInvoiceResource) => {
     const note = window.prompt(`Nhập ghi chú hủy hóa đơn ${invoice.invoice_code} (không bắt buộc):`) ?? undefined
     if (note === undefined) return
@@ -300,7 +280,6 @@ export function InvoicesScreen() {
             <MetricCard label="Tổng hóa đơn" value={metrics.total} tone="neutral" />
             <MetricCard label="Còn phải thu/trang" value={metrics.unpaid} tone="amber" />
             <MetricCard label="Đã thanh toán/trang" value={metrics.paid} tone="emerald" />
-            <MetricCard label="Nháp/trang" value={metrics.draft} tone="teal" />
           </div>
         </div>
       </section>
@@ -449,7 +428,7 @@ export function InvoicesScreen() {
         }
       }} />}
 
-      {detailInvoice && <InvoiceDetailModal invoice={detailInvoice} isLoading={isDetailLoading} isSaving={isSaving} onClose={() => setDetailInvoice(null)} onIssue={() => void issueInvoice(detailInvoice)} onCancel={() => void cancelInvoice(detailInvoice)} onPay={() => { setPaymentInvoice(detailInvoice); setIsPaymentOpen(true) }} />}
+      {detailInvoice && <InvoiceDetailModal invoice={detailInvoice} isLoading={isDetailLoading} isSaving={isSaving} onClose={() => setDetailInvoice(null)} onCancel={() => void cancelInvoice(detailInvoice)} onPay={() => { setPaymentInvoice(detailInvoice); setIsPaymentOpen(true) }} />}
 
       {isPaymentOpen && paymentInvoice && <PaymentModal invoice={paymentInvoice} isSaving={isSaving} onClose={() => { setIsPaymentOpen(false); setPaymentInvoice(null) }} onSubmit={async (payload) => {
         try {
@@ -526,7 +505,7 @@ function PaymentModal({ invoice, isSaving, onClose, onSubmit }: { invoice: Admin
   )
 }
 
-function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onIssue, onCancel, onPay }: { invoice: AdminInvoiceResource; isLoading: boolean; isSaving: boolean; onClose: () => void; onIssue: () => void; onCancel: () => void; onPay: () => void }) {
+function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, onPay }: { invoice: AdminInvoiceResource; isLoading: boolean; isSaving: boolean; onClose: () => void; onCancel: () => void; onPay: () => void }) {
   const canPay = [INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status))
 
   return (

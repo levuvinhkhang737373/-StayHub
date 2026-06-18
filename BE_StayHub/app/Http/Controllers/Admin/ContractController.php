@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Contract\DepositTransactionRequest;
 use App\Http\Requests\Admin\Contract\IndexRequest;
 use App\Http\Requests\Admin\Contract\RegisterRequest;
 use App\Http\Requests\Admin\Contract\StatusRequest;
 use App\Http\Requests\Admin\Contract\UpdateRequest;
-use App\Http\Requests\Admin\Contract\DepositTransactionRequest;
-use App\Helpers\VietQRHelper;
 use App\Http\Resources\Admin\ContractDetailResource;
 use App\Http\Resources\Admin\ContractResource;
 use App\Models\Admin;
@@ -20,6 +20,7 @@ use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
+use App\Models\Notification;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\Vehicle;
@@ -30,6 +31,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -91,8 +93,6 @@ class ContractController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền xem hợp đồng của phòng này', 403, null, 403);
             }
 
-
-
             $contracts = $this->queryContracts($validated, $admin)->paginate($validated['per_page'] ?? 20);
 
             return ApiResponse::responseJson(true, 'Danh sách hợp đồng', 200, $this->paginatedResource($contracts), 200);
@@ -148,7 +148,7 @@ class ContractController extends Controller
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
 
                 $depositAmountCents = $this->decimalToCents($contract->deposit_amount);
-                $isDepositPaid = isset($validated['is_deposit_paid']) ? (bool) $validated['is_deposit_paid'] : true;
+                $isDepositPaid = isset($validated['is_deposit_paid']) ? (bool) $validated['is_deposit_paid'] : false;
                 if ($depositAmountCents > 0 && $isDepositPaid) {
                     $contract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
@@ -171,13 +171,14 @@ class ContractController extends Controller
             // Dispatch notifications to tenants of the new contract
             $this->notifyTenantsOfNewContract($contract, $admin->id);
 
-
             return ApiResponse::responseJson(true, 'Tạo hợp đồng thành công', 201, new ContractDetailResource($contract), 201);
         } catch (HttpResponseException $e) {
             $this->deleteDiskFiles($uploadedPaths);
+
             return $e->getResponse();
         } catch (\Exception $e) {
             $this->deleteDiskFiles($uploadedPaths);
+
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -289,8 +290,6 @@ class ContractController extends Controller
                     $contractModel->fill($payload)->save();
                 }
 
-
-
                 $pathsToDelete = $this->contractFilesToDelete($contractModel, $validated['delete_contract_files'] ?? []);
                 $nextFiles = collect($contractModel->contract_files ?? [])
                     ->reject(fn (string $path): bool => in_array($path, $pathsToDelete, true))
@@ -329,9 +328,11 @@ class ContractController extends Controller
             return ApiResponse::responseJson(true, 'Cập nhật hợp đồng thành công', 200, new ContractDetailResource($updatedContract), 200);
         } catch (HttpResponseException $e) {
             $this->deleteDiskFiles($uploadedPaths);
+
             return $e->getResponse();
         } catch (\Exception $e) {
             $this->deleteDiskFiles($uploadedPaths);
+
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -479,7 +480,7 @@ class ContractController extends Controller
             $oldContract = $this->accessibleQuery($admin)->findOrFail($contract);
 
             $newContract = DB::transaction(function () use ($validated, $oldContract, $admin, $request, &$uploadedPaths): Contract {
-                
+
                 if (! in_array((int) $oldContract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
                     $this->throwResponse('Chỉ có thể gia hạn hợp đồng đang hiệu lực hoặc đã hết hạn.', 422);
                 }
@@ -491,12 +492,10 @@ class ContractController extends Controller
 
                 $this->assertRoomCanBeUsed($admin, $room);
 
-                
                 $parentContractId = $oldContract->parent_contract_id ?? $oldContract->id;
                 $validated['parent_contract_id'] = $parentContractId;
                 $validated['renew_from_contract_id'] = $oldContract->id;
 
-                
                 $validated['contract_code'] = $this->generateContractCode($room);
 
                 $status = Contract::STATUS_ACTIVE;
@@ -510,8 +509,7 @@ class ContractController extends Controller
                 $vehiclePayloads = $this->normalizedVehiclePayloads($validated, true);
                 $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, $oldContract->id, $status);
 
-                
-                $oldContractActualEndDate = date('Y-m-d', strtotime($validated['start_date'] . ' - 1 day'));
+                $oldContractActualEndDate = date('Y-m-d', strtotime($validated['start_date'].' - 1 day'));
                 $oldContract->forceFill([
                     'status' => Contract::STATUS_EXPIRED,
                     'actual_end_date' => $oldContractActualEndDate,
@@ -519,7 +517,6 @@ class ContractController extends Controller
 
                 $this->closeActiveContractRows($oldContract, $oldContractActualEndDate);
 
-                
                 $contract = Contract::query()->create($this->payload($validated, $admin, $status));
                 $contractFiles = $this->storeContractFiles($request, $contract, $uploadedPaths);
 
@@ -530,7 +527,6 @@ class ContractController extends Controller
                 $this->syncContractTenants($contract, $tenantPayloads, $admin, true);
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
 
-                
                 $oldBalanceCents = $this->depositBalanceCents($oldContract);
                 $newDepositAmountCents = $this->decimalToCents($contract->deposit_amount);
 
@@ -538,7 +534,6 @@ class ContractController extends Controller
                     $transferAmountCents = min($oldBalanceCents, $newDepositAmountCents);
                     $transferAmount = number_format($transferAmountCents / 100, 2, '.', '');
 
-                    
                     $oldContract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
                         'amount' => $transferAmount,
@@ -548,7 +543,6 @@ class ContractController extends Controller
                         'created_by' => $admin->id,
                     ]);
 
-                    
                     $contract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER,
                         'amount' => $transferAmount,
@@ -558,7 +552,6 @@ class ContractController extends Controller
                         'created_by' => $admin->id,
                     ]);
 
-                    
                     $remainderCents = $newDepositAmountCents - $transferAmountCents;
                     if ($remainderCents > 0) {
                         $remainderAmount = number_format($remainderCents / 100, 2, '.', '');
@@ -572,7 +565,7 @@ class ContractController extends Controller
                         ]);
                     }
                 } elseif ($newDepositAmountCents > 0) {
-                    
+
                     $contract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
                         'amount' => $contract->deposit_amount,
@@ -620,21 +613,19 @@ class ContractController extends Controller
                 $currentBalanceCents = $this->depositBalanceCents($contractModel);
                 $depositLimitCents = $this->decimalToCents($contractModel->deposit_amount);
 
-                
                 $this->assertDepositTransactions([$validated], $currentBalanceCents, $depositLimitCents);
 
-                
                 return $contractModel->depositTransactions()->create([
                     'transaction_type' => (int) $validated['transaction_type'],
                     'amount' => $this->normalizeDecimal($validated['amount']),
                     'transaction_date' => $validated['transaction_date'],
                     'payment_method' => (int) $validated['payment_method'],
+                    'transaction_reference' => $validated['transaction_reference'] ?? null,
                     'note' => $validated['note'] ?? null,
                     'created_by' => $admin->id,
                 ]);
             });
 
-            
             $contractModel->unsetRelations();
             $this->loadDetailRelations($contractModel);
 
@@ -760,6 +751,7 @@ class ContractController extends Controller
     private function normalizedTenantPayloads(array $validated, ?Contract $contract): array
     {
         $isCreate = $contract === null;
+
         return collect($validated['tenants'] ?? [])
             ->map(fn (array $tenant): array => [
                 'tenant_id' => (int) $tenant['tenant_id'],
@@ -838,8 +830,6 @@ class ContractController extends Controller
             $this->throwResponse('Ngày kết thúc thực tế phải lớn hơn hoặc bằng ngày bắt đầu hợp đồng.', 422);
         }
     }
-
-
 
     private function assertTenantPayloads(Admin $admin, array $tenantPayloads, Room $room, ?int $contractId, int $status): void
     {
@@ -1383,25 +1373,24 @@ class ContractController extends Controller
         try {
             $contract->loadMissing(['room.building', 'tenants']);
             foreach ($contract->tenants as $tenant) {
-                $tenantNotification = \App\Models\Notification::create([
+                $tenantNotification = Notification::create([
                     'title' => 'Hợp đồng mới được tạo',
-                    'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng " . ($contract->room?->room_number ?? 'không rõ') . " đã được tạo thành công.",
-                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
-                    'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+                    'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng ".($contract->room?->room_number ?? 'không rõ').' đã được tạo thành công.',
+                    'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => Notification::TARGET_TYPE_TENANT,
                     'building_id' => $contract->room?->building_id,
                     'room_id' => $contract->room_id,
                     'tenant_id' => $tenant->id,
                     'published_at' => now(),
-                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'status' => Notification::STATUS_SENT,
                     'created_by' => $adminId,
                 ]);
 
                 // Broadcast real-time notification to the tenant
-                broadcast(new \App\Events\NotificationSent($tenantNotification));
+                broadcast(new NotificationSent($tenantNotification));
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error notifying tenants of new contract: ' . $e->getMessage());
+            Log::error('Error notifying tenants of new contract: '.$e->getMessage());
         }
     }
 }
-

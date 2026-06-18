@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Helpers\AdminScope;
+use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use App\Jobs\BulkGenerateInvoicesJob;
-use App\Lib\ApiResponse;
 use App\Models\Building;
-use App\Models\Contract;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class BulkGenerateInvoiceController extends Controller
 {
@@ -26,14 +26,17 @@ class BulkGenerateInvoiceController extends Controller
         ]);
 
         $admin = $request->user('admin');
-        if (!$admin) {
+        if (! $admin) {
             return ApiResponse::responseJson(false, 'Bạn không có quyền', 403, null, 403);
         }
 
-        // Validate access
-        if ($admin->role !== \App\Models\Admin::ROLE_SUPER_ADMIN) {
-            $building = Building::where('id', $validated['building_id'])->where('manager_id', $admin->id)->first();
-            if (!$building) {
+        if (! AdminScope::isSuperAdmin($admin)) {
+            $building = Building::query()
+                ->whereKey($validated['building_id'])
+                ->where('manager_admin_id', $admin->id)
+                ->first();
+
+            if (! $building) {
                 return ApiResponse::responseJson(false, 'Bạn không có quyền quản lý tòa nhà này', 403, null, 403);
             }
         }

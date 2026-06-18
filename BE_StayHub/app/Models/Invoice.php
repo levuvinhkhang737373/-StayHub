@@ -11,16 +11,17 @@ class Invoice extends Model
 {
     use HasFactory;
 
-
-    public const STATUS_DRAFT = 1;
     public const STATUS_UNPAID = 2;
+
     public const STATUS_PARTIALLY_PAID = 3;
+
     public const STATUS_PAID = 4;
+
     public const STATUS_OVERDUE = 5;
+
     public const STATUS_CANCELLED = 6;
 
     public const STATUS_LABELS = [
-        self::STATUS_DRAFT => 'Nháp',
         self::STATUS_UNPAID => 'Chưa thanh toán',
         self::STATUS_PARTIALLY_PAID => 'Thanh toán 1 phần',
         self::STATUS_PAID => 'Đã thanh toán',

@@ -2,7 +2,6 @@ import { ApiError } from '../../../../shared/lib/api/api-client'
 import type { AdminInvoicePaginationMeta, AdminInvoiceResource } from '../types/invoice-api.model'
 import {
   INVOICE_STATUS_CANCELLED,
-  INVOICE_STATUS_DRAFT,
   INVOICE_STATUS_OVERDUE,
   INVOICE_STATUS_PAID,
   INVOICE_STATUS_PARTIALLY_PAID,
@@ -11,7 +10,6 @@ import {
 
 export const invoiceStatusOptions = [
   { value: '', label: 'Tất cả trạng thái', tone: 'default' as const },
-  { value: INVOICE_STATUS_DRAFT, label: 'Nháp', tone: 'warning' as const },
   { value: INVOICE_STATUS_UNPAID, label: 'Chưa thanh toán', tone: 'danger' as const },
   { value: INVOICE_STATUS_PARTIALLY_PAID, label: 'Thanh toán 1 phần', tone: 'warning' as const },
   { value: INVOICE_STATUS_PAID, label: 'Đã thanh toán', tone: 'success' as const },
@@ -52,7 +50,6 @@ export function getVisibleErrorMessage(error: unknown, fallback: string) {
 }
 
 export function getInvoiceStatusLabel(status?: number | null) {
-  if (Number(status) === INVOICE_STATUS_DRAFT) return 'Nháp'
   if (Number(status) === INVOICE_STATUS_UNPAID) return 'Chưa thanh toán'
   if (Number(status) === INVOICE_STATUS_PARTIALLY_PAID) return 'Thanh toán 1 phần'
   if (Number(status) === INVOICE_STATUS_PAID) return 'Đã thanh toán'
