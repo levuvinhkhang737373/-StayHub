@@ -22,7 +22,7 @@ class BulkGenerateInvoiceController extends Controller
             $admin->id
         )->onQueue('high');
 
-        return ApiResponse::responseJson(true, 'Yêu cầu tạo hàng loạt hóa đơn đã được xếp hàng đợi do (thực thi ngầm).', 202, null, 202);
+    return ApiResponse::responseJson(true, 'Yêu cầu tạo hàng loạt hóa đơn đã được xếp hàng đợi do (thực thi ngầm).', 202, null, 202);
     }
 }
 
