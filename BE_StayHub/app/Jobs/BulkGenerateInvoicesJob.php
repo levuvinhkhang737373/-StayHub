@@ -11,6 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Requests\Admin\Invoice\GenerateRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Events\BulkInvoiceGenerated;
@@ -55,15 +56,17 @@ class BulkGenerateInvoicesJob implements ShouldQueue
 
         foreach ($contracts as $contract) {
             try {
-                $request = Request::create('/api/v1/admin/invoices/generate', 'POST', [
+                $request = GenerateRequest::create('/api/v1/admin/invoices/generate', 'POST', [
                     'contract_id' => $contract->id,
                     'billing_month' => $this->billingMonth,
                     'billing_year' => $this->billingYear,
                 ]);
-                $request->headers->set('Accept', 'application/json');
+                $request->setContainer(app());
+                $request->setRedirector(app(\Illuminate\Routing\Redirector::class));
                 $request->setUserResolver(function () use ($admin) {
                     return $admin;
-                }, 'admin');
+                });
+                $request->validateResolved();
 
                 $response = $controller->generate($request);
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Invoice\BulkGenerateRequest;
 use App\Jobs\BulkGenerateInvoicesJob;
+use App\Helpers\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
 class BulkGenerateInvoiceController extends Controller

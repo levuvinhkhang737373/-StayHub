@@ -582,4 +582,92 @@ class InvoiceControllerTest extends TestCase
         // Verify WebSocket event InvoicePaid was dispatched
         Event::assertDispatched(\App\Events\InvoicePaid::class);
     }
+
+    public function test_admin_can_bulk_generate_invoices_successfully(): void
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-BULK-1',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-08-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-02-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        // Install meter devices and confirm meter readings for February 2026
+        $elecDevice = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricityService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => '100.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        $waterDevice = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->waterService->id,
+            'meter_type' => MeterDevice::METER_TYPE_WATER,
+            'initial_reading' => '10.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        MeterReading::create([
+            'meter_device_id' => $elecDevice->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'previous_reading' => '100',
+            'current_reading' => '150',
+            'consumption' => '50',
+            'reading_date' => '2026-02-28',
+            'status' => MeterReading::STATUS_CONFIRMED,
+        ]);
+
+        MeterReading::create([
+            'meter_device_id' => $waterDevice->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'previous_reading' => '10',
+            'current_reading' => '15',
+            'consumption' => '5',
+            'reading_date' => '2026-02-28',
+            'status' => MeterReading::STATUS_CONFIRMED,
+        ]);
+
+        $payload = [
+            'building_id' => $this->building->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson("/api/admin/buildings/{$this->building->id}/invoices/bulk-generate", $payload);
+
+        $response->assertStatus(202);
+
+        $job = new \App\Jobs\BulkGenerateInvoicesJob(
+            $this->building->id,
+            2,
+            2026,
+            $this->superAdmin->id
+        );
+        $job->handle();
+
+        $this->assertDatabaseHas('invoices', [
+            'contract_id' => $contract->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'room_id' => $this->room->id,
+        ]);
+    }
 }
