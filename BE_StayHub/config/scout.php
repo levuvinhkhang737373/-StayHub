@@ -157,6 +157,12 @@ return [
                 'sortableAttributes' => ['created_at', 'updated_at', 'id'],
                 'rankingRules' => ['exactness', 'words', 'typo', 'proximity', 'attribute', 'sort'],
             ],
+            \App\Models\Invoice::class => [
+                'searchableAttributes' => ['invoice_code', 'contract_code', 'room_number', 'building_name', 'tenant_names', 'tenant_phones'],
+                'filterableAttributes' => ['id', 'status', 'building_id', 'room_id', 'contract_id', 'billing_month', 'billing_year', 'created_by'],
+                'sortableAttributes' => ['billing_year', 'billing_month', 'id', 'created_at', 'updated_at'],
+                'rankingRules' => ['exactness', 'words', 'typo', 'proximity', 'attribute', 'sort'],
+            ],
         ],
     ],
 

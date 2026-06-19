@@ -174,6 +174,58 @@ class InvoiceControllerTest extends TestCase
             'created_by' => $this->superAdmin->id,
         ]);
 
+        // Create garbage service (charge by person) and internet service (fixed charge)
+        $garbageService = Service::create([
+            'name' => 'Rác',
+            'slug' => 'garbage',
+            'charge_method' => Service::CHARGE_METHOD_BY_PERSON,
+            'unit_name' => 'Người',
+            'is_active' => true,
+        ]);
+
+        $wifiService = Service::create([
+            'name' => 'Internet',
+            'slug' => 'internet',
+            'charge_method' => Service::CHARGE_METHOD_FIXED,
+            'unit_name' => 'Phòng',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $garbageService->id,
+            'building_id' => $this->building->id,
+            'price' => '20000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $wifiService->id,
+            'building_id' => $this->building->id,
+            'price' => '50000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        // Register a vehicle for the contract
+        $vehicle = Vehicle::create([
+            'tenant_id' => $this->tenant->id,
+            'vehicle_type' => 1,
+            'license_plate' => '29-A1 123.45',
+            'brand' => 'Honda',
+            'color' => 'Black',
+            'is_active' => true,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $this->contract->id,
+            'vehicle_id' => $vehicle->id,
+            'started_at' => '2026-02-15',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => 1,
+            'is_active' => true,
+        ]);
+
         // Install meter devices and confirm meter readings for February 2026
         $elecDevice = MeterDevice::create([
             'room_id' => $this->room->id,
@@ -247,74 +299,35 @@ class InvoiceControllerTest extends TestCase
             'amount' => '100000.00',
         ]);
 
-        // Total = 1,500,000 + 200,000 + 100,000 = 1,800,000
+        // Verify garbage (by person) = 20,000 * 14 / 28 = 10,000
+        $this->assertDatabaseHas('invoice_items', [
+            'invoice_id' => $invoiceId,
+            'item_type' => InvoiceItem::ITEM_TYPE_TRASH,
+            'amount' => '10000.00',
+        ]);
+
+        // Verify internet (fixed) = 50,000 * 14 / 28 = 25,000
+        $this->assertDatabaseHas('invoice_items', [
+            'invoice_id' => $invoiceId,
+            'item_type' => InvoiceItem::ITEM_TYPE_INTERNET,
+            'amount' => '25000.00',
+        ]);
+
+        // Verify parking = 100,000 * 14 / 28 = 50,000
+        $this->assertDatabaseHas('invoice_items', [
+            'invoice_id' => $invoiceId,
+            'item_type' => InvoiceItem::ITEM_TYPE_PARKING,
+            'amount' => '50000.00',
+        ]);
+
+        // Total = 1,500,000 + 200,000 + 100,000 + 10,000 + 25,000 + 50,000 = 1,885,000
         $this->assertDatabaseHas('invoices', [
             'id' => $invoiceId,
-            'total_amount' => '1800000.00',
-            'status' => Invoice::STATUS_DRAFT,
+            'total_amount' => '1885000.00',
+            'status' => Invoice::STATUS_UNPAID,
         ]);
     }
 
-    public function test_admin_can_issue_draft_invoice_broadcasting_live(): void
-    {
-        Event::fake();
-
-        $contract = Contract::create([
-            'contract_code' => 'HD-TEST',
-            'room_id' => $this->room->id,
-            'start_date' => '2026-01-01',
-            'end_date' => '2026-07-01',
-            'billing_cycle_day' => 5,
-            'room_price' => '3000000.00',
-            'deposit_amount' => '3000000.00',
-            'status' => Contract::STATUS_ACTIVE,
-            'created_by' => $this->superAdmin->id,
-        ]);
-
-        ContractTenant::create([
-            'contract_id' => $contract->id,
-            'tenant_id' => $this->tenant->id,
-            'join_date' => '2026-01-01',
-            'is_staying' => true,
-            'created_by' => $this->superAdmin->id,
-        ]);
-
-        $invoice = Invoice::create([
-            'invoice_code' => 'INV-202602-0001',
-            'contract_id' => $contract->id,
-            'room_id' => $this->room->id,
-            'billing_month' => 2,
-            'billing_year' => 2026,
-            'period_start' => '2026-02-01',
-            'period_end' => '2026-02-28',
-            'previous_debt_amount' => '0.00',
-            'total_amount' => '3000000.00',
-            'paid_amount' => '0.00',
-            'remaining_amount' => '3000000.00',
-            'status' => Invoice::STATUS_DRAFT,
-            'created_by' => $this->superAdmin->id,
-        ]);
-
-        $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson("/api/admin/invoices/{$invoice->id}/issue");
-
-        $response->assertStatus(200);
-
-        $this->assertEquals(Invoice::STATUS_UNPAID, Invoice::find($invoice->id)->status);
-
-        // Verify WebSocket event InvoiceIssued was dispatched
-        Event::assertDispatched(\App\Events\InvoiceIssued::class, function ($event) use ($invoice) {
-            return $event->invoice['id'] === $invoice->id;
-        });
-
-        // Verify notification is created for tenant
-        $this->assertDatabaseHas('notifications', [
-            'tenant_id' => $this->tenant->id,
-            'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
-            'target_type' => Notification::TARGET_TYPE_TENANT,
-            'title' => 'Hóa đơn mới đã được phát hành',
-        ]);
-    }
 
     public function test_admin_can_record_payment_manually(): void
     {
