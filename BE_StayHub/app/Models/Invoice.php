@@ -6,10 +6,57 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Scout\Searchable;
 
 class Invoice extends Model
 {
-    use HasFactory;
+    use HasFactory, Searchable;
+
+    public const SEARCH_INDEX = 'invoices';
+
+    public function searchableAs(): string
+    {
+        return self::SEARCH_INDEX;
+    }
+
+    public function toSearchableArray(): array
+    {
+        $this->loadMissing([
+            'contract',
+            'room.building',
+            'contract.contractTenants.tenant',
+        ]);
+
+        $tenantNames = [];
+        $tenantPhones = [];
+        if ($this->contract && $this->contract->contractTenants) {
+            foreach ($this->contract->contractTenants as $contractTenant) {
+                if ($contractTenant->tenant) {
+                    $tenantNames[] = $contractTenant->tenant->full_name;
+                    $tenantPhones[] = $contractTenant->tenant->phone;
+                }
+            }
+        }
+
+        return [
+            'id' => $this->id,
+            'invoice_code' => $this->invoice_code,
+            'contract_id' => $this->contract_id === null ? null : (int) $this->contract_id,
+            'room_id' => $this->room_id === null ? null : (int) $this->room_id,
+            'building_id' => ($this->room && $this->room->building_id) ? (int) $this->room->building_id : null,
+            'billing_month' => $this->billing_month === null ? null : (int) $this->billing_month,
+            'billing_year' => $this->billing_year === null ? null : (int) $this->billing_year,
+            'status' => $this->status === null ? null : (int) $this->status,
+            'created_by' => $this->created_by === null ? null : (int) $this->created_by,
+            'contract_code' => $this->contract ? $this->contract->contract_code : null,
+            'room_number' => $this->room ? $this->room->room_number : null,
+            'building_name' => ($this->room && $this->room->building) ? $this->room->building->name : null,
+            'tenant_names' => $tenantNames,
+            'tenant_phones' => $tenantPhones,
+            'created_at' => optional($this->created_at)->timestamp,
+            'updated_at' => optional($this->updated_at)->timestamp,
+        ];
+    }
 
     public const STATUS_UNPAID = 2;
 

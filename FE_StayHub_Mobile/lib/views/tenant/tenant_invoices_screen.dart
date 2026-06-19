@@ -128,43 +128,47 @@ class _TenantInvoicesScreenState extends State<TenantInvoicesScreen> {
               side: const BorderSide(color: Color(0xFFE4E2D7)),
             ),
             elevation: 0,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        invoice.invoiceCode,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
-                      ),
-                      _buildStatusBadge(invoice.status, invoice.statusLabel),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildInfoRow('Kỳ thanh toán:', 'Tháng ${invoice.billingMonth}/${invoice.billingYear}'),
-                  _buildInfoRow('Tổng số tiền:', '${invoice.totalAmount.toStringAsFixed(0)}đ'),
-                  _buildInfoRow('Đã thanh toán:', '${invoice.paidAmount.toStringAsFixed(0)}đ'),
-                  _buildInfoRow('Còn lại:', '${invoice.remainingAmount.toStringAsFixed(0)}đ'),
-                  _buildInfoRow('Hạn thanh toán:', invoice.dueDate),
-                  if (invoice.isUnpaid) ...[
-                    const Divider(height: 24, color: Color(0xFFE4E2D7)),
-                    ElevatedButton.icon(
-                      onPressed: () => _showPaymentBottomSheet(invoice),
-                      icon: const Icon(Icons.payment, size: 18, color: Color(0xFF1C1917)),
-                      label: const Text('Thanh toán ngay', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEAB308),
-                        foregroundColor: const Color(0xFF1C1917),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: invoice.isUnpaid ? () => _showPaymentBottomSheet(invoice) : null,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          invoice.invoiceCode,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
+                        ),
+                        _buildStatusBadge(invoice.status, invoice.statusLabel),
+                      ],
                     ),
-                  ]
-                ],
+                    const SizedBox(height: 12),
+                    _buildInfoRow('Kỳ thanh toán:', 'Tháng ${invoice.billingMonth}/${invoice.billingYear}'),
+                    _buildInfoRow('Tổng số tiền:', '${invoice.totalAmount.toStringAsFixed(0)}đ'),
+                    _buildInfoRow('Đã thanh toán:', '${invoice.paidAmount.toStringAsFixed(0)}đ'),
+                    _buildInfoRow('Còn lại:', '${invoice.remainingAmount.toStringAsFixed(0)}đ'),
+                    _buildInfoRow('Hạn thanh toán:', invoice.dueDate),
+                    if (invoice.isUnpaid) ...[
+                      const Divider(height: 24, color: Color(0xFFE4E2D7)),
+                      ElevatedButton.icon(
+                        onPressed: () => _showPaymentBottomSheet(invoice),
+                        icon: const Icon(Icons.payment, size: 18, color: Color(0xFF1C1917)),
+                        label: const Text('Thanh toán ngay', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFEAB308),
+                          foregroundColor: const Color(0xFF1C1917),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ]
+                  ],
+                ),
               ),
             ),
           );
@@ -316,14 +320,97 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
 
   @override
   Widget build(BuildContext context) {
-    final invoice = widget.invoice;
+    final invoiceController = context.watch<InvoiceController>();
+    final invoice = invoiceController.invoices.firstWhere(
+      (inv) => inv.id == widget.invoice.id,
+      orElse: () => widget.invoice,
+    );
     
     return DraggableScrollableSheet(
-      initialChildSize: 0.85,
+      initialChildSize: invoice.isPaid ? 0.6 : 0.85,
       maxChildSize: 0.95,
       minChildSize: 0.5,
       expand: false,
       builder: (context, scrollController) {
+        if (invoice.isPaid) {
+          return SingleChildScrollView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 32),
+                const Center(
+                  child: Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 80,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Thanh toán thành công!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1C1917),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Hóa đơn ${invoice.invoiceCode} đã được thanh toán.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F6F0),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE4E2D7)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Số tiền thanh toán:', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                          Text('${invoice.totalAmount.toStringAsFixed(0)}đ', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917), fontSize: 13)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Kỳ thanh toán:', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                          Text('Tháng ${invoice.billingMonth}/${invoice.billingYear}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917), fontSize: 13)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1C1917),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('ĐÓNG', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          );
+        }
+
         return SingleChildScrollView(
           controller: scrollController,
           padding: EdgeInsets.only(

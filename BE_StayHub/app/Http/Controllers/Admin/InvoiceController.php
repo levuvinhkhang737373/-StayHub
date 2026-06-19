@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Events\InvoicePaid;
+use App\Events\InvoiceIssued;
 use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
@@ -12,6 +13,13 @@ use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\InvoiceDetailResource;
 use App\Http\Resources\Admin\InvoiceResource;
+use App\Http\Requests\Admin\Invoice\IndexRequest;
+use App\Http\Requests\Admin\Invoice\ShowRequest;
+use App\Http\Requests\Admin\Invoice\GenerateRequest;
+use App\Http\Requests\Admin\Invoice\UpdateRequest;
+use App\Http\Requests\Admin\Invoice\RecordPaymentRequest;
+use App\Http\Requests\Admin\Invoice\ConfirmPaymentRequest;
+use App\Http\Requests\Admin\Invoice\CancelRequest;
 use App\Models\Admin;
 use App\Models\Contract;
 use App\Models\Invoice;
@@ -26,6 +34,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -39,50 +48,18 @@ class InvoiceController extends Controller
         InvoiceItem::ITEM_TYPE_ADJUST_DECREASE,
     ];
 
-    public function index(Request $request): JsonResponse
+    public function index(IndexRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'page' => 'nullable|integer|min:1',
-            'per_page' => 'nullable|integer|min:1|max:100',
-            'keyword' => 'nullable|string|max:100',
-            'status' => 'nullable|integer|in:2,3,4,5,6',
-            'building_id' => 'nullable|integer|exists:buildings,id',
-            'room_id' => 'nullable|integer|exists:rooms,id',
-            'contract_id' => 'nullable|integer|exists:contracts,id',
-            'billing_month' => 'nullable|integer|min:1|max:12',
-            'billing_year' => 'nullable|integer|min:2020|max:2100',
-        ], $this->validationMessages());
+        $validated = $request->validated();
 
         try {
             $admin = $request->user('admin');
 
-            if (! $admin || ! $this->canManageInvoices($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xem hóa đơn', 403, null, 403);
-            }
-
             $keyword = trim($validated['keyword'] ?? '');
 
-            $invoices = $this->accessibleInvoiceQuery($admin)
-                ->with($this->listRelations())
-                ->withCount(['items', 'payments'])
-                ->when($keyword !== '', fn (Builder $query): Builder => $query->where(function (Builder $keywordQuery) use ($keyword): void {
-                    $keywordQuery->where('invoice_code', 'like', "%{$keyword}%")
-                        ->orWhereHas('contract', fn (Builder $contractQuery): Builder => $contractQuery->where('contract_code', 'like', "%{$keyword}%"))
-                        ->orWhereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->where('room_number', 'like', "%{$keyword}%")
-                            ->orWhereHas('building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('name', 'like', "%{$keyword}%")))
-                        ->orWhereHas('contract.contractTenants.tenant', fn (Builder $tenantQuery): Builder => $tenantQuery->where('full_name', 'like', "%{$keyword}%")
-                            ->orWhere('phone', 'like', "%{$keyword}%"));
-                }))
-                ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', $validated['status']))
-                ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->where('building_id', $validated['building_id'])))
-                ->when(isset($validated['room_id']), fn (Builder $query): Builder => $query->where('room_id', $validated['room_id']))
-                ->when(isset($validated['contract_id']), fn (Builder $query): Builder => $query->where('contract_id', $validated['contract_id']))
-                ->when(isset($validated['billing_month']), fn (Builder $query): Builder => $query->where('billing_month', $validated['billing_month']))
-                ->when(isset($validated['billing_year']), fn (Builder $query): Builder => $query->where('billing_year', $validated['billing_year']))
-                ->orderByDesc('billing_year')
-                ->orderByDesc('billing_month')
-                ->orderByDesc('id')
-                ->paginate($validated['per_page'] ?? 10);
+            $invoices = $keyword !== ''
+                ? $this->searchInvoices($keyword, $validated, $admin)
+                : $this->queryInvoices($validated, $admin)->paginate($validated['per_page'] ?? 10);
 
             return ApiResponse::responseJson(true, 'Danh sách hóa đơn', 200, [
                 'data' => InvoiceResource::collection($invoices->items())->resolve(),
@@ -98,14 +75,10 @@ class InvoiceController extends Controller
         }
     }
 
-    public function show(Request $request, int $invoice): JsonResponse
+    public function show(ShowRequest $request, int $invoice): JsonResponse
     {
         try {
             $admin = $request->user('admin');
-
-            if (! $admin || ! $this->canManageInvoices($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xem hóa đơn', 403, null, 403);
-            }
 
             $invoiceModel = $this->accessibleInvoiceQuery($admin)
                 ->with($this->detailRelations())
@@ -121,26 +94,12 @@ class InvoiceController extends Controller
         }
     }
 
-    public function generate(Request $request): JsonResponse
+    public function generate(GenerateRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'contract_id' => 'required|integer|exists:contracts,id',
-            'billing_month' => 'required|integer|min:1|max:12',
-            'billing_year' => 'required|integer|min:2020|max:2100',
-            'due_date' => 'nullable|date',
-            'adjustments' => 'nullable|array|max:50',
-            'adjustments.*.item_type' => 'required_with:adjustments|integer|in:7,8,10,11',
-            'adjustments.*.description' => 'required_with:adjustments|string|max:255',
-            'adjustments.*.quantity' => ['nullable', 'regex:/^\d+(\.\d{1,2})?$/'],
-            'adjustments.*.unit_price' => ['required_with:adjustments', 'regex:/^\d+(\.\d{1,2})?$/'],
-        ], $this->validationMessages());
+        $validated = $request->validated();
 
         try {
             $admin = $request->user('admin');
-
-            if (! $admin || ! $this->canManageInvoices($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền lập hóa đơn', 403, null, 403);
-            }
 
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $contract = Contract::query()
@@ -224,7 +183,7 @@ class InvoiceController extends Controller
                 AdminActivityLogger::write($admin, 'generate_and_issue_invoice', Invoice::class, $invoice->id, null, $invoice->toArray(), $request);
 
                 DB::afterCommit(function () use ($invoice, $tenantNotifications): void {
-                    event(new AppEventsInvoiceIssued($invoice->fresh($this->detailRelations())));
+                    event(new InvoiceIssued($invoice->fresh($this->detailRelations())));
                     $this->broadcastNotifications($tenantNotifications);
                 });
 
@@ -239,23 +198,12 @@ class InvoiceController extends Controller
         }
     }
 
-    public function update(Request $request, int $invoice): JsonResponse
+    public function update(UpdateRequest $request, int $invoice): JsonResponse
     {
-        $validated = $request->validate([
-            'due_date' => 'nullable|date',
-            'adjustments' => 'nullable|array|max:50',
-            'adjustments.*.item_type' => 'required_with:adjustments|integer|in:7,8,10,11',
-            'adjustments.*.description' => 'required_with:adjustments|string|max:255',
-            'adjustments.*.quantity' => ['nullable', 'regex:/^\d+(\.\d{1,2})?$/'],
-            'adjustments.*.unit_price' => ['required_with:adjustments', 'regex:/^\d+(\.\d{1,2})?$/'],
-        ], $this->validationMessages());
+        $validated = $request->validated();
 
         try {
             $admin = $request->user('admin');
-
-            if (! $admin || ! $this->canManageInvoices($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật hóa đơn', 403, null, 403);
-            }
 
             $response = DB::transaction(function () use ($validated, $invoice, $admin, $request): JsonResponse {
                 $invoiceModel = $this->accessibleInvoiceQuery($admin)
@@ -321,23 +269,12 @@ class InvoiceController extends Controller
         }
     }
 
-    public function recordPayment(Request $request, int $invoice): JsonResponse
+    public function recordPayment(RecordPaymentRequest $request, int $invoice): JsonResponse
     {
-        $validated = $request->validate([
-            'amount' => ['required', 'regex:/^\d+(\.\d{1,2})?$/'],
-            'payment_date' => 'nullable|date',
-            'payment_method' => 'required|integer|in:1,2',
-            'transaction_reference' => 'nullable|string|max:150',
-            'note' => 'nullable|string|max:500',
-            'proof_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
-        ], $this->validationMessages());
+        $validated = $request->validated();
 
         try {
             $admin = $request->user('admin');
-
-            if (! $admin || ! $this->canManageInvoices($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền ghi nhận thanh toán', 403, null, 403);
-            }
 
             $lockName = $this->paymentLockName($validated['transaction_reference'] ?? 'manual-'.$invoice);
             $lock = Cache::lock($lockName, 10);
@@ -411,14 +348,10 @@ class InvoiceController extends Controller
         }
     }
 
-    public function confirmPayment(Request $request, int $invoice, int $payment): JsonResponse
+    public function confirmPayment(ConfirmPaymentRequest $request, int $invoice, int $payment): JsonResponse
     {
         try {
             $admin = $request->user('admin');
-
-            if (! $admin || ! $this->canManageInvoices($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền xác nhận thanh toán', 403, null, 403);
-            }
 
             $response = DB::transaction(function () use ($invoice, $payment, $admin, $request): JsonResponse {
                 $invoiceModel = $this->accessibleInvoiceQuery($admin)
@@ -478,18 +411,12 @@ class InvoiceController extends Controller
         }
     }
 
-    public function cancel(Request $request, int $invoice): JsonResponse
+    public function cancel(CancelRequest $request, int $invoice): JsonResponse
     {
-        $validated = $request->validate([
-            'note' => 'nullable|string|max:500',
-        ], $this->validationMessages());
+        $validated = $request->validated();
 
         try {
             $admin = $request->user('admin');
-
-            if (! $admin || ! $this->canManageInvoices($admin)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền hủy hóa đơn', 403, null, 403);
-            }
 
             $response = DB::transaction(function () use ($validated, $invoice, $admin, $request): JsonResponse {
                 $invoiceModel = $this->accessibleInvoiceQuery($admin)
@@ -627,6 +554,9 @@ class InvoiceController extends Controller
                     continue;
                 }
 
+                $fullAmount = DecimalMoney::multiply((string) $tenantCount, $unitPrice);
+                $proratedAmount = $this->calculateProratedAmount($fullAmount, $contract, $periodStart, $periodEnd);
+
                 $items[] = [
                     'service_id' => $service->id,
                     'meter_reading_id' => null,
@@ -634,13 +564,15 @@ class InvoiceController extends Controller
                     'description' => $service->name.' ('.$tenantCount.' người)',
                     'quantity' => DecimalMoney::normalize((string) $tenantCount),
                     'unit_price' => $unitPrice,
-                    'amount' => DecimalMoney::multiply((string) $tenantCount, $unitPrice),
+                    'amount' => $proratedAmount,
                 ];
 
                 continue;
             }
 
             if (in_array((int) $service->charge_method, [Service::CHARGE_METHOD_BY_ROOM, Service::CHARGE_METHOD_FIXED], true)) {
+                $proratedAmount = $this->calculateProratedAmount($unitPrice, $contract, $periodStart, $periodEnd);
+
                 $items[] = [
                     'service_id' => $service->id,
                     'meter_reading_id' => null,
@@ -648,7 +580,7 @@ class InvoiceController extends Controller
                     'description' => $service->name,
                     'quantity' => '1.00',
                     'unit_price' => $unitPrice,
-                    'amount' => $unitPrice,
+                    'amount' => $proratedAmount,
                 ];
             }
         }
@@ -662,6 +594,8 @@ class InvoiceController extends Controller
                 continue;
             }
 
+            $proratedAmount = $this->calculateProratedAmount($contractVehicle->monthly_fee, $contract, $periodStart, $periodEnd);
+
             $items[] = [
                 'service_id' => $vehicleServiceId,
                 'meter_reading_id' => null,
@@ -669,7 +603,7 @@ class InvoiceController extends Controller
                 'description' => 'Gửi xe '.($contractVehicle->vehicle?->license_plate ?? ('#'.$contractVehicle->vehicle_id)),
                 'quantity' => '1.00',
                 'unit_price' => DecimalMoney::normalize($contractVehicle->monthly_fee),
-                'amount' => DecimalMoney::normalize($contractVehicle->monthly_fee),
+                'amount' => $proratedAmount,
             ];
         }
 
@@ -693,7 +627,7 @@ class InvoiceController extends Controller
         ];
     }
 
-    private function calculateRoomAmount(Contract $contract, Carbon $periodStart, Carbon $periodEnd): string
+    private function calculateProratedAmount(string $amount, Contract $contract, Carbon $periodStart, Carbon $periodEnd): string
     {
         $chargeStart = $contract->start_date && $contract->start_date->copy()->startOfDay()->greaterThan($periodStart)
             ? $contract->start_date->copy()->startOfDay()
@@ -712,10 +646,15 @@ class InvoiceController extends Controller
         $actualDays = ((int) $chargeStart->diffInDays($chargeEnd)) + 1;
 
         if ($actualDays >= $totalDays) {
-            return DecimalMoney::normalize($contract->room_price);
+            return DecimalMoney::normalize($amount);
         }
 
-        return DecimalMoney::prorateByDays($contract->room_price, $actualDays, $totalDays);
+        return DecimalMoney::prorateByDays($amount, $actualDays, $totalDays);
+    }
+
+    private function calculateRoomAmount(Contract $contract, Carbon $periodStart, Carbon $periodEnd): string
+    {
+        return $this->calculateProratedAmount($contract->room_price, $contract, $periodStart, $periodEnd);
     }
 
     private function currentServicePrices(int $buildingId, Carbon $periodEnd): Collection
@@ -963,10 +902,7 @@ class InvoiceController extends Controller
         return $query;
     }
 
-    private function canManageInvoices(Admin $admin): bool
-    {
-        return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
-    }
+
 
     private function canAccessBuilding(Admin $admin, int $buildingId): bool
     {
@@ -1002,24 +938,43 @@ class InvoiceController extends Controller
         ];
     }
 
-    private function validationMessages(): array
+    private function queryInvoices(array $validated, Admin $admin): Builder
     {
-        return [
-            'required' => ':attribute là bắt buộc.',
-            'required_with' => ':attribute là bắt buộc.',
-            'integer' => ':attribute phải là số nguyên.',
-            'date' => ':attribute không đúng định dạng ngày.',
-            'exists' => ':attribute không tồn tại.',
-            'in' => ':attribute không hợp lệ.',
-            'max' => ':attribute vượt quá giới hạn cho phép.',
-            'image' => ':attribute phải là hình ảnh.',
-            'mimes' => ':attribute chỉ hỗ trợ jpeg, png, jpg hoặc webp.',
-            'regex' => ':attribute phải là số tiền hợp lệ và tối đa 2 chữ số thập phân.',
-            'contract_id.required' => 'Vui lòng chọn hợp đồng cần lập hóa đơn.',
-            'billing_month.required' => 'Vui lòng chọn tháng lập hóa đơn.',
-            'billing_year.required' => 'Vui lòng chọn năm lập hóa đơn.',
-            'amount.required' => 'Vui lòng nhập số tiền thanh toán.',
-            'payment_method.required' => 'Vui lòng chọn phương thức thanh toán.',
-        ];
+        return $this->accessibleInvoiceQuery($admin)
+            ->with($this->listRelations())
+            ->withCount(['items', 'payments'])
+            ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', $validated['status']))
+            ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->where('building_id', $validated['building_id'])))
+            ->when(isset($validated['room_id']), fn (Builder $query): Builder => $query->where('room_id', $validated['room_id']))
+            ->when(isset($validated['contract_id']), fn (Builder $query): Builder => $query->where('contract_id', $validated['contract_id']))
+            ->when(isset($validated['billing_month']), fn (Builder $query): Builder => $query->where('billing_month', $validated['billing_month']))
+            ->when(isset($validated['billing_year']), fn (Builder $query): Builder => $query->where('billing_year', $validated['billing_year']))
+            ->orderByDesc('billing_year')
+            ->orderByDesc('billing_month')
+            ->orderByDesc('id');
+    }
+
+    private function searchInvoices(string $keyword, array $validated, Admin $admin): LengthAwarePaginator
+    {
+        $builder = Invoice::search($keyword);
+
+        foreach (['status', 'room_id', 'contract_id', 'billing_month', 'billing_year'] as $field) {
+            if (isset($validated[$field])) {
+                $builder->where($field, (int) $validated[$field]);
+            }
+        }
+
+        if (isset($validated['building_id'])) {
+            $builder->where('building_id', (int) $validated['building_id']);
+        }
+
+        return $builder
+            ->orderBy('billing_year', 'desc')
+            ->orderBy('billing_month', 'desc')
+            ->orderBy('id', 'desc')
+            ->query(fn ($query) => $this->accessibleInvoiceQuery($admin)
+                ->with($this->listRelations())
+                ->withCount(['items', 'payments']))
+            ->paginate($validated['per_page'] ?? 10);
     }
 }
