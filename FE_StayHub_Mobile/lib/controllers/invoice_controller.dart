@@ -162,6 +162,40 @@ class InvoiceController extends ChangeNotifier {
     return false;
   }
 
+  /// Fetch a single invoice's details (returns the detailed Invoice with items)
+  Future<Invoice?> fetchInvoiceDetails(int id, {required bool isAdmin}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final path = isAdmin ? '/admin/invoices/$id' : '/tenant/invoices/$id';
+      final response = await _apiService.get<Map<String, dynamic>>(
+        path,
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status && response.result != null) {
+        final invoice = Invoice.fromJson(response.result!);
+        _isLoading = false;
+        notifyListeners();
+        return invoice;
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = 'Lỗi tải chi tiết hóa đơn: $e';
+      }
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return null;
+  }
+
   /// Send Debt Reminder notification (Admin action)
   Future<bool> sendDebtReminder(int id) async {
     _isLoading = true;

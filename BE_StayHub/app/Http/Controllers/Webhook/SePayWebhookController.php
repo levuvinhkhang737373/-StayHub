@@ -300,6 +300,9 @@ class SePayWebhookController extends Controller
     {
         $paidAmount = DecimalMoney::add([$invoice->paid_amount, $amount]);
         $remainingAmount = DecimalMoney::maxZero(DecimalMoney::subtract($invoice->total_amount, $paidAmount));
+        if (DecimalMoney::compare($remainingAmount, '1.00') < 0) {
+            $remainingAmount = '0.00';
+        }
         $status = DecimalMoney::compare($remainingAmount, '0') === 0
             ? Invoice::STATUS_PAID
             : Invoice::STATUS_PARTIALLY_PAID;

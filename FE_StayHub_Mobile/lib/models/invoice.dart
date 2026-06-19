@@ -144,7 +144,7 @@ class InvoiceItem {
   factory InvoiceItem.fromJson(Map<String, dynamic> json) {
     return InvoiceItem(
       id: json['id'] as int,
-      invoiceId: json['invoice_id'] as int,
+      invoiceId: json['invoice_id'] as int? ?? 0,
       serviceId: json['service_id'] as int?,
       meterReadingId: json['meter_reading_id'] as int?,
       itemType: json['item_type'] as int? ?? 1,
