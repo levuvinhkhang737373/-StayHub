@@ -63,6 +63,14 @@ export async function changeAdminPassword(payload: AdminChangePasswordPayload) {
   })
 }
 
+export async function updateAdminProfile(payload: { full_name: string; phone?: string }) {
+  return apiRequest<AdminLoginResult>({
+    url: 'admin/profile',
+    method: 'PATCH',
+    data: payload,
+  })
+}
+
 export async function logoutAdmin() {
   return apiRequest<null>({
     url: 'admin/logout',

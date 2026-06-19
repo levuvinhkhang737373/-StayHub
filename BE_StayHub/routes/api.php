@@ -39,6 +39,7 @@ Route::prefix('admin')->group(function (): void {
         Route::post('/face-id/register', [AuthController::class, 'registerFaceId']);
         Route::delete('/face-id', [AuthController::class, 'deleteFaceId']);
         Route::patch('/password', [AuthController::class, 'changePassword']);
+        Route::patch('/profile', [AuthController::class, 'updateProfile']);
 
         // =========================Regions================================
         Route::patch('regions/{region}/status', [RegionController::class, 'updateStatus']);

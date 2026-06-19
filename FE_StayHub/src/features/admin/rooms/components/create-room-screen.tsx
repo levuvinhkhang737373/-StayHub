@@ -3,6 +3,7 @@ import { fetchAssets, fetchBuilding, fetchRoomType, createAdminRoom } from '../s
 import { useEffect, useState } from 'react';
 import type { AssetResource, BuildingResource, RoomTypeResource } from '../types/rooms.model';
 import { useNavigate } from 'react-router-dom';
+import { AdminSelect } from '../../shared/components/AdminSelect';
 
 interface LocalFormState {
   building_id: string;
@@ -146,25 +147,45 @@ export function CreateRoomScreen() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 text-[#24170d]">
-      {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <button type="button" className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-[#8b5e34] hover:text-[#24170d] transition" onClick={() => navigate('/admin/rooms')}>
-            <ArrowLeft size={16} /> Quay lại danh sách
-          </button>
-          <h1 className="text-3xl font-black tracking-tight text-[#24170d]">Thêm phòng mới</h1>
-          <p className="text-sm text-[#8b5e34]/70">Điền đầy đủ thông tin để tạo phòng.</p>
+      {/* Premium Header */}
+      <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
+        <div className="relative p-5 text-[#fff4df] lg:p-6">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/rooms')}
+                className="inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Quay lại danh sách
+              </button>
+              <h1 className="mt-4 flex items-center gap-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl">
+                <Building2 className="h-9 w-9 text-[#f3c56b]" /> Thêm phòng mới
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm font-semibold text-[#f8e8c8]/75">
+                Điền đầy đủ thông tin để tạo phòng.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/admin/rooms')}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 text-sm font-black text-[#fff4df] transition hover:bg-white/20"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] transition hover:bg-[#ffd56f] disabled:opacity-60"
+              >
+                <Save className="h-4 w-4" /> {isSaving ? 'Đang lưu...' : 'Lưu phòng'}
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button type="button" className="inline-flex items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 py-3 text-xs font-black uppercase tracking-widest text-[#6f6254] transition hover:bg-[#efe2cf]" onClick={() => navigate('/admin/rooms')}>
-            Hủy
-          </button>
-          <button type="submit" disabled={isSaving} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-5 py-3 text-xs font-black uppercase tracking-widest text-[#fff4df] shadow-xl shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:opacity-50">
-            <Save size={16} className="text-[#f3c56b] stroke-[2.8]" />
-            {isSaving ? 'Đang lưu...' : 'Lưu phòng'}
-          </button>
-        </div>
-      </div>
+      </section>
 
       {errorMessage && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
@@ -189,28 +210,22 @@ export function CreateRoomScreen() {
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className={labelClass}>Tòa nhà *</label>
-                <select 
-                  name="building_id" value={formData.building_id} onChange={handleInputChange} required
-                  className={inputClass}
-                >
-                  <option value="">Chọn tòa nhà</option>          
-                  {buildings.map((building) => (
-                    <option key={building.id} value={building.id}>{building.name}</option>
-                  ))}
-                </select>
+                <AdminSelect
+                  value={formData.building_id}
+                  options={buildings.map((b) => ({ value: b.id, label: b.name }))}
+                  onChange={(val) => setFormData((prev) => ({ ...prev, building_id: String(val) }))}
+                  placeholder="Chọn tòa nhà"
+                />
               </div>
 
               <div>
                 <label className={labelClass}>Loại phòng *</label>
-                <select 
-                  name="room_type_id" value={formData.room_type_id} onChange={handleInputChange} required
-                  className={inputClass}
-                >
-                  <option value="">Chọn loại phòng</option>
-                  {roomTypes.map((roomType)=>(
-                    <option key={roomType.id} value={roomType.id}>{roomType.name}</option>
-                  ))}        
-                </select>
+                <AdminSelect
+                  value={formData.room_type_id}
+                  options={roomTypes.map((rt) => ({ value: rt.id, label: rt.name }))}
+                  onChange={(val) => setFormData((prev) => ({ ...prev, room_type_id: String(val) }))}
+                  placeholder="Chọn loại phòng"
+                />
               </div>
 
               <div>
@@ -259,14 +274,16 @@ export function CreateRoomScreen() {
 
               <div>
                 <label className={labelClass}>Trạng thái</label>
-                <select 
-                  name="status" value={formData.status} onChange={handleInputChange}
-                  className={inputClass}
-                >
-                  <option value={1}>Hoạt động</option>
-                  <option value={3}>Bảo trì</option>
-                  <option value={2}>Đang ở</option>
-                </select>
+                <AdminSelect
+                  value={formData.status}
+                  options={[
+                    { value: 1, label: 'Hoạt động', tone: 'success' },
+                    { value: 3, label: 'Bảo trì', tone: 'warning' },
+                    { value: 2, label: 'Đang ở', tone: 'default' }
+                  ]}
+                  onChange={(val) => setFormData((prev) => ({ ...prev, status: Number(val) }))}
+                  placeholder="Chọn trạng thái"
+                />
               </div>
 
               <div className="md:col-span-2">

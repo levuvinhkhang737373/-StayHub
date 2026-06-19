@@ -18,6 +18,7 @@ export async function fetchAdminRooms(
     keyword?: string
     status?: number
     building_id?: number
+    room_type_id?: number
     only_global?: boolean
     created_by_me?: boolean
     per_page?: number

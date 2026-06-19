@@ -1,22 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, Building2, ChevronLeft, ChevronRight, Edit3, Eye, LockKeyhole, Mail, Phone, Plus, Power, RefreshCw, Search, ShieldCheck, Trash2, UserCog, X } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Building2, ChevronLeft, ChevronRight, Edit3, Eye, Mail, Phone, Plus, Power, Search, ShieldCheck, Trash2, UserCog, X } from 'lucide-react'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
-import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
-import { ApiError, type ApiValidationErrors } from '../../../../shared/lib/api/api-client'
+import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
-  createAdminAccount,
   deleteAdminAccount,
   fetchAdminAccountDetail,
   fetchAdminAccounts,
-  updateAdminAccount,
   updateAdminAccountStatus,
 } from '../services/admin-accounts.service'
-import type { AdminAccountPayload, AdminAccountResource, AdminPaginationMeta, AdminPaginator } from '../types/admin-account-api.model'
-import { validateAdminAccountForm, type AdminAccountFormErrors, type AdminAccountFormValues } from '../validations/admin-account.validation'
+import type { AdminAccountResource, AdminPaginationMeta, AdminPaginator } from '../types/admin-account-api.model'
 
 type AdminAccountsResult = AdminPaginator<AdminAccountResource> | AdminAccountResource[]
 type AdminAccountsResponse = Omit<Awaited<ReturnType<typeof fetchAdminAccounts>>, 'result'> & {
@@ -45,20 +41,6 @@ const ROLE_BUILDING_MANAGER = 1
 const ROLE_SUPER_ADMIN = 2
 const ROLE_TECHNICIAN = 3
 
-const defaultForm: AdminAccountFormValues = {
-  username: '',
-  full_name: '',
-  email: '',
-  phone: '',
-  password: '',
-  role: ROLE_BUILDING_MANAGER,
-  status: STATUS_ACTIVE,
-  gender: null,
-  date_of_birth: '',
-  address: '',
-  avatar_url: '',
-}
-
 const roleOptions = [
   { value: '', label: 'Tất cả vai trò', tone: 'default' as const },
   { value: ROLE_BUILDING_MANAGER, label: 'Quản lí tòa nhà', tone: 'success' as const },
@@ -66,20 +48,10 @@ const roleOptions = [
   { value: ROLE_TECHNICIAN, label: 'Kỹ thuật', tone: 'default' as const },
 ]
 
-const formRoleOptions = roleOptions.filter((option) => option.value !== '')
-
 const statusOptions = [
   { value: '', label: 'Tất cả trạng thái', tone: 'default' as const },
   { value: STATUS_ACTIVE, label: 'Hoạt động', tone: 'success' as const },
   { value: STATUS_INACTIVE, label: 'Ngừng hoạt động', tone: 'danger' as const },
-]
-
-const formStatusOptions = statusOptions.filter((option) => option.value !== '')
-
-const genderOptions = [
-  { value: '', label: 'Chưa chọn', tone: 'default' as const },
-  { value: 1, label: 'Nam', tone: 'default' as const },
-  { value: 2, label: 'Nữ', tone: 'default' as const },
 ]
 
 const perPageOptions = [
@@ -89,14 +61,10 @@ const perPageOptions = [
   { value: 50, label: '50 dòng', tone: 'default' as const },
 ]
 
-const formErrorKeys: Array<keyof AdminAccountFormValues> = ['username', 'full_name', 'email', 'phone', 'password', 'role', 'status', 'gender', 'date_of_birth', 'address', 'avatar_url']
-
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
-const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
-const readOnlyInputClass = 'cursor-not-allowed border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254] focus:border-[#3d2a18]/10 focus:ring-0'
-const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
 export function SystemUsersScreen() {
+  const navigate = useNavigate()
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin.role)
   const currentAdminId = Number(session?.admin.id || 0)
@@ -107,10 +75,6 @@ export function SystemUsersScreen() {
   const [currentPage, setCurrentPage] = useState(1)
   const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
   const [accounts, setAccounts] = useState<AdminAccountResource[]>([])
-  const [editingAccount, setEditingAccount] = useState<AdminAccountResource | null>(null)
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [form, setForm] = useState<AdminAccountFormValues>(defaultForm)
-  const [errors, setErrors] = useState<AdminAccountFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailAccount, setDetailAccount] = useState<AdminAccountResource | null>(null)
@@ -118,7 +82,6 @@ export function SystemUsersScreen() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
@@ -179,64 +142,6 @@ export function SystemUsersScreen() {
   }, [safeCurrentPage, totalPages])
   const hasActiveFilters = Boolean(keyword.trim() || selectedRole || selectedStatus)
 
-  const updateForm = (key: keyof AdminAccountFormValues, value: string | number | null) => {
-    setForm((current) => ({ ...current, [key]: value }))
-    setErrors((current) => ({ ...current, [key]: undefined }))
-    setSuccessMessage(null)
-  }
-
-  const applyApiValidationErrors = (validationErrors: ApiValidationErrors) => {
-    const nextErrors: AdminAccountFormErrors = {}
-
-    formErrorKeys.forEach((key) => {
-      const messages = validationErrors[key]
-
-      if (messages?.[0]) {
-        nextErrors[key] = messages[0]
-      }
-    })
-
-    setErrors(nextErrors)
-  }
-
-  const openCreateForm = () => {
-    setEditingAccount(null)
-    setForm({ ...defaultForm })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
-    setIsFormOpen(true)
-  }
-
-  const resetForm = () => {
-    setEditingAccount(null)
-    setForm({ ...defaultForm })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
-  }
-
-  const editAccount = (account: AdminAccountResource) => {
-    setEditingAccount(account)
-    setForm({
-      username: account.username || '',
-      full_name: account.full_name || '',
-      email: account.email || '',
-      phone: account.phone || '',
-      password: '',
-      role: Number(account.role || ROLE_BUILDING_MANAGER),
-      status: Number(account.status || STATUS_ACTIVE),
-      gender: account.gender ? Number(account.gender) : null,
-      date_of_birth: account.date_of_birth || '',
-      address: account.address || '',
-      avatar_url: account.avatar_url || '',
-    })
-    setErrors({})
-    setErrorMessage(null)
-    setSuccessMessage(null)
-    setIsFormOpen(true)
-  }
-
   const viewAccount = async (account: AdminAccountResource) => {
     setDetailAccount(account)
     setIsDetailOpen(true)
@@ -271,61 +176,6 @@ export function SystemUsersScreen() {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
-
-  const submit = async () => {
-    if (isSaving || !isSuperAdmin) return
-
-    const nextErrors = validateAdminAccountForm(form, Boolean(editingAccount))
-    setErrors(nextErrors)
-
-    if (Object.keys(nextErrors).length > 0) {
-      setErrorMessage(null)
-      return
-    }
-
-    try {
-      setIsSaving(true)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-
-      const payload: AdminAccountPayload = {
-        full_name: form.full_name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        role: Number(form.role),
-        gender: form.gender === null ? undefined : Number(form.gender),
-        date_of_birth: form.date_of_birth || null,
-        address: form.address.trim() || null,
-        avatar_url: form.avatar_url.trim() || null,
-      }
-
-      if (!editingAccount) {
-        payload.username = form.username.trim()
-      }
-
-      if (editingAccount && form.password.trim()) {
-        payload.password = form.password.trim()
-      }
-
-      if (editingAccount) {
-        const response = await updateAdminAccount(editingAccount.id, payload)
-        setSuccessMessage(response.message || 'Cập nhật tài khoản admin thành công.')
-      } else {
-        const response = await createAdminAccount({ ...payload, status: Number(form.status) })
-        setSuccessMessage(response.message || 'Tạo tài khoản admin thành công. Mật khẩu đã được gửi qua email.')
-      }
-
-      resetForm()
-      setIsFormOpen(false)
-      await loadAccounts()
-    } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        applyApiValidationErrors(error.validationErrors)
-      }
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   const toggleAccountStatus = async (account: AdminAccountResource) => {
     if (!isSuperAdmin || account.id === currentAdminId) return
@@ -403,7 +253,7 @@ export function SystemUsersScreen() {
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý tài khoản admin</h1>
               </div>
               {isSuperAdmin && (
-                <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
+                <button type="button" onClick={() => navigate('/admin/system-users/create')} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
                   <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm tài khoản
                 </button>
               )}
@@ -430,7 +280,7 @@ export function SystemUsersScreen() {
           </div>
         )}
 
-        <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_410px]')}>
+        <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
               <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(12rem,14rem)_minmax(12rem,14rem)]">
@@ -516,7 +366,7 @@ export function SystemUsersScreen() {
                             <button type="button" onClick={() => void viewAccount(account)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label={`Xem chi tiết tài khoản ${account.username}`}><Eye className="h-5 w-5" /></button>
                             {isSuperAdmin && (
                               <>
-                                <button type="button" onClick={() => editAccount(account)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa" aria-label={`Chỉnh sửa tài khoản ${account.username}`}><Edit3 className="h-5 w-5" /></button>
+                                <button type="button" onClick={() => navigate(`/admin/system-users/update/${account.id}`)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa" aria-label={`Chỉnh sửa tài khoản ${account.username}`}><Edit3 className="h-5 w-5" /></button>
                                 <button type="button" disabled={statusChangingId === account.id || isSelf} onClick={() => void toggleAccountStatus(account)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45', active ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100')} title={active ? 'Ngừng hoạt động' : 'Kích hoạt'} aria-label={`${active ? 'Ngừng hoạt động' : 'Kích hoạt'} tài khoản ${account.username}`}><Power className="h-5 w-5" /></button>
                                 <button type="button" disabled={deletingId === account.id || isSelf} onClick={() => void removeAccount(account)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title="Xóa" aria-label={`Xóa tài khoản ${account.username}`}><Trash2 className="h-5 w-5" /></button>
                               </>
@@ -579,88 +429,6 @@ export function SystemUsersScreen() {
               </div>
             </div>
           </section>
-
-          {isFormOpen && isSuperAdmin && (
-            <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md 2xl:sticky 2xl:top-6 2xl:self-start">
-              <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="mt-1 text-xl font-black tracking-tight text-[#24170d]">{editingAccount ? 'Cập nhật tài khoản' : 'Thêm tài khoản'}</h2>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form" aria-label="Làm mới form tài khoản admin">
-                      <RefreshCw className="h-4 w-4" />
-                    </button>
-                    <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form" aria-label="Đóng form tài khoản admin">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
-                <div>
-                  <label className={labelClass}>Tên đăng nhập</label>
-                  <input className={cn(inputClass, errors.username && inputErrorClass, editingAccount && readOnlyInputClass)} value={form.username} onChange={(event) => updateForm('username', event.target.value)} placeholder="Ví dụ: manager_a" autoComplete="off" readOnly={Boolean(editingAccount)} aria-readonly={Boolean(editingAccount)} />
-                  <FieldError message={errors.username} />
-                </div>
-                <div>
-                  <label className={labelClass}>Họ tên</label>
-                  <input className={`${inputClass} ${errors.full_name ? inputErrorClass : ''}`} value={form.full_name} onChange={(event) => updateForm('full_name', event.target.value)} placeholder="Nhập họ tên admin" />
-                  <FieldError message={errors.full_name} />
-                </div>
-                <div>
-                  <label className={labelClass}>Email</label>
-                  <input className={`${inputClass} ${errors.email ? inputErrorClass : ''}`} value={form.email} onChange={(event) => updateForm('email', event.target.value)} placeholder="admin@stayhub.vn" type="email" />
-                  <FieldError message={errors.email} />
-                </div>
-                <div>
-                  <label className={labelClass}>Số điện thoại</label>
-                  <input className={`${inputClass} ${errors.phone ? inputErrorClass : ''}`} value={form.phone} onChange={(event) => updateForm('phone', event.target.value.replace(/\D/g, ''))} placeholder="Nhập số điện thoại" maxLength={10} />
-                  <FieldError message={errors.phone} />
-                </div>
-                {editingAccount && (
-                  <div>
-                    <label className={labelClass}>Mật khẩu mới</label>
-                    <input className={`${inputClass} ${errors.password ? inputErrorClass : ''}`} value={form.password} onChange={(event) => updateForm('password', event.target.value)} placeholder="Bỏ trống nếu không đổi mật khẩu" type="password" autoComplete="new-password" />
-                    <FieldError message={errors.password} />
-                  </div>
-                )}
-                <div>
-                  <label className={labelClass}>Vai trò</label>
-                  <AdminSelect value={form.role} options={formRoleOptions} invalid={!!errors.role} onChange={(nextValue) => updateForm('role', Number(nextValue))} />
-                  <FieldError message={errors.role} />
-                </div>
-                <div>
-                  <label className={labelClass}>Trạng thái</label>
-                  <AdminSelect value={form.status} options={formStatusOptions} invalid={!!errors.status} disabled={Boolean(editingAccount)} onChange={(nextValue) => updateForm('status', Number(nextValue))} />
-                  <FieldError message={errors.status} />
-                </div>
-                <div>
-                  <label className={labelClass}>Giới tính</label>
-                  <AdminSelect value={form.gender ?? ''} options={genderOptions} invalid={!!errors.gender} onChange={(nextValue) => updateForm('gender', nextValue === '' ? null : Number(nextValue))} />
-                  <FieldError message={errors.gender} />
-                </div>
-                <div>
-                  <label className={labelClass}>Ngày sinh</label>
-                  <AdminDateInput value={form.date_of_birth} onChange={(val) => updateForm('date_of_birth', val)} placeholder="dd/mm/yyyy" className={`${inputClass} ${errors.date_of_birth ? inputErrorClass : ''}`} maxDate={new Date()} />
-                  <FieldError message={errors.date_of_birth} />
-                </div>
-                <div>
-                  <label className={labelClass}>Địa chỉ</label>
-                  <textarea className={`${inputClass} min-h-24 resize-none ${errors.address ? inputErrorClass : ''}`} value={form.address} onChange={(event) => updateForm('address', event.target.value)} placeholder="Nhập địa chỉ liên hệ" />
-                  <FieldError message={errors.address} />
-                </div>
-               
-
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
-                  <button type="button" disabled={isSaving} onClick={() => void submit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60">
-                    <LockKeyhole className="h-5 w-5" /> {isSaving ? 'Đang lưu...' : editingAccount ? 'Cập nhật' : 'Tạo tài khoản'}
-                  </button>
-                </div>
-              </div>
-            </aside>
-          )}
         </div>
       </section>
 
@@ -788,11 +556,6 @@ function DetailTile({ label, value }: { label: string; value: string | number })
       <p className="mt-2 text-lg font-black text-[#24170d] tabular-nums">{value}</p>
     </div>
   )
-}
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>
 }
 
 function getVisibleErrorMessage(error: unknown, fallback: string) {

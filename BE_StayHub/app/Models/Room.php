@@ -8,10 +8,42 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Scout\Searchable;
 
 class Room extends Model
 {
-    use HasFactory, HasUniqueSlug;
+    use HasFactory, HasUniqueSlug, Searchable;
+
+    public const SEARCH_INDEX = 'rooms';
+
+    public function searchableAs(): string
+    {
+        return self::SEARCH_INDEX;
+    }
+
+    /**
+     * Dữ liệu đồng bộ sang Meilisearch để tìm kiếm phòng trọ tốc độ cao.
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'building_id' => $this->building_id,
+            'room_type_id' => $this->room_type_id,
+            'room_number' => $this->room_number,
+            'slug' => $this->slug,
+            'floor' => (int) $this->floor,
+            'area_m2' => $this->area_m2 === null ? null : (float) $this->area_m2,
+            'base_price' => $this->base_price === null ? null : (float) $this->base_price,
+            'max_occupants' => (int) $this->max_occupants,
+            'current_occupants' => (int) $this->current_occupants,
+            'status' => (int) $this->status,
+            'description' => $this->description,
+            'created_by' => $this->created_by,
+            'created_at' => optional($this->created_at)->timestamp,
+            'updated_at' => optional($this->updated_at)->timestamp,
+        ];
+    }
 
 
     public const STATUS_ACTIVE = 1;

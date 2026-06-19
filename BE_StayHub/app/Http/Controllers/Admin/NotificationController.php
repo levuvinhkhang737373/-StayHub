@@ -27,21 +27,7 @@ class NotificationController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập', 403, null, 403);
             }
 
-            // Nạp quan hệ để tránh N+1
-            $notifications = Notification::query()
-                ->where(function ($q) use ($admin) {
-                    $q->whereNotNull('created_by')
-                      ->orWhere(function ($sub) use ($admin) {
-                          $sub->whereIn('title', ['Yêu cầu sửa chữa mới', 'Phản hồi mới từ khách thuê', 'Hợp đồng hết hạn', 'Thanh toán đặt cọc thành công']);
-                          if (! AdminScope::isSuperAdmin($admin)) {
-                              $sub->whereIn('building_id', function ($db) use ($admin) {
-                                  $db->select('id')
-                                     ->from('buildings')
-                                     ->where('manager_admin_id', $admin->id);
-                              });
-                          }
-                      });
-                })
+            $notifications = $this->accessibleQuery($admin)
                 ->with(['building', 'room', 'tenant', 'creator'])
                 ->when($request->filled('status'), function ($q) use ($request) {
                     $q->where('status', $request->integer('status'));
@@ -128,7 +114,7 @@ class NotificationController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập', 403, null, 403);
             }
 
-            $notification = Notification::query()
+            $notification = $this->accessibleQuery($admin)
                 ->with(['building', 'room', 'tenant', 'creator'])
                 ->find($id);
 
@@ -154,7 +140,7 @@ class NotificationController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập', 403, null, 403);
             }
 
-            $notification = Notification::query()->find($id);
+            $notification = $this->accessibleQuery($admin)->find($id);
             if (! $notification) {
                 return ApiResponse::responseJson(false, 'Không tìm thấy thông báo', 404, null, 404);
             }
@@ -208,7 +194,7 @@ class NotificationController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập', 403, null, 403);
             }
 
-            $notification = Notification::query()->find($id);
+            $notification = $this->accessibleQuery($admin)->find($id);
             if (! $notification) {
                 return ApiResponse::responseJson(false, 'Không tìm thấy thông báo', 404, null, 404);
             }
@@ -227,5 +213,35 @@ class NotificationController extends Controller
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
+    }
+
+    private function accessibleQuery($admin)
+    {
+        $query = Notification::query()
+            ->where(function ($q) {
+                $q->whereNotNull('created_by')
+                  ->orWhereIn('title', [
+                      'Yêu cầu sửa chữa mới', 
+                      'Phản hồi mới từ khách thuê', 
+                      'Hợp đồng hết hạn', 
+                      'Thanh toán đặt cọc thành công',
+                      'Hợp đồng đã được ký',
+                      'Hóa đơn đã được thanh toán',
+                      'Thanh toán hóa đơn thành công'
+                  ]);
+            });
+
+        if (! AdminScope::isSuperAdmin($admin)) {
+            $query->where(function ($q) use ($admin) {
+                $q->whereIn('building_id', function ($db) use ($admin) {
+                    $db->select('id')
+                       ->from('buildings')
+                       ->where('manager_admin_id', $admin->id);
+                })
+                ->orWhere('created_by', $admin->id);
+            });
+        }
+
+        return $query;
     }
 }

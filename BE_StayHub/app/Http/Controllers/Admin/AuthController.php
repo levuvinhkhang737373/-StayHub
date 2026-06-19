@@ -302,6 +302,48 @@ class AuthController extends Controller
     }
 
     /**
+     * Cập nhật thông tin profile admin hiện tại.
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        try {
+            $admin = $request->user('admin');
+            if (! $admin) {
+                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+            }
+
+            $validated = $request->validate([
+                'full_name' => ['required', 'string', 'max:150'],
+                'phone'     => ['nullable', 'string', 'max:20'],
+            ]);
+
+            $oldData = $admin->only(['full_name', 'phone']);
+            
+            $admin->forceFill([
+                'full_name' => $validated['full_name'],
+                'phone'     => $validated['phone'],
+            ])->save();
+
+            AdminActivityLogger::write(
+                $admin,
+                'update_profile',
+                Admin::class,
+                $admin->id,
+                $oldData,
+                $admin->fresh()->only(['full_name', 'phone']),
+                $request
+            );
+
+            return ApiResponse::responseJson(true, 'Cập nhật thông tin cá nhân thành công', 200, [
+                'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
+            ], 200);
+        } catch (\Exception $e) {
+            report($e);
+            return ApiResponse::responseJson(false, 'Không thể cập nhật thông tin cá nhân', 500, null, 500);
+        }
+    }
+
+    /**
      * Đăng xuất admin, hủy session hiện tại và ghi nhận lịch sử thao tác.
      */
     public function logout(Request $request): JsonResponse

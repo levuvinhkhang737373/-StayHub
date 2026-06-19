@@ -208,6 +208,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       const contract = event.contract
       if (contract) {
         window.dispatchEvent(new CustomEvent('contract-deposit-paid', { detail: contract }))
+        window.dispatchEvent(new CustomEvent('contract-refresh', { detail: contract }))
       }
     })
 
@@ -215,12 +216,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       console.log('WS: Received InvoicePaid', event)
       const invoice = event.invoice
       if (invoice) {
-        addNotification({
-          title: 'Hóa đơn đã thanh toán',
-          description: `Phòng ${invoice.room_number ?? '?'} đã thanh toán hóa đơn ${invoice.invoice_code ?? ''}`,
-          link: '/admin/invoices',
-          type: 'invoice',
-        })
+        // Chỉ dispatch event để refresh UI real-time, việc hiển thị toast thông báo sẽ do listener .NotificationSent đảm nhận
         window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: invoice }))
       }
     })
@@ -228,24 +224,50 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
     channel.listen('.NotificationSent', (event: any) => {
       console.log('WS: Received NotificationSent', event)
       const notification = event.notification
-      if (notification && Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
+      if (notification) {
         const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
         const managedBuildings = session?.admin?.managed_buildings || []
         const isManagerOfBuilding = managedBuildings.some(b => Number(b.id) === Number(notification.building_id))
 
-        if (isSuperAdmin || isManagerOfBuilding) {
-          addNotification({
-            title: notification.title,
-            description: notification.content,
-            link: notification.notification_type === 1 ? '/admin/maintenance' : notification.notification_type === 2 ? '/admin/invoices' : '/admin/contracts',
-            type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : 'system',
-          })
+        if (isSuperAdmin || isManagerOfBuilding || !notification.building_id) {
+          // Always dispatch notification-refresh for the admin notifications list screen
+          window.dispatchEvent(new CustomEvent('notification-refresh'))
+
+          if (Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
+            addNotification({
+              title: notification.title,
+              description: notification.content,
+              link: notification.notification_type === 1 ? '/admin/maintenance' : notification.notification_type === 2 ? '/admin/invoices' : '/admin/contracts',
+              type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : 'system',
+            })
+          }
 
           if (notification.notification_type === 2) {
             window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: notification }))
+          } else if (notification.title === 'Hợp đồng đã được ký' || notification.title === 'Hợp đồng hết hạn') {
+            window.dispatchEvent(new CustomEvent('contract-refresh', { detail: notification }))
           }
         }
       }
+    })
+
+    const managedBuildings = session?.admin?.managed_buildings || []
+    const buildingChannels = managedBuildings.map((b) => {
+      const bCh = echo.private(`admin-building.${b.id}`)
+      bCh.listen('.ContractExpired', (event: any) => {
+        console.log('WS: Received ContractExpired', event)
+        const contract = event.contract
+        if (contract) {
+          addNotification({
+            title: 'Hợp đồng hết hạn',
+            description: `Hợp đồng ${contract.contract_code ?? ''} (Phòng ${contract.room_number ?? '?'}) đã hết hạn.`,
+            link: '/admin/contracts',
+            type: 'system',
+          })
+          window.dispatchEvent(new CustomEvent('contract-refresh', { detail: contract }))
+        }
+      })
+      return { id: b.id, channel: bCh }
     })
 
     return () => {
@@ -257,6 +279,9 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       channel.stopListening('.ContractDepositPaid')
       channel.stopListening('.InvoicePaid')
       channel.stopListening('.NotificationSent')
+      buildingChannels.forEach((bc) => {
+        bc.channel.stopListening('.ContractExpired')
+      })
     }
   }, [adminId, echo, session, addNotification])
 

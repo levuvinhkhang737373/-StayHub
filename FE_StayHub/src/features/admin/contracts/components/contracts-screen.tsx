@@ -37,6 +37,7 @@ import type {
 } from '../types/contract-api.model'
 
 import {
+  STATUS_PENDING_SIGN,
   STATUS_ACTIVE,
   STATUS_EXPIRED,
   STATUS_LIQUIDATED,
@@ -214,6 +215,20 @@ export function ContractsScreen() {
     return () => window.clearTimeout(timer)
   }, [loadContracts])
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      void loadContracts()
+    }
+
+    window.addEventListener('contract-refresh', handleRefresh)
+    window.addEventListener('contract-deposit-paid', handleRefresh)
+
+    return () => {
+      window.removeEventListener('contract-refresh', handleRefresh)
+      window.removeEventListener('contract-deposit-paid', handleRefresh)
+    }
+  }, [loadContracts])
+
   const viewContract = async (contract: AdminContractResource) => {
     setDetailContract(contract)
     setIsDetailLoading(true)
@@ -230,7 +245,8 @@ export function ContractsScreen() {
   }
 
   const openStatusModal = (contract: AdminContractResource) => {
-    const nextStatus = Number(contract.status) === STATUS_ACTIVE ? STATUS_LIQUIDATED : STATUS_LIQUIDATED
+    const currentStatus = Number(contract.status)
+    const nextStatus = currentStatus === STATUS_PENDING_SIGN ? STATUS_CANCELLED : STATUS_LIQUIDATED
     setStatusContract(contract)
     setStatusForm({ status: nextStatus, actual_end_date: '', note: '' })
   }
@@ -238,7 +254,12 @@ export function ContractsScreen() {
   const submitStatus = async () => {
     if (!statusContract || isStatusSaving) return
 
-    if ([STATUS_LIQUIDATED, STATUS_CANCELLED].includes(Number(statusForm.status)) && !statusForm.actual_end_date) {
+    const currentStatus = Number(statusContract.status)
+    if (
+      currentStatus !== STATUS_PENDING_SIGN &&
+      [STATUS_LIQUIDATED, STATUS_CANCELLED].includes(Number(statusForm.status)) &&
+      !statusForm.actual_end_date
+    ) {
       setErrorMessage('Vui lòng nhập ngày kết thúc thực tế khi thanh lý hoặc hủy hợp đồng.')
       return
     }

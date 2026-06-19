@@ -163,13 +163,21 @@ export function NotificationsScreen() {
   }, [loadNotifications])
 
   useEffect(() => {
-    function handleMaintenanceCreated() {
+    function handleRefresh() {
       console.log('WS Event: Refreshing admin notifications list')
       void loadNotifications()
     }
-    window.addEventListener('maintenance-created', handleMaintenanceCreated)
+    window.addEventListener('maintenance-created', handleRefresh)
+    window.addEventListener('invoice-refresh', handleRefresh)
+    window.addEventListener('contract-refresh', handleRefresh)
+    window.addEventListener('contract-deposit-paid', handleRefresh)
+    window.addEventListener('notification-refresh', handleRefresh)
     return () => {
-      window.removeEventListener('maintenance-created', handleMaintenanceCreated)
+      window.removeEventListener('maintenance-created', handleRefresh)
+      window.removeEventListener('invoice-refresh', handleRefresh)
+      window.removeEventListener('contract-refresh', handleRefresh)
+      window.removeEventListener('contract-deposit-paid', handleRefresh)
+      window.removeEventListener('notification-refresh', handleRefresh)
     }
   }, [loadNotifications])
 

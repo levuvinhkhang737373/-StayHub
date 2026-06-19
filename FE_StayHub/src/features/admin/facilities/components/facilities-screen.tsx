@@ -186,13 +186,12 @@ export function FacilitiesScreen() {
 
     const filteredBuildings = useMemo(() => {
         return buildings.filter((building) => {
-            const matchKeyword = keyword ? [building.name, building.address, building.region_name, building.manager_name].some((value) => value?.toLowerCase().includes(keyword.toLowerCase())) : true;
             const matchRegion = selectedRegionId ? !!building.region_id && (childRegionIdsByRegionId.get(selectedRegionId) ?? []).includes(building.region_id) : true;
             const matchStatus = selectedStatus === "all" ? true : building.status === selectedStatus;
 
-            return matchKeyword && matchRegion && matchStatus;
+            return matchRegion && matchStatus;
         });
-    }, [buildings, childRegionIdsByRegionId, keyword, selectedRegionId, selectedStatus]);
+    }, [buildings, childRegionIdsByRegionId, selectedRegionId, selectedStatus]);
 
     const filterKey = `${keyword}|${selectedRegionId ?? ""}|${selectedStatus}|${perPage}`;
     const [paginationState, setPaginationState] = useState({ filterKey, page: 1 });

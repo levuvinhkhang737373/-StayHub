@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { CheckCircle, Lock, ScanFace, Trash2, User, X } from 'lucide-react'
-import { changeAdminPassword, deleteAdminFaceId, registerAdminFaceId } from '../../features/admin/auth/services/admin-auth.service'
+import { changeAdminPassword, deleteAdminFaceId, registerAdminFaceId, updateAdminProfile } from '../../features/admin/auth/services/admin-auth.service'
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { cn } from '../../shared/lib/utils/cn'
 import { validateChangePasswordForm, validateDeleteFaceIdPassword, type ChangePasswordErrors, type ChangePasswordForm } from './account-settings.validation'
@@ -40,12 +40,26 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false)
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [infoMessage, setInfoMessage] = useState<string | null>(null)
+  const [infoError, setInfoError] = useState<string | null>(null)
+  const [isInfoSubmitting, setIsInfoSubmitting] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const isFaceRegistrationOpenRef = useRef(false)
   const { session, saveSession } = useAdminSession()
   const admin = session?.admin
   const hasRegisteredFaceId = admin?.has_faceid === true || Boolean(admin?.image_path_faceid)
+
+  useEffect(() => {
+    if (isOpen && admin) {
+      setFullName(admin.full_name || '')
+      setPhone(admin.phone || '')
+      setInfoMessage(null)
+      setInfoError(null)
+    }
+  }, [isOpen, admin])
 
   const waitForCameraReady = useCallback(async (video: HTMLVideoElement) => {
     const startedAt = Date.now()
@@ -252,6 +266,31 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     }
   }
 
+  async function handleSaveProfile() {
+    if (!fullName.trim()) {
+      setInfoError('Họ và tên không được để trống')
+      return
+    }
+
+    setIsInfoSubmitting(true)
+    setInfoError(null)
+    setInfoMessage(null)
+
+    try {
+      const response = await updateAdminProfile({
+        full_name: fullName.trim(),
+        phone: phone.trim() || undefined,
+      })
+
+      saveSession(response.result)
+      setInfoMessage(response.message || 'Cập nhật thông tin cá nhân thành công')
+    } catch (error) {
+      setInfoError(error instanceof Error ? error.message : 'Cập nhật thông tin cá nhân thất bại, vui lòng thử lại.')
+    } finally {
+      setIsInfoSubmitting(false)
+    }
+  }
+
   const modal = (
     <AnimatePresence>
       {isOpen && (
@@ -300,6 +339,9 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
               <AnimatePresence mode="wait">
                 {activeTab === 'info' && (
                   <motion.div key="info" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
+                    {infoError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{infoError}</div> : null}
+                    {infoMessage ? <div className="rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/10 px-4 py-3 text-sm font-bold text-[#0f5f59]">{infoMessage}</div> : null}
+
                     <div className="mb-6 flex items-center gap-6">
                       <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-[#fffaf1] bg-[#efe2cf]/70 shadow-lg shadow-[#6b3f1d]/12">
                         <User className="h-10 w-10 text-[#8b5e34]" />
@@ -311,11 +353,11 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Họ và Tên</label>
-                        <input type="text" defaultValue={admin?.full_name || ''} className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
+                        <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
                       </div>
                       <div>
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Số điện thoại</label>
-                        <input type="text" defaultValue={admin?.phone || ''} className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
+                        <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
                       </div>
                       <div className="md:col-span-2">
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Email (Không thể đổi)</label>
@@ -432,8 +474,8 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
                 Đóng
               </button>
               {activeTab === 'info' && (
-                <button type="button" onClick={closeModal} className="flex cursor-pointer items-center gap-2 rounded-2xl bg-[#24170d] px-6 py-2.5 text-sm font-black text-[#fff4df] shadow-md shadow-[#24170d]/18 transition hover:bg-[#3d2a18] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#a65f16]/20">
-                  <CheckCircle className="h-4 w-4" /> Lưu thay đổi
+                <button type="button" onClick={handleSaveProfile} disabled={isInfoSubmitting} className="flex cursor-pointer items-center gap-2 rounded-2xl bg-[#24170d] px-6 py-2.5 text-sm font-black text-[#fff4df] shadow-md shadow-[#24170d]/18 transition hover:bg-[#3d2a18] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#a65f16]/20 disabled:cursor-not-allowed disabled:bg-[#efe2cf] disabled:text-[#8b5e34]/50">
+                  <CheckCircle className="h-4 w-4" /> {isInfoSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               )}
               {activeTab === 'password' && (

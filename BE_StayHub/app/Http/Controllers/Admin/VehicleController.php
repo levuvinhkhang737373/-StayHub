@@ -285,13 +285,8 @@ class VehicleController extends Controller
         }
 
         if (AdminScope::isBuildingManager($admin)) {
-            return $query->where(function (Builder $query) use ($admin) {
-                $query->whereHas('contracts.room', function (Builder $roomQuery) use ($admin) {
-                    AdminScope::applyBuildingScope($roomQuery, $admin, 'building_id');
-                })
-                ->orWhereHas('tenant.contracts.room', function (Builder $roomQuery) use ($admin) {
-                    AdminScope::applyBuildingScope($roomQuery, $admin, 'building_id');
-                });
+            return $query->whereHas('tenant', function (Builder $tenantQuery) use ($admin) {
+                AdminScope::applyTenantScope($tenantQuery, $admin);
             });
         }
 
@@ -308,9 +303,7 @@ class VehicleController extends Controller
             return Tenant::query()
                 ->whereKey($tenantId)
                 ->where(function (Builder $q) use ($admin) {
-                    $q->whereHas('contracts.room', function (Builder $roomQuery) use ($admin) {
-                        AdminScope::applyBuildingScope($roomQuery, $admin, 'building_id');
-                    });
+                    AdminScope::applyTenantScope($q, $admin);
                 })
                 ->exists();
         }

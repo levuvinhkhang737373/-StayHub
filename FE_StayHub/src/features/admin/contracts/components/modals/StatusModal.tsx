@@ -2,7 +2,7 @@ import { AdminDateInput } from '../../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../../shared/components/AdminSelect'
 import type { AdminContractResource } from '../../types/contract-api.model'
-import { getStatusLabel, statusChangeOptions } from '../../utils/contract.helpers'
+import { getStatusLabel, getStatusChangeOptions, STATUS_PENDING_SIGN } from '../../utils/contract.helpers'
 import { inputClass, labelClass } from '../form/form-elements'
 
 export function StatusModal({
@@ -31,12 +31,14 @@ export function StatusModal({
         <div className="mt-5 space-y-4">
           <div>
             <label className={labelClass}>Trạng thái mới</label>
-            <AdminSelect value={form.status} options={statusChangeOptions} onChange={(value: string | number) => onChange({ ...form, status: Number(value) })} />
+            <AdminSelect value={form.status} options={getStatusChangeOptions(Number(contract.status))} onChange={(value: string | number) => onChange({ ...form, status: Number(value) })} />
           </div>
-          <div>
-            <label className={labelClass}>Ngày kết thúc thực tế</label>
-            <AdminDateInput className={inputClass} value={form.actual_end_date} onChange={(value: string) => onChange({ ...form, actual_end_date: value })} />
-          </div>
+          {Number(contract.status) !== STATUS_PENDING_SIGN && (
+            <div>
+              <label className={labelClass}>Ngày kết thúc thực tế</label>
+              <AdminDateInput className={inputClass} value={form.actual_end_date} onChange={(value: string) => onChange({ ...form, actual_end_date: value })} />
+            </div>
+          )}
           <div>
             <label className={labelClass}>Ghi chú</label>
             <textarea

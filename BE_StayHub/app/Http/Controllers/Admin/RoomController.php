@@ -24,10 +24,46 @@ class RoomController extends Controller
     {
         $admin = $request->user();
         try {
-            $query = Room::with("building")->with("roomType")->with('images')->with('assets');
-            //Super admin xem toàn bộ, quản lý tòa nhà chỉ xem tòa nhà mình quản lý, role khác không thấy dữ liệu.
-            $query = AdminScope::applyBuildingScope($query, $admin, 'building_id');
-            $rooms = $query->orderBy('id', 'desc')->get();
+            $keyword = trim($request->query('keyword') ?? '');
+
+            if ($keyword !== '') {
+                $builder = Room::search($keyword);
+
+                if ($request->filled('building_id')) {
+                    $builder->where('building_id', (int) $request->query('building_id'));
+                }
+                if ($request->filled('room_type_id')) {
+                    $builder->where('room_type_id', (int) $request->query('room_type_id'));
+                }
+                if ($request->filled('status')) {
+                    $builder->where('status', (int) $request->query('status'));
+                }
+
+                $rooms = $builder
+                    ->query(fn ($query) => AdminScope::applyBuildingScope($query, $admin, 'building_id')
+                        ->with("building")
+                        ->with("roomType")
+                        ->with('images')
+                        ->with('assets.assetTemplate')
+                    )
+                    ->get();
+            } else {
+                $query = Room::with("building")->with("roomType")->with('images')->with('assets.assetTemplate');
+                $query = AdminScope::applyBuildingScope($query, $admin, 'building_id');
+
+                if ($request->filled('building_id')) {
+                    $query->where('building_id', $request->query('building_id'));
+                }
+                if ($request->filled('room_type_id')) {
+                    $query->where('room_type_id', $request->query('room_type_id'));
+                }
+                if ($request->filled('status')) {
+                    $query->where('status', $request->query('status'));
+                }
+
+                $rooms = $query->orderBy('id', 'desc')->get();
+            }
+
             return ApiResponse::responseJson(true, "danh sách phòng", 200, $rooms, 200);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);

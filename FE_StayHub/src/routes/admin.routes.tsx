@@ -9,7 +9,7 @@ import { ExpenseCategoriesScreen } from '../features/admin/expense-categories/co
 import { MetersScreen } from '../features/admin/meters/components/meters-screen'
 import { ServicesScreen } from '../features/admin/services/components/services-screen'
 import { SettingsScreen } from '../features/admin/settings/components/settings-screen'
-import { SystemUsersScreen } from '../features/admin/system-users'
+import { SystemUsersScreen, CreateSystemUserScreen } from '../features/admin/system-users'
 import { TenantsScreen } from '../features/admin/tenants'
 import { ContractsScreen, CreateContractScreen } from '../features/admin/contracts'
 import { InvoicesScreen } from '../features/admin/invoices'
@@ -147,6 +147,14 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'system-users',
         element: <AdminRouteGuard access="superadmin"><SystemUsersScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'system-users/create',
+        element: <AdminRouteGuard access="superadmin"><CreateSystemUserScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'system-users/update/:id',
+        element: <AdminRouteGuard access="superadmin"><CreateSystemUserScreen /></AdminRouteGuard>,
       },
       {
         path: 'settings',

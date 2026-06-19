@@ -895,12 +895,25 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
       case 1:
         return 'Tiền phòng';
       case 2:
-        return item.description.isNotEmpty ? item.description.split(':').first : 'Dịch vụ';
+        return 'Tiền điện';
       case 3:
-        return 'Nợ cũ kỳ trước';
+        return 'Tiền nước';
       case 4:
-        return 'Giảm trừ/Khuyến mãi';
+        return 'Tiền mạng / Internet';
       case 5:
+        return 'Phí thu gom rác';
+      case 6:
+        return 'Phí gửi xe';
+      case 7:
+        return 'Phụ phí';
+      case 8:
+        return 'Giảm giá / Khuyến mãi';
+      case 9:
+        return 'Nợ cũ kỳ trước';
+      case 10:
+        return 'Điều chỉnh tăng';
+      case 11:
+        return 'Điều chỉnh giảm';
       default:
         return 'Khoản thu khác';
     }
@@ -911,18 +924,25 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
       case 1:
         return Icons.home_outlined;
       case 2:
-        final desc = item.description.toLowerCase();
-        if (desc.contains('điện')) return Icons.flash_on_outlined;
-        if (desc.contains('nước')) return Icons.water_drop_outlined;
-        if (desc.contains('mạng') || desc.contains('wifi') || desc.contains('internet')) return Icons.wifi_rounded;
-        if (desc.contains('rác')) return Icons.delete_outline_rounded;
-        if (desc.contains('xe')) return Icons.motorcycle_rounded;
-        return Icons.build_outlined;
+        return Icons.flash_on_outlined;
       case 3:
-        return Icons.history_rounded;
+        return Icons.water_drop_outlined;
       case 4:
-        return Icons.local_offer_outlined;
+        return Icons.wifi_rounded;
       case 5:
+        return Icons.delete_outline_rounded;
+      case 6:
+        return Icons.motorcycle_rounded;
+      case 7:
+        return Icons.add_circle_outline_rounded;
+      case 8:
+        return Icons.local_offer_outlined;
+      case 9:
+        return Icons.history_rounded;
+      case 10:
+        return Icons.trending_up_rounded;
+      case 11:
+        return Icons.trending_down_rounded;
       default:
         return Icons.receipt_long_outlined;
     }
@@ -933,18 +953,25 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
       case 1:
         return const Color(0xFF1C1917);
       case 2:
-        final desc = item.description.toLowerCase();
-        if (desc.contains('điện')) return Colors.orange;
-        if (desc.contains('nước')) return Colors.blue;
-        if (desc.contains('mạng') || desc.contains('wifi') || desc.contains('internet')) return Colors.teal;
-        if (desc.contains('rác')) return Colors.brown;
-        if (desc.contains('xe')) return Colors.indigo;
-        return Colors.blueGrey;
+        return Colors.orange;
       case 3:
-        return Colors.red;
+        return Colors.blue;
       case 4:
-        return Colors.green;
+        return Colors.teal;
       case 5:
+        return Colors.brown;
+      case 6:
+        return Colors.indigo;
+      case 7:
+        return Colors.amber.shade800;
+      case 8:
+        return Colors.green;
+      case 9:
+        return Colors.red;
+      case 10:
+        return Colors.deepOrange;
+      case 11:
+        return Colors.lightGreen;
       default:
         return Colors.purple;
     }

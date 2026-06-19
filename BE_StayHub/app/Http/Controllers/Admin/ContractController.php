@@ -385,7 +385,7 @@ class ContractController extends Controller
 
                 $this->assertStatusTransition($currentStatus, $nextStatus);
 
-                if (in_array($nextStatus, [Contract::STATUS_LIQUIDATED, Contract::STATUS_CANCELLED], true) && blank($validated['actual_end_date'] ?? null)) {
+                if ($currentStatus !== Contract::STATUS_PENDING_SIGN && in_array($nextStatus, [Contract::STATUS_LIQUIDATED, Contract::STATUS_CANCELLED], true) && blank($validated['actual_end_date'] ?? null)) {
                     $this->throwResponse('Vui lòng nhập ngày kết thúc thực tế khi thanh lý hoặc hủy hợp đồng.', 422);
                 }
 
@@ -407,6 +407,10 @@ class ContractController extends Controller
                 $payload = [
                     'status' => $nextStatus,
                 ];
+
+                if ($nextStatus === Contract::STATUS_CANCELLED && $currentStatus === Contract::STATUS_PENDING_SIGN) {
+                    $payload['payment_status'] = Contract::PAYMENT_STATUS_CANCELLED;
+                }
 
                 if (array_key_exists('actual_end_date', $validated)) {
                     $payload['actual_end_date'] = $validated['actual_end_date'];
@@ -1221,6 +1225,7 @@ class ContractController extends Controller
         }
 
         $allowedTransitions = [
+            Contract::STATUS_PENDING_SIGN => [Contract::STATUS_ACTIVE, Contract::STATUS_CANCELLED],
             Contract::STATUS_ACTIVE => [Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED, Contract::STATUS_CANCELLED],
             Contract::STATUS_EXPIRED => [Contract::STATUS_LIQUIDATED],
             Contract::STATUS_LIQUIDATED => [],

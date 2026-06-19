@@ -163,6 +163,12 @@ return [
                 'sortableAttributes' => ['billing_year', 'billing_month', 'id', 'created_at', 'updated_at'],
                 'rankingRules' => ['exactness', 'words', 'typo', 'proximity', 'attribute', 'sort'],
             ],
+            \App\Models\Room::class => [
+                'searchableAttributes' => ['room_number', 'description', 'slug'],
+                'filterableAttributes' => ['id', 'building_id', 'room_type_id', 'floor', 'status', 'created_by'],
+                'sortableAttributes' => ['created_at', 'updated_at', 'id'],
+                'rankingRules' => ['exactness', 'words', 'typo', 'proximity', 'attribute', 'sort'],
+            ],
         ],
     ],
 
