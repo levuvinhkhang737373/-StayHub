@@ -79,7 +79,7 @@ class Contract extends Model
                 foreach ($activeTenants as $contractTenant) {
                     $tenantNotification = Notification::create([
                         'title' => 'Hợp đồng hết hạn',
-                        'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng ".($contract->room?->room_number ?? 'không rõ').' đã hết thời hạn.',
+                        'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng " . ($contract->room?->room_number ?? 'không rõ') . ' đã hết thời hạn.',
                         'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
                         'target_type' => Notification::TARGET_TYPE_TENANT,
                         'building_id' => $contract->room?->building_id,
