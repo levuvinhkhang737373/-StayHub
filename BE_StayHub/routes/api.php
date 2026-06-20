@@ -97,6 +97,7 @@ Route::prefix('admin')->group(function (): void {
         //==========================Rooms===================================
         Route::apiResource('/room', RoomController::class);
         Route::patch('/room/{id}/status', [RoomController::class, 'updateStatus']);
+        Route::post('/room-transfers/tenant', [RoomController::class, ' transferTenant']);
     });
 });
 
@@ -120,4 +121,3 @@ Route::prefix('tenant')->group(function (): void {
 
 // =========================Webhooks API Group=========================
 Route::post('sepay-webhook', [SePayWebhookController::class, 'handle']);
-
