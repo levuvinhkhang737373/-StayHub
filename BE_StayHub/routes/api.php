@@ -114,6 +114,7 @@ Route::prefix('admin')->group(function (): void {
         // ==========================Rooms===================================
         Route::apiResource('/room', RoomController::class);
         Route::patch('/room/{id}/status', [RoomController::class, 'updateStatus']);
+        Route::post('/room-transfers/tenant', [RoomController::class, ' transferTenant']);
     });
 });
 
