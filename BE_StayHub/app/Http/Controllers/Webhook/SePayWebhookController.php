@@ -230,7 +230,7 @@ class SePayWebhookController extends Controller
                     return ApiResponse::responseJson(false, 'Hóa đơn không ở trạng thái có thể thanh toán.', 422, null, 422);
                 }
 
-                if (DecimalMoney::compare($amount, $invoiceModel->remaining_amount) > 0) {
+                if (DecimalMoney::toIntegerAmount($amount) > DecimalMoney::toIntegerAmount($invoiceModel->remaining_amount)) {
                     return ApiResponse::responseJson(false, 'Số tiền giao dịch vượt quá số tiền hóa đơn còn lại.', 422, null, 422);
                 }
 

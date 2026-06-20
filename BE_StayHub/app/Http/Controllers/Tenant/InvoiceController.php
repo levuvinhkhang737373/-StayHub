@@ -124,7 +124,7 @@ class InvoiceController extends Controller
                         return ApiResponse::responseJson(false, 'Số tiền thanh toán phải lớn hơn 0', 422, null, 422);
                     }
 
-                    if (DecimalMoney::compare($validated['amount'], $invoiceModel->remaining_amount) > 0) {
+                    if (DecimalMoney::toIntegerAmount($validated['amount']) > DecimalMoney::toIntegerAmount($invoiceModel->remaining_amount)) {
                         return ApiResponse::responseJson(false, 'Số tiền gửi minh chứng không được vượt quá số tiền còn lại', 422, null, 422);
                     }
 

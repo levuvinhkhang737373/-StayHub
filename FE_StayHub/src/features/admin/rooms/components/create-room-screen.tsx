@@ -278,8 +278,8 @@ export function CreateRoomScreen() {
                   value={formData.status}
                   options={[
                     { value: 1, label: 'Hoạt động', tone: 'success' },
-                    { value: 3, label: 'Bảo trì', tone: 'warning' },
-                    { value: 2, label: 'Đang ở', tone: 'default' }
+                    { value: 2, label: 'Đang bảo trì', tone: 'warning' },
+                    { value: 3, label: 'Ngưng sử dụng', tone: 'danger' }
                   ]}
                   onChange={(val) => setFormData((prev) => ({ ...prev, status: Number(val) }))}
                   placeholder="Chọn trạng thái"

@@ -307,15 +307,24 @@ class RoomController extends Controller
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
         }
     }
-    public function updateStatus(string $id)
+    public function updateStatus(Request $request, string $id)
     {
         $room = Room::find($id);
         if (!$room) {
             return ApiResponse::responseJson(false, 'Không thể tìm thấy phòng', 404, null, 404);
         }
-        $update_status_for_room = $room->update([
-            'status' => $room->status ==1 ? 3 : 1
-        ]);
+
+        $newStatus = $request->input('status');
+        if ($newStatus !== null) {
+            $room->update([
+                'status' => (int) $newStatus
+            ]);
+        } else {
+            $room->update([
+                'status' => $room->status == 1 ? 3 : 1
+            ]);
+        }
+
         return ApiResponse::responseJson(true, "Cập nhật trạng thái phòng thành công", 200, null, 200);
     }
 }

@@ -302,7 +302,7 @@ class InvoiceController extends Controller
                         return ApiResponse::responseJson(false, 'Số tiền thanh toán phải lớn hơn 0', 422, null, 422);
                     }
 
-                    if (DecimalMoney::compare($validated['amount'], $invoiceModel->remaining_amount) > 0) {
+                    if (DecimalMoney::toIntegerAmount($validated['amount']) > DecimalMoney::toIntegerAmount($invoiceModel->remaining_amount)) {
                         return ApiResponse::responseJson(false, 'Số tiền thanh toán không được vượt quá số tiền còn lại', 422, null, 422);
                     }
 
@@ -380,7 +380,7 @@ class InvoiceController extends Controller
                     return ApiResponse::responseJson(false, 'Không thể xác nhận giao dịch đã hủy', 422, null, 422);
                 }
 
-                if (DecimalMoney::compare($paymentModel->amount, $invoiceModel->remaining_amount) > 0) {
+                if (DecimalMoney::toIntegerAmount($paymentModel->amount) > DecimalMoney::toIntegerAmount($invoiceModel->remaining_amount)) {
                     return ApiResponse::responseJson(false, 'Số tiền giao dịch vượt quá số tiền hóa đơn còn lại', 422, null, 422);
                 }
 

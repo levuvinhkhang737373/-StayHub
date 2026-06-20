@@ -151,8 +151,6 @@ export function RoomTypesScreen() {
   const toggleRoomTypeStatus = async (roomType: AdminRoomTypeResource) => {
     const nextStatus = Number(roomType.status) === 1 ? 2 : 1
 
-    if (nextStatus === 2 && !window.confirm(`Bạn có chắc muốn tắt hoạt động loại phòng ${roomType.name}?`)) return
-
     try {
       setStatusChangingId(roomType.id)
       setErrorMessage(null)

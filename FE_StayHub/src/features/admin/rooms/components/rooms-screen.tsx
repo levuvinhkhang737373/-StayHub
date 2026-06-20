@@ -1,16 +1,17 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import type { AdminRoomResource } from '../types/rooms.model'
+import { createPortal } from 'react-dom'
 import { deleteAdminRoom, fetchAdminRoomDetail, fetchAdminRooms, updateAdminRoomStatus, fetchBuilding, fetchRoomType } from '../services/rooms.service'
-import { Eye, Trash2, Pencil, PackageOpen, RefreshCw, Plus, Search, X } from 'lucide-react'
+import { Eye, Trash2, Pencil, PackageOpen, RefreshCw, Plus, Search, X, Power } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAdminSession } from '../../auth/hooks/admin-session-store'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 
 const statusLabels: Record<number, string> = {
   1: 'Hoạt động',
-  2: 'Đang ở',
-  3: 'Bảo trì'
+  2: 'Đang bảo trì',
+  3: 'Ngưng sử dụng'
 }
 
 function MetricCard({ label, value, tone }: { label: string; value: number; tone: "neutral" | "emerald" | "amber" | "stone" }) {
@@ -36,6 +37,9 @@ export function RoomsScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [statusRoom, setStatusRoom] = useState<AdminRoomResource | null>(null)
+  const [newStatus, setNewStatus] = useState<number>(1)
+  const [isStatusSaving, setIsStatusSaving] = useState(false)
   const { session } = useAdminSession()
 
   const [keyword, setKeyword] = useState('')
@@ -99,22 +103,18 @@ export function RoomsScreen() {
     }
   }
 
-  const toggleRoomStatus = async (id: number, currentStatus: number) => {
-    const nextStatusText = Number(currentStatus) === 1 ? 'Bảo Trì' : 'Hoạt động'
-    
-    if (!confirm(`Bạn có chắc chắn muốn đổi trạng thái phòng này sang "${nextStatusText}" không?`)) {
-      return
-    }
-
+  const submitRoomStatus = async () => {
+    if (!statusRoom) return
     try {
-      const res = await updateAdminRoomStatus(id)
+      setIsStatusSaving(true)
+      const res = await updateAdminRoomStatus(statusRoom.id, newStatus)
 
       if (res && res.status !== false) {
-        alert("Cập nhật trạng thái phòng thành công")
+        setStatusRoom(null)
         await loadRooms(false)
 
-        if (isDetailOpen && room?.id === id) {
-          const detailRes = await fetchAdminRoomDetail(id)
+        if (isDetailOpen && room?.id === statusRoom.id) {
+          const detailRes = await fetchAdminRoomDetail(statusRoom.id)
           setRoom(detailRes.result)
         }
       } else {
@@ -124,6 +124,8 @@ export function RoomsScreen() {
       console.error("Lỗi cập nhật trạng thái:", error)
       const errorMessage = error?.response?.data?.message || error?.message || "Đã xảy ra lỗi hệ thống."
       alert("Thất bại: " + errorMessage)
+    } finally {
+      setIsStatusSaving(false)
     }
   }
 
@@ -207,8 +209,8 @@ export function RoomsScreen() {
           <div className="relative mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard label="Tổng số phòng" value={allRooms.length || rooms.length} tone="neutral" />
             <MetricCard label="Đang hoạt động" value={allRooms.filter(r => Number(r.status) === 1).length} tone="emerald" />
-            <MetricCard label="Đang bảo trì" value={allRooms.filter(r => Number(r.status) === 3).length} tone="amber" />
-            <MetricCard label="Đang ở / Có khách" value={allRooms.filter(r => Number(r.status) === 2 || r.current_occupants > 0).length} tone="stone" />
+            <MetricCard label="Đang bảo trì" value={allRooms.filter(r => Number(r.status) === 2).length} tone="amber" />
+            <MetricCard label="Ngưng sử dụng" value={allRooms.filter(r => Number(r.status) === 3).length} tone="stone" />
           </div>
         </div>
       </div>
@@ -263,8 +265,8 @@ export function RoomsScreen() {
               options={[
                 { value: '', label: 'Tất cả trạng thái' },
                 { value: '1', label: 'Hoạt động', tone: 'success' },
-                { value: '2', label: 'Đang ở', tone: 'default' },
-                { value: '3', label: 'Bảo trì', tone: 'warning' }
+                { value: '2', label: 'Đang bảo trì', tone: 'warning' },
+                { value: '3', label: 'Ngưng sử dụng', tone: 'danger' }
               ]}
               onChange={(val) => setSelectedStatus(String(val))}
               placeholder="Tất cả trạng thái"
@@ -295,7 +297,7 @@ export function RoomsScreen() {
             )}
             {selectedStatus && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f3c56b]/45 bg-[#f3c56b]/15 px-3 py-1 text-[11px] font-black text-[#8a4f18]">
-                Trạng thái: {selectedStatus === '1' ? 'Hoạt động' : selectedStatus === '3' ? 'Bảo trì' : 'Đang ở'}
+                Trạng thái: {selectedStatus === '1' ? 'Hoạt động' : selectedStatus === '2' ? 'Đang bảo trì' : 'Ngưng sử dụng'}
                 <button type="button" onClick={() => setSelectedStatus('')} className="text-[#a65f16] hover:text-[#8a4f18]"><X className="h-3 w-3" /></button>
               </span>
             )}
@@ -371,9 +373,9 @@ export function RoomsScreen() {
                         'inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm',
                         Number(roomItem.status) === 1
                           ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]'
-                          : Number(roomItem.status) === 3
+                          : Number(roomItem.status) === 2
                           ? 'border-amber-500/20 bg-amber-50 text-amber-700'
-                          : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]',
+                          : 'border-red-500/20 bg-red-50 text-red-700',
                       )}
                     >
                       {statusLabels[Number(roomItem.status)] || 'Không xác định'}
@@ -393,11 +395,14 @@ export function RoomsScreen() {
                        
                        <button 
                          type="button" 
-                         onClick={() => void toggleRoomStatus(roomItem.id, Number(roomItem.status))} 
-                         className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-blue-500/25 hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 active:scale-95" 
+                         onClick={() => {
+                           setStatusRoom(roomItem)
+                           setNewStatus(Number(roomItem.status))
+                         }}
+                         className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" 
                          title="Đổi trạng thái phòng"
                        >
-                         <RefreshCw className="h-4 w-4" />
+                         <Power className="h-5 w-5" />
                        </button>
 
                        {isSuperAdmin && (
@@ -487,9 +492,10 @@ export function RoomsScreen() {
             </div>
           </div>
         )}
+      </div>
 
-        {/** MODAL SHOW DETAIL ROOM WITH ASSETS */}
-        {isDetailOpen && (
+      {/** MODAL SHOW DETAIL ROOM WITH ASSETS */}
+        {isDetailOpen && createPortal(
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <button type="button" aria-label="Đóng chi tiết phòng" onClick={closeRoomDetail} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
             
@@ -540,9 +546,9 @@ export function RoomsScreen() {
                     'inline-flex items-center justify-center rounded-full border px-2.5 py-0.5 text-[11px] font-black',
                     Number(room?.status) === 1
                       ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]'
-                      : Number(room?.status) === 3
+                      : Number(room?.status) === 2
                       ? 'border-amber-500/20 bg-amber-50 text-amber-700'
-                      : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]',
+                      : 'border-red-500/20 bg-red-50 text-red-700',
                   )}>
                     {statusLabels[Number(room?.status)] || 'Không xác định'}
                   </span>
@@ -634,9 +640,67 @@ export function RoomsScreen() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
-      </div>
+
+        {/** MODAL CHANGE STATUS ROOM */}
+        {statusRoom && createPortal(
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <button type="button" aria-label="Đóng cập nhật trạng thái" onClick={() => setStatusRoom(null)} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
+            
+            <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] bg-[#fffaf1] shadow-2xl border border-[#3d2a18]/10 flex flex-col">
+              {/* Modal Header */}
+              <div className="bg-[#24170d] px-6 py-5 text-[#fff4df] text-base font-black tracking-tight shrink-0 flex items-center justify-between">
+                <span>Cập nhật trạng thái phòng</span>
+                <button type="button" onClick={() => setStatusRoom(null)} className="text-[#f8e8c8] hover:text-white text-lg font-bold">✕</button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5">
+                <div>
+                  <p className="text-xs font-bold text-[#8b5e34]/70">
+                    Phòng {statusRoom.room_number} · Trạng thái hiện tại: <span className="font-black text-[#24170d]">{statusLabels[Number(statusRoom.status)]}</span>
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Trạng thái mới *</label>
+                  <AdminSelect
+                    value={newStatus}
+                    options={[
+                      { value: 1, label: 'Hoạt động', tone: 'success' },
+                      { value: 2, label: 'Đang bảo trì', tone: 'warning' },
+                      { value: 3, label: 'Ngưng sử dụng', tone: 'danger' }
+                    ]}
+                    onChange={(val) => setNewStatus(Number(val))}
+                    placeholder="Chọn trạng thái"
+                  />
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setStatusRoom(null)}
+                    className="h-12 flex-1 rounded-xl border border-[#3d2a18]/20 text-[#24170d] text-xs font-bold transition hover:bg-[#3d2a18]/5"
+                  >
+                    Hủy
+                  </button>
+                  <button 
+                    type="button" 
+                    disabled={isStatusSaving}
+                    onClick={() => void submitRoomStatus()}
+                    className="h-12 flex-1 rounded-xl bg-[#24170d] text-[#fff4df] text-xs font-bold transition hover:bg-stone-900 disabled:opacity-60"
+                  >
+                    {isStatusSaving ? 'Đang lưu...' : 'Cập nhật'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

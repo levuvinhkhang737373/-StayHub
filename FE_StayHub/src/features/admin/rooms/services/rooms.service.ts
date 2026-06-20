@@ -59,11 +59,11 @@ export async function updateAdminRoom(roomTypeId: number, payload: FormData) {
     },
   });
 }
-export async function updateAdminRoomStatus(roomTypeId: number) {
+export async function updateAdminRoomStatus(roomTypeId: number, status?: number) {
   return apiRequest<AdminRoomResource>({
     url: `admin/room/${roomTypeId}/status`,
     method: 'PATCH',
-    
+    data: status !== undefined ? { status } : undefined
   })
 }
 
