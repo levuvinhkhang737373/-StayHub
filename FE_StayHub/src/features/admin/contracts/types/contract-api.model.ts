@@ -37,6 +37,11 @@ export interface AdminContractTenantResource {
     phone?: string | null
     email?: string | null
     identity_number?: string | null
+    identity_date?: string | null
+    identity_place?: string | null
+    permanent_address?: string | null
+    gender?: number | null
+    date_of_birth?: string | null
     status?: number | null
   } | null
   join_date?: string | null
@@ -135,6 +140,7 @@ export interface AdminContractResource {
   room_number?: string | null
   building_id?: number | null
   building_name?: string | null
+  building_address?: string | null
   start_date?: string | null
   end_date?: string | null
   actual_end_date?: string | null
@@ -150,6 +156,16 @@ export interface AdminContractResource {
   deposit_qr_url?: string | null
   note?: string | null
   contract_files?: AdminContractFileResource[]
+  tenant_signed_at?: string | null
+  tenant_signature_url?: string | null
+  landlord_info?: {
+    name?: string | null
+    identity_number?: string | null
+    identity_date?: string | null
+    identity_place?: string | null
+    permanent_address?: string | null
+    signature_url?: string | null
+  } | null
   room?: AdminContractRoomResource | null
   contract_tenants?: AdminContractTenantResource[]
   contract_vehicles?: AdminContractVehicleResource[]

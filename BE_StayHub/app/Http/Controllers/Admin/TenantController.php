@@ -102,6 +102,10 @@ class TenantController extends Controller
 
             return ApiResponse::responseJson(true, $message, 201, new TenantDetailResource($tenant), 201);
         } catch (\Exception $e) {
+            Log::error('Lỗi khi tạo khách thuê: ' . $e->getMessage(), [
+                'exception' => $e,
+                'validated' => $validated ?? null,
+            ]);
             $this->deleteDiskImages($uploadedPaths);
 
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
@@ -560,7 +564,6 @@ class TenantController extends Controller
     private function deleteCounts(): array
     {
         return [
-            'representedContracts',
             'contractTenants',
             'roomMovements',
             'vehicles',

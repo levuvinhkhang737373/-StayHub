@@ -15,6 +15,14 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   int _selectedFilter = 0; // 0: All, 1: Unpaid, 2: Paid, 3: Overdue
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<InvoiceController>().fetchInvoices(isAdmin: true);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final invoiceController = context.watch<InvoiceController>();
     final allInvoices = invoiceController.invoices;

@@ -32,7 +32,7 @@ class NotificationController extends Controller
                 ->where(function ($q) use ($admin) {
                     $q->whereNotNull('created_by')
                       ->orWhere(function ($sub) use ($admin) {
-                          $sub->whereIn('title', ['Yêu cầu sửa chữa mới', 'Phản hồi mới từ khách thuê']);
+                          $sub->whereIn('title', ['Yêu cầu sửa chữa mới', 'Phản hồi mới từ khách thuê', 'Hợp đồng hết hạn', 'Thanh toán đặt cọc thành công']);
                           if (! AdminScope::isSuperAdmin($admin)) {
                               $sub->whereIn('building_id', function ($db) use ($admin) {
                                   $db->select('id')

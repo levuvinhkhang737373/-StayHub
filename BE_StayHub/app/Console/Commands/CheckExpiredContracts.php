@@ -42,17 +42,19 @@ class CheckExpiredContracts extends Command
                 $contract->status = Contract::STATUS_EXPIRED;
                 $contract->save();
 
+                // Lấy danh sách khách thuê đang ở trước khi cập nhật
+                $activeTenants = $contract->contractTenants()
+                    ->where('is_staying', true)
+                    ->get();
+
                 // 2. Đóng thông tin khách thuê và phương tiện trong hợp đồng
                 $endDateStr = $contract->end_date->toDateString();
                 
-                $contract->contractTenants()
-                    ->where('is_staying', true)
-                    ->get()
-                    ->each(fn (ContractTenant $contractTenant) => $contractTenant->forceFill([
-                        'leave_date' => $contractTenant->leave_date ?: $endDateStr,
-                        'billing_end_date' => $contractTenant->billing_end_date ?: $endDateStr,
-                        'is_staying' => false,
-                    ])->save());
+                $activeTenants->each(fn (ContractTenant $contractTenant) => $contractTenant->forceFill([
+                    'leave_date' => $contractTenant->leave_date ?: $endDateStr,
+                    'billing_end_date' => $contractTenant->billing_end_date ?: $endDateStr,
+                    'is_staying' => false,
+                ])->save());
 
                 $contract->contractVehicles()
                     ->where('is_active', true)
@@ -88,7 +90,8 @@ class CheckExpiredContracts extends Command
                     'created_by' => null,
                 ]);
 
-                // 5. Bắn realtime thông báo qua Reverb
+
+                // 5. Bắn realtime thông báo qua Reverb cho Ban quản lý
                 broadcast(new ContractExpired($contract));
                 
                 $this->info("Hợp đồng {$contract->contract_code} đã được chuyển sang Hết hạn và phát broadcast thành công.");

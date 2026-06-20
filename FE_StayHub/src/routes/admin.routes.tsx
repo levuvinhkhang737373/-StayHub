@@ -11,18 +11,20 @@ import { ServicesScreen } from '../features/admin/services/components/services-s
 import { SettingsScreen } from '../features/admin/settings/components/settings-screen'
 import { SystemUsersScreen } from '../features/admin/system-users'
 import { TenantsScreen } from '../features/admin/tenants'
-import { ContractsScreen } from '../features/admin/contracts'
+import { ContractsScreen, CreateContractScreen } from '../features/admin/contracts'
+import { InvoicesScreen } from '../features/admin/invoices'
 import { CreateTenantScreen } from '../features/admin/tenants/components/create-tenant-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
 import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
 import { AdminLayout } from '../layouts/admin/AdminLayout'
-import { Rooms } from '../features/admin/rooms/components/rooms'
-import { Create } from '../features/admin/rooms/components/create'
+import { RoomsScreen } from '../features/admin/rooms/components/rooms-screen'
+import { CreateRoomScreen } from '../features/admin/rooms/components/create-room-screen'
+import { UpdateRoomScreen } from '../features/admin/rooms/components/update-room-screen'
 import { MaintenanceScreen } from '../features/admin/maintenance'
 import { NotificationsScreen } from '../features/admin/notifications'
 import { VehiclesScreen } from '../features/admin/vehicles'
-import { Update } from '../features/admin/rooms/components/Update'
+import { MeterReadingsScreen } from '../features/admin/meter-readings'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -64,15 +66,15 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'rooms',
-        element: <AdminRouteGuard access='all'><Rooms /></AdminRouteGuard>,
+        element: <AdminRouteGuard access='all'><RoomsScreen /></AdminRouteGuard>,
       },
       {
-        path: 'room',
-        element: <AdminRouteGuard access='all'><Create /></AdminRouteGuard>,
+        path: 'rooms/create',
+        element: <AdminRouteGuard access='all'><CreateRoomScreen /></AdminRouteGuard>,
       },
       {
         path: 'rooms/update/:id',
-        element: <AdminRouteGuard access='all'><Update /></AdminRouteGuard>,
+        element: <AdminRouteGuard access='all'><UpdateRoomScreen /></AdminRouteGuard>,
       },
       {
         path: 'tenants',
@@ -91,6 +93,18 @@ export const adminRoutes: RouteObject[] = [
         element: <AdminRouteGuard access="contract-manager"><ContractsScreen /></AdminRouteGuard>,
       },
       {
+        path: 'contracts/create',
+        element: <AdminRouteGuard access="contract-manager"><CreateContractScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'contracts/:contractId/edit',
+        element: <AdminRouteGuard access="contract-manager"><CreateContractScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'contracts/:contractId/renew',
+        element: <AdminRouteGuard access="contract-manager"><CreateContractScreen /></AdminRouteGuard>,
+      },
+      {
         path: 'services',
         element: <AdminRouteGuard access="superadmin"><ServicesScreen /></AdminRouteGuard>,
       },
@@ -104,11 +118,11 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'meter-readings',
-        element: <AdminPlaceholderScreen title="Chốt điện nước" description="Chốt chỉ số điện nước, tính toán hóa đơn và quản lý chu kỳ thanh toán." />,
+        element: <MeterReadingsScreen />,
       },
       {
         path: 'invoices',
-        element: <AdminPlaceholderScreen title="Phiếu thu" description="Quản lý hóa đơn, khoản thu và tình trạng thanh toán của khách thuê." />,
+        element: <AdminRouteGuard access="all"><InvoicesScreen /></AdminRouteGuard>,
       },
       {
         path: 'expenses',

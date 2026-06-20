@@ -29,7 +29,7 @@ class RegisterRequest extends FormRequest
             'actual_end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'billing_cycle_day' => ['required', 'integer', 'min:1', 'max:28'],
             'room_price' => ['required', 'regex:/^\d{1,13}(\.\d{1,2})?$/'],
-            'deposit_amount' => ['required', 'regex:/^\d{1,13}(\.\d{1,2})?$/', 'gt:0'],
+            'deposit_amount' => ['required', 'regex:/^\d{1,13}(\.\d{1,2})?$/', 'gte:0'],
             'status' => ['nullable', 'integer', Rule::in(array_keys(Contract::STATUS_LABELS))],
             'contract_files' => ['nullable', 'array', 'max:10'],
             'contract_files.*' => ['file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:20480'],
@@ -39,7 +39,7 @@ class RegisterRequest extends FormRequest
             'is_deposit_paid' => ['nullable', 'boolean'],
             'deposit_payment_method' => ['nullable', 'integer', Rule::in([
                 ContractDepositTransaction::PAYMENT_METHOD_CASH,
-                ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER
+                ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
             ])],
 
             'tenants' => ['required', 'array', 'min:1', 'max:50'],
@@ -100,7 +100,7 @@ class RegisterRequest extends FormRequest
             'room_price.regex' => 'Giá phòng phải là số tiền hợp lệ, không âm và tối đa 2 chữ số thập phân.',
             'deposit_amount.required' => 'Tiền cọc trong hợp đồng là bắt buộc.',
             'deposit_amount.regex' => 'Tiền cọc phải là số tiền hợp lệ, không âm và tối đa 2 chữ số thập phân.',
-            'deposit_amount.gt' => 'Tiền cọc trong hợp đồng phải lớn hơn 0.',
+            'deposit_amount.gte' => 'Tiền cọc trong hợp đồng không được âm.',
             'status.integer' => 'Trạng thái hợp đồng không hợp lệ.',
             'status.in' => 'Trạng thái hợp đồng không nằm trong danh sách cho phép.',
             'contract_files.array' => 'Danh sách file hợp đồng không hợp lệ.',

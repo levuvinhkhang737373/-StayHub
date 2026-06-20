@@ -16,6 +16,7 @@ class Invoice {
   final int status; // 1: Draft, 2: Unpaid, 3: Partially Paid, 4: Paid, 5: Overdue, 6: Cancelled
   final String? issuedAt;
   final int? createdBy;
+  final String? paymentQrUrl;
   final List<InvoiceItem>? items;
 
   Invoice({
@@ -36,6 +37,7 @@ class Invoice {
     required this.status,
     this.issuedAt,
     this.createdBy,
+    this.paymentQrUrl,
     this.items,
   });
 
@@ -58,6 +60,7 @@ class Invoice {
       status: json['status'] as int? ?? 2,
       issuedAt: json['issued_at'] as String?,
       createdBy: json['created_by'] as int?,
+      paymentQrUrl: json['payment_qr_url'] as String?,
       items: json['items'] != null
           ? (json['items'] as List).map((i) => InvoiceItem.fromJson(i as Map<String, dynamic>)).toList()
           : null,
@@ -83,6 +86,7 @@ class Invoice {
       'status': status,
       'issued_at': issuedAt,
       'created_by': createdBy,
+      'payment_qr_url': paymentQrUrl,
       'items': items?.map((i) => i.toJson()).toList(),
     };
   }
@@ -140,7 +144,7 @@ class InvoiceItem {
   factory InvoiceItem.fromJson(Map<String, dynamic> json) {
     return InvoiceItem(
       id: json['id'] as int,
-      invoiceId: json['invoice_id'] as int,
+      invoiceId: json['invoice_id'] as int? ?? 0,
       serviceId: json['service_id'] as int?,
       meterReadingId: json['meter_reading_id'] as int?,
       itemType: json['item_type'] as int? ?? 1,

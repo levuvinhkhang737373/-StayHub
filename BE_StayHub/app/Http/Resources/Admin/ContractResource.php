@@ -33,6 +33,9 @@ class ContractResource extends JsonResource
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,
             'is_deposit_paid' => $this->is_deposit_paid,
             'deposit_balance' => (string) $this->deposit_balance,
+            'tenant_name' => $this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()
+                ? ($this->contractTenants->first()->tenant?->full_name ?? '')
+                : null,
             'contract_tenants_count' => $this->whenCounted('contractTenants'),
             'tenants_count' => $this->whenCounted('tenants'),
             'vehicles_count' => $this->whenCounted('vehicles'),

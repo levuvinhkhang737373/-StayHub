@@ -13,7 +13,7 @@ import {
   deleteAdminVehicle,
 } from '../services/vehicles.service'
 import { fetchAdminTenants } from '../../tenants/services/tenants.service'
-import { fetchAdminBuildings, fetchAdminBuildingDetail } from '../../facilities/services/facilities.service'
+import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminVehicleResource, AdminVehicleFormValues, AdminVehicleFormErrors } from '../types/vehicle.model'
 import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -27,7 +27,6 @@ function getVisibleErrorMessage(error: unknown, fallback: string) {
 
 const defaultForm: AdminVehicleFormValues = {
   building_id: '',
-  room_id: '',
   tenant_id: '',
   vehicle_type: 1,
   license_plate: '',
@@ -67,7 +66,6 @@ export function VehiclesScreen() {
   const [vehicles, setVehicles] = useState<AdminVehicleResource[]>([])
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
-  const [rooms, setRooms] = useState<Array<{ id: number; building_id: number; room_number: string; status: number }>>([])
   
   const [keyword, setKeyword] = useState('')
   const [selectedType, setSelectedType] = useState('')
@@ -112,21 +110,6 @@ export function VehiclesScreen() {
     }
   }, [])
 
-  const loadRoomsForBuilding = useCallback(async (buildingId: number) => {
-    if (!buildingId) {
-      setRooms([])
-      return
-    }
-    try {
-      const response = await fetchAdminBuildingDetail(buildingId)
-      const buildingDetail = response.result
-      setRooms(buildingDetail?.rooms || [])
-    } catch (error) {
-      console.error('Failed to load rooms:', error)
-      setRooms([])
-    }
-  }, [])
-
   const loadVehicles = useCallback(async () => {
     setIsLoading(true)
     setErrorMessage(null)
@@ -149,14 +132,6 @@ export function VehiclesScreen() {
     void loadTenants()
     void loadBuildings()
   }, [loadTenants, loadBuildings])
-
-  useEffect(() => {
-    if (form.building_id) {
-      void loadRoomsForBuilding(Number(form.building_id))
-    } else {
-      setRooms([])
-    }
-  }, [form.building_id, loadRoomsForBuilding])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -209,25 +184,28 @@ export function VehiclesScreen() {
   }, [vehicles])
 
   const tenantSelectOptions = useMemo(() => {
-    if (!form.room_id) return []
-    const roomIdNum = Number(form.room_id)
+    if (!form.building_id) return []
+    const buildingIdNum = Number(form.building_id)
     return tenants
-      .filter((t) => t.room_id === roomIdNum || t.current_room?.room_id === roomIdNum)
-      .map((t) => ({
-        value: t.id,
-        label: `${t.full_name || t.username} (${t.phone || 'Không có sđt'})`,
-        tone: 'default' as const,
-      }))
-  }, [tenants, form.room_id])
+      .filter((t) => t.building_id === buildingIdNum || t.current_room?.building_id === buildingIdNum)
+      .map((t) => {
+        const roomLabel = t.room_number || t.current_room?.room_number ? `Phòng ${t.room_number || t.current_room?.room_number}` : 'Chưa có phòng'
+        return {
+          value: t.id,
+          label: `${t.full_name || t.username} (${roomLabel} - ${t.phone || 'Không có sđt'})`,
+          tone: 'default' as const,
+        }
+      })
+  }, [tenants, form.building_id])
 
   useEffect(() => {
-    if (form.room_id && tenantSelectOptions.length === 1) {
+    if (form.building_id && tenantSelectOptions.length === 1) {
       const singleTenantId = String(tenantSelectOptions[0].value)
       if (form.tenant_id !== singleTenantId) {
         updateForm('tenant_id', singleTenantId)
       }
     }
-  }, [form.room_id, tenantSelectOptions, form.tenant_id])
+  }, [form.building_id, tenantSelectOptions, form.tenant_id])
 
   const hasActiveFilters = Boolean(keyword.trim() || selectedType || selectedStatus)
 
@@ -256,13 +234,8 @@ export function VehiclesScreen() {
     if (editingVehicle) {
       const t = tenants.find((t) => t.id === editingVehicle.tenant_id)
       const bId = t ? String(t.building_id || '') : ''
-      const rId = t ? String(t.room_id || t.current_room?.room_id || '') : ''
-      if (bId) {
-        void loadRoomsForBuilding(Number(bId))
-      }
       setForm({
         building_id: bId,
-        room_id: rId,
         tenant_id: String(editingVehicle.tenant_id),
         vehicle_type: editingVehicle.vehicle_type,
         license_plate: editingVehicle.license_plate,
@@ -281,14 +254,9 @@ export function VehiclesScreen() {
   const openEditForm = (vehicle: AdminVehicleResource) => {
     const t = tenants.find((t) => t.id === vehicle.tenant_id)
     const bId = t ? String(t.building_id || '') : ''
-    const rId = t ? String(t.room_id || t.current_room?.room_id || '') : ''
-    if (bId) {
-      void loadRoomsForBuilding(Number(bId))
-    }
     setEditingVehicle(vehicle)
     setForm({
       building_id: bId,
-      room_id: rId,
       tenant_id: String(vehicle.tenant_id),
       vehicle_type: vehicle.vehicle_type,
       license_plate: vehicle.license_plate,
@@ -453,7 +421,7 @@ export function VehiclesScreen() {
           {activeMessage || errorMessage || successMessage}
         </div>
 
-        <div className={cn('grid min-w-0 grid-cols-1 gap-4 xl:gap-6', isFormOpen && '2xl:grid-cols-[minmax(0,1fr)_390px]')}>
+        <div className="min-w-0">
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
               <div className="grid gap-3 sm:grid-cols-3">
@@ -560,113 +528,108 @@ export function VehiclesScreen() {
             </div>
           </section>
 
-          {isFormOpen && (
-            <aside className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/95 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md 2xl:sticky 2xl:top-6 2xl:self-start">
-              <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-5">
+        </div>
+
+        {isFormOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm" />
+            <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
+              <div className="bg-[#24170d] p-5 text-[#fff4df]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="mt-1 text-xl font-black tracking-tight text-[#24170d]">{editingVehicle ? 'Cập nhật xe' : 'Đăng ký xe'}</h2>
+                    <h2 className="mt-1 text-xl font-black tracking-tight">{editingVehicle ? 'Cập nhật xe' : 'Đăng ký xe'}</h2>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={resetForm} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-[#f3c56b]/15" title="Làm mới form">
+                    <button type="button" onClick={resetForm} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" title="Làm mới form">
                       <RefreshCw className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] p-2 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-600" title="Đóng form">
+                    <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" title="Đóng form">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4 p-5">
-                <div>
-                  <label className={labelClass}>Tòa nhà</label>
-                  <AdminSelect
-                    value={form.building_id}
-                    options={[{ value: '', label: 'Chọn tòa nhà', tone: 'default' }, ...buildings.map((b) => ({ value: b.id, label: b.name }))]}
-                    invalid={!!errors.building_id}
-                    onChange={(nextValue) => {
-                      updateForm('building_id', String(nextValue))
-                      updateForm('room_id', '')
-                      updateForm('tenant_id', '')
-                    }}
-                  />
-                  <FieldError message={errors.building_id} />
+              <div className="max-h-[70vh] overflow-y-auto p-5 space-y-4">
+                {successMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{successMessage}</div>}
+                {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{errorMessage}</div>}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Tòa nhà</label>
+                    <AdminSelect
+                      value={form.building_id}
+                      options={[{ value: '', label: 'Chọn tòa nhà', tone: 'default' }, ...buildings.map((b) => ({ value: b.id, label: b.name }))]}
+                      invalid={!!errors.building_id}
+                      onChange={(nextValue) => {
+                        updateForm('building_id', String(nextValue))
+                        updateForm('tenant_id', '')
+                      }}
+                    />
+                    <FieldError message={errors.building_id} />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Khách thuê sở hữu</label>
+                    <AdminSelect
+                      value={form.tenant_id}
+                      options={[{ value: '', label: 'Chọn khách thuê', tone: 'default' }, ...tenantSelectOptions]}
+                      disabled={!form.building_id}
+                      invalid={!!errors.tenant_id}
+                      placeholder={form.building_id ? (tenantSelectOptions.length > 0 ? "Chọn khách thuê" : "Không có khách thuê nào") : "Vui lòng chọn tòa nhà trước"}
+                      onChange={(nextValue) => updateForm('tenant_id', String(nextValue))}
+                    />
+                    <FieldError message={errors.tenant_id} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Loại xe</label>
+                    <AdminSelect
+                      value={form.vehicle_type}
+                      options={vehicleTypeOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))}
+                      invalid={!!errors.vehicle_type}
+                      onChange={(nextValue) => updateForm('vehicle_type', Number(nextValue))}
+                    />
+                    <FieldError message={errors.vehicle_type} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Biển số xe</label>
+                    <input className={cn(inputClass, errors.license_plate && inputErrorClass)} value={form.license_plate} onChange={(event) => updateForm('license_plate', event.target.value)} placeholder="Ví dụ: 59A-123.45" />
+                    <FieldError message={errors.license_plate} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Hãng xe / Thương hiệu</label>
+                    <input className={cn(inputClass, errors.brand && inputErrorClass)} value={form.brand} onChange={(event) => updateForm('brand', event.target.value)} placeholder="Ví dụ: Honda, Yamaha, Toyota" />
+                    <FieldError message={errors.brand} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Màu xe</label>
+                    <input className={cn(inputClass, errors.color && inputErrorClass)} value={form.color} onChange={(event) => updateForm('color', event.target.value)} placeholder="Ví dụ: Đỏ đen, Trắng, Xanh lá" />
+                    <FieldError message={errors.color} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Trạng thái hoạt động</label>
+                    <AdminSelect
+                      value={form.is_active ? 1 : 0}
+                      options={formStatusOptions}
+                      invalid={!!errors.is_active}
+                      onChange={(nextValue) => updateForm('is_active', Number(nextValue) === 1)}
+                    />
+                    <FieldError message={errors.is_active} />
+                  </div>
                 </div>
 
-                <div>
-                  <label className={labelClass}>Phòng</label>
-                  <AdminSelect
-                    value={form.room_id}
-                    options={[{ value: '', label: 'Chọn phòng', tone: 'default' }, ...rooms.map((r) => ({ value: r.id, label: r.room_number }))]}
-                    disabled={!form.building_id}
-                    invalid={!!errors.room_id}
-                    placeholder={form.building_id ? "Chọn phòng" : "Vui lòng chọn tòa nhà trước"}
-                    onChange={(nextValue) => {
-                      updateForm('room_id', String(nextValue))
-                      updateForm('tenant_id', '')
-                    }}
-                  />
-                  <FieldError message={errors.room_id} />
-                </div>
-
-                <div>
-                  <label className={labelClass}>Khách thuê sở hữu</label>
-                  <AdminSelect
-                    value={form.tenant_id}
-                    options={[{ value: '', label: 'Chọn khách thuê', tone: 'default' }, ...tenantSelectOptions]}
-                    disabled={!form.room_id}
-                    invalid={!!errors.tenant_id}
-                    placeholder={form.room_id ? (tenantSelectOptions.length > 0 ? "Chọn khách thuê" : "Không có khách thuê nào") : "Vui lòng chọn phòng trước"}
-                    onChange={(nextValue) => updateForm('tenant_id', String(nextValue))}
-                  />
-                  <FieldError message={errors.tenant_id} />
-                </div>
-                <div>
-                  <label className={labelClass}>Loại xe</label>
-                  <AdminSelect
-                    value={form.vehicle_type}
-                    options={vehicleTypeOptions.map((o) => ({ value: o.value, label: o.label, tone: 'default' as const }))}
-                    invalid={!!errors.vehicle_type}
-                    onChange={(nextValue) => updateForm('vehicle_type', Number(nextValue))}
-                  />
-                  <FieldError message={errors.vehicle_type} />
-                </div>
-                <div>
-                  <label className={labelClass}>Biển số xe</label>
-                  <input className={cn(inputClass, errors.license_plate && inputErrorClass)} value={form.license_plate} onChange={(event) => updateForm('license_plate', event.target.value)} placeholder="Ví dụ: 59A-123.45" />
-                  <FieldError message={errors.license_plate} />
-                </div>
-                <div>
-                  <label className={labelClass}>Hãng xe / Thương hiệu</label>
-                  <input className={cn(inputClass, errors.brand && inputErrorClass)} value={form.brand} onChange={(event) => updateForm('brand', event.target.value)} placeholder="Ví dụ: Honda, Yamaha, Toyota" />
-                  <FieldError message={errors.brand} />
-                </div>
-                <div>
-                  <label className={labelClass}>Màu xe</label>
-                  <input className={cn(inputClass, errors.color && inputErrorClass)} value={form.color} onChange={(event) => updateForm('color', event.target.value)} placeholder="Ví dụ: Đỏ đen, Trắng, Xanh lá" />
-                  <FieldError message={errors.color} />
-                </div>
-                <div>
-                  <label className={labelClass}>Trạng thái hoạt động</label>
-                  <AdminSelect
-                    value={form.is_active ? 1 : 0}
-                    options={formStatusOptions}
-                    invalid={!!errors.is_active}
-                    onChange={(nextValue) => updateForm('is_active', Number(nextValue) === 1)}
-                  />
-                  <FieldError message={errors.is_active} />
-                </div>
-
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row 2xl:flex-col">
-                  <button type="button" disabled={isSaving} onClick={() => void handleSubmit()} className="inline-flex min-h-14 flex-1 items-center justify-center gap-2 rounded-[1.25rem] bg-[#24170d] px-5 py-3.5 text-base font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18]">
+                <div className="flex justify-end gap-3 pt-4 border-t border-[#3d2a18]/10">
+                  <button type="button" onClick={() => { resetForm(); setIsFormOpen(false) }} className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 text-sm font-black text-[#8b5e34] hover:bg-stone-100 transition">
+                    Hủy
+                  </button>
+                  <button type="button" disabled={isSaving} onClick={() => void handleSubmit()} className="inline-flex h-12 min-w-32 items-center justify-center rounded-[1.25rem] bg-[#24170d] px-5 text-sm font-black text-[#fff4df] shadow-lg shadow-[#24170d]/12 transition hover:bg-[#3d2a18]">
                     {isSaving ? 'Đang lưu...' : editingVehicle ? 'Cập nhật' : 'Đăng ký xe'}
                   </button>
                 </div>
               </div>
-            </aside>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {isDetailOpen && (

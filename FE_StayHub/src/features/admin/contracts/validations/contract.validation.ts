@@ -1,4 +1,12 @@
 import type { ContractFormErrors, ContractFormValues } from '../types/contract-api.model'
+import {
+  STATUS_PENDING_SIGN,
+  STATUS_ACTIVE,
+  STATUS_EXPIRED,
+  STATUS_LIQUIDATED,
+  STATUS_CANCELLED
+} from '../utils/contract.helpers'
+
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
@@ -64,7 +72,7 @@ export function validateContractForm(form: ContractFormValues, roomMaxOccupants?
     errors.deposit_amount = 'Tiền cọc trong hợp đồng phải lớn hơn 0.'
   }
 
-  if (![1, 2, 3, 4].includes(Number(form.status))) {
+  if (![STATUS_PENDING_SIGN, STATUS_ACTIVE, STATUS_EXPIRED, STATUS_LIQUIDATED, STATUS_CANCELLED].includes(Number(form.status))) {
     errors.status = 'Trạng thái hợp đồng không hợp lệ.'
   }
 

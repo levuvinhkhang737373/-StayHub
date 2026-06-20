@@ -26,7 +26,9 @@ class NotificationSent implements ShouldBroadcast
         $channels = [];
 
         if ($this->notification->target_type === Notification::TARGET_TYPE_ADMIN) {
-            return [];
+            return [
+                new PrivateChannel('admin-maintenance'),
+            ];
         }
 
         if ($this->notification->target_type === Notification::TARGET_TYPE_TENANT) {
@@ -67,7 +69,19 @@ class NotificationSent implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'notification' => (new NotificationResource($this->notification->load(['building', 'room', 'tenant', 'creator'])))->resolve(),
+            'notification' => [
+                'id' => $this->notification->id,
+                'title' => $this->notification->title,
+                'content' => $this->notification->content,
+                'notification_type' => $this->notification->notification_type,
+                'notification_type_label' => \App\Models\Notification::NOTIFICATION_TYPE_LABELS[$this->notification->notification_type] ?? 'Khác',
+                'target_type' => $this->notification->target_type,
+                'building_id' => $this->notification->building_id,
+                'room_id' => $this->notification->room_id,
+                'tenant_id' => $this->notification->tenant_id,
+                'published_at' => optional($this->notification->published_at)->toDateTimeString(),
+                'created_at' => optional($this->notification->created_at)->toDateTimeString(),
+            ]
         ];
     }
 

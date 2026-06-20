@@ -1,6 +1,7 @@
 import type { RouteObject } from 'react-router-dom'
 import { Navigate } from 'react-router-dom'
 import { TenantDashboardScreen } from '../features/tenant/dashboard/components/tenant-dashboard-screen'
+import { TenantInvoicesScreen } from '../features/tenant/invoices'
 import { TenantLayout } from '../layouts/tenant/TenantLayout'
 
 export const tenantRoutes: RouteObject[] = [
@@ -16,6 +17,11 @@ export const tenantRoutes: RouteObject[] = [
         path: 'dashboard',
         element: <TenantDashboardScreen />,
       },
+      {
+        path: 'invoices',
+        element: <TenantInvoicesScreen />,
+      },
     ],
   },
 ]
+

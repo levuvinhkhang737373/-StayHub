@@ -35,6 +35,8 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
             context.read<NotificationController>().fetchNotifications(isAdmin: false);
             // Đồng thời làm mới danh sách sửa chữa vì có thể có cập nhật trạng thái từ admin
             context.read<MaintenanceController>().fetchRequests();
+            // Đồng thời làm mới hóa đơn
+            context.read<InvoiceController>().fetchInvoices(isAdmin: false);
           }
         });
       }

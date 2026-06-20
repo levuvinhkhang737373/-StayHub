@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import type { AdminRoomResource } from '../types/rooms.model'
-// Đã import thêm updateAdminRoomStatus vào đây
 import { deleteAdminRoom, fetchAdminRoomDetail, fetchAdminRooms, updateAdminRoomStatus } from '../services/rooms.service'
-import { Eye, Trash2, Pencil, PackageOpen, RefreshCw } from 'lucide-react'
+import { Eye, Trash2, Pencil, PackageOpen, RefreshCw, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAdminSession } from '../../auth/hooks/admin-session-store'
 
@@ -13,7 +12,7 @@ const statusLabels: Record<number, string> = {
   3: 'Bảo Trì'
 }
 
-export function Rooms() {
+export function RoomsScreen() {
   const [rooms, setRooms] = useState<AdminRoomResource[]>([])
   const [room, setRoom] = useState<AdminRoomResource | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -28,7 +27,6 @@ export function Rooms() {
     currentPage * itemsPerPage,
   )
 
-  // CHUYỂN ĐỔI ROLE SANG NUMBER ĐỂ SO SÁNH CHÍNH XÁC
   const SUPERADMIN_ROLE = Number(import.meta.env.VITE_SUPERADMIN_ROLE)
   const isSuperAdmin = session?.admin?.role === SUPERADMIN_ROLE
 
@@ -59,37 +57,33 @@ export function Rooms() {
     }
   }
 
-  // HÀM XỬ LÝ ĐỔI TRẠNG THÁI PHÒNG (HOẠT ĐỘNG <-> BẢO TRÌ)
   const toggleRoomStatus = async (id: number, currentStatus: number) => {
-  // Chỉ dùng currentStatus để hiển thị câu hỏi Confirm cho thân thiện với user
-  const nextStatusText = Number(currentStatus) === 1 ? 'Bảo Trì' : 'Hoạt động'
-  
-  if (!confirm(`Bạn có chắc chắn muốn đổi trạng thái phòng này sang "${nextStatusText}" không?`)) {
-    return
-  }
-
-  try {
-    // Gọi API gọn gàng: Chỉ truyền mỗi ID
-    const res = await updateAdminRoomStatus(id)
-
-    if (res && res.status !== false) {
-      alert("Cập nhật trạng thái phòng thành công")
-      await loadRooms() // Tải lại danh sách ngoài bảng
-
-      // Nếu đang mở xem chi tiết của chính phòng này, tải lại để cập nhật Modal
-      if (isDetailOpen && room?.id === id) {
-        const detailRes = await fetchAdminRoomDetail(id)
-        setRoom(detailRes.result)
-      }
-    } else {
-      alert(res?.message || "Cập nhật trạng thái thất bại.")
+    const nextStatusText = Number(currentStatus) === 1 ? 'Bảo Trì' : 'Hoạt động'
+    
+    if (!confirm(`Bạn có chắc chắn muốn đổi trạng thái phòng này sang "${nextStatusText}" không?`)) {
+      return
     }
-  } catch (error: any) {
-    console.error("Lỗi cập nhật trạng thái:", error)
-    const errorMessage = error?.response?.data?.message || error?.message || "Đã xảy ra lỗi hệ thống."
-    alert("Thất bại: " + errorMessage)
+
+    try {
+      const res = await updateAdminRoomStatus(id)
+
+      if (res && res.status !== false) {
+        alert("Cập nhật trạng thái phòng thành công")
+        await loadRooms()
+
+        if (isDetailOpen && room?.id === id) {
+          const detailRes = await fetchAdminRoomDetail(id)
+          setRoom(detailRes.result)
+        }
+      } else {
+        alert(res?.message || "Cập nhật trạng thái thất bại.")
+      }
+    } catch (error: any) {
+      console.error("Lỗi cập nhật trạng thái:", error)
+      const errorMessage = error?.response?.data?.message || error?.message || "Đã xảy ra lỗi hệ thống."
+      alert("Thất bại: " + errorMessage)
+    }
   }
-}
 
   const deleteRoom = async (id: any) => {
     try {
@@ -115,14 +109,27 @@ export function Rooms() {
   }, [])
 
   return (
-    <>
-      {isSuperAdmin && (
-        <Link to='/admin/room' className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white font-medium shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'>
-          Thêm Phòng
-        </Link>
-      )}
+    <div className="space-y-6 text-[#24170d]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-[#24170d]">Quản lý Phòng</h1>
+          <p className="mt-0.5 text-xs font-semibold text-[#8b5e34]/70">Xem danh sách, chỉnh sửa trạng thái và chi tiết phòng.</p>
+        </div>
+        
+        {isSuperAdmin && (
+          <div>
+            <Link 
+              to="/admin/rooms/create" 
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-5 py-3 text-xs font-black uppercase tracking-widest text-[#fff4df] shadow-xl shadow-[#24170d]/10 transition hover:bg-[#3d2a18]"
+            >
+              <Plus className="h-4 w-4 text-[#f3c56b] stroke-[2.8]" />
+              Thêm Phòng
+            </Link>
+          </div>
+        )}
+      </div>
       
-      <div className="overflow-x-auto mt-4">
+      <div className="overflow-x-auto rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
         <table className="min-w-190 w-full text-left">
           <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
             <tr>
@@ -132,11 +139,7 @@ export function Rooms() {
               <th className="px-5 py-4 text-center">Tầng</th>
               <th className="px-5 py-4 text-center">Số người đang ở</th>
               <th className="px-5 py-4">Trạng thái</th>
-              <th className="px-5 py-4">
-                <span className="flex justify-end">
-                  <span className="w-47.5 text-center">Thao tác</span>
-                </span>
-              </th>
+              <th className="px-5 py-4 text-right">Thao tác</th>
             </tr>
           </thead>
 
@@ -144,7 +147,7 @@ export function Rooms() {
             {isLoading &&
               Array.from({ length: 5 }).map((_, index) => (
                 <tr key={index}>
-                  <td colSpan={8} className="px-5 py-4">
+                  <td colSpan={7} className="px-5 py-4">
                     <div className="h-12 animate-pulse rounded-2xl bg-stone-100" />
                   </td>
                 </tr>
@@ -153,36 +156,36 @@ export function Rooms() {
             {!isLoading &&
               paginatedRooms.map((roomItem) => (
                 <tr key={roomItem.id} className="group transition hover:bg-[#f3c56b]/12">
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-4">
                     <p className="truncate text-[13px] font-black tracking-tight text-[#24170d]">
                       {roomItem.room_number}
                     </p>
                   </td>
 
-                  <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">
-                    {roomItem.building.name}
+                  <td className="px-5 py-4 text-[13px] font-bold text-[#6f6254]">
+                    {roomItem.building?.name}
                   </td>
 
-                  <td className="px-4 py-3 text-center text-[13px] font-bold text-[#6f6254]">
-                    {roomItem.room_type.name}
+                  <td className="px-5 py-4 text-center text-[13px] font-bold text-[#6f6254]">
+                    {roomItem.room_type?.name}
                   </td>
 
-                  <td className="px-4 py-3 text-center text-[13px] font-bold text-[#6f6254]">
+                  <td className="px-5 py-4 text-center text-[13px] font-bold text-[#6f6254]">
                     {roomItem.floor}
                   </td>
 
-                  <td className="px-4 py-3 text-center text-[13px] font-bold text-[#6f6254]">
+                  <td className="px-5 py-4 text-center text-[13px] font-bold text-[#6f6254]">
                     {roomItem.current_occupants}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-4">
                     <span
                       className={cn(
                         'inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm',
                         Number(roomItem.status) === 1
                           ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]'
                           : Number(roomItem.status) === 3
-                          ? 'border-amber-500/20 bg-amber-50 text-amber-700' // CSS cho trạng thái bảo trì
+                          ? 'border-amber-500/20 bg-amber-50 text-amber-700'
                           : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]',
                       )}
                     >
@@ -190,30 +193,45 @@ export function Rooms() {
                     </span>
                   </td>
 
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2.5">
-                       <button type="button" onClick={() => void viewRoom(roomItem.id)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center justify-end gap-2">
+                       <button 
+                         type="button" 
+                         onClick={() => void viewRoom(roomItem.id)} 
+                         className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" 
+                         title="Xem chi tiết"
+                       >
+                         <Eye className="h-5 w-5" />
+                       </button>
                        
-                       {/* NÚT ĐỔI TRẠNG THÁI NHANH (Chỉ SuperAdmin mới thấy) */}
-                      
-                         <button 
-                           type="button" 
-                           onClick={() => void toggleRoomStatus(roomItem.id, Number(roomItem.status))} 
-                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-blue-500/25 hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 active:scale-95" 
-                           title="Đổi trạng thái phòng"
-                         >
-                           <RefreshCw className="h-4 w-4" />
-                         </button>
-                       
+                       <button 
+                         type="button" 
+                         onClick={() => void toggleRoomStatus(roomItem.id, Number(roomItem.status))} 
+                         className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-blue-500/25 hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 active:scale-95" 
+                         title="Đổi trạng thái phòng"
+                       >
+                         <RefreshCw className="h-4 w-4" />
+                       </button>
 
                        {isSuperAdmin && (
-                         <Link to={`/admin/rooms/update/${roomItem.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-amber-500/30 hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/10 active:scale-95" title="Sửa thông tin phòng">
+                         <Link 
+                           to={`/admin/rooms/update/${roomItem.id}`} 
+                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-amber-500/30 hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/10 active:scale-95" 
+                           title="Sửa thông tin phòng"
+                         >
                            <Pencil className="h-4.5 w-4.5" />
                          </Link>
                        )}
                     
                        {isSuperAdmin && (
-                         <button type="button" onClick={() => void deleteRoom(roomItem.id)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-red-500/25 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-red-500/10 active:scale-95" title="Xóa phòng"><Trash2 className="h-5 w-5" /></button>
+                         <button 
+                           type="button" 
+                           onClick={() => void deleteRoom(roomItem.id)} 
+                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-red-500/25 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-red-500/10 active:scale-95" 
+                           title="Xóa phòng"
+                         >
+                           <Trash2 className="h-5 w-5" />
+                         </button>
                        )}
                     </div>
                   </td>
@@ -222,7 +240,7 @@ export function Rooms() {
 
             {!isLoading && rooms.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-20 text-center">
+                <td colSpan={7} className="px-5 py-20 text-center">
                   <div className="mx-auto flex max-w-sm flex-col items-center">
                     <p className="text-lg font-black tracking-tight text-[#24170d]">
                       Không tìm thấy phòng
@@ -432,6 +450,6 @@ export function Rooms() {
           </div>
         )}
       </div>
-    </>
+    </div>
   )
 }

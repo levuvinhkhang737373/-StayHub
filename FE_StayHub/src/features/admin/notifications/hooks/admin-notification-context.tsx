@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
+import { fetchAdminNotifications } from '../services/notification.service'
 
 export interface ReceivedNotification {
   id: string
@@ -35,25 +36,71 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
 
   const adminId = session?.admin?.id
 
-  // Load notifications from localStorage on mount or when admin session changes
+  // Load notifications from API and merge with local read states on mount
   useEffect(() => {
-    if (!adminId) {
+    if (!adminId || !session) {
       setNotifications([])
       return
     }
 
-    try {
-      const stored = localStorage.getItem(`stayhub_admin_notifications_${adminId}`)
-      if (stored) {
-        setNotifications(JSON.parse(stored))
-      } else {
-        setNotifications([])
+    let isMounted = true
+
+    const loadNotificationsFromApi = async () => {
+      try {
+        // Load localStorage notifications first to check read status
+        let localNotifs: ReceivedNotification[] = []
+        const stored = localStorage.getItem(`stayhub_admin_notifications_${adminId}`)
+        if (stored) {
+          try {
+            localNotifs = JSON.parse(stored)
+          } catch (e) {
+            console.error('Error parsing stored notifications', e)
+          }
+        }
+
+        const res = await fetchAdminNotifications({ per_page: 50 })
+        if (!isMounted) return
+
+        if (res.status && res.result) {
+          // Safeguard to ensure result is an array
+          const list = res.result.data || []
+          
+          const mapped: ReceivedNotification[] = list.map((item: any) => {
+            const notifId = String(item.id)
+            const localItem = localNotifs.find((ln) => ln.id === notifId)
+            
+            let notifType: 'maintenance' | 'system' | 'invoice' = 'system'
+            if (item.notification_type === 1) {
+              notifType = 'maintenance'
+            } else if (item.notification_type === 2) {
+              notifType = 'invoice'
+            }
+
+            return {
+              id: notifId,
+              title: item.title,
+              description: item.content || '',
+              link: item.notification_type === 1 ? '/admin/maintenance' : item.notification_type === 2 ? '/admin/invoices' : '/admin/contracts',
+              read: localItem ? localItem.read : false,
+              createdAt: item.created_at,
+              type: notifType,
+            }
+          })
+
+          setNotifications(mapped)
+          localStorage.setItem(`stayhub_admin_notifications_${adminId}`, JSON.stringify(mapped))
+        }
+      } catch (e) {
+        console.error('Failed to load notifications from API', e)
       }
-    } catch (e) {
-      console.error('Failed to parse admin notifications', e)
-      setNotifications([])
     }
-  }, [adminId])
+
+    void loadNotificationsFromApi()
+
+    return () => {
+      isMounted = false
+    }
+  }, [adminId, session])
 
   // Save notifications to localStorage whenever they change
   const saveNotifications = useCallback((newNotifs: ReceivedNotification[]) => {
@@ -164,6 +211,43 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
+    channel.listen('.InvoicePaid', (event: any) => {
+      console.log('WS: Received InvoicePaid', event)
+      const invoice = event.invoice
+      if (invoice) {
+        addNotification({
+          title: 'Hóa đơn đã thanh toán',
+          description: `Phòng ${invoice.room_number ?? '?'} đã thanh toán hóa đơn ${invoice.invoice_code ?? ''}`,
+          link: '/admin/invoices',
+          type: 'invoice',
+        })
+        window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: invoice }))
+      }
+    })
+
+    channel.listen('.NotificationSent', (event: any) => {
+      console.log('WS: Received NotificationSent', event)
+      const notification = event.notification
+      if (notification && Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
+        const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
+        const managedBuildings = session?.admin?.managed_buildings || []
+        const isManagerOfBuilding = managedBuildings.some(b => Number(b.id) === Number(notification.building_id))
+
+        if (isSuperAdmin || isManagerOfBuilding) {
+          addNotification({
+            title: notification.title,
+            description: notification.content,
+            link: notification.notification_type === 1 ? '/admin/maintenance' : notification.notification_type === 2 ? '/admin/invoices' : '/admin/contracts',
+            type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : 'system',
+          })
+
+          if (notification.notification_type === 2) {
+            window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: notification }))
+          }
+        }
+      }
+    })
+
     return () => {
       channel.stopListening('.MaintenanceRequestCreated')
       channel.stopListening('.MaintenanceRequestAssigned')
@@ -171,6 +255,8 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       channel.stopListening('.MaintenanceRequestCompleted')
       channel.stopListening('.MaintenanceFeedbackCreated')
       channel.stopListening('.ContractDepositPaid')
+      channel.stopListening('.InvoicePaid')
+      channel.stopListening('.NotificationSent')
     }
   }, [adminId, echo, session, addNotification])
 

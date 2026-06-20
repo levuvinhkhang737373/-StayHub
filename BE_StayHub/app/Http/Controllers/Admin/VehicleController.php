@@ -291,9 +291,6 @@ class VehicleController extends Controller
                 })
                 ->orWhereHas('tenant.contracts.room', function (Builder $roomQuery) use ($admin) {
                     AdminScope::applyBuildingScope($roomQuery, $admin, 'building_id');
-                })
-                ->orWhereHas('tenant.representedContracts.room', function (Builder $roomQuery) use ($admin) {
-                    AdminScope::applyBuildingScope($roomQuery, $admin, 'building_id');
                 });
             });
         }
@@ -312,9 +309,6 @@ class VehicleController extends Controller
                 ->whereKey($tenantId)
                 ->where(function (Builder $q) use ($admin) {
                     $q->whereHas('contracts.room', function (Builder $roomQuery) use ($admin) {
-                        AdminScope::applyBuildingScope($roomQuery, $admin, 'building_id');
-                    })
-                    ->orWhereHas('representedContracts.room', function (Builder $roomQuery) use ($admin) {
                         AdminScope::applyBuildingScope($roomQuery, $admin, 'building_id');
                     });
                 })

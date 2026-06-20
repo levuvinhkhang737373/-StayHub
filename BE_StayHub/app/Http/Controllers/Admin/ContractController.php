@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Contract\DepositTransactionRequest;
 use App\Http\Requests\Admin\Contract\IndexRequest;
 use App\Http\Requests\Admin\Contract\RegisterRequest;
 use App\Http\Requests\Admin\Contract\StatusRequest;
 use App\Http\Requests\Admin\Contract\UpdateRequest;
-use App\Http\Requests\Admin\Contract\DepositTransactionRequest;
-use App\Helpers\VietQRHelper;
 use App\Http\Resources\Admin\ContractDetailResource;
 use App\Http\Resources\Admin\ContractResource;
 use App\Models\Admin;
@@ -20,6 +20,7 @@ use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
+use App\Models\Notification;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\Vehicle;
@@ -30,6 +31,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -91,8 +93,6 @@ class ContractController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền xem hợp đồng của phòng này', 403, null, 403);
             }
 
-
-
             $contracts = $this->queryContracts($validated, $admin)->paginate($validated['per_page'] ?? 20);
 
             return ApiResponse::responseJson(true, 'Danh sách hợp đồng', 200, $this->paginatedResource($contracts), 200);
@@ -114,7 +114,7 @@ class ContractController extends Controller
             }
 
             $contract = DB::transaction(function () use ($validated, $admin, $request, &$uploadedPaths): Contract {
-                $status = (int) ($validated['status'] ?? Contract::STATUS_ACTIVE);
+                $status = (int) ($validated['status'] ?? Contract::STATUS_PENDING_SIGN);
 
                 $room = Room::query()->with('building:id,manager_admin_id,name')->lockForUpdate()->find((int) $validated['room_id']);
 
@@ -138,6 +138,25 @@ class ContractController extends Controller
                 $this->assertRoomCapacity($room, $tenantPayloads);
 
                 $contract = Contract::query()->create($this->payload($validated, $admin, $status));
+
+                // Copy placeholder/fake signature to a contract-specific path
+                $fakeSignaturePath = "upload/signatures/{$contract->contract_code}_fake.png";
+                $fullFakePath = public_path($fakeSignaturePath);
+                $placeholderPath = public_path('upload/signatures/placeholder.png');
+
+                // Ensure signatures directory exists
+                if (!is_dir(dirname($fullFakePath))) {
+                    mkdir(dirname($fullFakePath), 0777, true);
+                }
+
+                if (file_exists($placeholderPath)) {
+                    copy($placeholderPath, $fullFakePath);
+                } else {
+                    file_put_contents($fullFakePath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='));
+                }
+
+                $contract->forceFill(['tenant_signature_url' => $fakeSignaturePath])->save();
+
                 $contractFiles = $this->storeContractFiles($request, $contract, $uploadedPaths);
 
                 if ($contractFiles !== []) {
@@ -148,7 +167,7 @@ class ContractController extends Controller
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
 
                 $depositAmountCents = $this->decimalToCents($contract->deposit_amount);
-                $isDepositPaid = isset($validated['is_deposit_paid']) ? (bool) $validated['is_deposit_paid'] : true;
+                $isDepositPaid = isset($validated['is_deposit_paid']) ? (bool) $validated['is_deposit_paid'] : false;
                 if ($depositAmountCents > 0 && $isDepositPaid) {
                     $contract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
@@ -168,12 +187,17 @@ class ContractController extends Controller
                 return $contract;
             });
 
+            // Dispatch notifications to tenants of the new contract
+            $this->notifyTenantsOfNewContract($contract, $admin->id);
+
             return ApiResponse::responseJson(true, 'Tạo hợp đồng thành công', 201, new ContractDetailResource($contract), 201);
         } catch (HttpResponseException $e) {
             $this->deleteDiskFiles($uploadedPaths);
+
             return $e->getResponse();
         } catch (\Exception $e) {
             $this->deleteDiskFiles($uploadedPaths);
+
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -217,6 +241,7 @@ class ContractController extends Controller
             }
 
             $contractModel = $this->accessibleQuery($admin)->findOrFail($contract);
+            $existingTenantIds = $contractModel->contractTenants()->pluck('tenant_id')->toArray();
 
             $updatedContract = DB::transaction(function () use ($validated, $contractModel, $admin, $request, &$uploadedPaths, &$pathsToDelete): Contract {
                 if ($this->isTerminalContract($contractModel) && $this->hasStructuralUpdate($validated)) {
@@ -285,8 +310,6 @@ class ContractController extends Controller
                     $contractModel->fill($payload)->save();
                 }
 
-
-
                 $pathsToDelete = $this->contractFilesToDelete($contractModel, $validated['delete_contract_files'] ?? []);
                 $nextFiles = collect($contractModel->contract_files ?? [])
                     ->reject(fn (string $path): bool => in_array($path, $pathsToDelete, true))
@@ -322,12 +345,23 @@ class ContractController extends Controller
 
             $this->deleteDiskFiles($pathsToDelete);
 
+            if (array_key_exists('tenants', $validated)) {
+                $tenantPayloads = $this->normalizedTenantPayloads($validated, $contractModel);
+                $currentTenantIds = collect($tenantPayloads)->pluck('tenant_id')->all();
+                $newTenantIds = array_diff($currentTenantIds, $existingTenantIds);
+                if ($newTenantIds !== []) {
+                    $this->notifyNewTenantsAdded($updatedContract, $newTenantIds, $admin->id);
+                }
+            }
+
             return ApiResponse::responseJson(true, 'Cập nhật hợp đồng thành công', 200, new ContractDetailResource($updatedContract), 200);
         } catch (HttpResponseException $e) {
             $this->deleteDiskFiles($uploadedPaths);
+
             return $e->getResponse();
         } catch (\Exception $e) {
             $this->deleteDiskFiles($uploadedPaths);
+
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -475,7 +509,7 @@ class ContractController extends Controller
             $oldContract = $this->accessibleQuery($admin)->findOrFail($contract);
 
             $newContract = DB::transaction(function () use ($validated, $oldContract, $admin, $request, &$uploadedPaths): Contract {
-                
+
                 if (! in_array((int) $oldContract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
                     $this->throwResponse('Chỉ có thể gia hạn hợp đồng đang hiệu lực hoặc đã hết hạn.', 422);
                 }
@@ -487,12 +521,10 @@ class ContractController extends Controller
 
                 $this->assertRoomCanBeUsed($admin, $room);
 
-                
                 $parentContractId = $oldContract->parent_contract_id ?? $oldContract->id;
                 $validated['parent_contract_id'] = $parentContractId;
                 $validated['renew_from_contract_id'] = $oldContract->id;
 
-                
                 $validated['contract_code'] = $this->generateContractCode($room);
 
                 $status = Contract::STATUS_ACTIVE;
@@ -501,13 +533,12 @@ class ContractController extends Controller
                 $tenantPayloads = $this->normalizedTenantPayloads($validated, null);
                 $tenantIds = collect($tenantPayloads)->pluck('tenant_id')->all();
 
-                $this->assertTenantPayloads($admin, $tenantPayloads, $room, null, $status);
+                $this->assertTenantPayloads($admin, $tenantPayloads, $room, $oldContract->id, $status);
 
                 $vehiclePayloads = $this->normalizedVehiclePayloads($validated, true);
-                $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, null, $status);
+                $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, $oldContract->id, $status);
 
-                
-                $oldContractActualEndDate = date('Y-m-d', strtotime($validated['start_date'] . ' - 1 day'));
+                $oldContractActualEndDate = date('Y-m-d', strtotime($validated['start_date'].' - 1 day'));
                 $oldContract->forceFill([
                     'status' => Contract::STATUS_EXPIRED,
                     'actual_end_date' => $oldContractActualEndDate,
@@ -515,7 +546,6 @@ class ContractController extends Controller
 
                 $this->closeActiveContractRows($oldContract, $oldContractActualEndDate);
 
-                
                 $contract = Contract::query()->create($this->payload($validated, $admin, $status));
                 $contractFiles = $this->storeContractFiles($request, $contract, $uploadedPaths);
 
@@ -526,7 +556,6 @@ class ContractController extends Controller
                 $this->syncContractTenants($contract, $tenantPayloads, $admin, true);
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
 
-                
                 $oldBalanceCents = $this->depositBalanceCents($oldContract);
                 $newDepositAmountCents = $this->decimalToCents($contract->deposit_amount);
 
@@ -534,7 +563,6 @@ class ContractController extends Controller
                     $transferAmountCents = min($oldBalanceCents, $newDepositAmountCents);
                     $transferAmount = number_format($transferAmountCents / 100, 2, '.', '');
 
-                    
                     $oldContract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
                         'amount' => $transferAmount,
@@ -544,7 +572,6 @@ class ContractController extends Controller
                         'created_by' => $admin->id,
                     ]);
 
-                    
                     $contract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER,
                         'amount' => $transferAmount,
@@ -554,7 +581,6 @@ class ContractController extends Controller
                         'created_by' => $admin->id,
                     ]);
 
-                    
                     $remainderCents = $newDepositAmountCents - $transferAmountCents;
                     if ($remainderCents > 0) {
                         $remainderAmount = number_format($remainderCents / 100, 2, '.', '');
@@ -568,7 +594,7 @@ class ContractController extends Controller
                         ]);
                     }
                 } elseif ($newDepositAmountCents > 0) {
-                    
+
                     $contract->depositTransactions()->create([
                         'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
                         'amount' => $contract->deposit_amount,
@@ -587,6 +613,9 @@ class ContractController extends Controller
 
                 return $contract;
             });
+
+            // Dispatch notifications to tenants of the renewed contract
+            $this->notifyTenantsOfNewContract($newContract, $admin->id);
 
             return ApiResponse::responseJson(true, 'Gia hạn hợp đồng thành công', 201, new ContractDetailResource($newContract), 201);
         } catch (HttpResponseException $e) {
@@ -613,21 +642,19 @@ class ContractController extends Controller
                 $currentBalanceCents = $this->depositBalanceCents($contractModel);
                 $depositLimitCents = $this->decimalToCents($contractModel->deposit_amount);
 
-                
                 $this->assertDepositTransactions([$validated], $currentBalanceCents, $depositLimitCents);
 
-                
                 return $contractModel->depositTransactions()->create([
                     'transaction_type' => (int) $validated['transaction_type'],
                     'amount' => $this->normalizeDecimal($validated['amount']),
                     'transaction_date' => $validated['transaction_date'],
                     'payment_method' => (int) $validated['payment_method'],
+                    'transaction_reference' => $validated['transaction_reference'] ?? null,
                     'note' => $validated['note'] ?? null,
                     'created_by' => $admin->id,
                 ]);
             });
 
-            
             $contractModel->unsetRelations();
             $this->loadDetailRelations($contractModel);
 
@@ -753,6 +780,7 @@ class ContractController extends Controller
     private function normalizedTenantPayloads(array $validated, ?Contract $contract): array
     {
         $isCreate = $contract === null;
+
         return collect($validated['tenants'] ?? [])
             ->map(fn (array $tenant): array => [
                 'tenant_id' => (int) $tenant['tenant_id'],
@@ -831,8 +859,6 @@ class ContractController extends Controller
             $this->throwResponse('Ngày kết thúc thực tế phải lớn hơn hoặc bằng ngày bắt đầu hợp đồng.', 422);
         }
     }
-
-
 
     private function assertTenantPayloads(Admin $admin, array $tenantPayloads, Room $room, ?int $contractId, int $status): void
     {
@@ -1325,7 +1351,7 @@ class ContractController extends Controller
 
     private function detailColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'contract_files', 'note', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'contract_files', 'note', 'created_by', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url'];
     }
 
     private function listRelations(): array
@@ -1334,6 +1360,8 @@ class ContractController extends Controller
             'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
             'room.building:id,name,slug,manager_admin_id,status',
             'creator:id,username,full_name,email,role,status',
+            'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
+            'contractTenants.tenant:id,full_name,phone,email,identity_number',
         ];
     }
 
@@ -1345,7 +1373,7 @@ class ContractController extends Controller
             'room.roomType:id,name,slug,status',
             'creator:id,username,full_name,email,phone,role,status',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying', 'created_by', 'created_at', 'updated_at'])->orderBy('join_date')->orderBy('id'),
-            'contractTenants.tenant:id,full_name,phone,email,identity_number,status,building_id',
+            'contractTenants.tenant:id,full_name,phone,email,identity_number,identity_date,identity_place,permanent_address,status,building_id',
             'contractVehicles' => fn ($query) => $query->select(['id', 'contract_id', 'vehicle_id', 'started_at', 'ended_at', 'billing_start_date', 'billing_end_date', 'monthly_fee', 'charge_policy', 'is_active', 'created_at', 'updated_at'])->orderByDesc('is_active')->orderBy('started_at')->orderBy('id'),
             'contractVehicles.vehicle:id,tenant_id,vehicle_type,license_plate,brand,color,is_active',
             'contractVehicles.vehicle.tenant:id,full_name,phone,email',
@@ -1367,5 +1395,84 @@ class ContractController extends Controller
     private function deleteBlockingCounts(): array
     {
         return ['depositTransactions', 'roomMovements', 'invoices'];
+    }
+
+    private function notifyTenantsOfNewContract(Contract $contract, $adminId): void
+    {
+        try {
+            $contract->loadMissing(['room.building', 'tenants']);
+            foreach ($contract->tenants as $tenant) {
+                $isMissingInfo = blank($tenant->identity_number)
+                    || blank($tenant->identity_date)
+                    || blank($tenant->identity_place)
+                    || blank($tenant->permanent_address);
+
+                $title = $isMissingInfo ? 'Bổ sung thông tin & ký hợp đồng' : 'Hợp đồng mới được tạo';
+                $content = "Hợp đồng {$contract->contract_code} của bạn tại phòng ".($contract->room?->room_number ?? 'không rõ').' đã được tạo thành công.';
+                if ($isMissingInfo) {
+                    $content .= ' Vui lòng bổ sung thông tin định danh và thực hiện ký hợp đồng.';
+                } else {
+                    $content .= ' Vui lòng thực hiện ký hợp đồng.';
+                }
+
+                $tenantNotification = Notification::create([
+                    'title' => $title,
+                    'content' => $content,
+                    'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => Notification::TARGET_TYPE_TENANT,
+                    'building_id' => $contract->room?->building_id,
+                    'room_id' => $contract->room_id,
+                    'tenant_id' => $tenant->id,
+                    'published_at' => now(),
+                    'status' => Notification::STATUS_SENT,
+                    'created_by' => $adminId,
+                ]);
+
+                // Broadcast real-time notification to the tenant
+                broadcast(new NotificationSent($tenantNotification));
+            }
+        } catch (\Exception $e) {
+            Log::error('Error notifying tenants of new contract: '.$e->getMessage());
+        }
+    }
+
+    private function notifyNewTenantsAdded(Contract $contract, array $tenantIds, $adminId): void
+    {
+        try {
+            $contract->loadMissing(['room.building']);
+            $tenants = Tenant::query()->whereIn('id', $tenantIds)->get();
+            foreach ($tenants as $tenant) {
+                $isMissingInfo = blank($tenant->identity_number) 
+                    || blank($tenant->identity_date) 
+                    || blank($tenant->identity_place) 
+                    || blank($tenant->permanent_address);
+
+                $title = $isMissingInfo ? 'Bổ sung thông tin & ký hợp đồng' : 'Bạn đã được thêm vào hợp đồng';
+                $content = "Bạn đã được thêm vào hợp đồng {$contract->contract_code} tại phòng " . ($contract->room?->room_number ?? 'không rõ') . ".";
+                if ($isMissingInfo) {
+                    $content .= " Vui lòng bổ sung thông tin định danh và thực hiện ký hợp đồng.";
+                } else {
+                    $content .= " Vui lòng thực hiện ký hợp đồng.";
+                }
+
+                $tenantNotification = \App\Models\Notification::create([
+                    'title' => $title,
+                    'content' => $content,
+                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+                    'building_id' => $contract->room?->building_id,
+                    'room_id' => $contract->room_id,
+                    'tenant_id' => $tenant->id,
+                    'published_at' => now(),
+                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'created_by' => $adminId,
+                ]);
+
+                // Broadcast real-time notification to the tenant
+                broadcast(new \App\Events\NotificationSent($tenantNotification));
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error notifying newly added tenants: ' . $e->getMessage());
+        }
     }
 }

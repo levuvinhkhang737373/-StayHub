@@ -145,6 +145,81 @@ class WebSocketService extends ChangeNotifier {
         subscriptions.add(subscription);
       }
 
+      // Bind to ContractDepositPaid event on admin channel
+      final depositSubscription = channel.bind('ContractDepositPaid').listen((event) {
+        debugPrint('WS Event: ContractDepositPaid (Admin) -> ${event.data}');
+        Map<String, dynamic>? parsedData;
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            if (rawData is String) {
+              parsedData = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              parsedData = Map<String, dynamic>.from(rawData);
+            }
+          }
+        } catch (e) {
+          debugPrint('WS Error decoding JSON: $e');
+        }
+
+        // Broadcast event locally
+        _notificationStreamController.add({
+          'type': 'admin_contract_deposit_paid',
+          'data': parsedData ?? event.data,
+        });
+      });
+      subscriptions.add(depositSubscription);
+
+      // Bind to NotificationSent event on admin channel
+      final adminNotificationSubscription = channel.bind('NotificationSent').listen((event) {
+        debugPrint('WS Event: NotificationSent (Admin) -> ${event.data}');
+        Map<String, dynamic>? parsedData;
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            if (rawData is String) {
+              parsedData = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              parsedData = Map<String, dynamic>.from(rawData);
+            }
+          }
+        } catch (e) {
+          debugPrint('WS Error decoding JSON: $e');
+        }
+
+        // Broadcast event locally
+        _notificationStreamController.add({
+          'type': 'admin_notification_sent',
+          'data': parsedData ?? event.data,
+        });
+      });
+      subscriptions.add(adminNotificationSubscription);
+
+      // Bind to InvoicePaid event on admin channel
+      final adminInvoicePaidSubscription = channel.bind('InvoicePaid').listen((event) {
+        debugPrint('WS Event: InvoicePaid (Admin) -> ${event.data}');
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            Map<String, dynamic> decoded;
+            if (rawData is String) {
+              decoded = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              decoded = Map<String, dynamic>.from(rawData);
+            } else {
+              throw Exception('Unexpected data format');
+            }
+            _notificationStreamController.add({
+              'type': 'admin_invoice_paid',
+              'data': decoded['invoice'] ?? decoded,
+            });
+          }
+        } catch (e) {
+          debugPrint('WS Error handling InvoicePaid (Admin): $e');
+        }
+      });
+      subscriptions.add(adminInvoicePaidSubscription);
+
       _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
       debugPrint('WS: Subscribed to private channel $channelName successfully!');
@@ -190,8 +265,10 @@ class WebSocketService extends ChangeNotifier {
         successSubscription?.cancel();
       });
 
+      final List<StreamSubscription> subscriptions = [];
+
       // Bind to 'NotificationSent' event broadcast by backend
-      final subscription = channel.bind('NotificationSent').listen((event) {
+      final notificationSub = channel.bind('NotificationSent').listen((event) {
         debugPrint('WS Event: NotificationSent -> ${event.data}');
         try {
           final rawData = event.data;
@@ -205,15 +282,99 @@ class WebSocketService extends ChangeNotifier {
               throw Exception('Unexpected data format: ${rawData.runtimeType}');
             }
             if (decoded['notification'] != null) {
-              _onTenantNotificationCallback!(decoded['notification'] as Map<String, dynamic>);
+              final notificationData = decoded['notification'] as Map<String, dynamic>;
+              _onTenantNotificationCallback!(notificationData);
+              
+              // Broadcast event locally to other screens
+              _notificationStreamController.add({
+                'type': 'notification_sent',
+                'data': notificationData,
+              });
             }
           }
         } catch (e) {
           debugPrint('WS Error handling NotificationSent: $e');
         }
       });
+      subscriptions.add(notificationSub);
 
-      _eventSubscriptions[channelName] = subscription;
+      // Bind to 'ContractDepositPaid' event broadcast by backend
+      final depositSub = channel.bind('ContractDepositPaid').listen((event) {
+        debugPrint('WS Event: ContractDepositPaid -> ${event.data}');
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            Map<String, dynamic> decoded;
+            if (rawData is String) {
+              decoded = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              decoded = Map<String, dynamic>.from(rawData);
+            } else {
+              throw Exception('Unexpected data format: ${rawData.runtimeType}');
+            }
+            // Broadcast event locally
+            _notificationStreamController.add({
+              'type': 'contract_deposit_paid',
+              'data': decoded['contract'] ?? decoded,
+            });
+          }
+        } catch (e) {
+          debugPrint('WS Error handling ContractDepositPaid: $e');
+        }
+      });
+      subscriptions.add(depositSub);
+
+      // Bind to InvoicePaid event on tenant channel
+      final invoicePaidSub = channel.bind('InvoicePaid').listen((event) {
+        debugPrint('WS Event: InvoicePaid -> ${event.data}');
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            Map<String, dynamic> decoded;
+            if (rawData is String) {
+              decoded = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              decoded = Map<String, dynamic>.from(rawData);
+            } else {
+              throw Exception('Unexpected data format');
+            }
+            _notificationStreamController.add({
+              'type': 'invoice_paid',
+              'data': decoded['invoice'] ?? decoded,
+            });
+          }
+        } catch (e) {
+          debugPrint('WS Error handling InvoicePaid: $e');
+        }
+      });
+      subscriptions.add(invoicePaidSub);
+
+      // Bind to InvoiceIssued event on tenant channel
+      final invoiceIssuedSub = channel.bind('InvoiceIssued').listen((event) {
+        debugPrint('WS Event: InvoiceIssued -> ${event.data}');
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            Map<String, dynamic> decoded;
+            if (rawData is String) {
+              decoded = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              decoded = Map<String, dynamic>.from(rawData);
+            } else {
+              throw Exception('Unexpected data format');
+            }
+            _notificationStreamController.add({
+              'type': 'invoice_issued',
+              'data': decoded['invoice'] ?? decoded,
+            });
+          }
+        } catch (e) {
+          debugPrint('WS Error handling InvoiceIssued: $e');
+        }
+      });
+      subscriptions.add(invoiceIssuedSub);
+
+      _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
       debugPrint('WS: Subscribed to private channel $channelName successfully!');
     } catch (e) {

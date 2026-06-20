@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\NotificationSent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,13 +13,17 @@ class Contract extends Model
 {
     use HasFactory;
 
-
+    public const STATUS_PENDING_SIGN = 0;
     public const STATUS_ACTIVE = 1;
+
     public const STATUS_EXPIRED = 2;
+
     public const STATUS_LIQUIDATED = 3;
+
     public const STATUS_CANCELLED = 4;
 
     public const STATUS_LABELS = [
+        self::STATUS_PENDING_SIGN => 'Chờ ký',
         self::STATUS_ACTIVE => 'Đang hiệu lực',
         self::STATUS_EXPIRED => 'Hết hạn',
         self::STATUS_LIQUIDATED => 'Đã thanh lý',
@@ -26,8 +31,11 @@ class Contract extends Model
     ];
 
     public const PAYMENT_STATUS_PENDING = 1;
+
     public const PAYMENT_STATUS_SUCCESS = 2;
+
     public const PAYMENT_STATUS_CANCELLED = 3;
+
     public const PAYMENT_STATUS_EXPIRED = 4;
 
     public const PAYMENT_STATUS_LABELS = [
@@ -37,21 +45,54 @@ class Contract extends Model
         self::PAYMENT_STATUS_EXPIRED => 'Hết hạn',
     ];
 
-    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'parent_contract_id', 'renew_from_contract_id'];
+    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'parent_contract_id', 'renew_from_contract_id', 'tenant_signed_at', 'tenant_signature_url'];
 
     protected function casts(): array
     {
-        return ['start_date' => 'date', 'end_date' => 'date', 'actual_end_date' => 'date', 'billing_cycle_day' => 'integer', 'room_price' => 'decimal:2', 'deposit_amount' => 'decimal:2', 'status' => 'integer', 'payment_status' => 'integer', 'contract_files' => 'array', 'parent_contract_id' => 'integer', 'renew_from_contract_id' => 'integer'];
+        return ['start_date' => 'date', 'end_date' => 'date', 'actual_end_date' => 'date', 'billing_cycle_day' => 'integer', 'room_price' => 'decimal:2', 'deposit_amount' => 'decimal:2', 'status' => 'integer', 'payment_status' => 'integer', 'contract_files' => 'array', 'parent_contract_id' => 'integer', 'renew_from_contract_id' => 'integer', 'tenant_signed_at' => 'datetime'];
     }
 
     protected static function booted()
     {
         static::creating(function ($contract) {
+            if ($contract->payment_status !== null) {
+                return;
+            }
+
             $required = (float) $contract->deposit_amount;
             if ($required <= 0) {
                 $contract->payment_status = self::PAYMENT_STATUS_SUCCESS;
             } else {
                 $contract->payment_status = self::PAYMENT_STATUS_PENDING;
+            }
+        });
+
+        static::updated(function ($contract) {
+            if ($contract->wasChanged('status') && (int) $contract->status === self::STATUS_EXPIRED) {
+                $contract->loadMissing('room');
+
+                // Lấy danh sách khách thuê đang ở của hợp đồng
+                $activeTenants = $contract->contractTenants()
+                    ->where('is_staying', true)
+                    ->get();
+
+                foreach ($activeTenants as $contractTenant) {
+                    $tenantNotification = Notification::create([
+                        'title' => 'Hợp đồng hết hạn',
+                        'content' => "Hợp đồng {$contract->contract_code} của bạn tại phòng ".($contract->room?->room_number ?? 'không rõ').' đã hết thời hạn.',
+                        'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                        'target_type' => Notification::TARGET_TYPE_TENANT,
+                        'building_id' => $contract->room?->building_id,
+                        'room_id' => $contract->room_id,
+                        'tenant_id' => $contractTenant->tenant_id,
+                        'published_at' => now(),
+                        'status' => Notification::STATUS_SENT,
+                        'created_by' => null,
+                    ]);
+
+                    // Bắn realtime thông báo cho khách thuê qua Reverb
+                    broadcast(new NotificationSent($tenantNotification));
+                }
             }
         });
     }
@@ -88,8 +129,6 @@ class Contract extends Model
     {
         return $this->belongsTo(Room::class);
     }
-
-
 
     public function creator(): BelongsTo
     {
@@ -133,8 +172,8 @@ class Contract extends Model
 
     public function getDepositBalanceAttribute(): string
     {
-        $transactions = $this->relationLoaded('depositTransactions') 
-            ? $this->depositTransactions 
+        $transactions = $this->relationLoaded('depositTransactions')
+            ? $this->depositTransactions
             : $this->depositTransactions()->get();
 
         $balance = $transactions->reduce(function (float $balance, ContractDepositTransaction $transaction): float {
@@ -142,7 +181,7 @@ class Contract extends Model
 
             if (in_array((int) $transaction->transaction_type, [
                 ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
-                ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER
+                ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER,
             ], true)) {
                 return $balance + $amount;
             }
@@ -159,6 +198,7 @@ class Contract extends Model
         if ($required <= 0) {
             return true;
         }
+
         return (float) $this->deposit_balance >= $required;
     }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'config/app_config.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/dashboard_controller.dart';
 import 'controllers/facility_controller.dart';
@@ -11,6 +12,7 @@ import 'controllers/maintenance_controller.dart';
 import 'controllers/contract_controller.dart';
 import 'controllers/notification_controller.dart';
 import 'services/websocket_service.dart';
+import 'controllers/meter_reading_controller.dart';
 
 import 'views/auth/login_screen.dart';
 import 'views/dashboard/dashboard_screen.dart';
@@ -32,8 +34,9 @@ import 'views/tenant/tenant_chat_screen.dart';
 import 'views/tenant/tenant_contract_screen.dart';
 import 'views/tenant/tenant_utility_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppConfig.checkServerConnection();
   runApp(
     MultiProvider(
       providers: [
@@ -48,6 +51,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => ContractController()),
         ChangeNotifierProvider(create: (_) => NotificationController()),
         ChangeNotifierProvider(create: (_) => WebSocketService()),
+        ChangeNotifierProvider(create: (_) => MeterReadingController()),
       ],
       child: const MyApp(),
     ),

@@ -25,6 +25,8 @@ class TenantAuthResource extends JsonResource
             'building_name' => $this->room?->building?->name ?? 'StayHub Building',
             'identity_type' => $this->identity_type,
             'identity_number' => $this->identity_number,
+            'identity_date' => $this->identity_date ? $this->identity_date->toDateString() : null,
+            'identity_place' => $this->identity_place,
             'avatar_url' => $this->avatar_url,
         ];
     }

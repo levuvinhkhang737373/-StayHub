@@ -59,6 +59,7 @@ export interface AdminMeterFormValues {
   status: number
   replaced_by_meter_id: string
   note: string
+  final_reading?: string
 }
 
 export type AdminMeterFormErrors = Partial<Record<keyof AdminMeterFormValues, string>>
