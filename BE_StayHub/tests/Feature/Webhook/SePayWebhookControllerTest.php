@@ -101,7 +101,7 @@ class SePayWebhookControllerTest extends TestCase
             'code' => 'FT12345678',
         ];
 
-        $response = $this->postJson('/api/sepay-webhook', $payload, [
+        $response = $this->postJson('/api/v1/sepay-webhook', $payload, [
             'Authorization' => 'Apikey test-token-123'
         ]);
 
@@ -137,7 +137,7 @@ class SePayWebhookControllerTest extends TestCase
             'code' => 'FT12345678',
         ];
 
-        $response = $this->postJson('/api/sepay-webhook', $payload, [
+        $response = $this->postJson('/api/v1/sepay-webhook', $payload, [
             'Authorization' => 'Apikey wrong-token'
         ]);
 
@@ -157,7 +157,7 @@ class SePayWebhookControllerTest extends TestCase
             'code' => 'FT12345678',
         ];
 
-        $response = $this->postJson('/api/sepay-webhook', $payload, [
+        $response = $this->postJson('/api/v1/sepay-webhook', $payload, [
             'Authorization' => 'Apikey test-token-123'
         ]);
 
@@ -192,7 +192,7 @@ class SePayWebhookControllerTest extends TestCase
             'code' => 'FT12345678',
         ];
 
-        $response = $this->postJson('/api/sepay-webhook', $payload, [
+        $response = $this->postJson('/api/v1/sepay-webhook', $payload, [
             'Authorization' => 'Apikey test-token-123'
         ]);
 
@@ -218,7 +218,7 @@ class SePayWebhookControllerTest extends TestCase
             'content' => 'SEPAY TEST WEBHOOK',
         ];
 
-        $response = $this->postJson('/api/sepay-webhook', $payload, [
+        $response = $this->postJson('/api/v1/sepay-webhook', $payload, [
             'Authorization' => 'Apikey test-token-123'
         ]);
 

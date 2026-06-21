@@ -21,7 +21,7 @@ class AppConfig {
     return useTunnel ? tunnelOrigin : localOrigin;
   }
 
-  static String get apiUrl => '$apiOrigin/api';
+  static String get apiUrl => '$apiOrigin/api/v1';
 
   static String get reverbHost {
     if (useTunnel) {
@@ -36,7 +36,7 @@ class AppConfig {
 
   static int get reverbPort => useTunnel ? 443 : 8080;
   static const String reverbAppKey = 'rhtxfafogu4wbww3eufp';
-  
+
   // Connect timeout in milliseconds
   static const int connectTimeout = 15000;
   // Receive timeout in milliseconds

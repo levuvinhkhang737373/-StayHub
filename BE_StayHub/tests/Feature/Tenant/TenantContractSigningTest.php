@@ -141,7 +141,7 @@ class TenantContractSigningTest extends TestCase
         ];
 
         $response = $this->actingAs($this->tenant, 'tenant')
-            ->postJson("/api/tenant/contracts/{$this->contract->id}/sign", $payload);
+            ->postJson("/api/v1/tenant/contracts/{$this->contract->id}/sign", $payload);
 
         $response->assertStatus(200);
         $response->assertJsonPath('status', true);
@@ -195,7 +195,7 @@ class TenantContractSigningTest extends TestCase
         ];
 
         $response = $this->actingAs($this->tenant, 'tenant')
-            ->postJson("/api/tenant/contracts/{$this->contract->id}/sign", $payload);
+            ->postJson("/api/v1/tenant/contracts/{$this->contract->id}/sign", $payload);
 
         $response->assertStatus(400);
         $response->assertJsonPath('status', false);
@@ -217,7 +217,7 @@ class TenantContractSigningTest extends TestCase
         ];
 
         // Access without authentication
-        $response = $this->postJson("/api/tenant/contracts/{$this->contract->id}/sign", $payload);
+        $response = $this->postJson("/api/v1/tenant/contracts/{$this->contract->id}/sign", $payload);
         $response->assertStatus(401);
     }
 
@@ -233,7 +233,7 @@ class TenantContractSigningTest extends TestCase
         ];
 
         $response = $this->actingAs($this->tenant, 'tenant')
-            ->patchJson("/api/tenant/profile", $payload);
+            ->patchJson("/api/v1/tenant/profile", $payload);
 
         $response->assertStatus(200);
         $response->assertJsonPath('status', true);
@@ -256,7 +256,7 @@ class TenantContractSigningTest extends TestCase
         ];
 
         $response = $this->actingAs($this->tenant, 'tenant')
-            ->patchJson("/api/tenant/profile", $payload);
+            ->patchJson("/api/v1/tenant/profile", $payload);
 
         $response->assertStatus(422);
         $response->assertJsonPath('status', false);

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, BedDouble, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, BedDouble, ChevronLeft, ChevronRight, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
 import { RoomTypeModal } from './room-type-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -10,14 +10,10 @@ import {
   fetchAdminRoomTypes,
   updateAdminRoomTypeStatus,
 } from '../services/room-types.service'
-import type { AdminRoomTypeResource } from '../types/room-type-api.model'
+import type { AdminRoomTypeResource, AdminPaginationMeta } from '../types/room-type-api.model'
 import type { RoomTypeFormValues } from '../validations/room-type.validation'
 
-function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
-  if (!result) return []
-  if (Array.isArray(result)) return result
-  return result.data || []
-}
+
 
 const defaultForm: RoomTypeFormValues = {
   name: '',
@@ -42,6 +38,10 @@ export function RoomTypesScreen() {
   const [keyword, setKeyword] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [roomTypes, setRoomTypes] = useState<AdminRoomTypeResource[]>([])
+  const [allRoomTypes, setAllRoomTypes] = useState<AdminRoomTypeResource[]>([])
+  const [perPage, setPerPage] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
   const [editingRoomTypeId, setEditingRoomTypeId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [form, setForm] = useState<RoomTypeFormValues>(defaultForm)
@@ -54,6 +54,16 @@ export function RoomTypesScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
 
+  const loadAllRoomTypes = useCallback(async () => {
+    try {
+      const response = await fetchAdminRoomTypes({ per_page: 1000 })
+      const data = response.result?.data ?? []
+      setAllRoomTypes(data)
+    } catch (error) {
+      console.error('Failed to load all room types:', error)
+    }
+  }, [])
+
   const loadRoomTypes = useCallback(async () => {
     setIsLoading(true)
     setErrorMessage(null)
@@ -62,17 +72,30 @@ export function RoomTypesScreen() {
       const roomTypeResponse = await fetchAdminRoomTypes({
         keyword: keyword.trim() || undefined,
         status: selectedStatus ? Number(selectedStatus) : undefined,
-        per_page: 100,
+        page: currentPage,
+        per_page: perPage,
       })
 
-      setRoomTypes(getResourceList(roomTypeResponse.result))
+      const result = roomTypeResponse.result
+      const data = result?.data ?? []
+      const meta = result?.meta ?? null
+
+      setRoomTypes(data)
+      setPaginationMeta(meta)
+
+      if (meta?.last_page && currentPage > meta.last_page) {
+        setCurrentPage(meta.last_page)
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách loại phòng.')
     } finally {
       setIsLoading(false)
     }
-  }, [keyword, selectedStatus])
+  }, [keyword, selectedStatus, currentPage, perPage])
 
+  useEffect(() => {
+    void loadAllRoomTypes()
+  }, [loadAllRoomTypes])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -82,8 +105,12 @@ export function RoomTypesScreen() {
     return () => window.clearTimeout(timer)
   }, [loadRoomTypes])
 
-  const activeRoomTypes = useMemo(() => roomTypes.filter((item) => Number(item.status) === 1).length, [roomTypes])
-  const totalRooms = useMemo(() => roomTypes.reduce((sum, item) => sum + Number(item.rooms_count || 0), 0), [roomTypes])
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [keyword, selectedStatus])
+
+  const activeRoomTypes = useMemo(() => allRoomTypes.filter((item) => Number(item.status) === 1).length, [allRoomTypes])
+  const totalRooms = useMemo(() => allRoomTypes.reduce((sum, item) => sum + Number(item.rooms_count || 0), 0), [allRoomTypes])
   const openCreateForm = () => {
     if (editingRoomTypeId !== null) {
       setForm({ ...defaultForm })
@@ -146,6 +173,7 @@ export function RoomTypesScreen() {
     setForm({ ...defaultForm })
     setSuccessMessage(editingRoomTypeId ? 'Cập nhật loại phòng thành công.' : 'Tạo loại phòng thành công.')
     void loadRoomTypes()
+    void loadAllRoomTypes()
   }
 
   const toggleRoomTypeStatus = async (roomType: AdminRoomTypeResource) => {
@@ -158,6 +186,7 @@ export function RoomTypesScreen() {
       await updateAdminRoomTypeStatus(roomType.id, nextStatus)
       setSuccessMessage(`${nextStatus === 1 ? 'Kích hoạt' : 'Ngừng hoạt động'} loại phòng thành công.`)
       await loadRoomTypes()
+      await loadAllRoomTypes()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái loại phòng.')
     } finally {
@@ -173,6 +202,7 @@ export function RoomTypesScreen() {
       await deleteAdminRoomType(roomType.id)
       setSuccessMessage('Xóa loại phòng thành công.')
       await loadRoomTypes()
+      await loadAllRoomTypes()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa loại phòng.')
     }
@@ -181,7 +211,20 @@ export function RoomTypesScreen() {
   const clearFilters = () => {
     setKeyword('')
     setSelectedStatus('')
+    setCurrentPage(1)
   }
+
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, paginationMeta?.last_page ?? currentPage))
+  const totalPages = Math.max(1, paginationMeta?.last_page ?? (roomTypes.length >= perPage ? currentPage + 1 : currentPage))
+  const paginationStart = paginationMeta?.from ?? (roomTypes.length === 0 ? 0 : (safeCurrentPage - 1) * perPage + 1)
+  const paginationEnd = paginationMeta?.to ?? (roomTypes.length === 0 ? 0 : (safeCurrentPage - 1) * perPage + roomTypes.length)
+
+  const visiblePages = useMemo(() => {
+    const pages = new Set<number>([1, totalPages, safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1])
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= totalPages)
+      .sort((a, b) => a - b)
+  }, [safeCurrentPage, totalPages])
 
   return (
     <>
@@ -205,7 +248,7 @@ export function RoomTypesScreen() {
             </div>
 
             <div className="relative mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <MetricCard label="Tổng loại" value={roomTypes.length} tone="neutral" />
+              <MetricCard label="Tổng loại" value={allRoomTypes.length} tone="neutral" />
               <MetricCard label="Hoạt động" value={activeRoomTypes} tone="emerald" />
               <MetricCard label="Số lượng phòng đã áp dụng" value={totalRooms} tone="amber" />
             </div>
@@ -297,6 +340,38 @@ export function RoomTypesScreen() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+              <p className="text-xs font-black text-[#6f6254]">
+                Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{paginationMeta?.total ?? allRoomTypes.length}</span> loại phòng
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="w-full sm:w-36">
+                  <AdminSelect value={perPage} options={[{ value: 5, label: '5 dòng', tone: 'default' as const }, { value: 10, label: '10 dòng', tone: 'default' as const }, { value: 20, label: '20 dòng', tone: 'default' as const }, { value: 50, label: '50 dòng', tone: 'default' as const }]} onChange={(nextValue) => setPerPage(Number(nextValue))} menuPlacement="top" />
+                </div>
+                <div className="flex items-center justify-end gap-1.5">
+                  <button type="button" disabled={safeCurrentPage <= 1} onClick={() => setCurrentPage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  {visiblePages.map((page, index) => {
+                    const previousPage = visiblePages[index - 1]
+                    const hasGap = previousPage && page - previousPage > 1
+
+                    return (
+                      <Fragment key={page}>
+                        {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
+                        <button type="button" onClick={() => setCurrentPage(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === safeCurrentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')}>
+                          {page}
+                        </button>
+                      </Fragment>
+                    )
+                  })}
+                  <button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => setCurrentPage(safeCurrentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
 

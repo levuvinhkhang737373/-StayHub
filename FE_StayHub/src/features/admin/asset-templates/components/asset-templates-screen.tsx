@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Boxes, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Boxes, ChevronLeft, ChevronRight, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
 import { AssetTemplateModal } from './asset-template-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -10,14 +10,10 @@ import {
   fetchAdminAssetTemplates,
   updateAdminAssetTemplateStatus,
 } from '../services/asset-templates.service'
-import type { AdminAssetTemplateResource } from '../types/asset-template-api.model'
+import type { AdminAssetTemplateResource, AdminPaginationMeta } from '../types/asset-template-api.model'
 import type { AssetTemplateFormValues } from '../validations/asset-template.validation'
 
-function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
-  if (!result) return []
-  if (Array.isArray(result)) return result
-  return result.data || []
-}
+
 
 const defaultForm: AssetTemplateFormValues = {
   name: '',
@@ -49,6 +45,10 @@ export function AssetTemplatesScreen() {
   const [keyword, setKeyword] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [assetTemplates, setAssetTemplates] = useState<AdminAssetTemplateResource[]>([])
+  const [allAssetTemplates, setAllAssetTemplates] = useState<AdminAssetTemplateResource[]>([])
+  const [perPage, setPerPage] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
   const [editingAssetTemplateId, setEditingAssetTemplateId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [form, setForm] = useState<AssetTemplateFormValues>(defaultForm)
@@ -61,6 +61,16 @@ export function AssetTemplatesScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null)
 
+  const loadAllAssetTemplates = useCallback(async () => {
+    try {
+      const response = await fetchAdminAssetTemplates({ per_page: 1000 })
+      const data = response.result?.data ?? []
+      setAllAssetTemplates(data)
+    } catch (error) {
+      console.error('Failed to load all asset templates:', error)
+    }
+  }, [])
+
   const loadAssetTemplates = useCallback(async () => {
     setIsLoading(true)
     setErrorMessage(null)
@@ -69,16 +79,30 @@ export function AssetTemplatesScreen() {
       const assetTemplateResponse = await fetchAdminAssetTemplates({
         keyword: keyword.trim() || undefined,
         status: selectedStatus ? Number(selectedStatus) : undefined,
-        per_page: 100,
+        page: currentPage,
+        per_page: perPage,
       })
 
-      setAssetTemplates(getResourceList(assetTemplateResponse.result))
+      const result = assetTemplateResponse.result
+      const data = result?.data ?? []
+      const meta = result?.meta ?? null
+
+      setAssetTemplates(data)
+      setPaginationMeta(meta)
+
+      if (meta?.last_page && currentPage > meta.last_page) {
+        setCurrentPage(meta.last_page)
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách mẫu tài sản.')
     } finally {
       setIsLoading(false)
     }
-  }, [keyword, selectedStatus])
+  }, [keyword, selectedStatus, currentPage, perPage])
+
+  useEffect(() => {
+    void loadAllAssetTemplates()
+  }, [loadAllAssetTemplates])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -88,7 +112,11 @@ export function AssetTemplatesScreen() {
     return () => window.clearTimeout(timer)
   }, [loadAssetTemplates])
 
-  const activeAssetTemplates = useMemo(() => assetTemplates.filter((item) => Number(item.status) === 1).length, [assetTemplates])
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [keyword, selectedStatus])
+
+  const activeAssetTemplates = useMemo(() => allAssetTemplates.filter((item) => Number(item.status) === 1).length, [allAssetTemplates])
 
   const openCreateForm = () => {
     if (editingAssetTemplateId !== null) {
@@ -153,6 +181,7 @@ export function AssetTemplatesScreen() {
     setForm({ ...defaultForm })
     setSuccessMessage(editingAssetTemplateId ? 'Cập nhật mẫu tài sản thành công.' : 'Tạo mẫu tài sản thành công.')
     void loadAssetTemplates()
+    void loadAllAssetTemplates()
   }
 
   const toggleAssetTemplateStatus = async (assetTemplate: AdminAssetTemplateResource) => {
@@ -167,6 +196,7 @@ export function AssetTemplatesScreen() {
       await updateAdminAssetTemplateStatus(assetTemplate.id, nextStatus)
       setSuccessMessage(`${nextStatus === 1 ? 'Kích hoạt' : 'Ngừng hoạt động'} mẫu tài sản thành công.`)
       await loadAssetTemplates()
+      await loadAllAssetTemplates()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái mẫu tài sản.')
     } finally {
@@ -182,6 +212,7 @@ export function AssetTemplatesScreen() {
       await deleteAdminAssetTemplate(assetTemplate.id)
       setSuccessMessage('Xóa mẫu tài sản thành công.')
       await loadAssetTemplates()
+      await loadAllAssetTemplates()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa mẫu tài sản.')
     }
@@ -190,7 +221,20 @@ export function AssetTemplatesScreen() {
   const clearFilters = () => {
     setKeyword('')
     setSelectedStatus('')
+    setCurrentPage(1)
   }
+
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, paginationMeta?.last_page ?? currentPage))
+  const totalPages = Math.max(1, paginationMeta?.last_page ?? (assetTemplates.length >= perPage ? currentPage + 1 : currentPage))
+  const paginationStart = paginationMeta?.from ?? (assetTemplates.length === 0 ? 0 : (safeCurrentPage - 1) * perPage + 1)
+  const paginationEnd = paginationMeta?.to ?? (assetTemplates.length === 0 ? 0 : (safeCurrentPage - 1) * perPage + assetTemplates.length)
+
+  const visiblePages = useMemo(() => {
+    const pages = new Set<number>([1, totalPages, safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1])
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= totalPages)
+      .sort((a, b) => a - b)
+  }, [safeCurrentPage, totalPages])
 
   return (
     <>
@@ -214,7 +258,7 @@ export function AssetTemplatesScreen() {
             </div>
 
             <div className="relative mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <MetricCard label="Tổng mẫu" value={assetTemplates.length} tone="neutral" />
+              <MetricCard label="Tổng mẫu" value={allAssetTemplates.length} tone="neutral" />
               <MetricCard label="Hoạt động" value={activeAssetTemplates} tone="emerald" />
             </div>
           </div>
@@ -307,6 +351,38 @@ export function AssetTemplatesScreen() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+              <p className="text-xs font-black text-[#6f6254]">
+                Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{paginationMeta?.total ?? allAssetTemplates.length}</span> mẫu tài sản
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="w-full sm:w-36">
+                  <AdminSelect value={perPage} options={[{ value: 5, label: '5 dòng', tone: 'default' as const }, { value: 10, label: '10 dòng', tone: 'default' as const }, { value: 20, label: '20 dòng', tone: 'default' as const }, { value: 50, label: '50 dòng', tone: 'default' as const }]} onChange={(nextValue) => setPerPage(Number(nextValue))} menuPlacement="top" />
+                </div>
+                <div className="flex items-center justify-end gap-1.5">
+                  <button type="button" disabled={safeCurrentPage <= 1} onClick={() => setCurrentPage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  {visiblePages.map((page, index) => {
+                    const previousPage = visiblePages[index - 1]
+                    const hasGap = previousPage && page - previousPage > 1
+
+                    return (
+                      <Fragment key={page}>
+                        {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
+                        <button type="button" onClick={() => setCurrentPage(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === safeCurrentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')}>
+                          {page}
+                        </button>
+                      </Fragment>
+                    )
+                  })}
+                  <button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => setCurrentPage(safeCurrentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
 

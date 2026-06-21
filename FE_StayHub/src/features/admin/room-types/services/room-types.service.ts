@@ -1,5 +1,5 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
-import type { AdminRoomTypePayload, AdminRoomTypeResource } from '../types/room-type-api.model'
+import type { AdminRoomTypePayload, AdminRoomTypeResource, AdminPaginator } from '../types/room-type-api.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
   const query = new URLSearchParams()
@@ -21,10 +21,11 @@ export async function fetchAdminRoomTypes(
     only_global?: boolean
     created_by_me?: boolean
     per_page?: number
+    page?: number
   } = {},
 ) {
-  return apiRequest<AdminRoomTypeResource[]>({
-    url: `admin/room-types${buildQuery({ per_page: 100, ...params })}`,
+  return apiRequest<AdminPaginator<AdminRoomTypeResource>>({
+    url: `admin/room-types${buildQuery({ per_page: 10, ...params })}`,
     method: 'GET',
   })
 }

@@ -25,21 +25,21 @@ export async function fetchAdminRooms(
   } = {},
 ) {
   return apiRequest<AdminRoomResource[]>({
-    url: `admin/room${buildQuery({ per_page: 100, ...params })}`,
+    url: `admin/rooms${buildQuery({ per_page: 100, ...params })}`,
     method: 'GET',
   })
 }
 
 export async function fetchAdminRoomDetail(roomTypeId: number) {
   return apiRequest<AdminRoomResource>({
-    url: `admin/room/${roomTypeId}`,
+    url: `admin/rooms/${roomTypeId}`,
     method: 'GET',
   })
 }
 
 export async function createAdminRoom(payload: FormData) {
   return apiRequest<any>({
-    url: 'admin/room',
+    url: 'admin/rooms',
     method: 'POST',
     data: payload,
     headers: {
@@ -50,7 +50,7 @@ export async function createAdminRoom(payload: FormData) {
 
 export async function updateAdminRoom(roomTypeId: number, payload: FormData) {
   return apiRequest<AdminRoomResource>({
-    url: `admin/room/${roomTypeId}`,
+    url: `admin/rooms/${roomTypeId}`,
     // CHÚ Ý: Đổi từ 'PUT' thành 'POST' khi gửi FormData chứa File (Laravel yêu cầu)
     method: 'POST', 
     data: payload,
@@ -61,7 +61,7 @@ export async function updateAdminRoom(roomTypeId: number, payload: FormData) {
 }
 export async function updateAdminRoomStatus(roomTypeId: number, status?: number) {
   return apiRequest<AdminRoomResource>({
-    url: `admin/room/${roomTypeId}/status`,
+    url: `admin/rooms/${roomTypeId}/status`,
     method: 'PATCH',
     data: status !== undefined ? { status } : undefined
   })
@@ -69,7 +69,7 @@ export async function updateAdminRoomStatus(roomTypeId: number, status?: number)
 
 export async function deleteAdminRoom(roomTypeId: number) {
   return apiRequest<null>({
-    url: `admin/room/${roomTypeId}`,
+    url: `admin/rooms/${roomTypeId}`,
     method: 'DELETE',
   })
 }
@@ -83,18 +83,25 @@ export async function fetchBuilding()
 }
 export async function fetchRoomType()
 {
-  return apiRequest<RoomTypeResource[]>({
-    url:'admin/room-types',
-    method:'GET'
+  const response = await apiRequest<any>({
+    url: 'admin/room-types?per_page=1000',
+    method: 'GET'
   });
+  return {
+    ...response,
+    result: (response.result?.data ?? response.result ?? []) as RoomTypeResource[]
+  };
 }
 
 export async function fetchAssets()
 {
-  return apiRequest<AssetResource[]>({
-    url:'admin/asset-templates',
-    method:'GET'
+  const response = await apiRequest<any>({
+    url: 'admin/asset-templates?per_page=1000',
+    method: 'GET'
   });
+  return {
+    ...response,
+    result: (response.result?.data ?? response.result ?? []) as AssetResource[]
+  };
 }
-
 

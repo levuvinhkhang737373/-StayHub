@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useMemo, Fragment } from 'react'
 import {
   CheckCircle,
   CreditCard,
@@ -11,6 +11,8 @@ import {
   Wifi,
   Copy,
   Camera,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { apiRequest } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -34,7 +36,7 @@ import axios from 'axios'
 import { appConfig } from '../../../../shared/config/app-config'
 
 if (typeof window !== 'undefined') {
-  ;(window as any).Pusher = Pusher
+  ; (window as any).Pusher = Pusher
 }
 
 export function TenantInvoicesScreen() {
@@ -45,7 +47,16 @@ export function TenantInvoicesScreen() {
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
-  
+
+  const totalPages = paginationMeta?.last_page ?? 1
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages))
+  const visiblePages = useMemo(() => {
+    const pages = new Set<number>([1, totalPages, safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1])
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= totalPages)
+      .sort((a, b) => a - b)
+  }, [safeCurrentPage, totalPages])
+
   const [detailInvoice, setDetailInvoice] = useState<TenantInvoiceResource | null>(null)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isProofOpen, setIsProofOpen] = useState(false)
@@ -108,7 +119,7 @@ export function TenantInvoicesScreen() {
 
     const REVERB_KEY = 'rhtxfafogu4wbww3eufp'
     const REVERB_HOST = window.location.hostname
-    
+
     let REVERB_PORT = 8009
     if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       REVERB_PORT = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80)
@@ -147,13 +158,13 @@ export function TenantInvoicesScreen() {
                 },
               }
             )
-            .then((response) => {
-              callback(false, response.data)
-            })
-            .catch((error) => {
-              console.error('WS Tenant Auth failed:', error)
-              callback(true, error)
-            })
+              .then((response) => {
+                callback(false, response.data)
+              })
+              .catch((error) => {
+                console.error('WS Tenant Auth failed:', error)
+                callback(true, error)
+              })
           },
         }
       },
@@ -163,13 +174,13 @@ export function TenantInvoicesScreen() {
 
     // Subscribe to tenant private channel
     const channel = echo.private(`tenant.${tenant.id}`)
-    
+
     // Listen to InvoicePaid event
     channel.listen('.InvoicePaid', (event: any) => {
       console.log('Realtime WS: Hóa đơn đã được thanh toán', event)
       loadInvoices()
       setSuccessMessage(`Hóa đơn ${event.invoice?.invoice_code} đã được thanh toán thành công!`)
-      
+
       // Update detail modal if currently looking at the same invoice
       if (detailInvoice && detailInvoice.id === event.invoice?.id) {
         setDetailInvoice(event.invoice)
@@ -425,7 +436,7 @@ export function TenantInvoicesScreen() {
             <div className="grid gap-4 md:grid-cols-2">
               {invoices.map((invoice) => {
                 const isPayable = [INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(invoice.status)
-                
+
                 return (
                   <div
                     key={invoice.id}
@@ -497,24 +508,50 @@ export function TenantInvoicesScreen() {
 
             {/* Pagination Controls */}
             {paginationMeta && paginationMeta.last_page > 1 && (
-              <div className="flex items-center justify-between border-t border-[#3d2a18]/10 pt-4">
+              <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs font-bold text-[#8b5e34]">
                   Trang {paginationMeta.current_page} / {paginationMeta.last_page} (Tổng {paginationMeta.total} hóa đơn)
                 </span>
-                <div className="flex gap-2">
+                <div className="flex items-center justify-end gap-1.5">
                   <button
+                    type="button"
                     disabled={currentPage <= 1}
                     onClick={() => setCurrentPage((p) => p - 1)}
-                    className="h-9 px-3 rounded-lg border border-[#3d2a18]/10 bg-white text-xs font-bold text-[#3d2a18] disabled:opacity-40"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-white text-[#8b5e34] transition hover:bg-[#efe2cf] disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Trang trước"
                   >
-                    Trước
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
+                  {visiblePages.map((page, index) => {
+                    const previousPage = visiblePages[index - 1]
+                    const hasGap = previousPage && page - previousPage > 1
+
+                    return (
+                      <Fragment key={page}>
+                        {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(page)}
+                          className={cn(
+                            'inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition',
+                            page === safeCurrentPage
+                              ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm'
+                              : 'border-[#3d2a18]/10 bg-white text-[#8b5e34] hover:bg-[#efe2cf]',
+                          )}
+                        >
+                          {page}
+                        </button>
+                      </Fragment>
+                    )
+                  })}
                   <button
-                    disabled={currentPage >= paginationMeta.last_page}
+                    type="button"
+                    disabled={currentPage >= totalPages}
                     onClick={() => setCurrentPage((p) => p + 1)}
-                    className="h-9 px-3 rounded-lg border border-[#3d2a18]/10 bg-white text-xs font-bold text-[#3d2a18] disabled:opacity-40"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-white text-[#8b5e34] transition hover:bg-[#efe2cf] disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Trang sau"
                   >
-                    Sau
+                    <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -643,7 +680,7 @@ export function TenantInvoicesScreen() {
                           </div>
                           <div className="text-right">
                             <span className="font-black text-emerald-600 block">+{formatCurrency(pmt.amount)}</span>
-                            <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-0.5', 
+                            <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-0.5',
                               pmt.status === 2 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                             )}>
                               {pmt.status_label}
@@ -666,7 +703,7 @@ export function TenantInvoicesScreen() {
                       <p className="text-[11px] text-[#8b5e34]/80 max-w-md">
                         Hệ thống tự động đồng bộ tài khoản sau khi giao dịch thành công. Vui lòng giữ đúng số tiền và nội dung chuyển khoản để nhận tiền tự động trong 1 phút.
                       </p>
-                      
+
                       <div className="mt-2 rounded-2xl bg-white p-3 border border-amber-200 shadow-sm flex flex-col items-center gap-1.5">
                         <img
                           src={detailInvoice.payment_qr_url}

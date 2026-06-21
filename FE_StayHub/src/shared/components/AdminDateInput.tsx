@@ -11,6 +11,7 @@ registerLocale('vi', vi)
 export interface AdminDateInputProps {
   value?: string | null
   onChange: (value: string) => void
+  mode?: 'date' | 'month'
   placeholder?: string
   className?: string
   minDate?: Date
@@ -19,12 +20,16 @@ export interface AdminDateInputProps {
 }
 
 export const AdminDateInput = forwardRef<DatePicker, AdminDateInputProps>(
-  ({ value, onChange, placeholder = 'dd/mm/yyyy', className, minDate, maxDate, disabled }, ref) => {
-    // Parse value YYYY-MM-DD to local Date object
+  ({ value, onChange, mode = 'date', placeholder, className, minDate, maxDate, disabled }, ref) => {
+    const isMonthPicker = mode === 'month'
+    const displayPlaceholder = placeholder ?? (isMonthPicker ? 'MM/yyyy' : 'dd/MM/yyyy')
+
     let selectedDate: Date | null = null
     if (value) {
       const parts = value.split('-')
-      if (parts.length === 3) {
+      if (isMonthPicker && parts.length >= 2) {
+        selectedDate = new Date(Number(parts[0]), Number(parts[1]) - 1, 1)
+      } else if (parts.length === 3) {
         selectedDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
       } else {
         selectedDate = new Date(value)
@@ -39,6 +44,11 @@ export const AdminDateInput = forwardRef<DatePicker, AdminDateInputProps>(
 
       const year = date.getFullYear()
       const month = String(date.getMonth() + 1).padStart(2, '0')
+      if (isMonthPicker) {
+        onChange(`${year}-${month}`)
+        return
+      }
+
       const day = String(date.getDate()).padStart(2, '0')
       onChange(`${year}-${month}-${day}`)
     }
@@ -48,12 +58,13 @@ export const AdminDateInput = forwardRef<DatePicker, AdminDateInputProps>(
         ref={ref}
         selected={selectedDate}
         onChange={handleChange}
-        dateFormat="dd/MM/yyyy"
-        placeholderText={placeholder}
+        dateFormat={isMonthPicker ? 'MM/yyyy' : 'dd/MM/yyyy'}
+        placeholderText={displayPlaceholder}
         locale="vi"
         isClearable={!disabled}
-        showYearDropdown
-        showMonthDropdown
+        showMonthYearPicker={isMonthPicker}
+        showYearDropdown={!isMonthPicker}
+        showMonthDropdown={!isMonthPicker}
         dropdownMode="select"
         className={cn(className)}
         wrapperClassName="w-full"

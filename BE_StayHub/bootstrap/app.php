@@ -28,7 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareErrorsFromSession::class,
         ]);
         $middleware->validateCsrfTokens(except: [
-            'api/admin/login',
+            'api/v1/admin/login',
             'broadcasting/auth',
         ]);
 

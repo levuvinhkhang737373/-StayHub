@@ -33,7 +33,7 @@ class AssetTemplateController extends Controller
 
             $assetTemplates = $this->queryAssetTemplates($validated, $admin)->paginate($validated['per_page'] ?? 20);
 
-            return ApiResponse::responseJson(true, 'Danh sách mẫu tài sản', 200, AssetTemplateResource::collection($assetTemplates), 200);
+            return ApiResponse::responseJson(true, 'Danh sách mẫu tài sản', 200, $this->paginatedResource($assetTemplates), 200);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
@@ -269,5 +269,27 @@ class AssetTemplateController extends Controller
             ->where('name', $name)
             ->when($ignoreId !== null, fn (Builder $query): Builder => $query->whereKeyNot($ignoreId))
             ->exists();
+    }
+
+    private function paginatedResource(\Illuminate\Contracts\Pagination\LengthAwarePaginator $paginator): array
+    {
+        return [
+            'data' => AssetTemplateResource::collection($paginator->items())->resolve(),
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
+            ],
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'last_page' => $paginator->lastPage(),
+                'path' => $paginator->path(),
+                'per_page' => $paginator->perPage(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
+        ];
     }
 }

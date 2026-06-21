@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Database, Edit3, Eye, Plus, Power, ReceiptText, Search, Tags, Trash2, X } from 'lucide-react'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
@@ -208,7 +209,7 @@ export function ExpenseCategoriesScreen() {
     <>
       <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
+          <div className="relative p-4 text-[#fff4df] sm:p-6 xl:p-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
@@ -218,20 +219,22 @@ export function ExpenseCategoriesScreen() {
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
                 </Link>
 
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f3c56b]/80">Cấu hình khoản chi</p>
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Danh mục chi phí</h1>
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[#efe2cf]/82">Chuẩn hóa nhóm chi để phiếu chi, đối soát và báo cáo vận hành hiển thị nhất quán.</p>
               </div>
               {isSuperAdmin && (
-                <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
+                <button type="button" onClick={openCreateForm} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start whitespace-nowrap rounded-xl bg-[#f3c56b] px-5 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] xl:self-center">
                   <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm danh mục
                 </button>
               )}
             </div>
 
-            <div className="relative mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Tổng danh mục" value={expenseCategories.length} tone="neutral" />
-              <MetricCard label="Đang sử dụng" value={activeCategories} tone="emerald" />
-              <MetricCard label="Hết sử dụng" value={inactiveCategories} tone="amber" />
-              <MetricCard label="Phiếu chi liên kết" value={usedExpenses} tone="teal" />
+            <div className="relative mt-6 grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3">
+              <MetricCard icon={<Tags className="h-4 w-4" />} label="Tổng danh mục" value={expenseCategories.length} tone="neutral" />
+              <MetricCard icon={<Power className="h-4 w-4" />} label="Đang sử dụng" value={activeCategories} tone="emerald" />
+              <MetricCard icon={<Power className="h-4 w-4" />} label="Hết sử dụng" value={inactiveCategories} tone="amber" />
+              <MetricCard icon={<ReceiptText className="h-4 w-4" />} label="Phiếu chi liên kết" value={usedExpenses} tone="teal" />
             </div>
           </div>
         </section>
@@ -401,7 +404,7 @@ export function ExpenseCategoriesScreen() {
   )
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'emerald' | 'amber' | 'teal' }) {
+function MetricCard({ icon, label, value, tone }: { icon: ReactNode; label: string; value: number; tone: 'neutral' | 'emerald' | 'amber' | 'teal' }) {
   const toneClassNames = {
     neutral: 'border-[#f8e8c8]/12 bg-[#f8e8c8]/10 text-[#fff4df]',
     emerald: 'border-[#0f766e]/35 bg-[#0f766e]/16 text-[#c8fff4]',
@@ -410,9 +413,12 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
   }[tone]
 
   return (
-    <div className={cn('rounded-3xl border px-4 py-3 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10', toneClassNames)}>
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-65">{label}</p>
-      <p className="mt-1 text-3xl font-black tracking-tight tabular-nums">{value}</p>
+    <div className={cn('flex h-full min-h-[6.75rem] min-w-0 flex-col rounded-[1.45rem] border p-4 shadow-lg shadow-black/5 backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white/12', toneClassNames)}>
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/12 text-[#f3c56b]">{icon}</div>
+        <p className="min-w-0 whitespace-nowrap text-[10px] font-black uppercase leading-none tracking-[0.14em] opacity-75">{label}</p>
+      </div>
+      <p className="mt-5 min-w-0 whitespace-nowrap text-[clamp(1.35rem,1.5vw,1.6rem)] font-black leading-none tracking-[-0.04em] tabular-nums">{value}</p>
     </div>
   )
 }
@@ -425,4 +431,3 @@ function DetailTile({ label, value }: { label: string; value: string | number })
     </div>
   )
 }
-

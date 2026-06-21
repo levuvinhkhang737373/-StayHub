@@ -1,5 +1,5 @@
-const LOCAL_API_URL = 'http://localhost:8080/api'
-const PUBLIC_API_URL = `${window.location.origin}/api`
+const LOCAL_API_URL = 'http://localhost:8080/api/v1'
+const PUBLIC_API_URL = `${window.location.origin}/api/v1`
 
 function formatApiBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')

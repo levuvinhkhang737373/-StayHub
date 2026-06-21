@@ -151,7 +151,7 @@ class ContractController extends ChangeNotifier {
 
       // 1. Fetch room to find corresponding room_id
       final roomResponse = await _apiService.get<List<dynamic>>(
-        '/admin/room',
+        '/admin/rooms',
         fromJsonT: (json) => json as List<dynamic>,
       );
 
@@ -413,7 +413,7 @@ class ContractController extends ChangeNotifier {
 
       // 1. Fetch room list to find the room_id matching newRoomNumber
       final roomResponse = await _apiService.get<List<dynamic>>(
-        '/admin/room',
+        '/admin/rooms',
         fromJsonT: (json) => json as List<dynamic>,
       );
 

@@ -235,7 +235,7 @@ class BuildingUtilityPriceTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->putJson("/api/admin/buildings/{$this->building->id}/utility-prices", $payload);
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload);
 
         $response->assertStatus(200);
         $response->assertJson([
@@ -321,7 +321,7 @@ class BuildingUtilityPriceTest extends TestCase
         ];
 
         $response = $this->actingAs($this->managerAdmin, 'admin')
-            ->putJson("/api/admin/buildings/{$this->building->id}/utility-prices", $payload);
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload);
 
         $response->assertStatus(200);
         $response->assertJson([
@@ -346,7 +346,7 @@ class BuildingUtilityPriceTest extends TestCase
         ];
 
         $response = $this->actingAs($this->unauthorizedAdmin, 'admin')
-            ->putJson("/api/admin/buildings/{$this->building->id}/utility-prices", $payload);
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload);
 
         $response->assertStatus(403);
     }
@@ -367,7 +367,7 @@ class BuildingUtilityPriceTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->putJson("/api/admin/buildings/{$this->building->id}/utility-prices", $payload);
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload);
 
         $response->assertStatus(422);
         $response->assertJsonPath('status', false);

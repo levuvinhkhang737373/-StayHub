@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo, Fragment } from 'react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import type { AdminRoomResource } from '../types/rooms.model'
 import { createPortal } from 'react-dom'
 import { deleteAdminRoom, fetchAdminRoomDetail, fetchAdminRooms, updateAdminRoomStatus, fetchBuilding, fetchRoomType } from '../services/rooms.service'
-import { Eye, Trash2, Pencil, PackageOpen, Plus, Search, X, Power } from 'lucide-react'
+import { Eye, Trash2, Pencil, PackageOpen, Plus, Search, X, Power, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAdminSession } from '../../auth/hooks/admin-session-store'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -49,16 +49,24 @@ export function RoomsScreen() {
   const [buildings, setBuildings] = useState<any[]>([])
   const [roomTypes, setRoomTypes] = useState<any[]>([])
   
-  const itemsPerPage = 10
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const isInitialMount = useRef(true)
 
   const filteredRooms = rooms
 
   const totalPages = Math.ceil(filteredRooms.length / itemsPerPage)
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages))
   const paginatedRooms = filteredRooms.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
+    (safeCurrentPage - 1) * itemsPerPage,
+    safeCurrentPage * itemsPerPage,
   )
+
+  const visiblePages = useMemo(() => {
+    const pages = new Set<number>([1, totalPages, safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1])
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= totalPages)
+      .sort((a, b) => a - b)
+  }, [safeCurrentPage, totalPages])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -449,46 +457,74 @@ export function RoomsScreen() {
 
         {/** Pagination */}
         {!isLoading && totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-[#3d2a18]/10 px-5 py-4">
-            <p className="text-xs font-bold text-[#8b5e34]">
-              Hiển thị {filteredRooms.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}–
-              {Math.min(currentPage * itemsPerPage, filteredRooms.length)} / {filteredRooms.length} phòng
+          <div className="flex flex-col gap-4 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <p className="text-xs font-black text-[#6f6254]">
+              Hiển thị <span className="tabular-nums text-[#24170d]">{filteredRooms.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</span>–
+              <span className="tabular-nums text-[#24170d]">{Math.min(currentPage * itemsPerPage, filteredRooms.length)}</span> / <span className="tabular-nums text-[#24170d]">{filteredRooms.length}</span> phòng
             </p>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-sm font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                ‹
-              </button>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="w-full sm:w-36">
+                <AdminSelect
+                  value={itemsPerPage}
+                  options={[
+                    { value: 5, label: '5 dòng', tone: 'default' as const },
+                    { value: 10, label: '10 dòng', tone: 'default' as const },
+                    { value: 20, label: '20 dòng', tone: 'default' as const },
+                    { value: 50, label: '50 dòng', tone: 'default' as const }
+                  ]}
+                  onChange={(nextValue) => {
+                    setItemsPerPage(Number(nextValue))
+                    setCurrentPage(1)
+                  }}
+                  menuPlacement="top"
+                />
+              </div>
 
-              {Array.from({ length: totalPages }).map((_, i) => (
+              <div className="flex items-center justify-end gap-1.5">
                 <button
-                  key={i}
                   type="button"
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={cn(
-                    'inline-flex h-9 w-9 items-center justify-center rounded-xl border text-sm font-black transition',
-                    currentPage === i + 1
-                      ? 'border-[#f3c56b] bg-[#f3c56b] text-[#24170d]'
-                      : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15',
-                  )}
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Trang trước"
                 >
-                  {i + 1}
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
-              ))}
 
-              <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-sm font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                ›
-              </button>
+                {visiblePages.map((page, index) => {
+                  const previousPage = visiblePages[index - 1]
+                  const hasGap = previousPage && page - previousPage > 1
+
+                  return (
+                    <Fragment key={page}>
+                      {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={cn(
+                          'inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition',
+                          page === safeCurrentPage
+                            ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm'
+                            : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15',
+                        )}
+                      >
+                        {page}
+                      </button>
+                    </Fragment>
+                  )
+                })}
+
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Trang sau"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}

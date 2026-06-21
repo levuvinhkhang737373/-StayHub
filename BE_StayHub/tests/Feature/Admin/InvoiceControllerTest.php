@@ -272,7 +272,7 @@ class InvoiceControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/admin/invoices/generate', $payload);
+            ->postJson('/api/v1/admin/invoices/generate', $payload);
 
         $response->assertStatus(201);
 
@@ -368,7 +368,7 @@ class InvoiceControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson("/api/admin/invoices/{$invoice->id}/payments", $payload);
+            ->postJson("/api/v1/admin/invoices/{$invoice->id}/payments", $payload);
 
         $response->assertStatus(201);
 
@@ -428,14 +428,14 @@ class InvoiceControllerTest extends TestCase
 
         // Test GET index
         $response = $this->actingAs($this->tenant, 'tenant')
-            ->getJson('/api/tenant/invoices');
+            ->getJson('/api/v1/tenant/invoices');
 
         $response->assertStatus(200);
         $response->assertJsonCount(1, 'result.data');
 
         // Test GET show
         $detailResponse = $this->actingAs($this->tenant, 'tenant')
-            ->getJson("/api/tenant/invoices/{$invoice->id}");
+            ->getJson("/api/v1/tenant/invoices/{$invoice->id}");
 
         $detailResponse->assertStatus(200);
         $detailResponse->assertJsonPath('result.invoice_code', 'INV-202602-0001');
@@ -491,7 +491,7 @@ class InvoiceControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->tenant, 'tenant')
-            ->postJson("/api/tenant/invoices/{$invoice->id}/payment-proof", $payload);
+            ->postJson("/api/v1/tenant/invoices/{$invoice->id}/payment-proof", $payload);
 
         $response->assertStatus(201);
 
@@ -560,7 +560,7 @@ class InvoiceControllerTest extends TestCase
             'code' => 'FT12345678',
         ];
 
-        $response = $this->postJson('/api/sepay-webhook', $payload, [
+        $response = $this->postJson('/api/v1/sepay-webhook', $payload, [
             'Authorization' => 'Apikey sepay-test-token',
         ]);
 
@@ -651,7 +651,7 @@ class InvoiceControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson("/api/admin/buildings/{$this->building->id}/invoices/bulk-generate", $payload);
+            ->postJson("/api/v1/admin/buildings/{$this->building->id}/invoices/bulk-generate", $payload);
 
         $response->assertStatus(202);
 

@@ -1,5 +1,5 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
-import type { AdminAssetTemplatePayload, AdminAssetTemplateResource } from '../types/asset-template-api.model'
+import type { AdminAssetTemplatePayload, AdminAssetTemplateResource, AdminPaginator } from '../types/asset-template-api.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
   const query = new URLSearchParams()
@@ -21,10 +21,11 @@ export async function fetchAdminAssetTemplates(
     default_unit_name?: number
     status?: number
     per_page?: number
+    page?: number
   } = {},
 ) {
-  return apiRequest<AdminAssetTemplateResource[]>({
-    url: `admin/asset-templates${buildQuery({ per_page: 100, ...params })}`,
+  return apiRequest<AdminPaginator<AdminAssetTemplateResource>>({
+    url: `admin/asset-templates${buildQuery({ per_page: 10, ...params })}`,
     method: 'GET',
   })
 }

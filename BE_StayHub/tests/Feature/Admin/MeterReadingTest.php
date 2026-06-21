@@ -108,7 +108,7 @@ class MeterReadingTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/admin/meter-readings', $payload);
+            ->postJson('/api/v1/admin/meter-readings', $payload);
 
         $response->assertStatus(422);
         $response->assertJsonPath('status', false);
@@ -129,7 +129,7 @@ class MeterReadingTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/admin/meter-readings', $payload);
+            ->postJson('/api/v1/admin/meter-readings', $payload);
 
         $response->assertStatus(200);
         $response->assertJsonPath('status', true);

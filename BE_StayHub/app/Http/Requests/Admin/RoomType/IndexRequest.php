@@ -23,7 +23,7 @@ class IndexRequest extends FormRequest
             'only_global' => ['nullable', 'boolean'],
             'created_by_me' => ['nullable', 'boolean'],
             'status' => ['nullable', 'integer', Rule::in(array_keys(RoomType::STATUS_LABELS))],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:1000'],
         ];
     }
 
@@ -38,7 +38,7 @@ class IndexRequest extends FormRequest
             'status.in' => 'Trạng thái loại phòng không nằm trong danh sách cho phép.',
             'per_page.integer' => 'Số dòng mỗi trang phải là số nguyên.',
             'per_page.min' => 'Số dòng mỗi trang phải lớn hơn hoặc bằng 1.',
-            'per_page.max' => 'Số dòng mỗi trang không được vượt quá 100.',
+            'per_page.max' => 'Số dòng mỗi trang không được vượt quá 1000.',
         ];
     }
 

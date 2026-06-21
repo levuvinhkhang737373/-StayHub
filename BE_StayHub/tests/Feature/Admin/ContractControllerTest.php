@@ -96,6 +96,9 @@ class ContractControllerTest extends TestCase
             'gender' => Tenant::GENDER_MALE,
             'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
             'identity_number' => '123456789012',
+            'identity_date' => '2020-01-01',
+            'identity_place' => 'Cục Cảnh sát quản lý hành chính về trật tự xã hội',
+            'permanent_address' => '123 Test Permanent Address',
             'date_of_birth' => '2000-01-01',
             'created_by' => $this->superAdmin->id,
             'building_id' => $this->building->id,
@@ -112,6 +115,9 @@ class ContractControllerTest extends TestCase
             'gender' => Tenant::GENDER_FEMALE,
             'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
             'identity_number' => '123456789013',
+            'identity_date' => '2020-01-01',
+            'identity_place' => 'Cục Cảnh sát quản lý hành chính về trật tự xã hội',
+            'permanent_address' => '456 Test Permanent Address',
             'date_of_birth' => '2000-01-01',
             'created_by' => $this->superAdmin->id,
             'building_id' => $this->building->id,
@@ -137,6 +143,8 @@ class ContractControllerTest extends TestCase
             'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
             'deposit_amount' => '4000000.00',
+            'is_deposit_paid' => true,
+            'deposit_payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
             'status' => Contract::STATUS_ACTIVE,
             'tenants' => [
                 [
@@ -162,7 +170,7 @@ class ContractControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/admin/contracts', $payload);
+            ->postJson('/api/v1/admin/contracts', $payload);
 
         $response->assertStatus(201);
         $data = $response->json('result');
@@ -221,7 +229,7 @@ class ContractControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/admin/contracts', $payload);
+            ->postJson('/api/v1/admin/contracts', $payload);
 
         $response->assertStatus(201);
         $data = $response->json('result');
@@ -275,7 +283,7 @@ class ContractControllerTest extends TestCase
 
         // 2. Query available rooms - should NOT contain this room
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->getJson("/api/admin/contracts/available-rooms?building_id={$this->building->id}");
+            ->getJson("/api/v1/admin/contracts/available-rooms?building_id={$this->building->id}");
 
         $response->assertStatus(200);
         $rooms = $response->json('result');
@@ -301,7 +309,7 @@ class ContractControllerTest extends TestCase
         ];
 
         $createResponse = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/admin/contracts', $payload);
+            ->postJson('/api/v1/admin/contracts', $payload);
 
         $createResponse->assertStatus(422);
         $createResponse->assertJsonPath('message', 'Phòng này đã có hợp đồng đang hiệu lực, không thể tạo thêm hợp đồng mới.');
@@ -334,7 +342,7 @@ class ContractControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/admin/contracts', $payload);
+            ->postJson('/api/v1/admin/contracts', $payload);
 
         $response->assertStatus(422);
         $response->assertJsonPath('status', false);
@@ -373,7 +381,7 @@ class ContractControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->patchJson("/api/admin/contracts/{$contract->id}/status", [
+            ->patchJson("/api/v1/admin/contracts/{$contract->id}/status", [
                 'status' => Contract::STATUS_LIQUIDATED,
                 'actual_end_date' => '2026-10-15',
                 'note' => 'Liquidation test',
@@ -444,7 +452,7 @@ class ContractControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson("/api/admin/contracts/{$oldContract->id}/renew", $payload);
+            ->postJson("/api/v1/admin/contracts/{$oldContract->id}/renew", $payload);
 
         $response->assertStatus(201);
         $data = $response->json('result');
@@ -510,7 +518,7 @@ class ContractControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson("/api/admin/contracts/{$contract->id}/deposit-transactions", $payload);
+            ->postJson("/api/v1/admin/contracts/{$contract->id}/deposit-transactions", $payload);
 
         $response->assertStatus(201);
 
@@ -610,7 +618,7 @@ class ContractControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/admin/contracts', $payload);
+            ->postJson('/api/v1/admin/contracts', $payload);
 
         $response->assertStatus(201);
 
@@ -688,7 +696,7 @@ class ContractControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson("/api/admin/contracts/{$oldContract->id}/renew", $payload);
+            ->postJson("/api/v1/admin/contracts/{$oldContract->id}/renew", $payload);
 
         $response->assertStatus(201);
 
@@ -717,4 +725,3 @@ class ContractControllerTest extends TestCase
         });
     }
 }
-

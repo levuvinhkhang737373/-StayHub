@@ -108,7 +108,7 @@ class ApiService {
             await getCsrfCookie();
             final options = e.requestOptions;
             final response = await _dio.request(
-              options.path,
+              _normalizePath(options.path),
               data: options.data,
               queryParameters: options.queryParameters,
               options: Options(
@@ -142,6 +142,10 @@ class ApiService {
     } catch (e) {
       throw ApiException(message: 'Không thể kết nối lấy token bảo mật CSRF: $e');
     }
+  }
+
+  String _normalizePath(String path) {
+    return path.replaceFirst(RegExp(r'^/+'), '');
   }
 
   /// Helper to map DioException to ApiException
@@ -200,7 +204,10 @@ class ApiService {
     required T Function(dynamic json) fromJsonT,
   }) async {
     try {
-      final response = await _dio.get(path, queryParameters: queryParameters);
+      final response = await _dio.get(
+        _normalizePath(path),
+        queryParameters: queryParameters,
+      );
       return ApiEnvelope.fromJson(response.data as Map<String, dynamic>, fromJsonT);
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -217,7 +224,7 @@ class ApiService {
   }) async {
     try {
       final response = await _dio.post(
-        path,
+        _normalizePath(path),
         data: data,
         queryParameters: queryParameters,
         options: receiveTimeout != null ? Options(receiveTimeout: receiveTimeout) : null,
@@ -236,7 +243,11 @@ class ApiService {
     required T Function(dynamic json) fromJsonT,
   }) async {
     try {
-      final response = await _dio.put(path, data: data, queryParameters: queryParameters);
+      final response = await _dio.put(
+        _normalizePath(path),
+        data: data,
+        queryParameters: queryParameters,
+      );
       return ApiEnvelope.fromJson(response.data as Map<String, dynamic>, fromJsonT);
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -251,7 +262,11 @@ class ApiService {
     required T Function(dynamic json) fromJsonT,
   }) async {
     try {
-      final response = await _dio.patch(path, data: data, queryParameters: queryParameters);
+      final response = await _dio.patch(
+        _normalizePath(path),
+        data: data,
+        queryParameters: queryParameters,
+      );
       return ApiEnvelope.fromJson(response.data as Map<String, dynamic>, fromJsonT);
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -266,7 +281,11 @@ class ApiService {
     required T Function(dynamic json) fromJsonT,
   }) async {
     try {
-      final response = await _dio.delete(path, data: data, queryParameters: queryParameters);
+      final response = await _dio.delete(
+        _normalizePath(path),
+        data: data,
+        queryParameters: queryParameters,
+      );
       return ApiEnvelope.fromJson(response.data as Map<String, dynamic>, fromJsonT);
     } on DioException catch (e) {
       throw _handleDioError(e);

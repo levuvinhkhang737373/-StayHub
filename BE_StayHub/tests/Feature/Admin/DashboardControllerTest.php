@@ -107,14 +107,14 @@ class DashboardControllerTest extends TestCase
 
     public function test_unauthenticated_cannot_access_price_history(): void
     {
-        $response = $this->getJson('/api/admin/dashboard/utility-price-history');
+        $response = $this->getJson('/api/v1/admin/dashboard/utility-price-history');
         $response->assertStatus(401);
     }
 
     public function test_unauthorized_manager_cannot_access_building_price_history(): void
     {
         $response = $this->actingAs($this->unauthorizedAdmin, 'admin')
-            ->getJson("/api/admin/dashboard/utility-price-history?building_id={$this->building->id}");
+            ->getJson("/api/v1/admin/dashboard/utility-price-history?building_id={$this->building->id}");
 
         $response->assertStatus(403);
     }
@@ -139,7 +139,7 @@ class DashboardControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->getJson('/api/admin/dashboard/utility-price-history');
+            ->getJson('/api/v1/admin/dashboard/utility-price-history');
 
         $response->assertStatus(200)
             ->assertJsonPath('status', true)
@@ -196,7 +196,7 @@ class DashboardControllerTest extends TestCase
         Carbon::setTestNow('2026-06-15');
 
         $response = $this->actingAs($this->managerAdmin, 'admin')
-            ->getJson("/api/admin/dashboard/utility-price-history?building_id={$this->building->id}&months=6");
+            ->getJson("/api/v1/admin/dashboard/utility-price-history?building_id={$this->building->id}&months=6");
 
         $response->assertStatus(200);
         $result = $response->json('result');
