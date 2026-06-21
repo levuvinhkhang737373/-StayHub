@@ -25,6 +25,7 @@ import { MaintenanceScreen } from '../features/admin/maintenance'
 import { NotificationsScreen } from '../features/admin/notifications'
 import { VehiclesScreen } from '../features/admin/vehicles'
 import { MeterReadingsScreen } from '../features/admin/meter-readings'
+import { TenantTransferRoomScreen } from '../features/admin/tenants/components/TenantTransferRoomScreen'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -87,6 +88,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'tenants/:tenantId/edit',
         element: <CreateTenantScreen />,
+      },
+      {
+        path: 'tenants/:tenantId/transfer-room',
+        element: <TenantTransferRoomScreen />,
       },
       {
         path: 'contracts',

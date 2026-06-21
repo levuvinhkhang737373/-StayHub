@@ -27,6 +27,7 @@ use App\Models\Tenant;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class RoomController extends Controller
 {
@@ -41,6 +42,12 @@ class RoomController extends Controller
     const MOVEMENT_TRANSFER = 1;
     const MOVEMENT_MERGE    = 2;
 
+    /**
+     * CHỈ dùng để hiển thị text cho người dùng (vd trang lịch sử chuyển phòng).
+     * KHÔNG được gọi hàm này khi ghi giá trị xuống DB - các cột movement_type/
+     * transaction_type là tinyint, phải ghi đúng số nguyên (self::MOVEMENT_*,
+     * self::DEPOSIT_*), ghi chuỗi label vào sẽ lỗi insert hoặc bị ép sai giá trị.
+     */
     protected function getMovementLabel(int $type): string
     {
         return match ($type) {
@@ -49,6 +56,8 @@ class RoomController extends Controller
             default => 'Không xác định',
         };
     }
+
+    /** CHỈ dùng để hiển thị - xem ghi chú ở getMovementLabel(). */
     protected function getDepositLabel(int $type): string
     {
         return match ($type) {
@@ -60,6 +69,7 @@ class RoomController extends Controller
             default => 'Không xác định',
         };
     }
+
     /**
      * Display a listing of the resource.
      */
@@ -314,6 +324,7 @@ class RoomController extends Controller
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
         }
     }
+
     public function updateStatus(string $id)
     {
         try {
@@ -329,27 +340,50 @@ class RoomController extends Controller
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
         }
     }
+
     public function transferTenant(TranferSingleTenantRequest $request)
     {
+        DB::beginTransaction();
         try {
-            DB::beginTransaction();
+            $movementDate = $request->movement_date instanceof Carbon
+                ? $request->movement_date
+                : Carbon::parse($request->movement_date);
+
             $tenant = Tenant::find($request->tenant_id);
+            if (!$tenant) {
+                throw ValidationException::withMessages([
+                    'tenant_id' => "Không tìm thấy khách thuê #{$request->tenant_id}.",
+                ]);
+            }
+
             $currentContractTenant = ContractTenant::where('tenant_id', $request->tenant_id)
                 ->where('is_staying', 1)
-                ->whereNull("leave_date")
+                ->whereNull('leave_date')
                 ->lockForUpdate()
                 ->first();
+
             if (!$currentContractTenant) {
-                return ApiResponse::responseJson(false, "Khách thuê {$request->tenant_id} chưa có hợp đồng nào", 404, null, 404);
+                throw ValidationException::withMessages([
+                    'tenant_id' => "Khách thuê {$request->tenant_id} hiện không có hợp đồng đang ở.",
+                ]);
             }
+
             $oldContract = Contract::lockForUpdate()->find($currentContractTenant->contract_id);
             if (!$oldContract) {
-                return ApiResponse::responseJson(false, "Không tìm thấy hợp đồng cũ", 404, null, 404);
+                throw ValidationException::withMessages([
+                    'tenant_id' => 'Không tìm thấy hợp đồng cũ.',
+                ]);
             }
+
             $oldRoomId = $oldContract->room_id;
             if ($oldRoomId == $request->to_room_id) {
-                return ApiResponse::responseJson(false, "Phòng đích không được là phòng cũ", 404, null, 404);
+                throw ValidationException::withMessages([
+                    'to_room_id' => 'Phòng đích không được là phòng cũ.',
+                ]);
             }
+
+            // Khoá CẢ HAI phòng cùng lúc, sắp theo id tăng dần - 2 lượt chuyển phòng ngược
+            // chiều xảy ra cùng lúc luôn xin khoá theo đúng 1 thứ tự, tránh deadlock.
             $rooms = Room::with('building')
                 ->whereIn('id', [$oldRoomId, $request->to_room_id])
                 ->orderBy('id')
@@ -359,113 +393,170 @@ class RoomController extends Controller
 
             $oldRoom = $rooms->get($oldRoomId);
             $toRoom = $rooms->get($request->to_room_id);
+
+            // assertCanTransfer() giờ THROW khi không hợp lệ, không còn return response bị
+            // bỏ quên như bản trước - lỗi sẽ thực sự chặn được luồng xử lý phía dưới.
             $this->assertCanTransfer($tenant, $oldRoom, $toRoom);
-            $finalReadings = $this->closeOldRoomMeters($oldRoom, $request->movement_date, $request->closing_meter_readings, $request->actor_admin_id);
+
+            $finalReadings = $this->closeOldRoomMeters($oldRoom, $movementDate, $request->closing_meter_readings ?? [], $request->actor_admin_id ?? $request->user()->id);
+
             $currentContractTenant->update([
-                'leave_date' => $request->movement_date->toDateString(),
-                'billing_end_date' => $request->movement_date->toDateString(),
+                'leave_date' => $movementDate->toDateString(),
+                'billing_end_date' => $movementDate->toDateString(),
                 'is_staying' => 0,
             ]);
+
             $remainingInOldContract = ContractTenant::where('contract_id', $oldContract->id)
                 ->where('is_staying', 1)
                 ->exists();
 
-            if (! $remainingInOldContract) {
+            if (!$remainingInOldContract) {
                 $oldContract->update([
                     'status' => self::CONTRACT_STATUS_ENDED,
-                    'actual_end_date' => $request->movement_date->toDateString(),
+                    'actual_end_date' => $movementDate->toDateString(),
                 ]);
             }
-            $movementType = $this->getDepositLabel(self::MOVEMENT_TRANSFER);
+
+            // Dùng thẳng hằng số (int) - KHÔNG gọi getDepositLabel()/getMovementLabel() ở đây,
+            // 2 hàm đó chỉ trả về chuỗi text để hiển thị, ghi chuỗi vào cột tinyint sẽ sai.
+            $movementType = self::MOVEMENT_TRANSFER;
 
             $destinationContract = Contract::where('room_id', $toRoom->id)
                 ->where('status', self::CONTRACT_STATUS_ACTIVE)
                 ->whereNull('actual_end_date')
                 ->lockForUpdate()
                 ->first();
+
             if ($destinationContract) {
-                $movementType = $this->getDepositLabel(self::MOVEMENT_MERGE);
+                $movementType = self::MOVEMENT_MERGE;
             } else {
                 $destinationContract = Contract::create([
                     'contract_code' => $this->generateContractCode($toRoom),
                     'room_id' => $toRoom->id,
-                    'start_date' =>  $request->movement_date->toDateString(),
+                    'start_date' => $movementDate->toDateString(),
                     'end_date' => $oldContract->end_date, // giữ nguyên hạn hợp đồng cũ - chỉnh lại nếu nghiệp vụ của bạn khác
                     'billing_cycle_day' => $oldContract->billing_cycle_day,
                     'room_price' => $toRoom->base_price,
-                    'deposit_amount' => 0, // sẽ được cộng dần ở bước handleDeposit() khi từng tenant chuyển cọc vào
+                    'deposit_amount' => 0, // sẽ được cộng dần ở bước handleDeposit() bên dưới
                     'status' => self::CONTRACT_STATUS_ACTIVE,
                     'payment_status' => 2, // dữ liệu mẫu toàn bộ hợp đồng đều dùng giá trị 2, dùng tạm làm baseline
                     'note' => $request->note,
-                    'created_by' => $request->actor_admin_id,
+                    'created_by' => $request->actor_admin_id ?? $request->user()->id,
                     'parent_contract_id' => $oldContract->id,
                 ]);
-                ContractTenant::create([
-                    'contract_id' => $destinationContract->id,
-                    'tenant_id' => $request->tenant_id,
-                    'join_date' => $request->movement_date->toDateString(),
-                    'billing_start_date' => $request->movement_date->toDateString(),
-                    'is_staying' => true,
-                    'created_by' => $request->actor_admin_id,
-                ]);
-                $oldRoom->decrement('current_occupants');
-                if ($oldRoom->current_occupants < 0) {
-                    $oldRoom->forceFill(['current_occupants' => 0])->save();
-                }
-
-                $toRoom->increment('current_occupants');
-                $this->handleDeposit(
-                    $oldContract,
-                    $destinationContract,
-                    $request->deposit_settlement_amount,
-                    $request->deposit_deduction_amount,
-                    $request->deposit_refund_amount,
-                    $request->movement_date,
-                    $request->actor_admin_id,
-                );
-                $this->ensureNewRoomMeters($toRoom, $request->new_room_opening_readings, $request->movement_date);
-                $this->carryOverVehicles($oldContract, $destinationContract, $request->carry_vehicleIds,  $request->movement_date);
-                $roomMovement = RoomMovement::create([
-                    'tenant_id' => $request->tenant_id,
-                    'contract_id' => $destinationContract->id,
-                    'from_room_id' => $oldRoom->id,
-                    'to_room_id' => $toRoom->id,
-                    'movement_type' => $movementType,
-                    'movement_date' => $request->movement_date->toDateTimeString(),
-                    'old_room_final_amount' => $request->deposit_settlement_amount, // TODO: chỉnh lại nếu ý nghĩa cột này khác trong app của bạn
-                    'transfer_fee' => $request->transfer_fee,
-                    'deposit_transfer_amount' => max($request->deposit_settlement_amount - $request->deposit_deduction_amount - $request->deposit_refund_amount, 0),
-                    'deposit_refund_amount' => $request->deposit_refund_amount,
-                    'deduction_amount' => $request->deposit_deduction_amount,
-                    'final_electric_reading' => $finalReadings['electric'],
-                    'final_water_reading' => $finalReadings['water'],
-                    'note' => $request->note,
-                    'created_by' => $request->actor_admin_id,
-                ]);
-                $this->writeAdminLog($request->actor_admin_id, $oldContract, $destinationContract, $oldRoom, $toRoom);
-                $this->notifyTenant($tenant, $toRoom, $request->movement_date);
-                return ApiResponse::responseJson(true, 'Chuyển phòng thành công', 200, $roomMovement, 200);
             }
+
+            // --- Từ đây trở xuống PHẢI chạy cho CẢ 2 trường hợp (tạo mới lẫn ghép) ---
+            // Bản trước đặt nhầm toàn bộ khối này vào trong nhánh "else", khiến case ghép
+            // phòng (phổ biến nhất) không thêm được tenant vào hợp đồng mới, không trừ sức
+            // chứa phòng cũ, và không return response nào cả.
+            ContractTenant::create([
+                'contract_id' => $destinationContract->id,
+                'tenant_id' => $request->tenant_id,
+                'join_date' => $movementDate->toDateString(),
+                'billing_start_date' => $movementDate->toDateString(),
+                'is_staying' => true,
+                'created_by' => $request->actor_admin_id ?? $request->user()->id,
+            ]);
+
+            // Chỉ thực hiện trừ nếu số lượng người lớn hơn 0
+            if ($oldRoom->current_occupants > 0) {
+                $oldRoom->decrement('current_occupants');
+            } else {
+                // Nếu vốn dĩ đã bằng 0 thì ép hẳn về 0 (hoặc giữ nguyên) để đảm bảo không bị âm trong DB
+                $oldRoom->forceFill(['current_occupants' => 0])->save();
+            }
+
+            $toRoom->increment('current_occupants');
+            // Lưu ý: KHÔNG tự đổi rooms.status theo sức chứa - dữ liệu mẫu cho thấy status
+            // không đi theo current_occupants, nhiều khả năng là cờ bảo trì/hoạt động riêng.
+
+            $this->handleDeposit(
+                $oldContract,
+                $destinationContract,
+                (float) ($request->deposit_settlement_amount ?? 0),
+                (float) ($request->deposit_deduction_amount ?? 0),
+                (float) ($request->deposit_refund_amount ?? 0),
+                $movementDate,
+                $request->actor_admin_id ?? $request->user()->id,
+            );
+
+            $this->ensureNewRoomMeters($toRoom, $request->new_room_opening_readings ?? [], $movementDate);
+
+            // Tên field gốc "carry_vehicleIds" không khớp convention snake_case của các field
+            // khác - đổi thành carry_vehicle_ids. XÁC NHẬN LẠI tên field thật trong
+            // TranferSingleTenantRequest của bạn; ?? [] để không bao giờ truyền null vào
+            // carryOverVehicles() (type-hint array không nullable, truyền null sẽ TypeError).
+            $this->carryOverVehicles($oldContract, $destinationContract, $request->carry_vehicle_ids ?? [], $movementDate);
+
+            $roomMovement = RoomMovement::create([
+                'tenant_id' => $request->tenant_id,
+                'contract_id' => $destinationContract->id,
+                'from_room_id' => $oldRoom->id,
+                'to_room_id' => $toRoom->id,
+                'movement_type' => $movementType,
+                'movement_date' => $movementDate->toDateTimeString(),
+                'old_room_final_amount' => $request->deposit_settlement_amount ?? 0, // TODO: chỉnh lại nếu ý nghĩa cột này khác trong app của bạn
+                'transfer_fee' => $request->transfer_fee ?? 0,
+                'deposit_transfer_amount' => max(
+                    (float) ($request->deposit_settlement_amount ?? 0)
+                        - (float) ($request->deposit_deduction_amount ?? 0)
+                        - (float) ($request->deposit_refund_amount ?? 0),
+                    0
+                ),
+                'deposit_refund_amount' => $request->deposit_refund_amount ?? 0,
+                'deduction_amount' => $request->deposit_deduction_amount ?? 0,
+                'final_electric_reading' => $finalReadings['electric'],
+                'final_water_reading' => $finalReadings['water'],
+                'note' => $request->note,
+                'created_by' => $request->actor_admin_id ?? $request->user()->id,
+            ]);
+
+            $this->writeAdminLog($request->actor_admin_id ?? $request->user()->id, $oldContract, $destinationContract, $oldRoom, $toRoom);
+            $this->notifyTenant($tenant, $toRoom, $movementDate);
+
+            DB::commit();
+
+            return ApiResponse::responseJson(true, 'Chuyển phòng thành công', 200, $roomMovement, 200);
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            $firstError = collect($e->errors())->flatten()->first() ?? $e->getMessage();
+            return ApiResponse::responseJson(false, $firstError, 422, $e->errors(), 422);
         } catch (\Exception $e) {
+            DB::rollBack();
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
         }
     }
-    protected function assertCanTransfer(Tenant $tenant, Room $oldRoom, Room $toRoom)
+
+    /**
+     * THROW khi không hợp lệ - không được return response ở đây. Hàm protected/private gọi
+     * từ trong transferTenant() không có khả năng tự ngắt request bằng return; chỉ throw
+     * mới dừng được luồng xử lý và bị catch đúng chỗ.
+     */
+    protected function assertCanTransfer(Tenant $tenant, Room $oldRoom, Room $toRoom): void
     {
         if ($toRoom->status !== self::ROOM_STATUS_ACTIVE) {
-            return  ApiResponse::responseJson(false, 'Phòng đích đang không ở trạng thái cho thuê được.', 400, null, 400);
+            throw ValidationException::withMessages([
+                'to_room_id' => 'Phòng đích đang không ở trạng thái cho thuê được.',
+            ]);
         }
+
         if ($toRoom->current_occupants >= $toRoom->max_occupants) {
-            return  ApiResponse::responseJson(false,   'Phòng đích đã đầy, không thể chuyển vào.', 400, null, 400);
+            throw ValidationException::withMessages([
+                'to_room_id' => 'Phòng đích đã đầy, không thể chuyển vào.',
+            ]);
         }
 
         if (
             $toRoom->building_id !== $oldRoom->building_id
-            && ! $this->buildingAllowsGender($toRoom->building, $tenant->gender)
+            && !$this->buildingAllowsGender($toRoom->building, $tenant->gender)
         ) {
-            return  ApiResponse::responseJson(false,   'Giới tính khách thuê không phù hợp với quy định của tòa nhà đích.', 400, null, 400);
+            throw ValidationException::withMessages([
+                'to_room_id' => 'Giới tính khách thuê không phù hợp với quy định của tòa nhà đích.',
+            ]);
         }
     }
+
     private function buildingAllowsGender($building, int $tenantGender): bool
     {
         return match ($building->gender_policy) {
@@ -475,6 +566,7 @@ class RoomController extends Controller
             default => true,
         };
     }
+
     private function closeOldRoomMeters(Room $oldRoom, Carbon $movementDate, array $closingReadings, ?int $actorAdminId): array
     {
         $readingsByDeviceId = collect($closingReadings)->keyBy('meter_device_id');
@@ -487,7 +579,7 @@ class RoomController extends Controller
 
         foreach ($devices as $device) {
             $input = $readingsByDeviceId->get($device->id);
-            if (! $input) {
+            if (!$input) {
                 continue; // không có chỉ số chốt cho công tơ này (vd dịch vụ không theo chỉ số), bỏ qua
             }
 
@@ -495,8 +587,6 @@ class RoomController extends Controller
             $year = $movementDate->year;
             $month = $movementDate->month;
 
-            // Tìm chỉ số kỳ TRƯỚC kỳ hiện tại (loại trừ chính kỳ đang chốt, để không tự
-            // tham chiếu vào dòng sắp update khi kỳ này đã có reading từ trước).
             $previousReading = MeterReading::where('meter_device_id', $device->id)
                 ->where(function ($q) use ($year, $month) {
                     $q->where('billing_year', '<', $year)
@@ -535,7 +625,8 @@ class RoomController extends Controller
 
         return $result;
     }
-    private function ensureNewRoomMeters(Room $toRoom, array $openingReadings, Carbon $movementDate)
+
+    private function ensureNewRoomMeters(Room $toRoom, array $openingReadings, Carbon $movementDate): void
     {
         $meteredServices = Service::where('charge_method', 1)->where('is_active', true)->get();
 
@@ -552,7 +643,11 @@ class RoomController extends Controller
             $openingReading = $openingReadings[$service->id] ?? null;
 
             if ($openingReading === null) {
-                return  ApiResponse::responseJson(false,   "Phòng đích chưa có công tơ {$service->name}, cần nhập chỉ số khởi điểm.", 400, null, 400);
+                // THROW, không return - bản trước return response ở đây chỉ thoát khỏi
+                // chính hàm này, transferTenant() vẫn chạy tiếp như chưa có gì sai.
+                throw ValidationException::withMessages([
+                    'new_room_opening_readings' => "Phòng đích chưa có công tơ {$service->name}, cần nhập chỉ số khởi điểm.",
+                ]);
             }
 
             MeterDevice::create([
@@ -566,6 +661,7 @@ class RoomController extends Controller
             ]);
         }
     }
+
     private function resolveMeterType(Service $service): int
     {
         // TODO: chỉnh lại nếu sau này có thêm dịch vụ tính theo chỉ số khác ngoài điện/nước.
@@ -575,7 +671,8 @@ class RoomController extends Controller
             default => 1,
         };
     }
-    private function carryOverVehicles(Contract $oldContract, Contract $destinationContract, array $vehicleIds, Carbon $movementDate)
+
+    private function carryOverVehicles(Contract $oldContract, Contract $destinationContract, array $vehicleIds, Carbon $movementDate): void
     {
         if (empty($vehicleIds)) {
             return;
@@ -604,6 +701,7 @@ class RoomController extends Controller
             ]);
         }
     }
+
     private function handleDeposit(
         Contract $oldContract,
         Contract $destinationContract,
@@ -612,11 +710,11 @@ class RoomController extends Controller
         float $refundAmount,
         Carbon $movementDate,
         ?int $actorAdminId,
-    ) {
+    ): void {
         if ($deductionAmount > 0) {
             ContractDepositTransaction::create([
                 'contract_id' => $oldContract->id,
-                'transaction_type' => $this->getDepositLabel(self::DEPOSIT_DEDUCTION),
+                'transaction_type' => self::DEPOSIT_DEDUCTION, // số nguyên, KHÔNG gọi getDepositLabel()
                 'amount' => $deductionAmount,
                 'transaction_date' => $movementDate->toDateString(),
                 'note' => 'Trừ cọc khi chuyển phòng.',
@@ -627,7 +725,7 @@ class RoomController extends Controller
         if ($refundAmount > 0) {
             ContractDepositTransaction::create([
                 'contract_id' => $oldContract->id,
-                'transaction_type' => $this->getDepositLabel(self::DEPOSIT_REFUND),
+                'transaction_type' => self::DEPOSIT_REFUND,
                 'amount' => $refundAmount,
                 'transaction_date' => $movementDate->toDateString(),
                 'note' => 'Hoàn cọc khi chuyển phòng.',
@@ -643,7 +741,7 @@ class RoomController extends Controller
 
         ContractDepositTransaction::create([
             'contract_id' => $oldContract->id,
-            'transaction_type' => $this->getDepositLabel(self::DEPOSIT_TRANSFER_OUT),
+            'transaction_type' => self::DEPOSIT_TRANSFER_OUT,
             'amount' => $transferAmount,
             'transaction_date' => $movementDate->toDateString(),
             'note' => "Chuyển cọc sang hợp đồng #{$destinationContract->id}.",
@@ -652,7 +750,7 @@ class RoomController extends Controller
 
         ContractDepositTransaction::create([
             'contract_id' => $destinationContract->id,
-            'transaction_type' => $this->getDepositLabel(self::DEPOSIT_TRANSFER_IN),
+            'transaction_type' => self::DEPOSIT_TRANSFER_IN,
             'amount' => $transferAmount,
             'transaction_date' => $movementDate->toDateString(),
             'note' => "Nhận cọc chuyển từ hợp đồng #{$oldContract->id}.",
@@ -663,9 +761,10 @@ class RoomController extends Controller
         // cùng chuyển vào 1 hợp đồng mới (mỗi tenant transfer-in 1 lần, cộng dồn lại).
         $destinationContract->increment('deposit_amount', $transferAmount);
     }
+
     private function writeAdminLog(?int $actorAdminId, Contract $oldContract, Contract $destinationContract, Room $oldRoom, Room $toRoom): void
     {
-        if (! $actorAdminId) {
+        if (!$actorAdminId) {
             return;
         }
 
@@ -693,6 +792,7 @@ class RoomController extends Controller
             'created_at' => now(),
         ]);
     }
+
     private function notifyTenant(Tenant $tenant, Room $toRoom, Carbon $movementDate): void
     {
         Notification::create([
@@ -707,6 +807,7 @@ class RoomController extends Controller
             'status' => 2, // khớp dữ liệu mẫu: 2 = đã publish
         ]);
     }
+
     private function generateContractCode(Room $room): string
     {
         // Đơn giản, đủ dùng cho MVP. Nếu lo va chạm khi nhiều request cùng giây,
