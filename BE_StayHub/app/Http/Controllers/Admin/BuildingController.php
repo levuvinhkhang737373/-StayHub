@@ -16,8 +16,13 @@ use App\Http\Resources\Admin\BuildingResource;
 use App\Models\Admin;
 use App\Models\Building;
 use App\Models\BuildingImage;
+use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\Setting;
+use App\Models\Contract;
+use App\Models\ContractTenant;
+use App\Models\Notification;
+use App\Events\NotificationSent;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -228,6 +233,147 @@ class BuildingController extends Controller
             });
 
             return $response;
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
+    public function updateUtilityPrices(Request $request, int $building): JsonResponse
+    {
+        try {
+            $admin = $request->user('admin');
+            if (! $admin) {
+                return ApiResponse::responseJson(false, 'Unauthorized', 401, null, 401);
+            }
+
+            if (! AdminScope::ensureBuildingAccess($admin, $building)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền quản lý tòa nhà này', 403, null, 403);
+            }
+
+            $buildingModel = Building::query()->find($building);
+            if (! $buildingModel) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy tòa nhà', 404, null, 404);
+            }
+
+            $currentYear = now()->year;
+            $currentMonth = now()->month;
+
+            $validated = $request->validate([
+                'electric_price' => 'required|numeric|min:0',
+                'water_price' => 'required|numeric|min:0',
+                'billing_month' => [
+                    'required',
+                    'integer',
+                    'min:1',
+                    'max:12',
+                    function ($attribute, $value, $fail) use ($request, $currentYear, $currentMonth) {
+                        $year = (int) $request->input('billing_year');
+                        if ($year < $currentYear || ($year === $currentYear && (int) $value < $currentMonth)) {
+                            $fail('Không thể thay đổi đơn giá cho tháng cũ.');
+                        }
+                    }
+                ],
+                'billing_year' => 'required|integer|min:' . $currentYear . '|max:2100',
+            ]);
+
+            $response = DB::transaction(function () use ($validated, $buildingModel, $admin, $request): JsonResponse {
+                $startDate = \Illuminate\Support\Carbon::create($validated['billing_year'], $validated['billing_month'], 1)->toDateString();
+                $endDate = \Illuminate\Support\Carbon::create($validated['billing_year'], $validated['billing_month'], 1)->subDay()->toDateString();
+                
+                // Find services by slug
+                $electricService = Service::whereIn('slug', ['electric', 'dien-sinh-hoat', 'dien'])->first();
+                $waterService = Service::whereIn('slug', ['water', 'nuoc-sinh-hoat', 'nuoc'])->first();
+
+                if (! $electricService || ! $waterService) {
+                    return ApiResponse::responseJson(false, 'Không tìm thấy cấu hình dịch vụ điện hoặc nước', 422, null, 422);
+                }
+
+                $services = [
+                    ['service' => $electricService, 'price' => $validated['electric_price']],
+                    ['service' => $waterService, 'price' => $validated['water_price']],
+                ];
+
+                $updatedPrices = [];
+
+                foreach ($services as $item) {
+                    $service = $item['service'];
+                    $price = $this->normalizeDecimal($item['price']);
+
+                    $activePrice = $this->activeServicePrice($buildingModel, $service->id);
+
+                    if ($activePrice) {
+                        if (! $this->servicePriceChanged($activePrice, $service->id, $price)) {
+                            $updatedPrices[$service->slug] = (float) $activePrice->price;
+                            continue;
+                        }
+
+                        if ($this->servicePriceEffectiveFrom($activePrice) === $startDate) {
+                            $activePrice->forceFill([
+                                'price' => $price,
+                                'effective_to' => null,
+                                'status' => ServicePrice::STATUS_ACTIVE,
+                            ])->save();
+
+                            $updatedPrices[$service->slug] = (float) $price;
+                            continue;
+                        }
+
+                        $this->expireServicePrice($activePrice, $endDate);
+                    }
+
+                    $this->expireOtherActiveServicePrices($buildingModel, $service->id, $endDate);
+                    $newPrice = $buildingModel->servicePrices()->create([
+                        'service_id' => $service->id,
+                        'price' => $price,
+                        'effective_from' => $startDate,
+                        'effective_to' => null,
+                        'status' => ServicePrice::STATUS_ACTIVE,
+                    ]);
+
+                    $updatedPrices[$service->slug] = (float) $price;
+                }
+
+                try {
+                    $activeContractTenants = ContractTenant::query()
+                        ->where('is_staying', true)
+                        ->whereHas('contract', function ($q) use ($buildingModel) {
+                            $q->where('status', Contract::STATUS_ACTIVE)
+                                ->whereHas('room', function ($qr) use ($buildingModel) {
+                                    $qr->where('building_id', $buildingModel->id);
+                                });
+                        })
+                        ->with(['contract.room'])
+                        ->get()
+                        ->unique('tenant_id');
+
+                    foreach ($activeContractTenants as $contractTenant) {
+                        $tenantNotification = Notification::create([
+                            'title' => 'Thay đổi đơn giá dịch vụ điện/nước',
+                            'content' => "Tòa nhà {$buildingModel->name} áp dụng đơn giá dịch vụ mới từ tháng {$validated['billing_month']}/{$validated['billing_year']}: Điện " . number_format($validated['electric_price'], 0, ',', '.') . " đ/kWh, Nước " . number_format($validated['water_price'], 0, ',', '.') . " đ/m³.",
+                            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                            'target_type' => Notification::TARGET_TYPE_TENANT,
+                            'building_id' => $buildingModel->id,
+                            'room_id' => $contractTenant->contract?->room_id,
+                            'tenant_id' => $contractTenant->tenant_id,
+                            'published_at' => now(),
+                            'status' => Notification::STATUS_SENT,
+                            'created_by' => $admin->id,
+                        ]);
+
+                        broadcast(new NotificationSent($tenantNotification));
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error notifying tenants of utility price update: ' . $e->getMessage());
+                }
+
+                AdminActivityLogger::write($admin, 'update_utility_prices', Building::class, $buildingModel->id, null, $updatedPrices, $request);
+
+                return ApiResponse::responseJson(true, 'Cập nhật đơn giá dịch vụ thành công', 200, $updatedPrices, 200);
+            });
+
+            return $response;
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return ApiResponse::responseJson(false, $e->validator->errors()->first(), 422, $e->validator->errors(), 422);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }

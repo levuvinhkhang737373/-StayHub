@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AssetTemplateController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
 use App\Http\Controllers\Admin\BulkGenerateInvoiceController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ContractController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
 use App\Http\Controllers\Admin\InvoiceController as AdminInvoiceController;
@@ -47,6 +48,7 @@ Route::prefix('admin')->group(function (): void {
 
         // =========================Buildings================================
         Route::patch('buildings/{building}/status', [BuildingController::class, 'updateStatus']);
+        Route::put('buildings/{building}/utility-prices', [BuildingController::class, 'updateUtilityPrices']);
         Route::apiResource('buildings', BuildingController::class);
 
         // =========================Asset Templates================================
@@ -115,6 +117,9 @@ Route::prefix('admin')->group(function (): void {
         Route::apiResource('/room', RoomController::class);
         Route::patch('/room/{id}/status', [RoomController::class, 'updateStatus']);
         Route::post('/room-transfers/tenant', [RoomController::class, ' transferTenant']);
+
+        // ==========================Dashboard===============================
+        Route::get('dashboard/utility-price-history', [DashboardController::class, 'utilityPriceHistory']);
     });
 });
 

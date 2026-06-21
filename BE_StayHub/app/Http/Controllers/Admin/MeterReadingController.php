@@ -56,15 +56,25 @@ class MeterReadingController extends Controller
                 }, 'contracts.tenants'])
                 ->get();
 
+            $targetDate = \Illuminate\Support\Carbon::create($year, $month, 1)->endOfMonth()->toDateString();
+
             // 2. Get active service prices for electricity and water in this building
             $servicePrices = ServicePrice::query()
                 ->where('building_id', $buildingId)
-                ->where('status', ServicePrice::STATUS_ACTIVE)
+                ->whereIn('status', [ServicePrice::STATUS_ACTIVE, ServicePrice::STATUS_EXPIRED])
+                ->whereDate('effective_from', '<=', $targetDate)
+                ->where(function (Builder $query) use ($targetDate): void {
+                    $query->whereNull('effective_to')
+                        ->orWhereDate('effective_to', '>=', $targetDate);
+                })
                 ->whereHas('service', function ($q) {
                     $q->whereIn('slug', ['electric', 'water', 'dien-sinh-hoat', 'nuoc-sinh-hoat', 'dien', 'nuoc']);
                 })
                 ->with('service')
+                ->orderByDesc('effective_from')
                 ->get()
+                ->unique('service_id')
+                ->values()
                 ->map(function ($price) {
                     return [
                         'service_id' => $price->service_id,
@@ -189,6 +199,12 @@ class MeterReadingController extends Controller
             $month = $validated['billing_month'];
             $year = $validated['billing_year'];
             $currentReading = $validated['current_reading'];
+
+            $currentYear = now()->year;
+            $currentMonth = now()->month;
+            if ($year < $currentYear || ($year === $currentYear && $month < $currentMonth)) {
+                return ApiResponse::responseJson(false, 'Không thể chốt chỉ số cho tháng cũ.', 422, null, 422);
+            }
 
             // Find previous reading (latest before this target month/year)
             $previousReadingRecord = MeterReading::query()

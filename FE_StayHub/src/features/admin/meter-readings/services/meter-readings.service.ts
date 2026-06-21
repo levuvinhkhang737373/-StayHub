@@ -57,3 +57,16 @@ export async function generateSingleInvoice(payload: {
     data: payload,
   })
 }
+
+export async function updateUtilityPrices(buildingId: number, payload: {
+  electric_price: number
+  water_price: number
+  billing_month: number
+  billing_year: number
+}) {
+  return apiRequest<any>({
+    url: `admin/buildings/${buildingId}/utility-prices`,
+    method: 'PUT',
+    data: payload,
+  })
+}

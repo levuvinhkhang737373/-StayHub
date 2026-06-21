@@ -343,6 +343,9 @@ class _MetersScreenState extends State<MetersScreen> {
 
     final hasMeters = elec.id != 0 || water.id != 0;
 
+    final now = DateTime.now();
+    final isPastMonth = _selectedYear < now.year || (_selectedYear == now.year && _selectedMonth < now.month);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -515,7 +518,7 @@ class _MetersScreenState extends State<MetersScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: hasMeters ? () => _openReadingModal(room, electricPrice, waterPrice) : null,
+                onPressed: (hasMeters && !isPastMonth) ? () => _openReadingModal(room, electricPrice, waterPrice) : null,
               ),
             ],
           ),
