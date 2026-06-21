@@ -26,6 +26,14 @@ export interface TenantInvoiceItemResource {
   quantity: string
   unit_price: string
   amount: string
+  meter_reading?: {
+    id: number
+    previous_reading: string | number
+    current_reading: string | number
+    consumption: string | number
+    reading_date?: string | null
+    image_url?: string | null
+  } | null
 }
 
 export interface TenantPaymentResource {

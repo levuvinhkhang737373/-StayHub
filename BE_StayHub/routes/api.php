@@ -67,6 +67,7 @@ Route::prefix('admin')->group(function (): void {
 
         // =========================Meter Readings ==============================
         Route::get('meter-readings/init', [MeterReadingController::class, 'init']);
+        Route::post('meter-readings/analyze-image', [MeterReadingController::class, 'analyzeImage']);
         Route::post('meter-readings', [MeterReadingController::class, 'store']);
 
         // =========================Expense Categories================================

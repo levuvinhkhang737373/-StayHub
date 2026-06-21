@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Admin;
 
+use App\Helpers\ImageHelper;
 use App\Models\InvoiceItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -23,6 +24,7 @@ class InvoiceItemResource extends JsonResource
                 'current_reading' => $this->meterReading->current_reading,
                 'consumption' => $this->meterReading->consumption,
                 'reading_date' => optional($this->meterReading->reading_date)->toDateString(),
+                'image_url' => $this->meterReading->image_path ? ImageHelper::load($this->meterReading->image_path) : null,
             ] : null),
             'item_type' => $this->item_type,
             'item_type_label' => InvoiceItem::ITEM_TYPE_LABELS[$this->item_type] ?? null,

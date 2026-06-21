@@ -4,6 +4,8 @@ export interface ExistingMeterReading {
   consumption: number
   reading_date: string | null
   status: number
+  image_path: string | null
+  image_url: string | null
   note: string | null
 }
 
@@ -45,4 +47,16 @@ export interface SaveMeterReadingPayload {
   current_reading: number
   reading_date: string
   note?: string
+  image_path?: string
+}
+
+export interface AnalyzeMeterImageResponse {
+  success: boolean
+  reading_value: number | null
+  confidence: 'high' | 'medium' | 'low' | null
+  warning: string | null
+  anomaly_warning: string | null
+  error: 'image_blurry' | 'image_too_dark' | 'image_glare' | 'no_meter_found' | 'meter_type_mismatch' | 'ai_service_unavailable' | 'invalid_response' | 'invalid_image' | string | null
+  image_path: string | null
+  image_url: string | null
 }

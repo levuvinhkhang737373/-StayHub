@@ -935,7 +935,7 @@ class InvoiceController extends Controller
             'creator:id,full_name',
             'items' => fn ($query) => $query->orderBy('id'),
             'items.service:id,name,slug,charge_method,unit_name',
-            'items.meterReading:id,meter_device_id,previous_reading,current_reading,consumption,reading_date',
+            'items.meterReading:id,meter_device_id,previous_reading,current_reading,consumption,reading_date,image_path',
             'payments' => fn ($query) => $query->orderByDesc('payment_date')->orderByDesc('id'),
             'payments.collector:id,full_name',
         ];

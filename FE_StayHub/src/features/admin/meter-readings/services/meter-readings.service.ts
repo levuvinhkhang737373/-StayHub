@@ -1,5 +1,6 @@
 import { apiRequest } from "../../../../shared/lib/api/api-client"
-import type { MeterReadingsInitResponse, SaveMeterReadingPayload } from '../types/meter-readings.model'
+import { compressImage } from '../../../../shared/lib/utils/compress-image'
+import type { AnalyzeMeterImageResponse, MeterReadingsInitResponse, SaveMeterReadingPayload } from '../types/meter-readings.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
   const query = new URLSearchParams()
@@ -27,6 +28,23 @@ export async function saveMeterReading(payload: SaveMeterReadingPayload) {
     url: 'admin/meter-readings',
     method: 'POST',
     data: payload,
+  })
+}
+
+export async function analyzeMeterImage(file: File, meterType: number, previousReading?: number) {
+  const compressedFile = await compressImage(file)
+  const formData = new FormData()
+  formData.append('image', compressedFile)
+  formData.append('meter_type', String(meterType))
+
+  if (previousReading !== undefined && previousReading !== null) {
+    formData.append('previous_reading', String(previousReading))
+  }
+
+  return apiRequest<AnalyzeMeterImageResponse>({
+    url: 'admin/meter-readings/analyze-image',
+    method: 'POST',
+    data: formData,
   })
 }
 

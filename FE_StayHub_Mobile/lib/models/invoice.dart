@@ -126,6 +126,7 @@ class InvoiceItem {
   final double amount;
   final String? createdAt;
   final String? updatedAt;
+  final MeterReadingEvidence? meterReading;
 
   InvoiceItem({
     required this.id,
@@ -139,6 +140,7 @@ class InvoiceItem {
     required this.amount,
     this.createdAt,
     this.updatedAt,
+    this.meterReading,
   });
 
   factory InvoiceItem.fromJson(Map<String, dynamic> json) {
@@ -154,6 +156,9 @@ class InvoiceItem {
       amount: json['amount'] != null ? double.tryParse(json['amount'].toString()) ?? 0.0 : 0.0,
       createdAt: json['created_at'] as String?,
       updatedAt: json['updated_at'] as String?,
+      meterReading: json['meter_reading'] is Map<String, dynamic>
+          ? MeterReadingEvidence.fromJson(json['meter_reading'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -170,6 +175,47 @@ class InvoiceItem {
       'amount': amount,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'meter_reading': meterReading?.toJson(),
+    };
+  }
+}
+
+class MeterReadingEvidence {
+  final int id;
+  final double previousReading;
+  final double currentReading;
+  final double consumption;
+  final String? readingDate;
+  final String? imageUrl;
+
+  MeterReadingEvidence({
+    required this.id,
+    required this.previousReading,
+    required this.currentReading,
+    required this.consumption,
+    this.readingDate,
+    this.imageUrl,
+  });
+
+  factory MeterReadingEvidence.fromJson(Map<String, dynamic> json) {
+    return MeterReadingEvidence(
+      id: json['id'] as int? ?? 0,
+      previousReading: json['previous_reading'] != null ? double.tryParse(json['previous_reading'].toString()) ?? 0.0 : 0.0,
+      currentReading: json['current_reading'] != null ? double.tryParse(json['current_reading'].toString()) ?? 0.0 : 0.0,
+      consumption: json['consumption'] != null ? double.tryParse(json['consumption'].toString()) ?? 0.0 : 0.0,
+      readingDate: json['reading_date'] as String?,
+      imageUrl: json['image_url'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'previous_reading': previousReading,
+      'current_reading': currentReading,
+      'consumption': consumption,
+      'reading_date': readingDate,
+      'image_url': imageUrl,
     };
   }
 }

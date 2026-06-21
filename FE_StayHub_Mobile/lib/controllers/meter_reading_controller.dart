@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 
 class RoomReading {
@@ -69,6 +71,8 @@ class ExistingReading {
   final double consumption;
   final String? readingDate;
   final int status;
+  final String? imagePath;
+  final String? imageUrl;
   final String? note;
 
   ExistingReading({
@@ -77,6 +81,8 @@ class ExistingReading {
     required this.consumption,
     this.readingDate,
     required this.status,
+    this.imagePath,
+    this.imageUrl,
     this.note,
   });
 
@@ -87,7 +93,44 @@ class ExistingReading {
       consumption: (json['consumption'] as num? ?? 0).toDouble(),
       readingDate: json['reading_date'] as String?,
       status: json['status'] as int? ?? 1,
+      imagePath: json['image_path'] as String?,
+      imageUrl: json['image_url'] as String?,
       note: json['note'] as String?,
+    );
+  }
+}
+
+class AnalyzeMeterImageResult {
+  final bool success;
+  final double? readingValue;
+  final String? confidence;
+  final String? warning;
+  final String? anomalyWarning;
+  final String? error;
+  final String? imagePath;
+  final String? imageUrl;
+
+  AnalyzeMeterImageResult({
+    required this.success,
+    this.readingValue,
+    this.confidence,
+    this.warning,
+    this.anomalyWarning,
+    this.error,
+    this.imagePath,
+    this.imageUrl,
+  });
+
+  factory AnalyzeMeterImageResult.fromJson(Map<String, dynamic> json) {
+    return AnalyzeMeterImageResult(
+      success: json['success'] as bool? ?? false,
+      readingValue: json['reading_value'] != null ? double.tryParse(json['reading_value'].toString()) : null,
+      confidence: json['confidence'] as String?,
+      warning: json['warning'] as String?,
+      anomalyWarning: json['anomaly_warning'] as String?,
+      error: json['error'] as String?,
+      imagePath: json['image_path'] as String?,
+      imageUrl: json['image_url'] as String?,
     );
   }
 }
@@ -177,6 +220,7 @@ class MeterReadingController extends ChangeNotifier {
     required double currentReading,
     required String readingDate,
     String? note,
+    String? imagePath,
   }) async {
     try {
       final response = await _apiService.post<Map<String, dynamic>>(
@@ -188,6 +232,7 @@ class MeterReadingController extends ChangeNotifier {
           'current_reading': currentReading,
           'reading_date': readingDate,
           'note': note,
+          if (imagePath != null && imagePath.isNotEmpty) 'image_path': imagePath,
         },
         fromJsonT: (json) => json as Map<String, dynamic>,
       );
@@ -196,6 +241,40 @@ class MeterReadingController extends ChangeNotifier {
       _errorMessage = 'Lỗi chốt số đồng hồ: $e';
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<AnalyzeMeterImageResult?> analyzeMeterImage({
+    required XFile image,
+    required int meterType,
+    required double previousReading,
+  }) async {
+    try {
+      final bytes = await image.readAsBytes();
+      final formData = FormData.fromMap({
+        'image': MultipartFile.fromBytes(bytes, filename: image.name.isNotEmpty ? image.name : 'meter-photo.jpg'),
+        'meter_type': meterType,
+        'previous_reading': previousReading,
+      });
+
+      final response = await _apiService.post<Map<String, dynamic>>(
+        '/admin/meter-readings/analyze-image',
+        data: formData,
+        receiveTimeout: const Duration(seconds: 60),
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.result != null) {
+        return AnalyzeMeterImageResult.fromJson(response.result!);
+      }
+
+      _errorMessage = response.message;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _errorMessage = 'Không thể phân tích ảnh đồng hồ: $e';
+      notifyListeners();
+      return AnalyzeMeterImageResult(success: false, error: 'ai_service_unavailable');
     }
   }
 }

@@ -10,6 +10,7 @@ import {
   X,
   Wifi,
   Copy,
+  Camera,
 } from 'lucide-react'
 import { apiRequest } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -583,6 +584,7 @@ export function TenantInvoicesScreen() {
                           <th className="p-3 text-right">Số lượng</th>
                           <th className="p-3 text-right">Đơn giá</th>
                           <th className="p-3 text-right">Thành tiền</th>
+                          <th className="p-3 text-right">Minh chứng</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -600,6 +602,21 @@ export function TenantInvoicesScreen() {
                             <td className="p-3 text-right text-[#8b5e34]">{formatMoney(item.unit_price)}</td>
                             <td className="p-3 text-right font-black">
                               {formatMoney(item.amount)}
+                            </td>
+                            <td className="p-3 text-right">
+                              {item.meter_reading?.image_url ? (
+                                <a
+                                  href={item.meter_reading.image_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#eab308]/35 bg-[#eab308]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8a5a00] transition hover:bg-[#eab308]/20"
+                                  title={`Cũ: ${item.meter_reading.previous_reading} · Mới: ${item.meter_reading.current_reading} · Dùng: ${item.meter_reading.consumption}`}
+                                >
+                                  <Camera className="h-3.5 w-3.5" /> Xem ảnh
+                                </a>
+                              ) : (
+                                <span className="text-[10px] font-bold text-slate-300">—</span>
+                              )}
                             </td>
                           </tr>
                         ))}

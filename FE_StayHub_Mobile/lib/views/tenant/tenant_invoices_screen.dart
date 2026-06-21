@@ -977,6 +977,59 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
     }
   }
 
+  void _showMeterEvidence(InvoiceItem item) {
+    final evidence = item.meterReading;
+    final imageUrl = evidence?.imageUrl;
+    if (evidence == null || imageUrl == null || imageUrl.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text('Ảnh minh chứng đồng hồ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                  IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Cũ: ${evidence.previousReading.toStringAsFixed(0)} • Mới: ${evidence.currentReading.toStringAsFixed(0)} • Dùng: ${evidence.consumption.toStringAsFixed(0)}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 460),
+              child: InteractiveViewer(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('Không thể tải ảnh minh chứng.', textAlign: TextAlign.center),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatusBadge(int status, String label) {
     Color color = Colors.grey;
     if (status == 4) color = Colors.green; // Paid
@@ -1181,41 +1234,59 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: const Color(0xFFE4E2D7).withOpacity(0.5)),
                           ),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: _getItemIconColor(item).withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(_getItemIcon(item), color: _getItemIconColor(item), size: 18),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _getItemName(item),
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1C1917)),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: _getItemIconColor(item).withOpacity(0.1),
+                                      shape: BoxShape.circle,
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      item.description.isNotEmpty ? item.description : 'Đơn giá: ${item.unitPrice.toStringAsFixed(0)}đ x ${item.quantity.toStringAsFixed(0)}',
-                                      style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.w500),
+                                    child: Icon(_getItemIcon(item), color: _getItemIconColor(item), size: 18),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _getItemName(item),
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1C1917)),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          item.description.isNotEmpty ? item.description : 'Đơn giá: ${item.unitPrice.toStringAsFixed(0)}đ x ${item.quantity.toStringAsFixed(0)}',
+                                          style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.w500),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  Text(
+                                    '${item.amount >= 0 ? '+' : ''}${item.amount.toStringAsFixed(0)}đ',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                      color: item.amount >= 0 ? const Color(0xFF1C1917) : Colors.green.shade600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                '${item.amount >= 0 ? '+' : ''}${item.amount.toStringAsFixed(0)}đ',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13,
-                                  color: item.amount >= 0 ? const Color(0xFF1C1917) : Colors.green.shade600,
+                              if (item.meterReading?.imageUrl != null && item.meterReading!.imageUrl!.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: () => _showMeterEvidence(item),
+                                  icon: const Icon(Icons.photo_camera_back_outlined, size: 16),
+                                  label: const Text('Xem ảnh đồng hồ minh chứng'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF1C1917),
+                                    side: const BorderSide(color: Color(0xFFEAB308)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         );

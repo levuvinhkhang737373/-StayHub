@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/facility_controller.dart';
 import '../../controllers/meter_reading_controller.dart';
@@ -420,7 +422,7 @@ class _MetersScreenState extends State<MetersScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Đồng hồ Điện (Mã: ${elec.meterCode ?? "#${elec.id}"})',
+                        'Đồng hồ Điện',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                       const SizedBox(height: 2),
@@ -452,7 +454,7 @@ class _MetersScreenState extends State<MetersScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Đồng hồ Nước (Mã: ${water.meterCode ?? "#${water.id}"})',
+                        'Đồng hồ Nước ',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                       const SizedBox(height: 2),
@@ -554,7 +556,29 @@ class _ReadingDialogState extends State<_ReadingDialog> {
 
   DateTime _readingDate = DateTime.now();
   bool _isSaving = false;
+  bool _isAnalyzingElec = false;
+  bool _isAnalyzingWater = false;
   String? _errorMessage;
+  String? _elecImagePath;
+  String? _elecImageUrl;
+  String? _waterImagePath;
+  String? _waterImageUrl;
+  String? _elecImageError;
+  String? _waterImageError;
+  String? _elecAiBadge;
+  String? _waterAiBadge;
+  String? _elecAiWarning;
+  String? _waterAiWarning;
+  String? _elecAiReadingText;
+  String? _waterAiReadingText;
+  String _lastValidElecReading = '';
+  String _lastValidWaterReading = '';
+  String? _elecManualError;
+  String? _waterManualError;
+  Uint8List? _elecLocalImageBytes;
+  Uint8List? _waterLocalImageBytes;
+  XFile? _elecLocalImage;
+  XFile? _waterLocalImage;
 
   MeterDeviceReading? _elecMeter;
   MeterDeviceReading? _waterMeter;
@@ -577,7 +601,10 @@ class _ReadingDialogState extends State<_ReadingDialog> {
 
     if (_elecMeter?.id != 0 && _elecMeter?.existingReading != null) {
       _elecController.text = _elecMeter!.existingReading!.currentReading.toString();
+      _lastValidElecReading = _elecController.text;
       _elecUsage = _elecMeter!.existingReading!.currentReading - _elecMeter!.previousReading;
+      _elecImagePath = _elecMeter!.existingReading!.imagePath;
+      _elecImageUrl = _elecMeter!.existingReading!.imageUrl;
       if (_elecMeter!.existingReading!.note != null) {
         _noteController.text = _elecMeter!.existingReading!.note!;
       }
@@ -590,7 +617,10 @@ class _ReadingDialogState extends State<_ReadingDialog> {
 
     if (_waterMeter?.id != 0 && _waterMeter?.existingReading != null) {
       _waterController.text = _waterMeter!.existingReading!.currentReading.toString();
+      _lastValidWaterReading = _waterController.text;
       _waterUsage = _waterMeter!.existingReading!.currentReading - _waterMeter!.previousReading;
+      _waterImagePath = _waterMeter!.existingReading!.imagePath;
+      _waterImageUrl = _waterMeter!.existingReading!.imageUrl;
       if (_waterMeter!.existingReading!.note != null) {
         _noteController.text = _waterMeter!.existingReading!.note!;
       }
@@ -647,6 +677,336 @@ class _ReadingDialogState extends State<_ReadingDialog> {
     return '${value.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} đ';
   }
 
+  String _imageErrorMessage(String? error) {
+    switch (error) {
+      case 'image_blurry':
+        return '📷 Ảnh bị mờ, vui lòng bật flash và chụp lại rõ hơn';
+      case 'image_too_dark':
+        return '🔦 Ảnh quá tối, vui lòng bật đèn flash hoặc ra nơi sáng hơn';
+      case 'image_glare':
+        return '☀️ Ảnh bị lóa sáng, vui lòng đổi góc chụp';
+      case 'no_meter_found':
+        return '🔍 Không tìm thấy đồng hồ trong ảnh, vui lòng chụp lại';
+      case 'meter_type_mismatch':
+        return '⚠️ Ảnh không đúng loại đồng hồ, vui lòng chụp đúng đồng hồ điện/nước';
+      case 'invalid_image':
+        return 'Ảnh không hợp lệ, vui lòng chọn ảnh khác';
+      case 'invalid_response':
+        return 'AI trả kết quả chưa hợp lệ, vui lòng nhập tay';
+      case 'ai_service_unavailable':
+      default:
+        return '⏳ Dịch vụ AI tạm thời không khả dụng, vui lòng nhập tay';
+    }
+  }
+
+  Future<void> _pickAndAnalyzeImage({required bool isElectric}) async {
+    final meter = isElectric ? _elecMeter : _waterMeter;
+    if (meter == null || meter.id == 0 || _isSaving) return;
+
+    final picker = ImagePicker();
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Chụp ảnh bằng camera'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Chọn ảnh từ thư viện'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final image = await picker.pickImage(source: source, maxWidth: 1920, imageQuality: 80);
+    if (image == null) return;
+    final imageBytes = await image.readAsBytes();
+
+    setState(() {
+      if (isElectric) {
+        _isAnalyzingElec = true;
+        _elecLocalImage = image;
+        _elecLocalImageBytes = imageBytes;
+        _elecImageError = null;
+        _elecAiWarning = null;
+        _elecAiBadge = null;
+      } else {
+        _isAnalyzingWater = true;
+        _waterLocalImage = image;
+        _waterLocalImageBytes = imageBytes;
+        _waterImageError = null;
+        _waterAiWarning = null;
+        _waterAiBadge = null;
+      }
+      _errorMessage = null;
+    });
+
+    final result = await context.read<MeterReadingController>().analyzeMeterImage(
+          image: image,
+          meterType: isElectric ? 1 : 2,
+          previousReading: meter.previousReading,
+        );
+
+    if (!mounted) return;
+
+    final aiReadingText = result?.success == true && result?.readingValue != null
+        ? result!.readingValue!.toStringAsFixed(0)
+        : null;
+
+    final canUseAiReading = result?.success == true && result?.readingValue != null && result!.readingValue! >= meter.previousReading;
+    final shouldClearPreviousAiReading = result?.success == true && result?.readingValue != null && result!.readingValue! < meter.previousReading;
+
+    setState(() {
+      if (isElectric) {
+        _isAnalyzingElec = false;
+      } else {
+        _isAnalyzingWater = false;
+      }
+
+      if (result == null) {
+        if (isElectric) {
+          _elecImageError = 'ai_service_unavailable';
+        } else {
+          _waterImageError = 'ai_service_unavailable';
+        }
+        return;
+      }
+
+      if (isElectric) {
+        _elecImagePath = result.imagePath ?? _elecImagePath;
+        _elecImageUrl = result.imageUrl ?? _elecImageUrl;
+        if (aiReadingText != null) {
+          if (canUseAiReading) {
+            _elecController.text = aiReadingText;
+            _lastValidElecReading = aiReadingText;
+            _elecManualError = null;
+          } else if (shouldClearPreviousAiReading && _elecController.text == _elecAiReadingText) {
+            _elecController.clear();
+            _lastValidElecReading = '';
+          }
+          _elecAiReadingText = aiReadingText;
+          _elecAiBadge = '✨ AI đã đọc: $aiReadingText';
+          _elecAiWarning = _composeAiWarning(result);
+          _elecImageError = null;
+        } else {
+          _elecImageError = result.error ?? 'invalid_response';
+        }
+      } else {
+        _waterImagePath = result.imagePath ?? _waterImagePath;
+        _waterImageUrl = result.imageUrl ?? _waterImageUrl;
+        if (aiReadingText != null) {
+          if (canUseAiReading) {
+            _waterController.text = aiReadingText;
+            _lastValidWaterReading = aiReadingText;
+            _waterManualError = null;
+          } else if (shouldClearPreviousAiReading && _waterController.text == _waterAiReadingText) {
+            _waterController.clear();
+            _lastValidWaterReading = '';
+          }
+          _waterAiReadingText = aiReadingText;
+          _waterAiBadge = '✨ AI đã đọc: $aiReadingText';
+          _waterAiWarning = _composeAiWarning(result);
+          _waterImageError = null;
+        } else {
+          _waterImageError = result.error ?? 'invalid_response';
+        }
+      }
+    });
+  }
+
+  String? _composeAiWarning(AnalyzeMeterImageResult result) {
+    final messages = <String>[];
+    if (result.confidence == 'low') {
+      messages.add('⚠️ AI không chắc chắn, vui lòng kiểm tra lại số');
+    }
+    if (result.anomalyWarning != null && result.anomalyWarning!.isNotEmpty) {
+      messages.add(result.anomalyWarning!);
+    }
+    if (result.warning != null && result.warning!.isNotEmpty) {
+      messages.add(result.warning!);
+    }
+    return messages.isEmpty ? null : messages.join('\n');
+  }
+
+  void _handleManualReadingChanged({required bool isElectric, required String value}) {
+    final meter = isElectric ? _elecMeter : _waterMeter;
+    if (meter == null || meter.id == 0) return;
+
+    final numericValue = double.tryParse(value);
+    if (value.isNotEmpty && numericValue != null && numericValue < meter.previousReading) {
+      final controller = isElectric ? _elecController : _waterController;
+      final previousValidValue = isElectric ? _lastValidElecReading : _lastValidWaterReading;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.value = TextEditingValue(
+          text: previousValidValue,
+          selection: TextSelection.collapsed(offset: previousValidValue.length),
+        );
+      });
+
+      setState(() {
+        final message = 'Chỉ số mới không được nhỏ hơn chỉ số cũ (${meter.previousReading}).';
+        if (isElectric) {
+          _elecManualError = message;
+        } else {
+          _waterManualError = message;
+        }
+      });
+      return;
+    }
+
+    if (value.isEmpty || numericValue != null) {
+      if (isElectric) {
+        _lastValidElecReading = value;
+      } else {
+        _lastValidWaterReading = value;
+      }
+    }
+
+    if (isElectric) {
+      setState(() {
+        _elecManualError = null;
+      });
+    } else {
+      setState(() {
+        _waterManualError = null;
+      });
+    }
+
+    _formKey.currentState?.validate();
+  }
+
+  Widget _buildAiImagePanel({required bool isElectric}) {
+    final localImage = isElectric ? _elecLocalImage : _waterLocalImage;
+    final localImageBytes = isElectric ? _elecLocalImageBytes : _waterLocalImageBytes;
+    final imageUrl = isElectric ? _elecImageUrl : _waterImageUrl;
+    final isAnalyzing = isElectric ? _isAnalyzingElec : _isAnalyzingWater;
+    final imageError = isElectric ? _elecImageError : _waterImageError;
+    final aiBadge = isElectric ? _elecAiBadge : _waterAiBadge;
+    final aiWarning = isElectric ? _elecAiWarning : _waterAiWarning;
+    final accentColor = isElectric ? const Color(0xFFEAB308) : Colors.cyan;
+
+    Widget preview;
+    if (localImage != null && localImageBytes != null) {
+      preview = Image.memory(localImageBytes, fit: BoxFit.cover);
+    } else if (imageUrl != null && imageUrl.isNotEmpty) {
+      preview = Image.network(imageUrl, fit: BoxFit.cover);
+    } else {
+      preview = Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Icon(Icons.photo_camera_back_outlined, color: Colors.grey),
+          SizedBox(height: 4),
+          Text('Chưa có ảnh', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: 96,
+                height: 86,
+                color: const Color(0xFFF5F2EA),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    preview,
+                    if (isAnalyzing)
+                      Container(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: (_isSaving || isAnalyzing) ? null : () => _pickAndAnalyzeImage(isElectric: isElectric),
+                    icon: Icon(imageError == null ? Icons.camera_alt : Icons.refresh, size: 16),
+                    label: Text(imageError == null ? 'Chụp ảnh đồng hồ' : 'Chụp lại'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF1C1917),
+                      side: BorderSide(color: accentColor.withValues(alpha: 0.45)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Ảnh được nén ~800KB, AI chỉ gợi ý và vẫn sửa tay được.',
+                    style: TextStyle(fontSize: 10, color: Colors.grey, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (isAnalyzing) ...[
+          const SizedBox(height: 8),
+          Text('🤖 AI đang phân tích ảnh...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: accentColor)),
+        ],
+        if (aiBadge != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.18)),
+            ),
+            child: Text(aiBadge, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+          ),
+        ],
+        if (aiWarning != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.18)),
+            ),
+            child: Text(aiWarning, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.orange)),
+          ),
+        ],
+        if (imageError != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.18)),
+            ),
+            child: Text(_imageErrorMessage(imageError), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red)),
+          ),
+        ],
+      ],
+    );
+  }
+
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -674,6 +1034,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
   }
 
   Future<void> _handleSave() async {
+    if (_isAnalyzingElec || _isAnalyzingWater) return;
     if (!_formKey.currentState!.validate()) return;
 
     final hasAnyInput = (_elecMeter?.id != 0 && _elecController.text.trim().isNotEmpty) ||
@@ -707,6 +1068,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
           currentReading: elecVal,
           readingDate: formattedDate,
           note: note,
+          imagePath: _elecImagePath,
         );
         if (!elecOk) success = false;
       }
@@ -720,6 +1082,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
           currentReading: waterVal,
           readingDate: formattedDate,
           note: note,
+          imagePath: _waterImagePath,
         );
         if (!waterOk) success = false;
       }
@@ -738,13 +1101,17 @@ class _ReadingDialogState extends State<_ReadingDialog> {
         });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Lỗi lưu thông tin: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Lỗi lưu thông tin: $e';
+        });
+      }
     } finally {
-      setState(() {
-        _isSaving = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
@@ -851,6 +1218,8 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                           ],
                         ),
                         const SizedBox(height: 8),
+                        _buildAiImagePanel(isElectric: true),
+                        const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
@@ -870,19 +1239,21 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                               child: TextFormField(
                                 controller: _elecController,
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                enabled: !_isSaving,
-                                decoration: const InputDecoration(
+                                enabled: !_isSaving && !_isAnalyzingElec,
+                                decoration: InputDecoration(
                                   labelText: 'Chỉ số mới',
+                                  errorText: _elecManualError,
                                   fillColor: Colors.white,
                                   filled: true,
-                                  border: OutlineInputBorder(),
+                                  border: const OutlineInputBorder(),
                                 ),
+                                onChanged: (value) => _handleManualReadingChanged(isElectric: true, value: value),
                                 validator: (val) {
                                   if (val == null || val.trim().isEmpty) return null;
                                   final numVal = double.tryParse(val);
                                   if (numVal == null) return 'Phải là số';
                                   if (numVal < _elecMeter!.previousReading) {
-                                    return '>= ${_elecMeter!.previousReading}';
+                                    return 'Chỉ số mới không được nhỏ hơn chỉ số cũ (${_elecMeter!.previousReading}).';
                                   }
                                   return null;
                                 },
@@ -926,6 +1297,8 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                           ],
                         ),
                         const SizedBox(height: 8),
+                        _buildAiImagePanel(isElectric: false),
+                        const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
@@ -945,19 +1318,21 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                               child: TextFormField(
                                 controller: _waterController,
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                enabled: !_isSaving,
-                                decoration: const InputDecoration(
+                                enabled: !_isSaving && !_isAnalyzingWater,
+                                decoration: InputDecoration(
                                   labelText: 'Chỉ số mới',
+                                  errorText: _waterManualError,
                                   fillColor: Colors.white,
                                   filled: true,
-                                  border: OutlineInputBorder(),
+                                  border: const OutlineInputBorder(),
                                 ),
+                                onChanged: (value) => _handleManualReadingChanged(isElectric: false, value: value),
                                 validator: (val) {
                                   if (val == null || val.trim().isEmpty) return null;
                                   final numVal = double.tryParse(val);
                                   if (numVal == null) return 'Phải là số';
                                   if (numVal < _waterMeter!.previousReading) {
-                                    return '>= ${_waterMeter!.previousReading}';
+                                    return 'Chỉ số mới không được nhỏ hơn chỉ số cũ (${_waterMeter!.previousReading}).';
                                   }
                                   return null;
                                 },
@@ -1032,14 +1407,17 @@ class _ReadingDialogState extends State<_ReadingDialog> {
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          onPressed: _isSaving ? null : _handleSave,
+          onPressed: (_isSaving || _isAnalyzingElec || _isAnalyzingWater) ? null : _handleSave,
           child: _isSaving
               ? const SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                 )
-              : const Text('LƯU CHỐT SỐ', style: TextStyle(fontWeight: FontWeight.bold)),
+              : Text(
+                  (_isAnalyzingElec || _isAnalyzingWater) ? 'AI ĐANG ĐỌC ẢNH...' : 'LƯU CHỐT SỐ',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
         ),
       ],
     );

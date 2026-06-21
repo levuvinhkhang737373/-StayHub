@@ -212,10 +212,16 @@ class ApiService {
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
     required T Function(dynamic json) fromJsonT,
   }) async {
     try {
-      final response = await _dio.post(path, data: data, queryParameters: queryParameters);
+      final response = await _dio.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: receiveTimeout != null ? Options(receiveTimeout: receiveTimeout) : null,
+      );
       return ApiEnvelope.fromJson(response.data as Map<String, dynamic>, fromJsonT);
     } on DioException catch (e) {
       throw _handleDioError(e);

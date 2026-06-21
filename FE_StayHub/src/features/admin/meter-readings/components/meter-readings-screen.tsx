@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, FileText, Layers, Calendar, Droplet, Edit3, RefreshCw, Save, X, Zap } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
-import { fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, generateSingleInvoice } from '../services/meter-readings.service'
+import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, generateSingleInvoice } from '../services/meter-readings.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
-import type { RoomReadingInit, ServicePriceInit } from '../types/meter-readings.model'
+import type { AnalyzeMeterImageResponse, RoomReadingInit, ServicePriceInit } from '../types/meter-readings.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
+import { ImageViewerModal } from '../../../../shared/components/ImageViewerModal'
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
@@ -19,10 +20,75 @@ const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `Th�
 const currentYear = new Date().getFullYear()
 const years = Array.from({ length: 5 }, (_, i) => ({ value: currentYear - 2 + i, label: `Năm ${currentYear - 2 + i}` }))
 
+type MeterKind = 'elec' | 'water'
+
+type MeterFormState = {
+  id: number
+  prev: number
+  curr: string
+  price: number
+  unit: string
+  code: string
+  imagePath: string | null
+  imageUrl: string | null
+  previewUrl: string | null
+  aiReading: number | null
+  confidence: AnalyzeMeterImageResponse['confidence']
+  warning: string | null
+  anomalyWarning: string | null
+  imageError: string | null
+  isAnalyzing: boolean
+}
+
+const imageErrorMessages: Record<string, string> = {
+  image_blurry: 'Ảnh bị mờ, vui lòng bật flash và chụp lại rõ hơn',
+  image_too_dark: 'Ảnh quá tối, vui lòng bật đèn flash hoặc di chuyển ra nơi sáng hơn',
+  image_glare: 'Ảnh bị lóa sáng, vui lòng đổi góc chụp tránh phản chiếu',
+  no_meter_found: 'Không tìm thấy đồng hồ trong ảnh, vui lòng chụp lại',
+  meter_type_mismatch: 'Ảnh không đúng loại đồng hồ, vui lòng chụp đúng đồng hồ điện/nước',
+  ai_service_unavailable: 'Dịch vụ AI tạm thời không khả dụng, vui lòng nhập tay',
+  invalid_response: 'AI trả kết quả chưa hợp lệ, vui lòng nhập tay',
+  invalid_image: 'Ảnh không hợp lệ, vui lòng chọn ảnh khác',
+}
+
 function getVisibleErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError) return error.message || fallback
   if (error instanceof Error) return error.message
   return fallback
+}
+
+function getAiImageErrorMessage(error: string | null | undefined) {
+  if (!error) return null
+  return imageErrorMessages[error] || 'Không thể đọc chỉ số từ ảnh, vui lòng nhập tay'
+}
+
+function buildMeterFormState(args: {
+  id: number
+  prev: number
+  curr: string
+  price: number
+  unit: string
+  code: string
+  imagePath?: string | null
+  imageUrl?: string | null
+}): MeterFormState {
+  return {
+    id: args.id,
+    prev: args.prev,
+    curr: args.curr,
+    price: args.price,
+    unit: args.unit,
+    code: args.code,
+    imagePath: args.imagePath ?? null,
+    imageUrl: args.imageUrl ?? null,
+    previewUrl: args.imageUrl ?? null,
+    aiReading: null,
+    confidence: null,
+    warning: null,
+    anomalyWarning: null,
+    imageError: null,
+    isAnalyzing: false,
+  }
 }
 
 export function MeterReadingsScreen() {
@@ -45,10 +111,11 @@ export function MeterReadingsScreen() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [activeRoom, setActiveRoom] = useState<RoomReadingInit | null>(null)
-  
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null)
+
   // Readings Form State (separate fields for Electric and Water meters)
-  const [elecMeter, setElecMeter] = useState<{ id: number; prev: number; curr: string; price: number; unit: string; code: string } | null>(null)
-  const [waterMeter, setWaterMeter] = useState<{ id: number; prev: number; curr: string; price: number; unit: string; code: string } | null>(null)
+  const [elecMeter, setElecMeter] = useState<MeterFormState | null>(null)
+  const [waterMeter, setWaterMeter] = useState<MeterFormState | null>(null)
   const [readingDate, setReadingDate] = useState(new Date().toISOString().split('T')[0])
   const [note, setNote] = useState('')
   const [formErrors, setFormErrors] = useState<{ elec?: string; water?: string; date?: string }>({})
@@ -138,7 +205,7 @@ export function MeterReadingsScreen() {
     }
   }, [servicePrices])
 
-  
+
   const handleBulkGenerate = async () => {
     if (isGeneratingBulk || !selectedBuildingId) return
     setIsGeneratingBulk(true)
@@ -189,14 +256,16 @@ export function MeterReadingsScreen() {
     const waterDevice = room.meters.find(m => m.meter_type === 2)
 
     if (electricDevice) {
-      setElecMeter({
+      setElecMeter(buildMeterFormState({
         id: electricDevice.id,
         prev: electricDevice.previous_reading,
         curr: electricDevice.existing_reading ? String(electricDevice.existing_reading.current_reading) : '',
         price: rates.electric,
         unit: rates.electricUnit,
         code: electricDevice.meter_code || `#${electricDevice.id}`,
-      })
+        imagePath: electricDevice.existing_reading?.image_path,
+        imageUrl: electricDevice.existing_reading?.image_url,
+      }))
       if (electricDevice.existing_reading && electricDevice.existing_reading.note) {
         setNote(electricDevice.existing_reading.note)
       }
@@ -208,14 +277,16 @@ export function MeterReadingsScreen() {
     }
 
     if (waterDevice) {
-      setWaterMeter({
+      setWaterMeter(buildMeterFormState({
         id: waterDevice.id,
         prev: waterDevice.previous_reading,
         curr: waterDevice.existing_reading ? String(waterDevice.existing_reading.current_reading) : '',
         price: rates.water,
         unit: rates.waterUnit,
         code: waterDevice.meter_code || `#${waterDevice.id}`,
-      })
+        imagePath: waterDevice.existing_reading?.image_path,
+        imageUrl: waterDevice.existing_reading?.image_url,
+      }))
       if (waterDevice.existing_reading && waterDevice.existing_reading.note) {
         setNote(waterDevice.existing_reading.note)
       }
@@ -229,8 +300,77 @@ export function MeterReadingsScreen() {
     setIsModalOpen(true)
   }
 
+  const updateMeterState = (kind: MeterKind, updater: (meter: MeterFormState) => MeterFormState) => {
+    if (kind === 'elec') {
+      setElecMeter(prev => prev ? updater(prev) : prev)
+      return
+    }
+
+    setWaterMeter(prev => prev ? updater(prev) : prev)
+  }
+
+  const handleAnalyzeImage = async (kind: MeterKind, file: File | null) => {
+    const meter = kind === 'elec' ? elecMeter : waterMeter
+    if (!meter || !file) return
+
+    const previewUrl = URL.createObjectURL(file)
+    updateMeterState(kind, current => ({
+      ...current,
+      previewUrl,
+      imageError: null,
+      warning: null,
+      anomalyWarning: null,
+      isAnalyzing: true,
+    }))
+
+    setErrorMessage(null)
+
+    try {
+      const response = await analyzeMeterImage(file, kind === 'elec' ? 1 : 2, meter.prev)
+      const result = response.result
+
+      if (!result) {
+        updateMeterState(kind, current => ({
+          ...current,
+          isAnalyzing: false,
+          imageError: 'invalid_response',
+        }))
+        return
+      }
+
+      updateMeterState(kind, current => {
+        const aiReading = result.success ? result.reading_value : null
+        const canUseAiReading = aiReading !== null && aiReading >= current.prev
+        const shouldClearAiReading = aiReading !== null && aiReading < current.prev
+        const previousAiReading = current.aiReading !== null ? String(current.aiReading) : null
+
+        return {
+          ...current,
+          curr: canUseAiReading
+            ? String(aiReading)
+            : (shouldClearAiReading && current.curr === previousAiReading ? '' : current.curr),
+          imagePath: result.image_path ?? current.imagePath,
+          imageUrl: result.image_url ?? current.imageUrl,
+          previewUrl: result.image_url ?? previewUrl,
+          aiReading,
+          confidence: result.success ? result.confidence : null,
+          warning: result.warning,
+          anomalyWarning: result.anomaly_warning,
+          imageError: result.success ? null : (result.error ?? 'invalid_response'),
+          isAnalyzing: false,
+        }
+      })
+    } catch (error) {
+      updateMeterState(kind, current => ({
+        ...current,
+        isAnalyzing: false,
+        imageError: error instanceof ApiError && error.statusCode === 422 ? 'invalid_image' : 'ai_service_unavailable',
+      }))
+    }
+  }
+
   const handleSaveReadings = async () => {
-    if (isSaving || !activeRoom) return
+    if (isSaving || elecMeter?.isAnalyzing || waterMeter?.isAnalyzing || !activeRoom) return
 
     const errors: { elec?: string; water?: string; date?: string } = {}
     if (!readingDate) {
@@ -282,6 +422,7 @@ export function MeterReadingsScreen() {
           current_reading: Number(elecMeter.curr),
           reading_date: readingDate,
           note: note || undefined,
+          image_path: elecMeter.imagePath || undefined,
         })
       }
 
@@ -293,6 +434,7 @@ export function MeterReadingsScreen() {
           current_reading: Number(waterMeter.curr),
           reading_date: readingDate,
           note: note || undefined,
+          image_path: waterMeter.imagePath || undefined,
         })
       }
 
@@ -315,6 +457,166 @@ export function MeterReadingsScreen() {
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val)
+  }
+
+  const renderMeterPanel = (kind: MeterKind, meter: MeterFormState) => {
+    const isElectric = kind === 'elec'
+    const fieldError = isElectric ? formErrors.elec : formErrors.water
+    const accent = isElectric
+      ? {
+        icon: <Zap className="h-4 w-4" />,
+        title: 'Đồng hồ Điện',
+        text: 'text-[#8a4f18]',
+        ring: 'focus:ring-[#f3c56b]/20 focus:border-[#f3c56b]',
+        soft: 'bg-[#f3c56b]/10 text-[#8b5e34] border-[#f3c56b]/25',
+        usageUnit: 'kWh',
+      }
+      : {
+        icon: <Droplet className="h-4 w-4" />,
+        title: 'Đồng hồ Nước',
+        text: 'text-cyan-800',
+        ring: 'focus:ring-cyan-200 focus:border-cyan-400',
+        soft: 'bg-cyan-50/80 text-cyan-900 border-cyan-100',
+        usageUnit: 'm³',
+      }
+    const imageError = getAiImageErrorMessage(meter.imageError)
+    const hasValidReading = meter.curr && !isNaN(Number(meter.curr)) && Number(meter.curr) >= meter.prev
+
+    return (
+      <div className="rounded-[1.35rem] border border-[#3d2a18]/8 bg-white/60 p-4 shadow-sm shadow-[#3d2a18]/5 space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className={cn('flex items-center gap-1.5 text-xs font-black uppercase tracking-wider', accent.text)}>
+            {accent.icon}
+            <span>{accent.title} (Mã: {meter.code})</span>
+          </div>
+          {meter.aiReading !== null && (
+            <span className="inline-flex w-fit items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+              <Sparkles className="h-3 w-3" /> AI đã đọc: {meter.aiReading}
+            </span>
+          )}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
+          <div className="relative min-h-40 overflow-hidden rounded-[1.35rem] border border-dashed border-[#3d2a18]/15 bg-[#fff7e8]">
+            {meter.previewUrl ? (
+              <button
+                type="button"
+                onClick={() => setPreviewImage({ src: meter.imageUrl || meter.previewUrl || '', alt: `Ảnh ${accent.title.toLowerCase()}` })}
+                className="group block h-full min-h-40 w-full overflow-hidden text-left focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/30"
+                title="Bấm để xem ảnh lớn"
+              >
+                <img src={meter.previewUrl} alt={`Ảnh ${accent.title.toLowerCase()}`} className="h-full min-h-40 w-full object-cover transition duration-300 group-hover:scale-105" />
+                <span className="absolute inset-x-3 bottom-3 rounded-full bg-[#24170d]/78 px-3 py-1.5 text-center text-[10px] font-black uppercase tracking-wider text-[#fff4df] opacity-0 backdrop-blur transition group-hover:opacity-100">
+                  Bấm để xem ảnh lớn
+                </span>
+              </button>
+            ) : (
+              <div className="flex h-full min-h-40 flex-col items-center justify-center gap-2 px-3 text-center text-[#8b5e34]/60">
+                <ImageIcon className="h-9 w-9" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Chưa có ảnh</span>
+              </div>
+            )}
+            {meter.isAnalyzing && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#24170d]/72 text-[#fff4df] backdrop-blur-sm">
+                <Loader2 className="h-6 w-6 animate-spin text-[#f3c56b]" />
+                <span className="px-3 text-center text-[10px] font-black uppercase tracking-wider">AI đang phân tích ảnh...</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <input
+              id={`${kind}-meter-image-input`}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              disabled={meter.isAnalyzing || isSaving}
+              onChange={(event) => {
+                const file = event.target.files?.[0] || null
+                event.target.value = ''
+                void handleAnalyzeImage(kind, file)
+              }}
+            />
+            <label
+              htmlFor={`${kind}-meter-image-input`}
+              className={cn(
+                'inline-flex min-h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-[11px] font-black uppercase tracking-wider transition active:scale-[0.98]',
+                meter.isAnalyzing || isSaving
+                  ? 'pointer-events-none border-[#3d2a18]/10 bg-stone-100 text-stone-400'
+                  : 'border-[#24170d]/10 bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18]'
+              )}
+            >
+              {meter.imageError ? <RotateCcw className="h-3.5 w-3.5 text-[#f3c56b]" /> : <Camera className="h-3.5 w-3.5 text-[#f3c56b]" />}
+              {meter.imageError ? 'Chụp lại' : 'Chụp ảnh đồng hồ'}
+            </label>
+          </div>
+        </div>
+
+        {imageError && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold leading-5 text-rose-700">
+            {imageError}
+          </div>
+        )}
+        {meter.confidence === 'low' && (
+          <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" /> AI không chắc chắn, vui lòng kiểm tra lại số
+          </div>
+        )}
+        {meter.anomalyWarning && (
+          <div className="flex gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold leading-5 text-orange-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" /> {meter.anomalyWarning}
+          </div>
+        )}
+        {meter.warning && (
+          <div className="rounded-xl border border-[#3d2a18]/10 bg-[#fff7e8] px-3 py-2 text-xs font-bold leading-5 text-[#8b5e34]">
+            {meter.warning}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Chỉ số cũ</label>
+            <input type="text" readOnly className={cn(inputClass, 'bg-[#efe2cf]/45 opacity-75')} value={meter.prev} />
+          </div>
+          <div>
+            <label className={labelClass}>Chỉ số mới</label>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              placeholder="Nhập số mới"
+              className={cn(inputClass, accent.ring, fieldError && inputErrorClass)}
+              value={meter.curr}
+              onChange={(event) => {
+                const nextValue = event.target.value
+                const numericValue = Number(nextValue)
+
+                if (nextValue !== '' && !isNaN(numericValue) && numericValue < meter.prev) {
+                  setFormErrors(prev => ({
+                    ...prev,
+                    [kind]: `Chỉ số mới không được nhỏ hơn chỉ số cũ (${meter.prev}).`,
+                  }))
+                  return
+                }
+
+                updateMeterState(kind, current => ({ ...current, curr: nextValue }))
+                setFormErrors(prev => ({ ...prev, [kind]: undefined }))
+              }}
+            />
+          </div>
+        </div>
+
+        {fieldError && <p className="text-xs font-bold text-rose-600">{fieldError}</p>}
+        {hasValidReading && (
+          <div className={cn('rounded-xl border p-2.5 text-xs font-bold', accent.soft)}>
+            Sử dụng: <span className="font-black text-[#24170d]">{Number(meter.curr) - meter.prev} {accent.usageUnit}</span>
+            <span className="mx-2">•</span>
+            Thành tiền: <span className="font-black text-[#24170d]">{formatCurrency(calculateCost(meter.curr, meter.prev, meter.price))}</span>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -359,7 +661,7 @@ export function MeterReadingsScreen() {
                     onChange={(val) => setSelectedYear(Number(val))}
                   />
                 </div>
-                
+
                 <button
                   type="button"
                   onClick={() => void handleBulkGenerate()}
@@ -470,7 +772,7 @@ export function MeterReadingsScreen() {
                       <td className="px-5 py-4">
                         <span className="text-sm font-black text-[#24170d]">Phòng {room.room_number}</span>
                       </td>
-                      
+
                       {/* Electricity Detail Column */}
                       <td className="px-5 py-4">
                         {elec ? (
@@ -570,24 +872,24 @@ export function MeterReadingsScreen() {
                               </>
                             )}
                           </button>
-                          
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!room.contract_id) return;
-                                void handleGenerateSingle(room.contract_id)
-                              }}
-                              disabled={!room.contract_id || isGeneratingSingle === room.contract_id || (elec && !isChotElec) || (water && !isChotWater)}
-                              title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : 'Tạo hóa đơn'}
-                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5 mt-1 sm:mt-0 sm:ml-2"
-                            >
-                              {isGeneratingSingle === room.contract_id && room.contract_id ? (
-                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <FileText className="h-3.5 w-3.5" />
-                              )}
-                              Tạo HĐ
-                            </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!room.contract_id) return;
+                              void handleGenerateSingle(room.contract_id)
+                            }}
+                            disabled={!room.contract_id || isGeneratingSingle === room.contract_id || (elec && !isChotElec) || (water && !isChotWater)}
+                            title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : 'Tạo hóa đơn'}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5 mt-1 sm:mt-0 sm:ml-2"
+                          >
+                            {isGeneratingSingle === room.contract_id && room.contract_id ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <FileText className="h-3.5 w-3.5" />
+                            )}
+                            Tạo HĐ
+                          </button>
 
                         </div>
                       </td>
@@ -616,14 +918,14 @@ export function MeterReadingsScreen() {
       {isModalOpen && activeRoom && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="reading-dialog-title">
           <button type="button" onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
-          
-          <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
+
+          <div className="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
             {/* Modal Header */}
-            <div className="bg-[#24170d] p-5 text-[#fff4df]">
+            <div className="bg-[#24170d] px-6 py-5 text-[#fff4df] sm:px-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Utility Record</p>
-                  <h2 id="reading-dialog-title" className="mt-1.5 text-2xl font-black tracking-tight">Chốt chỉ số - Phòng {activeRoom.room_number}</h2>
+                  <h2 id="reading-dialog-title" className="mt-1.5 text-2xl font-black tracking-tight sm:text-3xl">Chốt chỉ số - Phòng {activeRoom.room_number}</h2>
                   <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Khách thuê đại diện: {activeRoom.tenant_name || 'Không có (Phòng trống)'}</p>
                 </div>
                 <button
@@ -637,130 +939,64 @@ export function MeterReadingsScreen() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 space-y-5 max-h-[72vh] overflow-y-auto">
-              {/* Reading Date */}
-              <div>
-                <label className={labelClass}>Ngày ghi nhận số liệu</label>
-                <AdminDateInput
-                  className={cn(inputClass, formErrors.date && inputErrorClass)}
-                  value={readingDate}
-                  onChange={(val) => {
-                    setReadingDate(val)
-                    setFormErrors(prev => ({ ...prev, date: undefined }))
-                  }}
-                />
-                {formErrors.date && <p className="mt-2 text-xs font-bold text-rose-600">{formErrors.date}</p>}
-              </div>
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 lg:p-7">
+              <div className="grid gap-5 lg:grid-cols-[1fr_320px] lg:items-start">
+                <div className="space-y-5">
+                  {/* Electric Meter section */}
+                  {elecMeter && renderMeterPanel('elec', elecMeter)}
 
-              {/* Electric Meter section */}
-              {elecMeter && (
-                <div className="rounded-2xl border border-[#3d2a18]/8 bg-white/50 p-4 space-y-3">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-[#8a4f18] uppercase tracking-wider">
-                    <Zap className="h-4 w-4" />
-                    <span>Đồng hồ Điện (Mã: {elecMeter.code})</span>
+                  {/* Water Meter section */}
+                  {waterMeter && renderMeterPanel('water', waterMeter)}
+                </div>
+
+                <aside className="space-y-4 rounded-[1.75rem] border border-[#3d2a18]/10 bg-white/70 p-4 shadow-sm shadow-[#3d2a18]/5 lg:sticky lg:top-0">
+                  {/* Reading Date */}
+                  <div>
+                    <label className={labelClass}>Ngày ghi nhận số liệu</label>
+                    <AdminDateInput
+                      className={cn(inputClass, formErrors.date && inputErrorClass)}
+                      value={readingDate}
+                      onChange={(val) => {
+                        setReadingDate(val)
+                        setFormErrors(prev => ({ ...prev, date: undefined }))
+                      }}
+                    />
+                    {formErrors.date && <p className="mt-2 text-xs font-bold text-rose-600">{formErrors.date}</p>}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelClass}>Chỉ số cũ</label>
-                      <input type="text" readOnly className={cn(inputClass, 'bg-[#efe2cf]/45 opacity-75')} value={elecMeter.prev} />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Chỉ số mới</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        placeholder="Nhập số mới"
-                        className={cn(inputClass, formErrors.elec && inputErrorClass)}
-                        value={elecMeter.curr}
-                        onChange={(e) => {
-                          setElecMeter(prev => prev ? { ...prev, curr: e.target.value } : null)
-                          setFormErrors(prev => ({ ...prev, elec: undefined }))
-                        }}
-                      />
-                    </div>
+
+                  {/* Note */}
+                  <div>
+                    <label className={labelClass}>Ghi chú</label>
+                    <textarea
+                      className={cn(inputClass, 'min-h-[110px] resize-none')}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Ghi chú thêm về kỳ chốt này..."
+                    />
                   </div>
-                  {formErrors.elec && <p className="text-xs font-bold text-rose-600">{formErrors.elec}</p>}
-                  {elecMeter.curr && !isNaN(Number(elecMeter.curr)) && Number(elecMeter.curr) >= elecMeter.prev && (
-                    <div className="rounded-xl bg-[#f3c56b]/10 p-2.5 text-xs font-bold text-[#8b5e34]">
-                      Sử dụng: <span className="font-black text-[#24170d]">{Number(elecMeter.curr) - elecMeter.prev} kWh</span>
-                      <span className="mx-2">•</span>
-                      Thành tiền: <span className="font-black text-[#24170d]">{formatCurrency(calculateCost(elecMeter.curr, elecMeter.prev, elecMeter.price))}</span>
+
+                  {/* Invoice Calculations Summary Info */}
+                  {(elecMeter?.curr || waterMeter?.curr) && (
+                    <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#24170d] p-4 text-[#fff4df] shadow-md shadow-[#24170d]/10">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#f3c56b]">Dự báo tiền dịch vụ</p>
+                      <p className="mt-1 text-2xl font-black tracking-tight">
+                        {formatCurrency(
+                          calculateCost(elecMeter?.curr || '0', elecMeter?.prev || 0, elecMeter?.price || 0) +
+                          calculateCost(waterMeter?.curr || '0', waterMeter?.prev || 0, waterMeter?.price || 0)
+                        )}
+                      </p>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Water Meter section */}
-              {waterMeter && (
-                <div className="rounded-2xl border border-[#3d2a18]/8 bg-white/50 p-4 space-y-3">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-cyan-800 uppercase tracking-wider">
-                    <Droplet className="h-4 w-4" />
-                    <span>Đồng hồ Nước (Mã: {waterMeter.code})</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelClass}>Chỉ số cũ</label>
-                      <input type="text" readOnly className={cn(inputClass, 'bg-[#efe2cf]/45 opacity-75')} value={waterMeter.prev} />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Chỉ số mới</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        placeholder="Nhập số mới"
-                        className={cn(inputClass, formErrors.water && inputErrorClass)}
-                        value={waterMeter.curr}
-                        onChange={(e) => {
-                          setWaterMeter(prev => prev ? { ...prev, curr: e.target.value } : null)
-                          setFormErrors(prev => ({ ...prev, water: undefined }))
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {formErrors.water && <p className="text-xs font-bold text-rose-600">{formErrors.water}</p>}
-                  {waterMeter.curr && !isNaN(Number(waterMeter.curr)) && Number(waterMeter.curr) >= waterMeter.prev && (
-                    <div className="rounded-xl bg-cyan-50/70 p-2.5 text-xs font-bold text-cyan-900 border border-cyan-100">
-                      Sử dụng: <span className="font-black text-cyan-950">{Number(waterMeter.curr) - waterMeter.prev} m³</span>
-                      <span className="mx-2">•</span>
-                      Thành tiền: <span className="font-black text-cyan-950">{formatCurrency(calculateCost(waterMeter.curr, waterMeter.prev, waterMeter.price))}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Note */}
-              <div>
-                <label className={labelClass}>Ghi chú</label>
-                <textarea
-                  className={cn(inputClass, 'min-h-[70px] resize-none')}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Ghi chú thêm về kỳ chốt này..."
-                />
+                </aside>
               </div>
-
-              {/* Invoice Calculations Summary Info */}
-              {(elecMeter?.curr || waterMeter?.curr) && (
-                <div className="rounded-2xl bg-[#24170d]/5 border border-[#3d2a18]/10 p-4 space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">DỰ BÁO TIỀN DỊCH VỤ KỲ CHỐT</p>
-                  <p className="text-lg font-black text-[#24170d]">
-                    {formatCurrency(
-                      calculateCost(elecMeter?.curr || '0', elecMeter?.prev || 0, elecMeter?.price || 0) +
-                      calculateCost(waterMeter?.curr || '0', waterMeter?.prev || 0, waterMeter?.price || 0)
-                    )}
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Modal Footer */}
-            <div className="flex flex-col gap-2 border-t border-[#3d2a18]/10 bg-[#fff7e8]/70 p-4 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex flex-col gap-2 border-t border-[#3d2a18]/10 bg-[#fff7e8]/80 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                disabled={isSaving}
+                disabled={isSaving || elecMeter?.isAnalyzing || waterMeter?.isAnalyzing}
                 className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 text-xs font-black uppercase tracking-wider text-[#6f6254] hover:bg-[#efe2cf] active:scale-95 disabled:opacity-50"
               >
                 Hủy
@@ -768,16 +1004,22 @@ export function MeterReadingsScreen() {
               <button
                 type="button"
                 onClick={() => void handleSaveReadings()}
-                disabled={isSaving}
+                disabled={isSaving || elecMeter?.isAnalyzing || waterMeter?.isAnalyzing}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#24170d] px-5 text-xs font-black uppercase tracking-wider text-[#fff4df] hover:bg-[#3d2a18] shadow-md shadow-[#24170d]/10 active:scale-95 disabled:opacity-50"
               >
                 <Save className="h-4 w-4 text-[#f3c56b] stroke-[2.8]" />
-                {isSaving ? 'Đang lưu...' : 'Lưu chốt số'}
+                {elecMeter?.isAnalyzing || waterMeter?.isAnalyzing ? 'Đang đọc ảnh...' : isSaving ? 'Đang lưu...' : 'Lưu chốt số'}
               </button>
             </div>
           </div>
         </div>
       )}
+      <ImageViewerModal
+        isOpen={!!previewImage}
+        src={previewImage?.src ?? null}
+        alt={previewImage?.alt ?? 'Ảnh đồng hồ'}
+        onClose={() => setPreviewImage(null)}
+      />
     </>
   )
 }
