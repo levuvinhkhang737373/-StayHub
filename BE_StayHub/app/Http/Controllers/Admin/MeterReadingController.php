@@ -180,6 +180,12 @@ class MeterReadingController extends Controller
                 return ApiResponse::responseJson(false, 'Unauthorized', 401, null, 401);
             }
 
+            // Delete the previous temporary image (if the user retook the photo) to avoid
+            // leaving orphaned files in public/upload/meter-readings/.
+            if (!empty($validated['old_image_path'])) {
+                $this->deleteMeterReadingTempImage($validated['old_image_path']);
+            }
+
             $imagePath = ImageHelper::create($request->file('image'), 'meter-readings');
             $analysis = $this->analyzeMeterImage(
                 $imagePath,
@@ -188,7 +194,7 @@ class MeterReadingController extends Controller
             );
 
             $analysis['image_path'] = $imagePath;
-            $analysis['image_url'] = ImageHelper::load($imagePath);
+            $analysis['image_url']  = ImageHelper::load($imagePath);
 
             AdminActivityLogger::write($admin, 'analyze_meter_image', MeterReading::class, null, null, $analysis, $request);
 
@@ -203,6 +209,32 @@ class MeterReadingController extends Controller
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
+    }
+
+    /**
+     * Xóa ảnh tạm cũ trong thư mục meter-readings khi người dùng chụp lại.
+     * Chỉ xóa khi đường dẫn thực sự nằm trong thư mục upload/meter-readings
+     * để tránh xóa nhầm ảnh đã được lưu chính thức vào bản ghi meter_reading.
+     */
+    private function deleteMeterReadingTempImage(string $oldPath): void
+    {
+        $normalized = ltrim(str_replace('\\', '/', $oldPath), '/');
+
+        // Bảo vệ: chỉ cho phép xóa file trong thư mục upload/meter-readings
+        if (!str_starts_with($normalized, 'upload/meter-readings/')) {
+            return;
+        }
+
+        // Bảo vệ thêm: không xóa nếu ảnh này đã được lưu vào bản ghi meter_reading
+        $isLinked = MeterReading::where('image_path', $oldPath)
+            ->orWhere('image_path', '/' . $normalized)
+            ->exists();
+
+        if ($isLinked) {
+            return;
+        }
+
+        ImageHelper::delete($oldPath);
     }
 
     public function store(StoreRequest $request): JsonResponse

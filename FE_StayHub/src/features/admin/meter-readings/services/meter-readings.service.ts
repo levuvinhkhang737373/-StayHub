@@ -31,7 +31,12 @@ export async function saveMeterReading(payload: SaveMeterReadingPayload) {
   })
 }
 
-export async function analyzeMeterImage(file: File, meterType: number, previousReading?: number) {
+export async function analyzeMeterImage(
+  file: File,
+  meterType: number,
+  previousReading?: number,
+  oldImagePath?: string | null,
+) {
   const compressedFile = await compressImage(file)
   const formData = new FormData()
   formData.append('image', compressedFile)
@@ -39,6 +44,11 @@ export async function analyzeMeterImage(file: File, meterType: number, previousR
 
   if (previousReading !== undefined && previousReading !== null) {
     formData.append('previous_reading', String(previousReading))
+  }
+
+  // Truyền ảnh cũ lên để backend tự xóa khi người dùng chụp lại
+  if (oldImagePath) {
+    formData.append('old_image_path', oldImagePath)
   }
 
   return apiRequest<AnalyzeMeterImageResponse>({

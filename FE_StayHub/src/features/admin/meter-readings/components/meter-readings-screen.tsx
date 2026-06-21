@@ -348,6 +348,10 @@ export function MeterReadingsScreen() {
     const meter = kind === 'elec' ? elecMeter : waterMeter
     if (!meter || !file) return
 
+    // Lưu lại đường dẫn ảnh cũ (nếu có) trước khi cập nhật state,
+    // để backend có thể tự dọn file tạm khi người dùng chụp lại.
+    const previousImagePath = meter.imagePath ?? null
+
     const previewUrl = URL.createObjectURL(file)
     updateMeterState(kind, current => ({
       ...current,
@@ -361,7 +365,12 @@ export function MeterReadingsScreen() {
     setErrorMessage(null)
 
     try {
-      const response = await analyzeMeterImage(file, kind === 'elec' ? 1 : 2, meter.prev)
+      const response = await analyzeMeterImage(
+        file,
+        kind === 'elec' ? 1 : 2,
+        meter.prev,
+        previousImagePath,
+      )
       const result = response.result
 
       if (!result) {
@@ -1115,7 +1124,7 @@ export function MeterReadingsScreen() {
       {isPriceModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="price-dialog-title">
           <button type="button" onClick={() => setIsPriceModalOpen(false)} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
-          
+
           <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
             {/* Modal Header */}
             <div className="bg-[#24170d] p-5 text-[#fff4df]">
