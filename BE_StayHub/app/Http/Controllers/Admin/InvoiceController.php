@@ -663,7 +663,7 @@ class InvoiceController extends Controller
             ->select(['id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'])
             ->with('service:id,name,slug,charge_method,unit_name,is_active')
             ->where('building_id', $buildingId)
-            ->where('status', ServicePrice::STATUS_ACTIVE)
+            ->whereIn('status', [ServicePrice::STATUS_ACTIVE, ServicePrice::STATUS_EXPIRED])
             ->whereDate('effective_from', '<=', $periodEnd->toDateString())
             ->where(function (Builder $query) use ($periodEnd): void {
                 $query->whereNull('effective_to')

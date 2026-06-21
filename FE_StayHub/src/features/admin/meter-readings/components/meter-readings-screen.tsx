@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
-import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, generateSingleInvoice } from '../services/meter-readings.service'
+import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, generateSingleInvoice, updateUtilityPrices } from '../services/meter-readings.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import type { AnalyzeMeterImageResponse, RoomReadingInit, ServicePriceInit } from '../types/meter-readings.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -16,9 +16,7 @@ const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
 const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65'
 
-const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `Tháng ${i + 1}` }))
-const currentYear = new Date().getFullYear()
-const years = Array.from({ length: 5 }, (_, i) => ({ value: currentYear - 2 + i, label: `Năm ${currentYear - 2 + i}` }))
+// dynamic options are generated within the component
 
 type MeterKind = 'elec' | 'water'
 
@@ -92,10 +90,40 @@ function buildMeterFormState(args: {
 }
 
 export function MeterReadingsScreen() {
+  const today = useMemo(() => new Date(), [])
+  const currentYear = useMemo(() => today.getFullYear(), [today])
+  const currentMonth = useMemo(() => today.getMonth() + 1, [today])
+
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+  const [selectedYear, setSelectedYear] = useState(currentYear)
+
+  const isPastMonth = useMemo(() => {
+    return selectedYear < currentYear || (selectedYear === currentYear && selectedMonth < currentMonth)
+  }, [selectedYear, selectedMonth, currentYear, currentMonth])
+
+  const years = useMemo(() => {
+    return Array.from({ length: 3 }, (_, i) => {
+      const year = currentYear - 2 + i
+      return { value: year, label: `Năm ${year}` }
+    })
+  }, [currentYear])
+
+  const months = useMemo(() => {
+    const maxMonth = selectedYear === currentYear ? currentMonth : 12
+    return Array.from({ length: maxMonth }, (_, i) => ({
+      value: i + 1,
+      label: `Tháng ${i + 1}`,
+    }))
+  }, [selectedYear, currentYear, currentMonth])
+
+  // Safeguard selectedMonth when changing years so it does not exceed currentMonth in currentYear
+  useEffect(() => {
+    if (selectedYear === currentYear && selectedMonth > currentMonth) {
+      setSelectedMonth(currentMonth)
+    }
+  }, [selectedYear, selectedMonth, currentYear, currentMonth])
 
   const [rooms, setRooms] = useState<RoomReadingInit[]>([])
   const [servicePrices, setServicePrices] = useState<ServicePriceInit[]>([])
@@ -119,6 +147,13 @@ export function MeterReadingsScreen() {
   const [readingDate, setReadingDate] = useState(new Date().toISOString().split('T')[0])
   const [note, setNote] = useState('')
   const [formErrors, setFormErrors] = useState<{ elec?: string; water?: string; date?: string }>({})
+
+  // Price Modal State
+  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false)
+  const [inputElectricPrice, setInputElectricPrice] = useState('')
+  const [inputWaterPrice, setInputWaterPrice] = useState('')
+  const [isSavingPrices, setIsSavingPrices] = useState(false)
+  const [priceFormErrors, setPriceFormErrors] = useState<{ electric?: string; water?: string }>({})
 
   const loadBuildings = useCallback(async () => {
     try {
@@ -449,6 +484,49 @@ export function MeterReadingsScreen() {
     }
   }
 
+  const handleOpenPriceModal = () => {
+    setInputElectricPrice(String(rates.electric))
+    setInputWaterPrice(String(rates.water))
+    setPriceFormErrors({})
+    setIsPriceModalOpen(true)
+  }
+
+  const handleSavePrices = async () => {
+    const errors: { electric?: string; water?: string } = {}
+    const elecVal = Number(inputElectricPrice)
+    const waterVal = Number(inputWaterPrice)
+
+    if (inputElectricPrice.trim() === '' || isNaN(elecVal) || elecVal < 0) {
+      errors.electric = 'Đơn giá điện không hợp lệ.'
+    }
+    if (inputWaterPrice.trim() === '' || isNaN(waterVal) || waterVal < 0) {
+      errors.water = 'Đơn giá nước không hợp lệ.'
+    }
+
+    setPriceFormErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    setIsSavingPrices(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    try {
+      await updateUtilityPrices(Number(selectedBuildingId), {
+        electric_price: elecVal,
+        water_price: waterVal,
+        billing_month: selectedMonth,
+        billing_year: selectedYear,
+      })
+      setSuccessMessage('Đã cập nhật đơn giá dịch vụ thành công.')
+      setIsPriceModalOpen(false)
+      await loadReadingsData()
+    } catch (e) {
+      setErrorMessage(getVisibleErrorMessage(e, 'Không thể cập nhật đơn giá dịch vụ.'))
+    } finally {
+      setIsSavingPrices(false)
+    }
+  }
+
   const calculateCost = (currStr: string, prev: number, price: number) => {
     const curr = Number(currStr)
     if (isNaN(curr) || curr < prev) return 0
@@ -701,6 +779,17 @@ export function MeterReadingsScreen() {
                   <Droplet className="h-4 w-4 text-cyan-600 fill-cyan-500/10" />
                   <span>Nước: <span className="text-cyan-950 text-base">{formatCurrency(rates.water)}</span> / {rates.waterUnit}</span>
                 </div>
+                {/* Edit Prices Button */}
+                {!isPastMonth && (
+                  <button
+                    type="button"
+                    onClick={handleOpenPriceModal}
+                    className="inline-flex items-center gap-1.5 rounded-2xl border border-[#3d2a18]/10 bg-white px-3.5 py-2 text-sm font-black text-[#8b5e34] hover:bg-[#f3c56b]/15 active:scale-95 transition-all shadow-sm shrink-0"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Thay đổi đơn giá
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 rounded-xl bg-[#24170d]/5 px-3 py-1.5 self-start lg:self-auto">
@@ -854,7 +943,7 @@ export function MeterReadingsScreen() {
                           <button
                             type="button"
                             onClick={() => openReadingModal(room)}
-                            disabled={room.meters.length === 0}
+                            disabled={room.meters.length === 0 || isPastMonth}
                             className={cn(
                               'inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
                               (isChotElec && isChotWater)
@@ -1014,12 +1103,106 @@ export function MeterReadingsScreen() {
           </div>
         </div>
       )}
+
       <ImageViewerModal
         isOpen={!!previewImage}
         src={previewImage?.src ?? null}
         alt={previewImage?.alt ?? 'Ảnh đồng hồ'}
         onClose={() => setPreviewImage(null)}
       />
+
+      {/* Price Edit Dialog */}
+      {isPriceModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="price-dialog-title">
+          <button type="button" onClick={() => setIsPriceModalOpen(false)} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
+          
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
+            {/* Modal Header */}
+            <div className="bg-[#24170d] p-5 text-[#fff4df]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Pricing Settings</p>
+                  <h2 id="price-dialog-title" className="mt-1.5 text-2xl font-black tracking-tight">Thay đổi đơn giá</h2>
+                  <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Áp dụng cho tòa nhà hiện tại</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPriceModalOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-5">
+              {/* Electric Price */}
+              <div>
+                <label className={labelClass}>Đơn giá Điện (đ / {rates.electricUnit})</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold text-sm"><Zap className="h-4 w-4 text-[#a65f16]" /></span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    placeholder="Nhập đơn giá điện"
+                    className={cn(inputClass, 'pl-11', priceFormErrors.electric && inputErrorClass)}
+                    value={inputElectricPrice}
+                    onChange={(e) => {
+                      setInputElectricPrice(e.target.value)
+                      setPriceFormErrors(prev => ({ ...prev, electric: undefined }))
+                    }}
+                  />
+                </div>
+                {priceFormErrors.electric && <p className="mt-2 text-xs font-bold text-rose-600">{priceFormErrors.electric}</p>}
+              </div>
+
+              {/* Water Price */}
+              <div>
+                <label className={labelClass}>Đơn giá Nước (đ / {rates.waterUnit})</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold text-sm"><Droplet className="h-4 w-4 text-cyan-600" /></span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    placeholder="Nhập đơn giá nước"
+                    className={cn(inputClass, 'pl-11', priceFormErrors.water && inputErrorClass)}
+                    value={inputWaterPrice}
+                    onChange={(e) => {
+                      setInputWaterPrice(e.target.value)
+                      setPriceFormErrors(prev => ({ ...prev, water: undefined }))
+                    }}
+                  />
+                </div>
+                {priceFormErrors.water && <p className="mt-2 text-xs font-bold text-rose-600">{priceFormErrors.water}</p>}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex flex-col gap-2 border-t border-[#3d2a18]/10 bg-[#fff7e8]/70 p-4 sm:flex-row sm:items-center sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsPriceModalOpen(false)}
+                disabled={isSavingPrices}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 text-xs font-black uppercase tracking-wider text-[#6f6254] hover:bg-[#efe2cf] active:scale-95 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSavePrices()}
+                disabled={isSavingPrices}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#24170d] px-5 text-xs font-black uppercase tracking-wider text-[#fff4df] hover:bg-[#3d2a18] shadow-md shadow-[#24170d]/10 active:scale-95 disabled:opacity-50"
+              >
+                <Save className="h-4 w-4 text-[#f3c56b] stroke-[2.8]" />
+                {isSavingPrices ? 'Đang lưu...' : 'Lưu thay đổi'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
