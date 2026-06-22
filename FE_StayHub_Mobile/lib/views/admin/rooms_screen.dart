@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/room_controller.dart';
+import '../../controllers/auth_controller.dart';
+import '../../controllers/facility_controller.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 
 class RoomsScreen extends StatefulWidget {
@@ -12,6 +14,20 @@ class RoomsScreen extends StatefulWidget {
 
 class _RoomsScreenState extends State<RoomsScreen> {
   final _searchController = TextEditingController();
+  int? _selectedBuildingId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<RoomController>().fetchRooms();
+      final authCtrl = context.read<AuthController>();
+      final admin = authCtrl.currentAdmin;
+      if (admin != null && admin.role == 2) {
+        context.read<FacilityController>().fetchBuildings();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -205,8 +221,22 @@ class _RoomsScreenState extends State<RoomsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authController = context.watch<AuthController>();
+    final admin = authController.currentAdmin;
+    final isSuperAdmin = admin != null && admin.role == 2;
+
     final roomController = context.watch<RoomController>();
-    final rooms = roomController.rooms;
+    final facilityCtrl = context.watch<FacilityController>();
+
+    var rooms = roomController.rooms;
+
+    if (isSuperAdmin) {
+      if (_selectedBuildingId != null) {
+        rooms = rooms.where((r) => r.buildingId == _selectedBuildingId).toList();
+      } else {
+        rooms = [];
+      }
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
@@ -243,6 +273,40 @@ class _RoomsScreenState extends State<RoomsScreen> {
                 ),
               ),
 
+              // Building Select (only for Super Admin)
+              if (isSuperAdmin)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 12.0),
+                  child: DropdownButtonFormField<int>(
+                    value: _selectedBuildingId,
+                    decoration: InputDecoration(
+                      labelText: 'Chọn tòa nhà',
+                      prefixIcon: const Icon(Icons.apartment, color: Color(0xFF1C1917)),
+                      filled: true,
+                      fillColor: Colors.white,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE4E2D7), width: 1.5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                      ),
+                    ),
+                    items: facilityCtrl.buildings.map((b) {
+                      return DropdownMenuItem<int>(
+                        value: b.id,
+                        child: Text(b.name, overflow: TextOverflow.ellipsis),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedBuildingId = value;
+                      });
+                    },
+                  ),
+                ),
+
               // Legend indicators
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
@@ -271,8 +335,22 @@ class _RoomsScreenState extends State<RoomsScreen> {
               Expanded(
                 child: roomController.isLoading
                     ? const Center(child: CircularProgressIndicator(color: Color(0xFF1C1917)))
-                    : rooms.isEmpty
-                        ? const Center(child: Text('Không tìm thấy phòng nào.', style: TextStyle(color: Colors.grey)))
+                    : (isSuperAdmin && _selectedBuildingId == null)
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.apartment, size: 64, color: Colors.grey),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Vui lòng chọn tòa nhà để xem danh sách phòng',
+                                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          )
+                        : rooms.isEmpty
+                            ? const Center(child: Text('Không tìm thấy phòng nào.', style: TextStyle(color: Colors.grey)))
                         : ListView.builder(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             itemCount: rooms.length,

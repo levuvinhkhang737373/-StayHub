@@ -151,6 +151,10 @@ export function MaintenanceScreen() {
   }, [keyword, selectedStatus, selectedBuildingId, roomNumber])
 
   useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
+  useEffect(() => {
     void loadBuildingsAndStaff()
   }, [loadBuildingsAndStaff])
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, 
   Bell, 
@@ -72,6 +72,7 @@ const filterTargetTypeOptions = [
 
 
 export function NotificationsScreen() {
+  const navigate = useNavigate()
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
 
@@ -340,7 +341,15 @@ export function NotificationsScreen() {
                   {notifications.map((notif) => (
                     <div 
                       key={notif.id} 
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#3d2a18]/10 bg-white hover:border-[#f3c56b]/40 transition"
+                      onClick={() => {
+                        const link = notif.notification_type === 1 
+                          ? '/admin/maintenance' 
+                          : notif.notification_type === 2 
+                          ? '/admin/invoices' 
+                          : '/admin/contracts';
+                        navigate(link);
+                      }}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#3d2a18]/10 bg-white hover:border-[#f3c56b]/40 cursor-pointer hover:bg-stone-50/50 transition"
                     >
                       <div className="min-w-0 space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
@@ -374,7 +383,10 @@ export function NotificationsScreen() {
                         {notif.status !== 2 && (
                           <button 
                             type="button" 
-                            onClick={() => openEditForm(notif)} 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditForm(notif);
+                            }}
                             className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15"
                             title="Sửa bản nháp"
                           >
@@ -383,7 +395,10 @@ export function NotificationsScreen() {
                         )}
                         <button 
                           type="button" 
-                          onClick={() => void handleDelete(notif.id)} 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDelete(notif.id);
+                          }}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-white text-rose-600 hover:bg-rose-50"
                           title="Xóa thông báo"
                         >

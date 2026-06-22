@@ -33,6 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<MaintenanceController>().fetchAdminRequests();
       context.read<ContractController>().fetchContracts('admin');
       context.read<NotificationController>().fetchNotifications(isAdmin: true);
+      context.read<RoomController>().fetchRooms();
       
       final wsService = context.read<WebSocketService>();
       
@@ -175,6 +176,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           }
                           if (item['type'] == 'request') {
                             Navigator.pushNamed(context, '/admin/maintenance');
+                          } else if (item['type'] == 'invoice') {
+                            Navigator.pushNamed(context, '/admin/invoices');
                           } else {
                             Navigator.pushNamed(context, '/admin/contracts');
                           }
@@ -285,7 +288,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       items.add({
         'key': key,
         'id': notif.id,
-        'type': notif.notificationType == 1 ? 'request' : 'system',
+        'type': notif.notificationType == 1 ? 'request' : notif.notificationType == 2 ? 'invoice' : 'system',
         'title': notif.title,
         'subtitle': notif.content,
         'date': displayDate,
