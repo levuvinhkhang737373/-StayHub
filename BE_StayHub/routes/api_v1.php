@@ -114,6 +114,7 @@ Route::prefix('admin')->group(function (): void {
         // =========================Contracts================================
         Route::get('contracts/available-rooms', [ContractController::class, 'availableRooms']);
         Route::patch('contracts/{contract}/status', [ContractController::class, 'updateStatus']);
+        Route::post('contracts/{contract}/terminate', [ContractController::class, 'terminate']);
         Route::post('contracts/{contract}/renew', [ContractController::class, 'renew']);
         Route::post('contracts/{contract}/deposit-transactions', [ContractController::class, 'addDepositTransaction']);
         Route::apiResource('contracts', ContractController::class);

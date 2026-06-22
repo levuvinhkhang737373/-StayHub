@@ -12,6 +12,7 @@ use App\Http\Requests\Admin\Contract\DepositTransactionRequest;
 use App\Http\Requests\Admin\Contract\IndexRequest;
 use App\Http\Requests\Admin\Contract\RegisterRequest;
 use App\Http\Requests\Admin\Contract\StatusRequest;
+use App\Http\Requests\Admin\Contract\TerminateRequest;
 use App\Http\Requests\Admin\Contract\UpdateRequest;
 use App\Http\Resources\Admin\ContractDetailResource;
 use App\Http\Resources\Admin\ContractResource;
@@ -22,6 +23,7 @@ use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
 use App\Models\Notification;
 use App\Models\Room;
+use App\Models\RoomMovement;
 use App\Models\Tenant;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -30,6 +32,8 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -438,6 +442,106 @@ class ContractController extends Controller
             });
 
             return ApiResponse::responseJson(true, 'Cập nhật trạng thái hợp đồng thành công', 200, new ContractDetailResource($updatedContract), 200);
+        } catch (HttpResponseException $e) {
+            return $e->getResponse();
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
+    public function terminate(TerminateRequest $request, int $contract): JsonResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $admin = $request->user('admin');
+
+            if (! $admin || ! $this->canManageContracts($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền thanh lý hợp đồng', 403, null, 403);
+            }
+
+            $contractModel = $this->accessibleQuery($admin)->with('room:id,building_id,room_number')->findOrFail($contract);
+
+            $result = DB::transaction(function () use ($validated, $contractModel, $admin, $request): array {
+                $contractModel = $this->accessibleQuery($admin)
+                    ->with('room:id,building_id,room_number')
+                    ->whereKey($contractModel->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $currentStatus = (int) $contractModel->status;
+                if (! in_array($currentStatus, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
+                    $this->throwResponse('Chỉ được thanh lý hợp đồng đang hiệu lực hoặc đã hết hạn.', 422);
+                }
+
+                $this->assertStatusTransition($currentStatus, Contract::STATUS_LIQUIDATED);
+
+                $actualEndDate = Carbon::parse($validated['actual_end_date'])->startOfDay();
+                if ($contractModel->start_date && $actualEndDate->lt($contractModel->start_date->copy()->startOfDay())) {
+                    $this->throwResponse('Ngày thanh lý phải lớn hơn hoặc bằng ngày bắt đầu hợp đồng.', 422);
+                }
+
+                $activeTenantRows = $contractModel->contractTenants()
+                    ->where('is_staying', true)
+                    ->whereNull('leave_date')
+                    ->lockForUpdate()
+                    ->get();
+
+                $depositBalanceBeforeCents = $this->depositBalanceCents($contractModel);
+                if ($depositBalanceBeforeCents < 0) {
+                    $this->throwResponse('Số dư cọc hiện tại đang âm, vui lòng kiểm tra lại lịch sử giao dịch cọc trước khi thanh lý.', 422);
+                }
+
+                $deductionCents = $this->decimalToCents($validated['deduction_amount'] ?? '0');
+                if ($deductionCents > $depositBalanceBeforeCents) {
+                    $this->throwResponse('Số tiền cấn trừ không được vượt quá số dư cọc hiện tại.', 422);
+                }
+
+                $refundCents = $depositBalanceBeforeCents - $deductionCents;
+                $note = trim((string) ($validated['note'] ?? ''));
+                $oldData = $contractModel->load($this->detailRelations())->toArray();
+
+                $payload = [
+                    'status' => Contract::STATUS_LIQUIDATED,
+                    'actual_end_date' => $actualEndDate->toDateString(),
+                    'payment_status' => Contract::PAYMENT_STATUS_SUCCESS,
+                ];
+
+                if ($note !== '') {
+                    $payload['note'] = $note;
+                }
+
+                $contractModel->forceFill($payload)->save();
+                $this->createTerminationDepositTransactions($contractModel, $admin, $validated, $deductionCents, $refundCents, $actualEndDate->toDateString());
+                $this->createCheckoutMovements($contractModel, $activeTenantRows, $admin, $actualEndDate, $deductionCents, $refundCents, $note);
+                $this->closeActiveContractRows($contractModel, $actualEndDate->toDateString());
+                $this->refreshRoomOccupants((int) $contractModel->room_id);
+
+                Contract::withoutEvents(fn (): int => Contract::query()
+                    ->whereKey($contractModel->id)
+                    ->update(['payment_status' => Contract::PAYMENT_STATUS_SUCCESS]));
+                $contractModel->forceFill(['payment_status' => Contract::PAYMENT_STATUS_SUCCESS]);
+
+                $settlement = $this->terminationSettlementPayload($depositBalanceBeforeCents, $deductionCents, $refundCents);
+
+                $contractModel->unsetRelations();
+                $this->loadDetailRelations($contractModel);
+
+                AdminActivityLogger::write($admin, 'terminate_contract', Contract::class, $contractModel->id, $oldData, $contractModel->toArray(), $request);
+
+                $notifications = $this->createContractTerminatedNotifications($contractModel, $admin, $activeTenantRows, $settlement);
+                DB::afterCommit(fn () => $this->broadcastNotifications($notifications));
+
+                return [
+                    'contract' => $contractModel,
+                    'settlement' => $settlement,
+                ];
+            });
+
+            return ApiResponse::responseJson(true, 'Thanh lý hợp đồng thành công', 200, [
+                'contract' => (new ContractDetailResource($result['contract']))->resolve(),
+                'settlement' => $result['settlement'],
+            ], 200);
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
@@ -1185,6 +1289,120 @@ class ContractController extends Controller
             ])->save());
     }
 
+    private function createTerminationDepositTransactions(Contract $contract, Admin $admin, array $validated, int $deductionCents, int $refundCents, string $transactionDate): void
+    {
+        $note = trim((string) ($validated['note'] ?? ''));
+        $paymentMethod = (int) ($validated['payment_method'] ?? ContractDepositTransaction::PAYMENT_METHOD_CASH);
+
+        if ($deductionCents > 0) {
+            $contract->depositTransactions()->create([
+                'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
+                'amount' => $this->centsToDecimal($deductionCents),
+                'transaction_date' => $transactionDate,
+                'payment_method' => null,
+                'note' => $this->terminationTransactionNote('Khấu trừ cọc khi thanh lý hợp đồng', $note),
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        if ($refundCents > 0) {
+            $contract->depositTransactions()->create([
+                'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
+                'amount' => $this->centsToDecimal($refundCents),
+                'transaction_date' => $transactionDate,
+                'payment_method' => $paymentMethod,
+                'note' => $this->terminationTransactionNote('Hoàn cọc khi thanh lý hợp đồng', $note),
+                'created_by' => $admin->id,
+            ]);
+        }
+    }
+
+    private function createCheckoutMovements(Contract $contract, Collection $activeTenantRows, Admin $admin, Carbon $actualEndDate, int $deductionCents, int $refundCents, string $note): void
+    {
+        $tenantIds = $activeTenantRows->pluck('tenant_id')->unique()->values();
+
+        if ($tenantIds->isEmpty()) {
+            return;
+        }
+
+        $deductionShares = $this->allocateCents($deductionCents, $tenantIds->count());
+        $refundShares = $this->allocateCents($refundCents, $tenantIds->count());
+
+        $tenantIds->each(function (int $tenantId, int $index) use ($contract, $admin, $actualEndDate, $deductionShares, $refundShares, $note): void {
+            RoomMovement::query()->create([
+                'tenant_id' => $tenantId,
+                'contract_id' => $contract->id,
+                'from_room_id' => $contract->room_id,
+                'to_room_id' => null,
+                'movement_type' => RoomMovement::MOVEMENT_TYPE_CHECKOUT,
+                'movement_date' => $actualEndDate->toDateTimeString(),
+                'old_room_final_amount' => $this->centsToDecimal($deductionShares[$index] ?? 0),
+                'transfer_fee' => '0.00',
+                'deposit_transfer_amount' => '0.00',
+                'deposit_refund_amount' => $this->centsToDecimal($refundShares[$index] ?? 0),
+                'deduction_amount' => $this->centsToDecimal($deductionShares[$index] ?? 0),
+                'final_electric_reading' => null,
+                'final_water_reading' => null,
+                'note' => $note !== '' ? $note : 'Trả phòng khi thanh lý hợp đồng.',
+                'created_by' => $admin->id,
+            ]);
+        });
+    }
+
+    private function terminationSettlementPayload(int $depositBalanceBeforeCents, int $deductionCents, int $refundCents): array
+    {
+        return [
+            'deposit_balance_before' => $this->centsToDecimal($depositBalanceBeforeCents),
+            'deduction_amount' => $this->centsToDecimal($deductionCents),
+            'refund_amount' => $this->centsToDecimal($refundCents),
+            'deposit_balance_after' => '0.00',
+        ];
+    }
+
+    private function createContractTerminatedNotifications(Contract $contract, Admin $admin, Collection $activeTenantRows, array $settlement): Collection
+    {
+        return $activeTenantRows
+            ->pluck('tenant_id')
+            ->unique()
+            ->values()
+            ->map(fn (int $tenantId): Notification => Notification::query()->create([
+                'title' => 'Hợp đồng đã thanh lý',
+                'content' => "Hợp đồng {$contract->contract_code} tại phòng ".($contract->room?->room_number ?? 'không rõ').' đã được thanh lý. Hoàn cọc: '.$settlement['refund_amount'].' VND, cấn trừ: '.$settlement['deduction_amount'].' VND.',
+                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                'target_type' => Notification::TARGET_TYPE_TENANT,
+                'building_id' => $contract->room?->building_id,
+                'room_id' => $contract->room_id,
+                'tenant_id' => $tenantId,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => $admin->id,
+            ]));
+    }
+
+    private function broadcastNotifications(Collection $notifications): void
+    {
+        $notifications->each(fn (Notification $notification) => broadcast(new NotificationSent($notification)));
+    }
+
+    private function terminationTransactionNote(string $prefix, string $note): string
+    {
+        return $note === '' ? $prefix.'.' : $prefix.': '.$note;
+    }
+
+    private function allocateCents(int $amount, int $parts): array
+    {
+        if ($parts <= 0) {
+            return [];
+        }
+
+        $base = intdiv($amount, $parts);
+        $remainder = $amount % $parts;
+
+        return collect(range(1, $parts))
+            ->map(fn (int $position): int => $base + ($position <= $remainder ? 1 : 0))
+            ->all();
+    }
+
     private function refreshRoomOccupants(int $roomId): void
     {
         $occupants = ContractTenant::query()
@@ -1363,6 +1581,14 @@ class ContractController extends Controller
         return ((int) $integer * 100) + (int) str_pad($decimal, 2, '0');
     }
 
+    private function centsToDecimal(int $cents): string
+    {
+        $sign = $cents < 0 ? '-' : '';
+        $absoluteCents = abs($cents);
+
+        return $sign.intdiv($absoluteCents, 100).'.'.str_pad((string) ($absoluteCents % 100), 2, '0', STR_PAD_LEFT);
+    }
+
     private function loadDetailRelations(Contract $contract): void
     {
         $contract->load($this->detailRelations());
@@ -1371,12 +1597,12 @@ class ContractController extends Controller
 
     private function listColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at'];
     }
 
     private function detailColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'contract_files', 'note', 'created_by', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url'];
     }
 
     private function listRelations(): array
@@ -1402,7 +1628,7 @@ class ContractController extends Controller
             'contractVehicles' => fn ($query) => $query->select(['id', 'contract_id', 'vehicle_id', 'started_at', 'ended_at', 'billing_start_date', 'billing_end_date', 'monthly_fee', 'charge_policy', 'is_active', 'created_at', 'updated_at'])->orderByDesc('is_active')->orderBy('started_at')->orderBy('id'),
             'contractVehicles.vehicle:id,tenant_id,vehicle_type,license_plate,brand,color,is_active',
             'contractVehicles.vehicle.tenant:id,full_name,phone,email',
-            'depositTransactions' => fn ($query) => $query->select(['id', 'contract_id', 'transaction_type', 'amount', 'transaction_date', 'payment_method', 'note', 'created_by', 'created_at'])->orderByDesc('transaction_date')->orderByDesc('id'),
+            'depositTransactions' => fn ($query) => $query->select(['id', 'contract_id', 'transaction_type', 'amount', 'transaction_date', 'payment_method', 'transaction_reference', 'note', 'created_by', 'created_at'])->orderByDesc('transaction_date')->orderByDesc('id'),
             'depositTransactions.creator:id,full_name,username,email',
         ];
     }

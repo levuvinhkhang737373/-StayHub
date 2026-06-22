@@ -4,6 +4,8 @@ import type {
   AdminContractPayload,
   AdminContractResource,
   AdminContractStatusPayload,
+  AdminContractTerminatePayload,
+  AdminContractTerminationResult,
   AdminPaginator,
   AdminVehicleOptionResource,
 } from '../types/contract-api.model'
@@ -135,6 +137,14 @@ export async function updateAdminContractStatus(contractId: number, payload: Adm
   return apiRequest<AdminContractResource>({
     url: `admin/contracts/${contractId}/status`,
     method: 'PATCH',
+    data: payload,
+  })
+}
+
+export async function terminateAdminContract(contractId: number, payload: AdminContractTerminatePayload) {
+  return apiRequest<AdminContractTerminationResult>({
+    url: `admin/contracts/${contractId}/terminate`,
+    method: 'POST',
     data: payload,
   })
 }

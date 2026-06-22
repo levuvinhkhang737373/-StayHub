@@ -10,6 +10,7 @@ use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
 use App\Models\Region;
 use App\Models\Room;
+use App\Models\RoomMovement;
 use App\Models\RoomType;
 use App\Models\Tenant;
 use App\Models\Vehicle;
@@ -410,6 +411,114 @@ class ContractControllerTest extends TestCase
         $this->assertEquals('2026-10-15', $contractVehicle->ended_at->toDateString());
         $this->assertEquals('2026-10-15', $contractVehicle->billing_end_date->toDateString());
         $this->assertFalse((bool) $contractVehicle->is_active);
+    }
+
+    public function test_terminate_contract_settles_deposit_and_creates_checkout_movement()
+    {
+        $actualEndDate = now()->toDateString();
+        $startDate = now()->subMonth()->toDateString();
+        $endDate = now()->addMonths(5)->toDateString();
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-TERMINATE',
+            'room_id' => $this->room->id,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant1->id,
+            'join_date' => $startDate,
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $contract->id,
+            'vehicle_id' => $this->vehicle->id,
+            'started_at' => $startDate,
+            'monthly_fee' => '100000.00',
+            'charge_policy' => 1,
+            'is_active' => true,
+        ]);
+
+        $contract->depositTransactions()->create([
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => '4000000.00',
+            'transaction_date' => $startDate,
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+            'note' => 'Thu cọc ban đầu',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->room->update(['current_occupants' => 1]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson("/api/v1/admin/contracts/{$contract->id}/terminate", [
+                'actual_end_date' => $actualEndDate,
+                'deduction_amount' => '500000.00',
+                'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+                'note' => 'Khấu trừ vệ sinh cuối kỳ',
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('result.settlement.deposit_balance_before', '4000000.00')
+            ->assertJsonPath('result.settlement.deduction_amount', '500000.00')
+            ->assertJsonPath('result.settlement.refund_amount', '3500000.00')
+            ->assertJsonPath('result.settlement.deposit_balance_after', '0.00');
+
+        $updatedContract = Contract::find($contract->id);
+        $this->assertEquals(Contract::STATUS_LIQUIDATED, $updatedContract->status);
+        $this->assertEquals(Contract::PAYMENT_STATUS_SUCCESS, $updatedContract->payment_status);
+        $this->assertEquals($actualEndDate, $updatedContract->actual_end_date->toDateString());
+
+        $this->assertDatabaseHas('contract_deposit_transactions', [
+            'contract_id' => $contract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
+            'amount' => '500000.00',
+        ]);
+
+        $this->assertDatabaseHas('contract_deposit_transactions', [
+            'contract_id' => $contract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
+            'amount' => '3500000.00',
+        ]);
+
+        $contractTenant = ContractTenant::where('contract_id', $contract->id)->where('tenant_id', $this->tenant1->id)->first();
+        $this->assertEquals($actualEndDate, $contractTenant->leave_date->toDateString());
+        $this->assertEquals($actualEndDate, $contractTenant->billing_end_date->toDateString());
+        $this->assertFalse((bool) $contractTenant->is_staying);
+
+        $contractVehicle = ContractVehicle::where('contract_id', $contract->id)->where('vehicle_id', $this->vehicle->id)->first();
+        $this->assertEquals($actualEndDate, $contractVehicle->ended_at->toDateString());
+        $this->assertEquals($actualEndDate, $contractVehicle->billing_end_date->toDateString());
+        $this->assertFalse((bool) $contractVehicle->is_active);
+
+        $this->assertDatabaseHas('room_movements', [
+            'tenant_id' => $this->tenant1->id,
+            'contract_id' => $contract->id,
+            'from_room_id' => $this->room->id,
+            'to_room_id' => null,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_CHECKOUT,
+            'deduction_amount' => '500000.00',
+            'deposit_refund_amount' => '3500000.00',
+        ]);
+
+        $this->assertDatabaseHas('rooms', [
+            'id' => $this->room->id,
+            'current_occupants' => 0,
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'tenant_id' => $this->tenant1->id,
+            'title' => 'Hợp đồng đã thanh lý',
+        ]);
     }
 
     public function test_renew_contract_transfers_deposit_and_closes_old_contract()

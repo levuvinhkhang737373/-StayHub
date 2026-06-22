@@ -217,13 +217,7 @@ export function getStatusChangeOptions(currentStatus: number) {
   if (Number(currentStatus) === STATUS_ACTIVE) {
     return [
       { value: STATUS_EXPIRED, label: 'Hết hạn', tone: 'warning' as const },
-      { value: STATUS_LIQUIDATED, label: 'Đã thanh lý', tone: 'success' as const },
       { value: STATUS_CANCELLED, label: 'Đã hủy', tone: 'danger' as const },
-    ]
-  }
-  if (Number(currentStatus) === STATUS_EXPIRED) {
-    return [
-      { value: STATUS_LIQUIDATED, label: 'Đã thanh lý', tone: 'success' as const },
     ]
   }
   return []
