@@ -159,14 +159,13 @@ export function contractToForm(contract: AdminContractResource): ContractFormVal
   }
 }
 
-export function buildPayload(form: ContractFormValues, includeStatus: boolean): AdminContractPayload {
+export function buildPayload(form: ContractFormValues, includeStatus: boolean, includeActualEndDate = true): AdminContractPayload {
   const isQr = form.is_deposit_paid && form.deposit_payment_method === '2'
   const payload: AdminContractPayload = {
     contract_code: form.contract_code.trim(),
     room_id: Number(form.room_id),
     start_date: form.start_date,
     end_date: form.end_date,
-    actual_end_date: form.actual_end_date || null,
     billing_cycle_day: Number(form.billing_cycle_day),
     room_price: form.room_price.trim(),
     deposit_amount: form.deposit_amount.trim(),
@@ -202,6 +201,7 @@ export function buildPayload(form: ContractFormValues, includeStatus: boolean): 
     deposit_payment_method: isQr ? null : (form.is_deposit_paid ? Number(form.deposit_payment_method) : null),
   }
 
+  if (includeActualEndDate) payload.actual_end_date = form.actual_end_date || null
   if (includeStatus) payload.status = Number(form.status)
 
   return payload

@@ -31,6 +31,20 @@ class Building extends Model
         self::GENDER_POLICY_FEMALE => 'Nữ',
     ];
 
+    public function allowsTenantGender(?int $tenantGender): bool
+    {
+        if (! in_array($tenantGender, array_keys(Tenant::GENDER_LABELS), true)) {
+            return false;
+        }
+
+        return match ((int) $this->gender_policy) {
+            self::GENDER_POLICY_MIXED => true,
+            self::GENDER_POLICY_MALE => $tenantGender === Tenant::GENDER_MALE,
+            self::GENDER_POLICY_FEMALE => $tenantGender === Tenant::GENDER_FEMALE,
+            default => false,
+        };
+    }
+
     public const STATUS_ACTIVE = 1;
     public const STATUS_INACTIVE = 2;
     public const STATUS_MAINTENANCE = 3;

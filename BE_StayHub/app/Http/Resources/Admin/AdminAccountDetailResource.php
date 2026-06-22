@@ -35,6 +35,7 @@ class AdminAccountDetailResource extends JsonResource
                 'name' => $building->name,
                 'slug' => $building->slug,
                 'address' => $building->address,
+                'gender_policy' => $building->gender_policy,
                 'status' => $building->status,
             ])->values()),
             'managed_building_names' => $this->whenLoaded('managedBuildings', fn () => $this->managedBuildings->pluck('name')->filter()->values()),

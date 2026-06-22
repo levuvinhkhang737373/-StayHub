@@ -547,24 +547,15 @@ class RoomController extends Controller
             ]);
         }
 
-        if (
-            $toRoom->building_id !== $oldRoom->building_id
-            && !$this->buildingAllowsGender($toRoom->building, $tenant->gender)
-        ) {
+        $destinationBuilding = $toRoom->relationLoaded('building')
+            ? $toRoom->building
+            : $toRoom->building()->select(['id', 'gender_policy'])->first();
+
+        if (! $destinationBuilding?->allowsTenantGender($tenant->gender)) {
             throw ValidationException::withMessages([
-                'to_room_id' => 'Giới tính khách thuê không phù hợp với quy định của tòa nhà đích.',
+                'to_room_id' => 'Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.',
             ]);
         }
-    }
-
-    private function buildingAllowsGender($building, int $tenantGender): bool
-    {
-        return match ($building->gender_policy) {
-            1 => true,                 // hỗn hợp / không giới hạn
-            2 => $tenantGender === 1,  // chỉ nam
-            3 => $tenantGender === 2,  // chỉ nữ
-            default => true,
-        };
     }
 
     private function closeOldRoomMeters(Room $oldRoom, Carbon $movementDate, array $closingReadings, ?int $actorAdminId): array

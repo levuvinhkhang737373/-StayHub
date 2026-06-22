@@ -4,6 +4,7 @@ import { ArrowLeft, Building2, ChevronRight, DoorOpen, Loader2, Plus, Search, Tr
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { buildingAllowsTenantGender } from '../../shared/config/gender-policy'
 import { fetchAdminTenantDetail } from '../services/tenants.service'
 import { transferTenantRoom } from '../services/TranferRoom'
 import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
@@ -123,10 +124,12 @@ export function TenantTransferRoomScreen() {
       if (room.id === currentRoomId) return false
       if (room.status !== ROOM_STATUS_ACTIVE) return false
       if (room.current_occupants >= room.max_occupants) return false
+      const roomBuildingPolicy = room.building?.gender_policy ?? buildings.find((building) => building.id === room.building_id)?.gender_policy
+      if (!buildingAllowsTenantGender(roomBuildingPolicy, tenant?.gender)) return false
       if (keyword && !room.room_number.toLowerCase().includes(keyword)) return false
       return true
     })
-  }, [rooms, currentRoomId, roomKeyword])
+  }, [rooms, currentRoomId, roomKeyword, buildings, tenant?.gender])
 
   const buildingOptions = useMemo(
     () => [
@@ -299,7 +302,6 @@ export function TenantTransferRoomScreen() {
 
             {!isRoomsLoading &&
               availableRooms.map((room) => {
-                const isDifferentBuilding = room.building_id !== currentBuildingId
                 return (
                   <button
                     key={room.id}
@@ -318,11 +320,6 @@ export function TenantTransferRoomScreen() {
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0f5f59]">
                       <Building2 className="h-3.5 w-3.5" /> {room.building?.name || room.building_name}
                     </span>
-                    {isDifferentBuilding && (
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
-                        Khác tòa - sẽ kiểm tra giới tính
-                      </span>
-                    )}
                   </button>
                 )
               })}

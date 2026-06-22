@@ -13,7 +13,7 @@ const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image
 const MONEY_REGEX = /^\d{1,13}(\.\d{1,2})?$/
 const CONTRACT_CODE_REGEX = /^[A-Za-z0-9_.-]+$/
 
-export function validateContractForm(form: ContractFormValues, roomMaxOccupants?: number | null, isSuperAdmin = false): ContractFormErrors {
+export function validateContractForm(form: ContractFormValues, roomMaxOccupants?: number | null, isSuperAdmin = false, validateActualEndDate = true): ContractFormErrors {
   const errors: ContractFormErrors = {}
   const contractCode = form.contract_code.trim()
   const roomPrice = form.room_price.trim()
@@ -47,7 +47,7 @@ export function validateContractForm(form: ContractFormValues, roomMaxOccupants?
     errors.end_date = 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.'
   }
 
-  if (form.actual_end_date && form.start_date && form.actual_end_date < form.start_date) {
+  if (validateActualEndDate && form.actual_end_date && form.start_date && form.actual_end_date < form.start_date) {
     errors.actual_end_date = 'Ngày kết thúc thực tế phải lớn hơn hoặc bằng ngày bắt đầu.'
   }
 

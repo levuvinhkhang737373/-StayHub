@@ -116,7 +116,7 @@ class ContractController extends Controller
             $contract = DB::transaction(function () use ($validated, $admin, $request, &$uploadedPaths): Contract {
                 $status = (int) ($validated['status'] ?? Contract::STATUS_PENDING_SIGN);
 
-                $room = Room::query()->with('building:id,manager_admin_id,name')->lockForUpdate()->find((int) $validated['room_id']);
+                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $validated['room_id']);
 
                 if (! $room) {
                     $this->throwResponse('Không tìm thấy phòng ký hợp đồng', 404);
@@ -254,7 +254,7 @@ class ContractController extends Controller
                 $oldData = $contractModel->load($this->detailRelations())->loadCount($this->detailCounts())->toArray();
                 $status = (int) $contractModel->status;
                 $roomId = (int) ($validated['room_id'] ?? $contractModel->room_id);
-                $room = Room::query()->with('building:id,manager_admin_id,name')->lockForUpdate()->find($roomId);
+                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find($roomId);
 
                 if (! $room) {
                     $this->throwResponse('Không tìm thấy phòng ký hợp đồng', 404);
@@ -394,7 +394,7 @@ class ContractController extends Controller
                 }
 
                 if ($nextStatus === Contract::STATUS_ACTIVE) {
-                    $room = Room::query()->with('building:id,manager_admin_id,name')->lockForUpdate()->find((int) $contractModel->room_id);
+                    $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $contractModel->room_id);
                     $this->assertRoomCanBeUsed($admin, $room);
                     $tenantPayloads = $this->currentTenantPayloads($contractModel);
                     $vehiclePayloads = $this->currentVehiclePayloads($contractModel);
@@ -518,7 +518,7 @@ class ContractController extends Controller
                     $this->throwResponse('Chỉ có thể gia hạn hợp đồng đang hiệu lực hoặc đã hết hạn.', 422);
                 }
 
-                $room = Room::query()->with('building:id,manager_admin_id,name')->lockForUpdate()->find((int) $validated['room_id']);
+                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $validated['room_id']);
                 if (! $room) {
                     $this->throwResponse('Không tìm thấy phòng ký hợp đồng', 404);
                 }
@@ -895,12 +895,32 @@ class ContractController extends Controller
             $this->throwResponse('Không thể lập hoặc cập nhật hợp đồng cho khách thuê ở trạng thái ngừng thuê hoặc không hoạt động.', 422);
         }
 
-        if ($status === Contract::STATUS_ACTIVE) {
-            $stayingTenantIds = collect($tenantPayloads)
-                ->filter(fn (array $tenant): bool => (bool) $tenant['is_staying'])
-                ->pluck('tenant_id')
-                ->all();
+        $stayingTenantIds = collect($tenantPayloads)
+            ->filter(fn (array $tenant): bool => (bool) $tenant['is_staying'])
+            ->pluck('tenant_id')
+            ->all();
 
+        if ($stayingTenantIds !== []) {
+            $building = $room->relationLoaded('building')
+                ? $room->building
+                : $room->building()->select(['id', 'gender_policy'])->first();
+
+            if (! $building) {
+                $this->throwResponse('Không tìm thấy tòa nhà của phòng ký hợp đồng.', 404);
+            }
+
+            $hasInvalidGenderTenant = Tenant::query()
+                ->select(['id', 'gender'])
+                ->whereIn('id', $stayingTenantIds)
+                ->get()
+                ->contains(fn (Tenant $tenant): bool => ! $building->allowsTenantGender($tenant->gender));
+
+            if ($hasInvalidGenderTenant) {
+                $this->throwResponse('Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.', 422);
+            }
+        }
+
+        if ($status === Contract::STATUS_ACTIVE) {
             if ($stayingTenantIds !== [] && $this->hasActiveTenantConflict($stayingTenantIds, $contractId)) {
                 $this->throwResponse('Có khách thuê đang ở trong hợp đồng hiệu lực khác, vui lòng kiểm tra lại.', 422);
             }
@@ -1363,7 +1383,7 @@ class ContractController extends Controller
     {
         return [
             'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
-            'room.building:id,name,slug,manager_admin_id,status',
+            'room.building:id,name,slug,manager_admin_id,status,gender_policy',
             'creator:id,username,full_name,email,role,status',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
             'contractTenants.tenant:id,full_name,phone,email,identity_number',
@@ -1374,7 +1394,7 @@ class ContractController extends Controller
     {
         return [
             'room:id,building_id,room_type_id,room_number,slug,floor,area_m2,base_price,max_occupants,current_occupants,status,description,created_by,created_at,updated_at',
-            'room.building:id,name,slug,manager_admin_id,status,address',
+            'room.building:id,name,slug,manager_admin_id,status,address,gender_policy',
             'room.roomType:id,name,slug,status',
             'creator:id,username,full_name,email,phone,role,status',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying', 'created_by', 'created_at', 'updated_at'])->orderBy('join_date')->orderBy('id'),

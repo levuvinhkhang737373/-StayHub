@@ -15,6 +15,7 @@ use App\Http\Resources\Admin\TenantDetailResource;
 use App\Http\Resources\Admin\TenantResource;
 use App\Mail\SendTenantPasswordEmail;
 use App\Models\Admin;
+use App\Models\Building;
 use App\Models\Contract;
 use App\Models\Tenant;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -29,6 +30,7 @@ use Illuminate\Support\Facades\Mail;
 class TenantController extends Controller
 {
     private const IMAGE_DISK = 's3';
+    private const GENDER_POLICY_ERROR_MESSAGE = 'Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.';
 
     public function index(IndexRequest $request): JsonResponse
     {
@@ -70,6 +72,10 @@ class TenantController extends Controller
             $validated['gender'] = (int) ($validated['gender'] ?? Tenant::GENDER_MALE);
             $validated['status'] = (int) ($validated['status'] ?? Tenant::STATUS_RENTING);
             $validated['identity_type'] = (int) ($validated['identity_type'] ?? Tenant::IDENTITY_TYPE_CCCD);
+
+            if (! $this->buildingAllowsTenantGender((int) $validated['building_id'], $validated['gender'])) {
+                return ApiResponse::responseJson(false, self::GENDER_POLICY_ERROR_MESSAGE, 422, null, 422);
+            }
 
             $tenant = DB::transaction(function () use ($request, $validated, $admin, &$uploadedPaths): Tenant {
                 $createdTenant = Tenant::query()->create($this->payload($validated));
@@ -159,6 +165,14 @@ class TenantController extends Controller
 
                 $oldData = $tenantModel->toArray();
                 $payload = $this->payload($validated, true);
+
+                if (
+                    array_key_exists('gender', $payload)
+                    && ! $this->buildingAllowsTenantGender((int) $tenantModel->building_id, $payload['gender'] === null ? null : (int) $payload['gender'])
+                ) {
+                    return ApiResponse::responseJson(false, self::GENDER_POLICY_ERROR_MESSAGE, 422, null, 422);
+                }
+
                 $imagePayload = $this->storeImages($request, $tenantModel, $uploadedPaths);
                 $pathsToDelete = $this->collectOldImagesForDeletion($tenantModel, $request, $imagePayload);
                 $payload = array_merge($payload, $imagePayload, $this->nullDeletedImages($request, $imagePayload));
@@ -353,6 +367,8 @@ class TenantController extends Controller
                 ->whereDoesntHave('contracts', function (Builder $q): void {
                     $q->where('status', Contract::STATUS_ACTIVE);
                 });
+
+            $this->applyBuildingGenderPolicyFilter($query, $buildingId);
         } else {
             $query->when(isset($validated['building_id']), fn (Builder $q): Builder => $q->where('building_id', (int) $validated['building_id']));
         }
@@ -401,6 +417,35 @@ class TenantController extends Controller
                 $keywordQuery->orWhere($column, 'like', $likeKeyword);
             }
         });
+    }
+
+    private function applyBuildingGenderPolicyFilter(Builder $query, int $buildingId): void
+    {
+        $building = Building::query()->select(['id', 'gender_policy'])->find($buildingId);
+
+        if (! $building) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        match ((int) $building->gender_policy) {
+            Building::GENDER_POLICY_MALE => $query->where('gender', Tenant::GENDER_MALE),
+            Building::GENDER_POLICY_FEMALE => $query->where('gender', Tenant::GENDER_FEMALE),
+            Building::GENDER_POLICY_MIXED => null,
+            default => $query->whereRaw('1 = 0'),
+        };
+    }
+
+    private function buildingAllowsTenantGender(?int $buildingId, ?int $tenantGender): bool
+    {
+        if (! $buildingId) {
+            return true;
+        }
+
+        $building = Building::query()->select(['id', 'gender_policy'])->find($buildingId);
+
+        return $building?->allowsTenantGender($tenantGender) ?? false;
     }
 
     private function tenantQueryFor(Admin $admin): Builder

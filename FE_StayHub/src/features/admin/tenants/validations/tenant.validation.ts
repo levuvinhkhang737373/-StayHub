@@ -1,3 +1,5 @@
+import { buildingAllowsTenantGender, GENDER_POLICY_ERROR_MESSAGE } from '../../shared/config/gender-policy'
+
 export type TenantFormValues = {
   building_id?: number | ''
   username: string
@@ -22,7 +24,7 @@ export type TenantFormErrors = Partial<Record<keyof TenantFormValues, string>>
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-export function validateTenantForm(form: TenantFormValues, isSuperAdmin = false): TenantFormErrors {
+export function validateTenantForm(form: TenantFormValues, isSuperAdmin = false, buildingGenderPolicy?: number | null): TenantFormErrors {
   const errors: TenantFormErrors = {}
   
   if (isSuperAdmin && !form.building_id) {
@@ -75,6 +77,8 @@ export function validateTenantForm(form: TenantFormValues, isSuperAdmin = false)
 
   if (![1, 2].includes(Number(form.gender))) {
     errors.gender = 'Giới tính khách thuê không hợp lệ.'
+  } else if (buildingGenderPolicy !== null && buildingGenderPolicy !== undefined && !buildingAllowsTenantGender(buildingGenderPolicy, form.gender)) {
+    errors.gender = GENDER_POLICY_ERROR_MESSAGE
   }
 
   if (![1, 2].includes(Number(form.status))) {

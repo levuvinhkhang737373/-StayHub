@@ -17,6 +17,7 @@ export interface AdminRoomResource {
     id: number
     name: string
     slug: string
+    gender_policy?: number | null
   }
   room_type: {              
     id: number
@@ -69,6 +70,7 @@ export interface RoomFormDataPayload {
 export interface BuildingResource {
   id: number
   name: string
+  gender_policy?: number | null
 
 }
 
