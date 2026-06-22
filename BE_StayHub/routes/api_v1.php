@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminAccountController;
+use App\Http\Controllers\Admin\AdminLogController;
 use App\Http\Controllers\Admin\AssetTemplateController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
@@ -88,6 +89,12 @@ Route::prefix('admin')->group(function (): void {
         // =========================Admin Accounts================================
         Route::patch('accounts/{account}/status', [AdminAccountController::class, 'updateStatus']);
         Route::apiResource('accounts', AdminAccountController::class);
+
+        // =========================Admin Activity Logs================================
+        Route::middleware(['auth.admin:2'])->group(function (): void {
+            Route::get('activity-logs', [AdminLogController::class, 'index']);
+            Route::get('activity-logs/{adminLog}', [AdminLogController::class, 'show']);
+        });
 
         // =========================Tenants================================
         Route::patch('tenants/{tenant}/status', [TenantController::class, 'updateStatus']);

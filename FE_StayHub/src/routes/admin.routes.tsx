@@ -27,6 +27,7 @@ import { NotificationsScreen } from '../features/admin/notifications'
 import { VehiclesScreen } from '../features/admin/vehicles'
 import { MeterReadingsScreen } from '../features/admin/meter-readings'
 import { TenantTransferRoomScreen } from '../features/admin/tenants/components/TenantTransferRoomScreen'
+import { ActivityLogsScreen } from '../features/admin/activity-logs'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -161,6 +162,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'system-users/update/:id',
         element: <AdminRouteGuard access="superadmin"><CreateSystemUserScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'activity-logs',
+        element: <AdminRouteGuard access="superadmin"><ActivityLogsScreen /></AdminRouteGuard>,
       },
       {
         path: 'settings',

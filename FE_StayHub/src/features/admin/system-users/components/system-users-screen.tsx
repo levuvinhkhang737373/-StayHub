@@ -247,7 +247,7 @@ export function SystemUsersScreen() {
                 <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
                 </Link>
-                
+
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý tài khoản admin</h1>
               </div>
               {isSuperAdmin && (

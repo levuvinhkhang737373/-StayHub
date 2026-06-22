@@ -10,6 +10,7 @@ import {
   DoorOpen,
   FileText,
   Gauge,
+  History,
   LayoutDashboard,
   Receipt,
   Settings,
@@ -53,6 +54,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'maintenance', label: 'Bảo trì', icon: Wrench, group: 'Vận hành', href: '/admin/maintenance', access: 'all' },
   { id: 'notifications', label: 'Thông báo', icon: Bell, group: 'Vận hành', href: '/admin/notifications', access: 'all' },
   { id: 'system_users', label: 'Tài khoản admin', icon: ShieldCheck, group: 'Hệ thống', href: '/admin/system-users', access: 'superadmin' },
+  { id: 'activity_logs', label: 'Nhật ký admin', icon: History, group: 'Hệ thống', href: '/admin/activity-logs', access: 'superadmin' },
   { id: 'settings', label: 'Cài đặt tòa nhà', icon: Settings, group: 'Hệ thống', href: '/admin/settings', access: 'all' },
 ]
 
@@ -63,6 +65,7 @@ export const SUPERADMIN_ROUTE_PREFIXES = [
   '/admin/rooms',
   '/admin/services',
   '/admin/system-users',
+  '/admin/activity-logs',
 ]
 
 export function canAccessAdminItem(item: AdminNavItem, role?: string | number | null) {

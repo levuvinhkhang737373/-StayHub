@@ -919,11 +919,11 @@ class StayHubDemoSeeder extends Seeder
     private function seedAdminLogs(array $admins, array $buildings, array $rooms, array $tenants, array $contracts, array $invoices): void
     {
         $rows = [
-            ['seed_create', 'building', $buildings['sg_central'], ['name' => 'StayHub Sài Gòn Central']],
-            ['seed_create', 'room', $rooms['sg_a101'], ['room_number' => 'A101']],
-            ['seed_create', 'tenant', $tenants['an'], ['full_name' => 'Lê Hoàng An']],
-            ['seed_create', 'contract', $contracts['sg_a101'], ['contract_code' => 'HD-2026-0001']],
-            ['seed_create', 'invoice', $invoices['sg_a101'], ['invoice_code' => 'INV-2026-05-0001']],
+            ['Tạo dữ liệu mẫu', 'building', $buildings['sg_central'], ['name' => 'StayHub Sài Gòn Central']],
+            ['Tạo dữ liệu mẫu', 'room', $rooms['sg_a101'], ['room_number' => 'A101']],
+            ['Tạo dữ liệu mẫu', 'tenant', $tenants['an'], ['full_name' => 'Lê Hoàng An']],
+            ['Tạo dữ liệu mẫu', 'contract', $contracts['sg_a101'], ['contract_code' => 'HD-2026-0001']],
+            ['Tạo dữ liệu mẫu', 'invoice', $invoices['sg_a101'], ['invoice_code' => 'INV-2026-05-0001']],
         ];
 
         foreach ($rows as $row) {
