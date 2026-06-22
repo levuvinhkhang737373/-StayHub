@@ -17,7 +17,6 @@ const STATUS_ACTIVE = 1
 const STATUS_INACTIVE = 2
 const ROLE_BUILDING_MANAGER = 1
 const ROLE_SUPER_ADMIN = 2
-const ROLE_TECHNICIAN = 3
 
 const defaultForm: AdminAccountFormValues = {
   username: '',
@@ -34,9 +33,8 @@ const defaultForm: AdminAccountFormValues = {
 }
 
 const roleOptions = [
-  { value: ROLE_BUILDING_MANAGER, label: 'Quản lí tòa nhà', tone: 'success' as const },
+  { value: ROLE_BUILDING_MANAGER, label: 'Quản lý tòa nhà', tone: 'success' as const },
   { value: ROLE_SUPER_ADMIN, label: 'Quản trị tổng', tone: 'warning' as const },
-  { value: ROLE_TECHNICIAN, label: 'Kỹ thuật', tone: 'default' as const },
 ]
 
 const statusOptions = [

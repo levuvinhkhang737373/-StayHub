@@ -15,12 +15,10 @@ class Admin extends Authenticatable
 
     public const ROLE_BUILDING_MANAGER = 1;
     public const ROLE_SUPER_ADMIN = 2;
-    public const ROLE_TECHNICIAN = 3;
 
     public const ROLE_LABELS = [
-        self::ROLE_BUILDING_MANAGER => 'Quản lí tòa nhà',
+        self::ROLE_BUILDING_MANAGER => 'Quản lý tòa nhà',
         self::ROLE_SUPER_ADMIN => 'Quản trị tổng',
-        self::ROLE_TECHNICIAN => 'Kỹ thuật',
     ];
 
     public const STATUS_ACTIVE = 1;
@@ -54,6 +52,11 @@ class Admin extends Authenticatable
             'updated_faceid_at' => 'datetime',
             'date_of_birth' => 'date',
         ];
+    }
+
+    public static function isSupportedRole(mixed $role): bool
+    {
+        return array_key_exists((int) $role, self::ROLE_LABELS);
     }
 
     public function createdRegions(): HasMany

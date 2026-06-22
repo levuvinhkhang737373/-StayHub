@@ -594,7 +594,7 @@ export function MaintenanceScreen() {
               Phân công nhân sự
             </h2>
             <p className="text-xs font-bold text-[#8b5e34]/60 mb-4">
-              Chọn nhân sự quản trị hoặc kỹ thuật viên tiếp nhận sự cố phòng {assigningRequest.room_number}.
+              Chọn nhân sự phụ trách tiếp nhận sự cố phòng {assigningRequest.room_number}.
             </p>
 
             <div className="space-y-4">

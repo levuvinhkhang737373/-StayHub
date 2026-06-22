@@ -14,7 +14,7 @@ export function AdminHeader() {
   const visibleItems = useMemo(() => getVisibleAdminNavItems(session?.admin.role), [session?.admin.role])
   const activeItem = useMemo(() => getActiveAdminNavItem(location.pathname, visibleItems), [location.pathname, visibleItems])
   const adminName = session?.admin.full_name || 'Admin'
-  const adminRole = getAdminRoleLabel(session?.admin.role)
+  const adminRole = session?.admin.role_label || getAdminRoleLabel(session?.admin.role)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)

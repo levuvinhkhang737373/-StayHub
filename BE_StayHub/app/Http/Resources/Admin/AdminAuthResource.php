@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Admin;
 
+use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,6 +23,7 @@ class AdminAuthResource extends JsonResource
             'image_path_faceid' => $this->image_path_faceid,
             'has_faceid' => filled($this->image_path_faceid),
             'role' => $this->role,
+            'role_label' => Admin::ROLE_LABELS[$this->role] ?? null,
             'status' => $this->status,
             'gender' => $this->gender,
             'address' => $this->address,
@@ -30,6 +32,7 @@ class AdminAuthResource extends JsonResource
                 'id' => $building->id,
                 'name' => $building->name,
                 'slug' => $building->slug,
+                'gender_policy' => $building->gender_policy,
                 'status' => $building->status,
             ])->values()),
             'managed_building_names' => $this->whenLoaded('managedBuildings', fn () => $this->managedBuildings->pluck('name')->filter()->values()),

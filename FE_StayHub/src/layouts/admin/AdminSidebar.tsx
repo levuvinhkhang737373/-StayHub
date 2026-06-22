@@ -9,7 +9,7 @@ import { AccountSettingsModal } from './AccountSettingsModal'
 export function AdminSidebar() {
   const { clearSession, session } = useAdminSession()
   const adminName = session?.admin.full_name || 'Admin'
-  const adminRole = getAdminRoleLabel(session?.admin.role)
+  const adminRole = session?.admin.role_label || getAdminRoleLabel(session?.admin.role)
   const visibleItems = useMemo(() => getVisibleAdminNavItems(session?.admin.role), [session?.admin.role])
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)

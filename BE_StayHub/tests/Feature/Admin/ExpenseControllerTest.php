@@ -20,7 +20,6 @@ class ExpenseControllerTest extends TestCase
 
     private Admin $superAdmin;
     private Admin $managerAdmin;
-    private Admin $technicianAdmin;
     private Building $managedBuilding;
     private Building $otherBuilding;
     private Room $managedRoom;
@@ -34,7 +33,6 @@ class ExpenseControllerTest extends TestCase
 
         $this->superAdmin = $this->createAdmin('superadmin_expense', Admin::ROLE_SUPER_ADMIN);
         $this->managerAdmin = $this->createAdmin('manager_expense', Admin::ROLE_BUILDING_MANAGER);
-        $this->technicianAdmin = $this->createAdmin('technician_expense', Admin::ROLE_TECHNICIAN);
 
         $region = Region::create([
             'name' => 'Khu vực phiếu chi',
@@ -225,13 +223,6 @@ class ExpenseControllerTest extends TestCase
         $this->actingAs($this->superAdmin, 'admin')
             ->getJson('/api/v1/admin/expenses?expense_date_from=2026-06-22&expense_date_to=2026-06-21')
             ->assertUnprocessable();
-    }
-
-    public function test_non_finance_admin_role_cannot_access_expenses(): void
-    {
-        $this->actingAs($this->technicianAdmin, 'admin')
-            ->getJson('/api/v1/admin/expenses')
-            ->assertForbidden();
     }
 
     private function createAdmin(string $username, int $role): Admin

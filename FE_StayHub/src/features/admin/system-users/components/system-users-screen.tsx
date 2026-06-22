@@ -39,13 +39,11 @@ const STATUS_ACTIVE = 1
 const STATUS_INACTIVE = 2
 const ROLE_BUILDING_MANAGER = 1
 const ROLE_SUPER_ADMIN = 2
-const ROLE_TECHNICIAN = 3
 
 const roleOptions = [
   { value: '', label: 'Tất cả vai trò', tone: 'default' as const },
-  { value: ROLE_BUILDING_MANAGER, label: 'Quản lí tòa nhà', tone: 'success' as const },
+  { value: ROLE_BUILDING_MANAGER, label: 'Quản lý tòa nhà', tone: 'success' as const },
   { value: ROLE_SUPER_ADMIN, label: 'Quản trị tổng', tone: 'warning' as const },
-  { value: ROLE_TECHNICIAN, label: 'Kỹ thuật', tone: 'default' as const },
 ]
 
 const statusOptions = [
@@ -572,8 +570,8 @@ function isAccountActive(account: AdminAccountResource) {
 
 function getRoleLabel(role?: string | number | null) {
   if (Number(role) === ROLE_SUPER_ADMIN) return 'Quản trị tổng'
-  if (Number(role) === ROLE_TECHNICIAN) return 'Kỹ thuật'
-  return 'Quản lí tòa nhà'
+  if (Number(role) === ROLE_BUILDING_MANAGER) return 'Quản lý tòa nhà'
+  return 'Không xác định'
 }
 
 function getAccountRoleLabel(account: AdminAccountResource | null) {
@@ -607,6 +605,5 @@ function getManagedBuildingSummary(account: AdminAccountResource | null) {
 
 function getRoleBadgeClass(role?: string | number | null) {
   if (Number(role) === ROLE_SUPER_ADMIN) return 'border-[#f3c56b]/35 bg-[#f3c56b]/18 text-[#8a4f18]'
-  if (Number(role) === ROLE_TECHNICIAN) return 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]'
   return 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]'
 }

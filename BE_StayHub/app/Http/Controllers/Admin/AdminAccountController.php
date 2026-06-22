@@ -96,7 +96,7 @@ class AdminAccountController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền xem tài khoản admin', 403, null, 403);
             }
 
-            $accountModel = Admin::query()
+            $accountModel = $this->supportedAccountQuery()
                 ->select($this->detailColumns())
                 ->with($this->managedBuildingRelation())
                 ->withCount($this->detailCounts())
@@ -124,7 +124,7 @@ class AdminAccountController extends Controller
             }
 
             $response = DB::transaction(function () use ($validated, $account, $admin, $request): JsonResponse {
-                $accountModel = Admin::query()->lockForUpdate()->find($account);
+                $accountModel = $this->supportedAccountQuery()->lockForUpdate()->find($account);
 
                 if (! $accountModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy tài khoản admin', 404, null, 404);
@@ -176,7 +176,7 @@ class AdminAccountController extends Controller
             }
 
             $response = DB::transaction(function () use ($validated, $account, $admin, $request): JsonResponse {
-                $accountModel = Admin::query()->lockForUpdate()->find($account);
+                $accountModel = $this->supportedAccountQuery()->lockForUpdate()->find($account);
 
                 if (! $accountModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy tài khoản admin', 404, null, 404);
@@ -223,7 +223,7 @@ class AdminAccountController extends Controller
             }
 
             $response = DB::transaction(function () use ($account, $admin, $request): JsonResponse {
-                $accountModel = Admin::query()->withCount($this->deleteCounts())->lockForUpdate()->find($account);
+                $accountModel = $this->supportedAccountQuery()->withCount($this->deleteCounts())->lockForUpdate()->find($account);
 
                 if (! $accountModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy tài khoản admin', 404, null, 404);
@@ -325,7 +325,7 @@ class AdminAccountController extends Controller
     {
         $keyword = trim($validated['keyword'] ?? '');
 
-        return Admin::query()
+        return $this->supportedAccountQuery()
             ->select($this->listColumns())
             ->with($this->managedBuildingRelation())
             ->withCount($this->listCounts())
@@ -340,6 +340,11 @@ class AdminAccountController extends Controller
             ->when(isset($validated['role']), fn (Builder $query): Builder => $query->where('role', (int) $validated['role']))
             ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', (int) $validated['status']))
             ->latest('id');
+    }
+
+    private function supportedAccountQuery(): Builder
+    {
+        return Admin::query()->whereIn('role', array_keys(Admin::ROLE_LABELS));
     }
 
     private function wouldRemoveLastActiveSuperAdmin(Admin $account, array $validated): bool

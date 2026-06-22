@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Admin;
 
+use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,6 +21,7 @@ class AdminResource extends JsonResource
             'phone' => $this->phone,
             'avatar_url' => $this->avatar_url,
             'role' => $this->role,
+            'role_label' => Admin::ROLE_LABELS[$this->role] ?? null,
             'status' => $this->status,
             'managed_buildings_count' => $this->whenCounted('managedBuildings'),
             'created_at' => optional($this->created_at)->toDateTimeString(),

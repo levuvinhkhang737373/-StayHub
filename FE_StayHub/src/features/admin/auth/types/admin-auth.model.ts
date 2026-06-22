@@ -3,6 +3,7 @@ export interface AdminManagedBuildingProfile {
   name: string
   slug?: string | null
   address?: string | null
+  gender_policy?: number | null
   status?: string | number | boolean | null
 }
 
@@ -17,6 +18,7 @@ export interface AdminProfile {
   image_path_faceid: string | null
   has_faceid: boolean
   role: string | number
+  role_label?: string | null
   status: string | number | boolean
   gender?: string | null
   address?: string | null

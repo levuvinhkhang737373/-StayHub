@@ -24,6 +24,10 @@ class EnsureAdminRole
             return ApiResponse::responseJson(false, 'Tài khoản của bạn đã bị khóa', 403, null, 403);
         }
 
+        if (! Admin::isSupportedRole($admin->role)) {
+            return ApiResponse::responseJson(false, 'Vai trò tài khoản không còn được hỗ trợ', 403, null, 403);
+        }
+
         $allowedRoles = array_map('intval', $roles);
 
         if ($allowedRoles !== [] && ! in_array($admin->role, $allowedRoles, true)) {
