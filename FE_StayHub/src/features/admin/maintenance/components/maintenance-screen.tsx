@@ -27,7 +27,6 @@ import type { AdminAccountResource } from '../../system-users/types/admin-accoun
 import {
   fetchAdminMaintenanceRequests,
   fetchAdminMaintenanceDetail,
-  assignMaintenanceStaff,
   updateMaintenanceStatus
 } from '../services/maintenance.service'
 import type {
@@ -85,10 +84,7 @@ export function MaintenanceScreen() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
 
-  const [assigningRequest, setAssigningRequest] = useState<AdminMaintenanceRequestResource | null>(null)
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('')
-  const [isAssigning, setIsAssigning] = useState(false)
-
+ 
   const [updatingRequest, setUpdatingRequest] = useState<AdminMaintenanceRequestResource | null>(null)
   const [newStatus, setNewStatus] = useState<number>(1)
   const [updateNote, setUpdateNote] = useState<string>('')
@@ -191,27 +187,8 @@ export function MaintenanceScreen() {
     }
   }
 
-  // Assign staff
-  const handleAssignSubmit = async () => {
-    if (!assigningRequest || !selectedStaffId) return
-    setIsAssigning(true)
-    setErrorMessage(null)
-    setSuccessMessage(null)
-    try {
-      await assignMaintenanceStaff(assigningRequest.id, Number(selectedStaffId))
-      setSuccessMessage(`Đã phân công xử lý phiếu ${assigningRequest.request_code} thành công.`)
-      setAssigningRequest(null)
-      setSelectedStaffId('')
-      void loadRequests()
-      if (detailRequest && detailRequest.id === assigningRequest.id) {
-        void openDetail(assigningRequest)
-      }
-    } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : 'Có lỗi xảy ra khi phân công nhân viên.')
-    } finally {
-      setIsAssigning(false)
-    }
-  }
+  // // Assign staff
+  
 
   // Update status
   const handleStatusSubmit = async () => {
@@ -422,13 +399,7 @@ export function MaintenanceScreen() {
                       >
                         <Eye className="h-4.5 w-4.5" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => { setAssigningRequest(req); setSelectedStaffId(req.assigned_to ? String(req.assigned_to) : '') }}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 text-xs font-black text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
-                      >
-                        <UserPlus className="h-4 w-4" /> Phân công
-                      </button>
+                    
                       <button
                         type="button"
                         onClick={() => { setUpdatingRequest(req); setNewStatus(Number(req.status) === 2 ? 3 : Number(req.status)) }}
@@ -565,13 +536,7 @@ export function MaintenanceScreen() {
             </div>
 
             <div className="p-4 bg-stone-100 border-t border-[#3d2a18]/10 flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => { setAssigningRequest(detailRequest); setSelectedStaffId(detailRequest.assigned_to ? String(detailRequest.assigned_to) : '') }}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#3d2a18]/10 bg-white px-4 text-sm font-black text-[#8b5e34]"
-              >
-                <UserPlus className="h-4.5 w-4.5" /> Phân công nhân viên
-              </button>
+             
               <button
                 type="button"
                 onClick={() => { setUpdatingRequest(detailRequest); setNewStatus(detailRequest.status) }}
@@ -584,50 +549,7 @@ export function MaintenanceScreen() {
         </div>
       )}
 
-      {/* ASSIGN STAFF MODAL */}
-      {assigningRequest && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm" onClick={() => setAssigningRequest(null)} />
-          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl p-5 sm:p-6">
-            <h2 className="text-lg font-black text-[#24170d] mb-2 flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-[#f3c56b]" />
-              Phân công nhân sự
-            </h2>
-            <p className="text-xs font-bold text-[#8b5e34]/60 mb-4">
-              Chọn nhân sự quản trị hoặc kỹ thuật viên tiếp nhận sự cố phòng {assigningRequest.room_number}.
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Chọn nhân viên xử lý</label>
-                <AdminSelect
-                  value={selectedStaffId}
-                  options={adminUsers.map((a) => ({ value: a.id, label: `${a.full_name} (${a.phone || 'Không có số'})`, tone: 'default' as const }))}
-                  onChange={(val) => setSelectedStaffId(String(val))}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setAssigningRequest(null)}
-                  className="flex-1 h-12 rounded-xl border border-[#3d2a18]/10 text-sm font-black text-[#8b5e34] bg-white transition hover:bg-stone-50"
-                >
-                  HỦY
-                </button>
-                <button
-                  type="button"
-                  disabled={isAssigning || !selectedStaffId}
-                  onClick={() => void handleAssignSubmit()}
-                  className="flex-1 h-12 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-lg transition hover:bg-[#3d2a18] disabled:opacity-60"
-                >
-                  {isAssigning ? 'Đang giao...' : 'PHÂN CÔNG'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+     
 
       {/* UPDATE STATUS MODAL */}
       {updatingRequest && (

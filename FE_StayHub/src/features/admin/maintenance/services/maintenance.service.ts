@@ -31,15 +31,7 @@ export async function fetchAdminMaintenanceDetail(id: number) {
   })
 }
 
-export async function assignMaintenanceStaff(id: number, assignedTo: number) {
-  return apiRequest<AdminMaintenanceRequestResource>({
-    url: `admin/maintenance-requests/${id}/assign`,
-    method: 'PATCH',
-    data: {
-      assigned_to: assignedTo,
-    },
-  })
-}
+
 
 export async function updateMaintenanceStatus(
   id: number, 

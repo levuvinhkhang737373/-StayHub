@@ -7,7 +7,6 @@ use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\MaintenanceRequest\AssignRequest;
 use App\Http\Requests\Admin\MaintenanceRequest\StatusRequest;
 use App\Http\Resources\Admin\MaintenanceRequestResource;
 use App\Models\MaintenanceRequest;
@@ -38,8 +37,8 @@ class MaintenanceRequestController extends Controller
             $query = AdminScope::applyMaintenanceRequestScope($query, $admin);
 
             $query->when($request->filled('status'), function ($q) use ($request) {
-                    $q->where('status', $request->integer('status'));
-                })
+                $q->where('status', $request->integer('status'));
+            })
                 ->when($request->filled('building_id'), function ($q) use ($request) {
                     $q->whereHas('room', function ($rq) use ($request) {
                         $rq->where('building_id', $request->integer('building_id'));
@@ -58,7 +57,7 @@ class MaintenanceRequestController extends Controller
                             ->orWhere('request_code', 'like', $keyword)
                             ->orWhereHas('tenant', function ($t) use ($keyword) {
                                 $t->where('full_name', 'like', $keyword)
-                                  ->orWhere('phone', 'like', $keyword);
+                                    ->orWhere('phone', 'like', $keyword);
                             });
                     });
                 });
@@ -74,7 +73,6 @@ class MaintenanceRequestController extends Controller
                     'last_page' => $requests->lastPage(),
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
@@ -103,7 +101,6 @@ class MaintenanceRequestController extends Controller
             }
 
             return ApiResponse::responseJson(true, 'Chi tiết phiếu sửa chữa', 200, new MaintenanceRequestResource($maintenance), 200);
-
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
@@ -112,97 +109,7 @@ class MaintenanceRequestController extends Controller
     /**
      * Phân công nhân viên sửa chữa
      */
-    public function assign(AssignRequest $request, int $id): JsonResponse
-    {
-        try {
-            $admin = $request->user('admin');
-            if (! $admin) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập chức năng này', 403, null, 403);
-            }
 
-            $maintenance = MaintenanceRequest::query()->find($id);
-            if (! $maintenance) {
-                return ApiResponse::responseJson(false, 'Không tìm thấy phiếu sửa chữa', 404, null, 404);
-            }
-
-            // Kiểm tra quyền phân công phiếu sửa chữa
-            if (! AdminScope::canUpdateMaintenanceRequestStatus($admin, $maintenance)) {
-                return ApiResponse::responseJson(false, 'Bạn không có quyền phân công yêu cầu sửa chữa này', 403, null, 403);
-            }
-
-            $oldData = $maintenance->toArray();
-            $oldStatus = $maintenance->status;
-            // Nếu phiếu đang ở trạng thái Mới tạo (1), chuyển sang Đang xử lý (3)
-            $newStatus = ($oldStatus === MaintenanceRequest::STATUS_CREATED)
-                ? MaintenanceRequest::STATUS_PROCESSING
-                : $oldStatus;
-
-            $result = DB::transaction(function () use ($request, $admin, $maintenance, $oldStatus, $newStatus) {
-                $updatePayload = [
-                    'assigned_to' => $request->input('assigned_to'),
-                    'status' => $newStatus,
-                ];
-
-                if ($newStatus === MaintenanceRequest::STATUS_PROCESSING && is_null($maintenance->received_at)) {
-                    $updatePayload['received_at'] = now();
-                }
-
-                $maintenance->update($updatePayload);
-
-                // Ghi nhận lịch sử (Log)
-                MaintenanceRequestLog::query()->create([
-                    'maintenance_request_id' => $maintenance->id,
-                    'old_status' => $oldStatus,
-                    'new_status' => $newStatus,
-                    'note' => 'Admin phân công xử lý yêu cầu sửa chữa.',
-                    'created_by' => $admin->id,
-                ]);
-
-                // Ghi log hoạt động của admin
-                AdminActivityLogger::write(
-                    $admin,
-                    'assign_maintenance_staff',
-                    MaintenanceRequest::class,
-                    $maintenance->id,
-                    $oldStatus !== $newStatus ? ['status' => $oldStatus, 'assigned_to' => $maintenance->getOriginal('assigned_to')] : null,
-                    $maintenance->fresh()->toArray(),
-                    $request
-                );
-
-                // Tạo thông báo cho Tenant
-                $notification = \App\Models\Notification::query()->create([
-                    'title' => 'Cập nhật yêu cầu sửa chữa',
-                    'content' => "Yêu cầu sửa chữa '{$maintenance->title}' của bạn đã được phân công cho nhân sự bảo trì.",
-                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_MAINTENANCE,
-                    'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
-                    'tenant_id' => $maintenance->tenant_id,
-                    'room_id' => $maintenance->room_id,
-                    'building_id' => $maintenance->room?->building_id,
-                    'status' => \App\Models\Notification::STATUS_SENT,
-                    'published_at' => now(),
-                ]);
-
-                return [
-                    'maintenance' => $maintenance,
-                    'notification' => $notification,
-                ];
-            });
-
-            $maintenance = $result['maintenance'];
-            $notification = $result['notification'];
-
-            $maintenance->load(['tenant', 'room.building', 'assignee', 'logs.creator', 'feedbacks']);
-
-            // Phát sự kiện Broadcast
-            broadcast(new \App\Events\MaintenanceRequestAssigned($maintenance));
-            broadcast(new \App\Events\NotificationSent($notification));
-
-            return ApiResponse::responseJson(true, 'Phân công nhân viên thành công', 200, new MaintenanceRequestResource($maintenance), 200);
-
-        } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
-        }
-    }
 
     /**
      * Cập nhật trạng thái phiếu sửa chữa
@@ -232,12 +139,12 @@ class MaintenanceRequestController extends Controller
 
             $result = DB::transaction(function () use ($request, $admin, $maintenance, $oldStatus, $newStatus, $note, $oldData) {
                 $images = $maintenance->images ?? [];
-                
+
                 // Nếu trạng thái đổi sang Đã hoàn thành (4) và có đính kèm ảnh
                 if ($newStatus === MaintenanceRequest::STATUS_COMPLETED && $request->hasFile('after_image')) {
                     $folder = 'maintenance/requests/' . $maintenance->request_code . '/after';
                     $afterImagePath = ImageHelper::storeOnDisk($request->file('after_image'), $folder, self::IMAGE_DISK);
-                    
+
                     // Giữ ảnh trước (nếu có)
                     $beforeImage = count($images) > 0 ? $images[0] : null;
                     $images = array_values(array_filter([$beforeImage, $afterImagePath]));
@@ -316,7 +223,6 @@ class MaintenanceRequestController extends Controller
             broadcast(new \App\Events\NotificationSent($notification));
 
             return ApiResponse::responseJson(true, 'Cập nhật trạng thái thành công', 200, new MaintenanceRequestResource($maintenance), 200);
-
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
