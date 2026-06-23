@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -22,6 +22,8 @@ interface AdminSelectProps {
   ariaDescribedBy?: string
   menuPlacement?: 'bottom' | 'top'
   searchable?: boolean
+  menuMinWidth?: number
+  wrapLabel?: boolean
 }
 
 const toneClassNames: Record<NonNullable<AdminSelectOption['tone']>, string> = {
@@ -31,15 +33,16 @@ const toneClassNames: Record<NonNullable<AdminSelectOption['tone']>, string> = {
   danger: 'bg-rose-100 text-rose-700',
 }
 
-export function AdminSelect({ value, options, onChange, placeholder = 'Chọn giá trị', className, disabled = false, invalid = false, id, ariaDescribedBy, menuPlacement = 'bottom', searchable }: AdminSelectProps) {
+export function AdminSelect({ value, options, onChange, placeholder = 'Chọn giá trị', className, disabled = false, invalid = false, id, ariaDescribedBy, menuPlacement = 'bottom', searchable, menuMinWidth, wrapLabel = false }: AdminSelectProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const generatedId = useId()
   
   const selectedIndex = useMemo(() => options.findIndex((option) => String(option.value) === String(value)), [options, value])
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : undefined
-  const listboxId = id ? `${id}-listbox` : useMemo(() => `admin-select-${Math.random().toString(36).substring(2, 9)}`, [id])
+  const listboxId = id ? `${id}-listbox` : `admin-select-${generatedId.replace(/:/g, '')}`
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null)
 
   const isSearchEnabled = searchable ?? options.length > 5
@@ -53,11 +56,6 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
   }, [options, searchTerm])
 
   const [activeIndex, setActiveIndex] = useState(selectedIndex >= 0 ? selectedIndex : 0)
-
-  // Reset activeIndex when filtered options change
-  useEffect(() => {
-    setActiveIndex(0)
-  }, [searchTerm])
 
   const updateCoords = useCallback(() => {
     if (buttonRef.current) {
@@ -83,12 +81,6 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
   }, [isOpen, updateCoords])
 
   useEffect(() => {
-    if (!isOpen) {
-      setSearchTerm('')
-    }
-  }, [isOpen])
-
-  useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       const portalEl = document.getElementById(listboxId)
       if (
@@ -96,6 +88,7 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
         (!portalEl || !portalEl.contains(event.target as Node))
       ) {
         setIsOpen(false)
+        setSearchTerm('')
       }
     }
 
@@ -106,6 +99,7 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
   function chooseOption(option: AdminSelectOption) {
     onChange(option.value)
     setIsOpen(false)
+    setSearchTerm('')
   }
 
   function moveActive(offset: number) {
@@ -152,6 +146,7 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
     if (event.key === 'Escape') {
       event.preventDefault()
       setIsOpen(false)
+      setSearchTerm('')
     }
   }
 
@@ -164,16 +159,20 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
         left: '-9999px',
       }
     }
+    const viewportPadding = 12
+    const menuWidth = Math.min(Math.max(coords.width, menuMinWidth ?? coords.width), window.innerWidth - viewportPadding * 2)
+    const menuLeft = Math.min(Math.max(coords.left, viewportPadding), window.innerWidth - menuWidth - viewportPadding)
+
     return {
       position: 'fixed',
-      left: `${coords.left}px`,
-      width: `${coords.width}px`,
+      left: `${menuLeft}px`,
+      width: `${menuWidth}px`,
       zIndex: 9999,
       ...(menuPlacement === 'top'
         ? { bottom: `${window.innerHeight - coords.top + 8}px` }
         : { top: `${coords.top + 8}px` }),
     }
-  }, [coords, menuPlacement])
+  }, [coords, menuMinWidth, menuPlacement])
 
   return (
     <div ref={wrapperRef} className={cn('relative min-w-0', className)}>
@@ -188,9 +187,14 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
         aria-invalid={invalid || undefined}
         aria-describedby={ariaDescribedBy}
         onClick={() => {
+          if (isOpen) {
+            setIsOpen(false)
+            setSearchTerm('')
+            return
+          }
           setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
           updateCoords()
-          setIsOpen((current) => !current)
+          setIsOpen(true)
         }}
         onKeyDown={handleKeyDown}
         className={cn(
@@ -201,7 +205,7 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
           disabled && 'cursor-not-allowed bg-[#efe2cf]/45 text-[#3d2a18]',
         )}
       >
-        <span className="min-w-0 flex-1 truncate">{selectedOption?.label || placeholder}</span>
+        <span className={cn('min-w-0 flex-1', wrapLabel ? 'whitespace-normal break-words leading-5' : 'truncate')}>{selectedOption?.label || placeholder}</span>
         <span className="flex items-center gap-2">
           {selectedOption?.tone && selectedOption.tone !== 'default' && <span className={cn('h-2.5 w-2.5 rounded-full', toneClassNames[selectedOption.tone])} />}
           {!disabled && <ChevronDown className={cn('h-4 w-4 shrink-0 text-[#a65f16] transition-transform duration-200 group-hover:text-[#8a4f18]', isOpen && 'rotate-180')} />}
@@ -224,7 +228,10 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
                 type="text"
                 placeholder="Tìm kiếm..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setActiveIndex(0)
+                }}
                 onClick={(e) => e.stopPropagation()}
                 autoFocus
                 className="h-9 w-full rounded-xl border border-[#3d2a18]/10 bg-white/70 pl-9 pr-3 text-xs font-bold text-[#3d2a18] outline-none placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-2 focus:ring-[#f3c56b]/20"
@@ -251,9 +258,9 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
                     isActive && !isSelected && 'bg-[#f3c56b]/14 text-[#24170d]',
                   )}
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate font-black tracking-tight">{option.label}</span>
-                    {option.description && <span className={cn('mt-0.5 block truncate text-xs font-semibold', isSelected ? 'text-[#f8e8c8]/72' : 'text-[#8b5e34]/65')}>{option.description}</span>}
+                  <span className="min-w-0 flex-1">
+                    <span className={cn('block font-black tracking-tight', wrapLabel ? 'whitespace-normal break-words leading-5' : 'truncate')}>{option.label}</span>
+                    {option.description && <span className={cn('mt-0.5 block text-xs font-semibold', wrapLabel ? 'whitespace-normal break-words leading-5' : 'truncate', isSelected ? 'text-[#f8e8c8]/72' : 'text-[#8b5e34]/65')}>{option.description}</span>}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     {option.tone && option.tone !== 'default' && <span className={cn('h-2.5 w-2.5 rounded-full', toneClassNames[option.tone])} />}
@@ -274,4 +281,3 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
     </div>
   )
 }
-

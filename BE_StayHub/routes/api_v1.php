@@ -137,6 +137,7 @@ Route::prefix('admin')->group(function (): void {
         Route::post('room-transfers/tenant', [RoomController::class, 'transferTenant']);
 
         // ==========================Dashboard===============================
+        Route::get('dashboard/overview', [DashboardController::class, 'overview']);
         Route::get('dashboard/utility-price-history', [DashboardController::class, 'utilityPriceHistory']);
     });
 });
