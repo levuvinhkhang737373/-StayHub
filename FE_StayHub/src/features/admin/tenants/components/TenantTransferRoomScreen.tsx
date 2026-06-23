@@ -55,7 +55,6 @@ export function TenantTransferRoomScreen() {
   const [depositRefundAmount, setDepositRefundAmount] = useState('')
   const [transferFee, setTransferFee] = useState('')
   const [meterReadingRows, setMeterReadingRows] = useState<MeterReadingRow[]>([])
-  const [openingReadingRows, setOpeningReadingRows] = useState<OpeningReadingRow[]>([])
   const [meterDevices,setMeterDevices]=useState<AdminMeterDeviceResource[]>([]);
   const [carryVehicleIds, setCarryVehicleIds] = useState<number[]>([]);
   const [vehicles,setVehicles]=useState<AdminVehicleOptionResource[]>([]);   
@@ -139,6 +138,8 @@ export function TenantTransferRoomScreen() {
       )
     }).catch(()=>{
       setMeterDevices([]);
+        setMeterReadingRows([])
+
     });
   },[currentRoomId]);
 
@@ -165,7 +166,7 @@ export function TenantTransferRoomScreen() {
       if (room.current_occupants >= room.max_occupants) return false
       const roomBuildingPolicy = room.building?.gender_policy ?? buildings.find((building) => building.id === room.building_id)?.gender_policy
       if (!buildingAllowsTenantGender(roomBuildingPolicy, tenant?.gender)) return false
-      if (keyword && !room.room_number.toLowerCase().includes(keyword)) return false
+      if (keyword && !(room.room_number ?? '').toLowerCase().includes(keyword)) return false
       return true
     })
   }, [rooms, currentRoomId, roomKeyword, buildings, tenant?.gender])
@@ -173,7 +174,7 @@ export function TenantTransferRoomScreen() {
   const buildingOptions = useMemo(
     () => [
       { value: '', label: 'Tất cả tòa nhà', tone: 'default' as const },
-      ...buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })),
+      ...buildings.map((building) => ({ value: String(building.id), label: building.name, tone: 'default' as const })),
     ],
     [buildings],
   )
@@ -193,15 +194,6 @@ export function TenantTransferRoomScreen() {
     setMeterReadingRows((rows) => rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)))
   }
 
-  function addOpeningReadingRow() {
-    setOpeningReadingRows((rows) => [...rows, { serviceId: '', value: '' }])
-  }
-  function removeOpeningReadingRow(index: number) {
-    setOpeningReadingRows((rows) => rows.filter((_, i) => i !== index))
-  }
-  function updateOpeningReadingRow(index: number, key: keyof OpeningReadingRow, value: string) {
-    setOpeningReadingRows((rows) => rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)))
-  }
 
   async function handleSubmit() {
     if (!selectedRoom || !parsedTenantId) return
@@ -216,12 +208,6 @@ export function TenantTransferRoomScreen() {
         current_reading: Number(row.currentReading),
       }))
 
-    const newRoomOpeningReadings = openingReadingRows.reduce<Record<number, number>>((acc, row) => {
-      if (row.serviceId && row.value) {
-        acc[Number(row.serviceId)] = Number(row.value)
-      }
-      return acc
-    }, {})
 
     const payload: TransferTenantPayload = {
       tenant_id: parsedTenantId,
@@ -229,7 +215,6 @@ export function TenantTransferRoomScreen() {
       movement_date: movementDate,
       note: note || undefined,
       meter_readings: meterReadings.length ? meterReadings : undefined,
-      new_room_opening_readings: Object.keys(newRoomOpeningReadings).length ? newRoomOpeningReadings : undefined,
       deposit_settlement_amount: depositSettlementAmount ? Number(depositSettlementAmount) : undefined,
       deposit_deduction_amount: depositDeductionAmount ? Number(depositDeductionAmount) : undefined,
       deposit_refund_amount: depositRefundAmount ? Number(depositRefundAmount) : undefined,
@@ -414,22 +399,8 @@ export function TenantTransferRoomScreen() {
             
           </FormSection>
 
-          <FormSection title="Chỉ số khởi điểm phòng mới" hint="Chỉ cần điền nếu phòng đích CHƯA có công tơ cho dịch vụ đó (service_id).">
-            {openingReadingRows.map((row, index) => (
-              <div key={index} className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                <input type="number" placeholder="service_id" value={row.serviceId} onChange={(e) => updateOpeningReadingRow(index, 'serviceId', e.target.value)} className={inputClass} />
-                <input type="number" placeholder="Chỉ số khởi điểm" value={row.value} onChange={(e) => updateOpeningReadingRow(index, 'value', e.target.value)} className={inputClass} />
-                <button type="button" onClick={() => removeOpeningReadingRow(index)} className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-            <button type="button" onClick={addOpeningReadingRow} className="mt-1 inline-flex items-center gap-1.5 rounded-xl border border-dashed border-[#3d2a18]/20 px-3 py-2 text-xs font-black text-[#8b5e34] hover:bg-[#f3c56b]/10">
-              <Plus className="h-3.5 w-3.5" /> Thêm chỉ số khởi điểm
-            </button>
-          </FormSection>
 
-          <FormSection title="Phương tiện mang theo" hint="Nhập vehicle_id của xe muốn mang theo, cách nhau bằng dấu phẩy. Để trống nếu không có xe.">
+          <FormSection title="Phương tiện mang theo" hint="Chọn các phương tiện sẽ được chuyển sang phòng mới.">
               {vehicles.map((vehicle) => (
   <label key={vehicle.id}>
     <input
