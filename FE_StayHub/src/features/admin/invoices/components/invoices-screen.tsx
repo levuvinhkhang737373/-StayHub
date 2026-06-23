@@ -296,7 +296,7 @@ export function InvoicesScreen() {
 
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
         <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-          <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(8rem,10rem)]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(8rem,10rem)_minmax(6rem,8rem)]">
             <div className="relative min-w-0">
               <SearchIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
               <input
@@ -322,8 +322,6 @@ export function InvoicesScreen() {
             <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} disabled={!isSuperAdmin && buildingOptions.length <= 1} onChange={(nextValue) => { setSelectedBuildingId(String(nextValue)); setSelectedRoomId(''); setCurrentPage(1) }} />
             <AdminSelect value={selectedRoomId} options={[{ value: '', label: 'Tất cả phòng', tone: 'default' as const }, ...roomOptions]} disabled={!selectedBuildingId} onChange={(nextValue) => { setSelectedRoomId(String(nextValue)); setCurrentPage(1) }} />
             <AdminSelect value={selectedMonth} options={monthOptions} onChange={(nextValue) => { setSelectedMonth(String(nextValue)); setCurrentPage(1) }} />
-          </div>
-          <div className="mt-3 max-w-xs">
             <input
               type="number"
               min={2020}
@@ -334,7 +332,7 @@ export function InvoicesScreen() {
                 setCurrentPage(1)
               }}
               className={inputClass}
-              placeholder="Năm lập hóa đơn"
+              placeholder="Năm"
             />
           </div>
         </div>

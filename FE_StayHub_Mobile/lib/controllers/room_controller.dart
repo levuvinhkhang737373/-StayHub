@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/room.dart';
+import '../services/api_service.dart';
 
 class RoomController extends ChangeNotifier {
+  final ApiService _apiService = ApiService();
+
   final List<Room> _mockRooms = [
     Room(
       id: 1,
@@ -89,12 +92,15 @@ class RoomController extends ChangeNotifier {
     ),
   ];
 
+  List<Room> _rooms = [];
   List<Room> _filteredRooms = [];
   bool _isLoading = false;
+  String _errorMessage = '';
   String _searchQuery = '';
 
-  List<Room> get rooms => _filteredRooms.isEmpty && _searchQuery.isEmpty ? _mockRooms : _filteredRooms;
+  List<Room> get rooms => _filteredRooms.isEmpty && _searchQuery.isEmpty ? (_rooms.isEmpty ? _mockRooms : _rooms) : _filteredRooms;
   bool get isLoading => _isLoading;
+  String get errorMessage => _errorMessage;
 
   RoomController() {
     _filteredRooms = List.from(_mockRooms);
@@ -102,18 +108,52 @@ class RoomController extends ChangeNotifier {
 
   /// Get count of empty rooms
   int get emptyRoomsCount {
-    return _mockRooms.where((r) => r.isEmpty).length;
+    final list = _rooms.isEmpty ? _mockRooms : _rooms;
+    return list.where((r) => r.isEmpty).length;
+  }
+
+  /// Fetch all rooms from API
+  Future<void> fetchRooms() async {
+    _isLoading = true;
+    _errorMessage = '';
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get<List<dynamic>>(
+        '/admin/rooms',
+        fromJsonT: (json) => json as List<dynamic>,
+      );
+
+      if (response.status && response.result != null) {
+        _rooms = response.result!
+            .map((item) => Room.fromJson(item as Map<String, dynamic>))
+            .toList();
+        search(_searchQuery);
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // API Offline Fallback
+      _rooms = List.from(_mockRooms);
+      search(_searchQuery);
+    }
+
+    _isLoading = false;
+    notifyListeners();
   }
 
   /// Search/filter rooms by number or building
   void search(String query) {
     _searchQuery = query.toLowerCase();
+    final sourceList = _rooms.isEmpty ? _mockRooms : _rooms;
     if (_searchQuery.isEmpty) {
-      _filteredRooms = List.from(_mockRooms);
+      _filteredRooms = List.from(sourceList);
     } else {
-      _filteredRooms = _mockRooms.where((r) {
+      _filteredRooms = sourceList.where((r) {
         return r.roomNumber.contains(_searchQuery) ||
-            (r.buildingName != null && r.buildingName!.toLowerCase().contains(_searchQuery));
+            (r.buildingName != null && r.buildingName!.toLowerCase().contains(_searchQuery)) ||
+            (r.building?.name != null && r.building!.name.toLowerCase().contains(_searchQuery));
       }).toList();
     }
     notifyListeners();
@@ -124,13 +164,23 @@ class RoomController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 500));
-
     try {
-      final index = _mockRooms.indexWhere((r) => r.id == id);
+      final response = await _apiService.patch<dynamic>(
+        '/admin/rooms/$id/status',
+        fromJsonT: (json) => json,
+      );
+
+      if (response.status) {
+        await fetchRooms();
+        return true;
+      }
+    } catch (_) {
+      // Offline fallback: Update in mockRooms / rooms list
+      final sourceList = _rooms.isEmpty ? _mockRooms : _rooms;
+      final index = sourceList.indexWhere((r) => r.id == id);
       if (index != -1) {
-        final oldRoom = _mockRooms[index];
-        _mockRooms[index] = Room(
+        final oldRoom = sourceList[index];
+        final updatedRoom = Room(
           id: oldRoom.id,
           buildingId: oldRoom.buildingId,
           roomTypeId: oldRoom.roomTypeId,
@@ -143,13 +193,16 @@ class RoomController extends ChangeNotifier {
           status: status,
           description: oldRoom.description,
           buildingName: oldRoom.buildingName,
+          building: oldRoom.building,
+          roomType: oldRoom.roomType,
         );
+        sourceList[index] = updatedRoom;
         search(_searchQuery);
         _isLoading = false;
         notifyListeners();
         return true;
       }
-    } catch (_) {}
+    }
 
     _isLoading = false;
     notifyListeners();

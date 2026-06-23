@@ -9,6 +9,7 @@ import { createAdminSetting, fetchAdminSettings } from "../../settings/services/
 import type { AdminSettingResource } from "../../settings/types/setting-api.model";
 import { AdminSelect } from "../../shared/components/AdminSelect";
 import { createAdminBuilding, fetchAdminBuildingDetail, fetchAdminManagers, fetchAdminRegions, updateAdminBuilding } from "../services/facilities.service";
+import { createAdminAccount } from "../../system-users/services/admin-accounts.service";
 import type { AdminManagerResource, AdminRegionResource } from "../types/facility-api.model";
 import type { BuildingImage } from "../types/building.model";
 import { buildBuildingPayload, createDefaultBuildingForm, getTodayIsoDate, mapBuildingDetailToForm } from "../utils/building-form.utils";
@@ -112,6 +113,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [quickSetting, setQuickSetting] = useState({ setting_label: "", setting_value: "", description: "", is_public: true });
     const [form, setForm] = useState(createDefaultBuildingForm);
     const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null);
+    const [isCreateManagerModalOpen, setIsCreateManagerModalOpen] = useState(false);
 
     const isEditMode = typeof resolvedBuildingId === "number";
     const activeRegions = useMemo(() => regions.filter((region) => region.status), [regions]);
@@ -453,7 +455,19 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                             </div>
                             <div>
                                 <label className={labelClass}>Người quản lý</label>
-                                <AdminSelect value={form.manager_admin_id} options={managerOptions} invalid={!!errors.manager_admin_id} onChange={(nextValue) => updateForm("manager_admin_id", String(nextValue))} />
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <AdminSelect value={form.manager_admin_id} options={managerOptions} invalid={!!errors.manager_admin_id} onChange={(nextValue) => updateForm("manager_admin_id", String(nextValue))} />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCreateManagerModalOpen(true)}
+                                        className="inline-flex h-[45px] w-[45px] shrink-0 items-center justify-center rounded-2xl border border-gray-250 bg-white text-gray-700 transition hover:bg-gray-50 focus:outline-none"
+                                        title="Thêm nhanh quản lý mới"
+                                    >
+                                        <Plus className="h-5 w-5" />
+                                    </button>
+                                </div>
                                 <FieldError message={errors.manager_admin_id} />
                             </div>
                             <TextField label="Tổng số tầng" type="number" value={form.total_floors} error={errors.total_floors} onChange={(value) => updateForm("total_floors", Number(value))} />
@@ -506,6 +520,17 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 src={viewingImageSrc}
                 onClose={() => setViewingImageSrc(null)}
             />
+
+            {isCreateManagerModalOpen && (
+                <QuickCreateManagerModal
+                    onClose={() => setIsCreateManagerModalOpen(false)}
+                    onCreated={(newManager) => {
+                        setManagers((current) => [newManager, ...current]);
+                        updateForm("manager_admin_id", String(newManager.id));
+                        setIsCreateManagerModalOpen(false);
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -691,4 +716,130 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 
 function ImageCard({ src, isPrimary, disabledPrimary, primaryLabel = "Chính", onPrimary, onRemove, onView, removeIcon = "trash" }: { src: string; isPrimary: boolean; disabledPrimary?: boolean; primaryLabel?: string; onPrimary: () => void; onRemove: () => void; onView?: () => void; removeIcon?: "trash" | "x" }) {
     return <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white"><img src={src || stayHubImage} alt="Ảnh tòa nhà" onError={(event) => { event.currentTarget.src = stayHubImage }} className="h-32 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity" onClick={onView} /><button type="button" onClick={onPrimary} disabled={disabledPrimary} className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70 ${isPrimary ? "bg-amber-500" : "bg-black/60"}`}><Star className="mr-1 inline h-3 w-3" /> {primaryLabel}</button><button type="button" onClick={onRemove} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-rose-600">{removeIcon === "x" ? <X className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}</button></div>;
+}
+
+interface QuickCreateManagerModalProps {
+    onClose: () => void;
+    onCreated: (manager: AdminManagerResource) => void;
+}
+
+export function QuickCreateManagerModal({ onClose, onCreated }: QuickCreateManagerModalProps) {
+    const [form, setForm] = useState({
+        username: "",
+        full_name: "",
+        email: "",
+        phone: "",
+    });
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!form.username.trim() || !form.full_name.trim() || !form.email.trim() || !form.phone.trim()) {
+            setError("Vui lòng điền đầy đủ các trường bắt buộc.");
+            return;
+        }
+
+        try {
+            setIsSaving(true);
+            setError(null);
+
+            const response = await createAdminAccount({
+                username: form.username.trim(),
+                full_name: form.full_name.trim(),
+                email: form.email.trim(),
+                phone: form.phone.trim(),
+                role: 1, // Building manager
+                status: 1, // Active
+            });
+
+            if (response.result) {
+                const account = response.result;
+                onCreated({
+                    id: account.id,
+                    username: account.username,
+                    full_name: account.full_name,
+                    email: account.email,
+                    phone: account.phone,
+                    role: account.role,
+                    status: account.status,
+                });
+            }
+        } catch (err: any) {
+            setError(err?.response?.data?.message || err?.message || "Không thể tạo tài khoản quản lý.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+            <button type="button" aria-label="Đóng" onClick={onClose} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
+            <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-6 shadow-2xl">
+                <h2 className="text-lg font-black text-[#24170d]">Tạo quản lý mới</h2>
+                <p className="mt-1 text-xs font-bold text-[#8b5e34]/70">Tài khoản quản lý mới sẽ được thêm vào hệ thống và gán vào tòa nhà này.</p>
+
+                {error && <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-black text-rose-700">{error}</p>}
+
+                <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+                    <div>
+                        <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">Tên đăng nhập *</label>
+                        <input
+                            className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900 outline-none transition focus:border-gray-950"
+                            value={form.username}
+                            onChange={(e) => setForm(f => ({ ...f, username: e.target.value }))}
+                            placeholder="Ví dụ: manager_b"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">Họ tên *</label>
+                        <input
+                            className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900 outline-none transition focus:border-gray-950"
+                            value={form.full_name}
+                            onChange={(e) => setForm(f => ({ ...f, full_name: e.target.value }))}
+                            placeholder="Nhập họ tên"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">Email *</label>
+                        <input
+                            type="email"
+                            className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900 outline-none transition focus:border-gray-950"
+                            value={form.email}
+                            onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                            placeholder="example@stayhub.vn"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">Số điện thoại *</label>
+                        <input
+                            type="tel"
+                            className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900 outline-none transition focus:border-gray-950"
+                            value={form.phone}
+                            onChange={(e) => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '') }))}
+                            placeholder="Nhập số điện thoại"
+                            maxLength={10}
+                            required
+                        />
+                    </div>
+
+                    <div className="mt-5 flex gap-3">
+                        <button type="button" onClick={onClose} className="h-12 flex-1 rounded-xl border border-[#3d2a18]/10 bg-white text-sm font-black text-[#8b5e34] hover:bg-gray-50">
+                            Hủy
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSaving}
+                            className="h-12 flex-1 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] hover:bg-[#3d2a18] disabled:opacity-60"
+                        >
+                            {isSaving ? "Đang tạo..." : "Tạo quản lý"}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
 }

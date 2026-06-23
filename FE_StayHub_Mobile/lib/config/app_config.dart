@@ -21,7 +21,7 @@ class AppConfig {
     return useTunnel ? tunnelOrigin : localOrigin;
   }
 
-  static String get apiUrl => '$apiOrigin/api/v1';
+  static String get apiUrl => '$apiOrigin/api/v1/';
 
   static String get reverbHost {
     if (useTunnel) {
@@ -49,21 +49,29 @@ class AppConfig {
       return;
     }
     try {
-      final dio = Dio(BaseOptions(
-        connectTimeout: const Duration(milliseconds: 2000),
-        receiveTimeout: const Duration(milliseconds: 2000),
-      ));
+      final dio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(milliseconds: 2000),
+          receiveTimeout: const Duration(milliseconds: 2000),
+        ),
+      );
       final response = await dio.get('$tunnelOrigin/up');
       if (response.statusCode == 200) {
         useTunnel = true;
-        debugPrint('StayHub Config: Connected to Cloudflare Tunnel ($tunnelOrigin)');
+        debugPrint(
+          'StayHub Config: Connected to Cloudflare Tunnel ($tunnelOrigin)',
+        );
       } else {
         useTunnel = false;
-        debugPrint('StayHub Config: Tunnel returned status ${response.statusCode}, using local API');
+        debugPrint(
+          'StayHub Config: Tunnel returned status ${response.statusCode}, using local API',
+        );
       }
     } catch (e) {
       useTunnel = false;
-      debugPrint('StayHub Config: Cannot reach Cloudflare Tunnel ($e), using local API ($localOrigin)');
+      debugPrint(
+        'StayHub Config: Cannot reach Cloudflare Tunnel ($e), using local API ($localOrigin)',
+      );
     }
   }
 }

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
@@ -29,6 +30,7 @@ interface AdminNotificationContextValue {
 const AdminNotificationContext = createContext<AdminNotificationContextValue | null>(null)
 
 export function AdminNotificationProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
   const { session } = useAdminSession()
   const [notifications, setNotifications] = useState<ReceivedNotification[]>([])
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -363,7 +365,14 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               exit={{ opacity: 0, scale: 0.85, y: -20, transition: { duration: 0.2 } }}
               className="pointer-events-auto flex gap-3 overflow-hidden rounded-2xl border border-[#3d2a18]/10 bg-white/95 p-4 text-[#24170d] shadow-2xl shadow-[#6b3f1d]/18 backdrop-blur-md"
             >
-              <div className="flex-1">
+              <div 
+                className="flex-1 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => {
+                  if (toast.id) markAsRead(toast.id)
+                  setToasts((prev) => prev.filter((t) => t.id !== toast.id))
+                  if (toast.link) navigate(toast.link)
+                }}
+              >
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f766e]">
                   {toast.type === 'maintenance' ? 'Yêu cầu sửa chữa' : 'Thông báo'}
                 </p>
