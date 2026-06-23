@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
-import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, generateSingleInvoice, updateUtilityPrices } from '../services/meter-readings.service'
+import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, generateSingleInvoice, updateUtilityPrices, fetchUtilityPriceHistory } from '../services/meter-readings.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import type { AnalyzeMeterImageResponse, RoomReadingInit, ServicePriceInit } from '../types/meter-readings.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -11,6 +11,7 @@ import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { ImageViewerModal } from '../../../../shared/components/ImageViewerModal'
+import { useAdminSession, isBuildingManagerRole } from '../../auth/hooks/use-admin-session'
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
@@ -90,6 +91,9 @@ function buildMeterFormState(args: {
 }
 
 export function MeterReadingsScreen() {
+  const { session } = useAdminSession()
+  const isManager = isBuildingManagerRole(session?.admin.role)
+
   const today = useMemo(() => new Date(), [])
   const currentYear = useMemo(() => today.getFullYear(), [today])
   const currentMonth = useMemo(() => today.getMonth() + 1, [today])
@@ -148,25 +152,34 @@ export function MeterReadingsScreen() {
   const [note, setNote] = useState('')
   const [formErrors, setFormErrors] = useState<{ elec?: string; water?: string; date?: string }>({})
 
-  // Price Modal State
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false)
   const [inputElectricPrice, setInputElectricPrice] = useState('')
   const [inputWaterPrice, setInputWaterPrice] = useState('')
   const [isSavingPrices, setIsSavingPrices] = useState(false)
   const [priceFormErrors, setPriceFormErrors] = useState<{ electric?: string; water?: string }>({})
 
+  // Price History Modal State
+  const [isPriceHistoryModalOpen, setIsPriceHistoryModalOpen] = useState(false)
+  const [priceHistory, setPriceHistory] = useState<any[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'electric' | 'water'>('all')
+
   const loadBuildings = useCallback(async () => {
     try {
       const response = await fetchAdminBuildings({ per_page: 100 })
-      const list = response.result || []
-      setBuildings(Array.isArray(list) ? list : [])
+      let list = response.result || []
+      list = Array.isArray(list) ? list : []
+      if (isManager && session?.admin.id) {
+        list = list.filter((b: any) => Number(b.manager_admin_id) === Number(session.admin.id))
+      }
+      setBuildings(list)
       if (list.length > 0) {
         setSelectedBuildingId(String(list[0].id))
       }
     } catch (e) {
       console.error('Không thể tải danh sách tòa nhà', e)
     }
-  }, [])
+  }, [isManager, session?.admin.id])
 
   const loadReadingsData = useCallback(async () => {
     if (!selectedBuildingId) return
@@ -493,6 +506,21 @@ export function MeterReadingsScreen() {
     }
   }
 
+  const handleOpenPriceHistoryModal = async () => {
+    if (!selectedBuildingId) return
+    setIsPriceHistoryModalOpen(true)
+    setHistoryFilter('all')
+    setIsLoadingHistory(true)
+    try {
+      const response = await fetchUtilityPriceHistory(Number(selectedBuildingId))
+      setPriceHistory(response.result || [])
+    } catch (e) {
+      setErrorMessage(getVisibleErrorMessage(e, 'Không thể tải lịch sử đơn giá dịch vụ.'))
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }
+
   const handleOpenPriceModal = () => {
     setInputElectricPrice(String(rates.electric))
     setInputWaterPrice(String(rates.water))
@@ -674,19 +702,8 @@ export function MeterReadingsScreen() {
               step="any"
               placeholder="Nhập số mới"
               className={cn(inputClass, accent.ring, fieldError && inputErrorClass)}
-              value={meter.curr}
               onChange={(event) => {
                 const nextValue = event.target.value
-                const numericValue = Number(nextValue)
-
-                if (nextValue !== '' && !isNaN(numericValue) && numericValue < meter.prev) {
-                  setFormErrors(prev => ({
-                    ...prev,
-                    [kind]: `Chỉ số mới không được nhỏ hơn chỉ số cũ (${meter.prev}).`,
-                  }))
-                  return
-                }
-
                 updateMeterState(kind, current => ({ ...current, curr: nextValue }))
                 setFormErrors(prev => ({ ...prev, [kind]: undefined }))
               }}
@@ -702,6 +719,93 @@ export function MeterReadingsScreen() {
             Thành tiền: <span className="font-black text-[#24170d]">{formatCurrency(calculateCost(meter.curr, meter.prev, meter.price))}</span>
           </div>
         )}
+      </div>
+    )
+  }
+
+  const activeLogs = useMemo(() => {
+    return priceHistory
+      .filter(log => log.status === 1)
+      .sort((a, b) => {
+        const aIsElectric = a.service_name.toLowerCase().includes('điện') || a.service_id === 1;
+        const bIsElectric = b.service_name.toLowerCase().includes('điện') || b.service_id === 1;
+        if (aIsElectric && !bIsElectric) return -1;
+        if (!aIsElectric && bIsElectric) return 1;
+        return 0;
+      });
+  }, [priceHistory])
+
+  const expiredLogs = useMemo(() => priceHistory.filter(log => log.status !== 1), [priceHistory])
+
+  const filteredExpiredLogs = useMemo(() => {
+    return expiredLogs.filter(log => {
+      if (historyFilter === 'all') return true;
+      const logIsElectric = log.service_name.toLowerCase().includes('điện') || log.service_id === 1;
+      if (historyFilter === 'electric') return logIsElectric;
+      if (historyFilter === 'water') return !logIsElectric;
+      return true;
+    });
+  }, [expiredLogs, historyFilter])
+
+  const renderPriceTable = (logs: any[]) => {
+    if (logs.length === 0) {
+      return (
+        <div className="p-4 text-center text-xs font-semibold text-[#8b5e34]/70 bg-stone-50/50 rounded-2xl border border-dashed border-[#3d2a18]/10">
+          Không có dữ liệu
+        </div>
+      )
+    }
+
+    return (
+      <div className="overflow-x-auto rounded-2xl border border-[#3d2a18]/10 bg-white shadow-sm">
+        <table className="w-full text-left border-collapse">
+          <thead className="bg-[#24170d]/5 text-[10px] font-black uppercase tracking-wider text-[#8b5e34]">
+            <tr className="border-b border-[#3d2a18]/10">
+              <th className="px-4 py-3 w-[20%]">Dịch vụ</th>
+              <th className="px-4 py-3 w-[20%]">Đơn giá</th>
+              <th className="px-4 py-3 w-[25%]">Hiệu lực</th>
+              <th className="px-4 py-3 w-[20%]">Người cập nhật</th>
+              <th className="px-4 py-3 text-right w-[15%]">Ngày cập nhật</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#3d2a18]/5 text-xs font-semibold text-[#3d2a18]">
+            {logs.map((log) => {
+              const isElectric = log.service_name.toLowerCase().includes('điện') || log.service_id === 1;
+              return (
+                <tr key={log.id} className="hover:bg-[#f3c56b]/5 transition-colors">
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-1.5 font-black">
+                      {isElectric ? (
+                        <>
+                          <Zap className="h-3.5 w-3.5 text-[#f3c56b] fill-[#f3c56b]/10" />
+                          <span className="text-[#8a4f18]">Điện</span>
+                        </>
+                      ) : (
+                        <>
+                          <Droplet className="h-3.5 w-3.5 text-cyan-600 fill-cyan-500/10" />
+                          <span className="text-cyan-700">Nước</span>
+                        </>
+                      )}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 font-mono font-bold text-sm text-[#24170d]">
+                    {formatCurrency(log.price)} / {isElectric ? 'kWh' : 'm³'}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-stone-600">
+                    <div>Từ: {log.effective_from}</div>
+                    {log.effective_to && <div className="text-[10px] text-stone-400">Đến: {log.effective_to}</div>}
+                  </td>
+                  <td className="px-4 py-3 font-bold text-[#24170d]">
+                    {log.creator_name}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-stone-600">
+                    {log.created_at}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     )
   }
@@ -732,6 +836,7 @@ export function MeterReadingsScreen() {
                     options={buildings.map((b) => ({ value: b.id, label: b.name }))}
                     onChange={(val) => setSelectedBuildingId(String(val))}
                     placeholder="Chọn tòa nhà"
+                    disabled={isManager && buildings.length === 1}
                   />
                 </div>
                 <div className="w-[calc(50%-0.75rem)] sm:w-36 flex-1">
@@ -799,6 +904,15 @@ export function MeterReadingsScreen() {
                     Thay đổi đơn giá
                   </button>
                 )}
+                {/* Price History Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenPriceHistoryModal}
+                  className="inline-flex items-center gap-1.5 rounded-2xl border border-[#3d2a18]/10 bg-white px-3.5 py-2 text-sm font-black text-[#8b5e34] hover:bg-[#f3c56b]/15 active:scale-95 transition-all shadow-sm shrink-0"
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Lịch sử đơn giá
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-2 rounded-xl bg-[#24170d]/5 px-3 py-1.5 self-start lg:self-auto">
@@ -1207,6 +1321,117 @@ export function MeterReadingsScreen() {
               >
                 <Save className="h-4 w-4 text-[#f3c56b] stroke-[2.8]" />
                 {isSavingPrices ? 'Đang lưu...' : 'Lưu thay đổi'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Price History Dialog */}
+      {isPriceHistoryModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="history-dialog-title">
+          <button type="button" onClick={() => setIsPriceHistoryModalOpen(false)} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
+
+          <div className="relative z-10 w-full max-w-3xl overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
+            {/* Modal Header */}
+            <div className="bg-[#24170d] p-5 text-[#fff4df]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Price Change Log</p>
+                  <h2 id="history-dialog-title" className="mt-1.5 text-2xl font-black tracking-tight">Lịch sử thay đổi đơn giá</h2>
+                  <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Lịch sử cập nhật giá điện và nước của tòa nhà</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPriceHistoryModalOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-6">
+              {isLoadingHistory ? (
+                <div className="flex h-48 flex-col items-center justify-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#8b5e34]" />
+                  <p className="text-sm font-bold text-[#8b5e34]/70">Đang tải lịch sử đơn giá...</p>
+                </div>
+              ) : priceHistory.length === 0 ? (
+                <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-[#3d2a18]/12 bg-[#fff7e8]/30">
+                  <p className="text-sm font-black text-[#24170d]">Chưa có lịch sử thay đổi đơn giá</p>
+                  <p className="text-xs font-bold text-[#6f6254]">Đơn giá của tòa nhà chưa từng được cập nhật.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Section 1: Đơn giá đang áp dụng */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-[#8b5e34] flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Đơn giá đang áp dụng
+                    </h3>
+                    {renderPriceTable(activeLogs)}
+                  </div>
+
+                  {/* Section 2: Lịch sử đơn giá trước đây */}
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#3d2a18]/5 pb-2">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-[#8b5e34] flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-stone-400" />
+                        Lịch sử đơn giá trước đây
+                      </h3>
+                      {/* Filter Buttons */}
+                      <div className="flex rounded-xl bg-[#24170d]/5 p-0.5 text-[10px] font-bold self-start sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setHistoryFilter('all')}
+                          className={`rounded-lg px-3 py-1 transition-all ${
+                            historyFilter === 'all'
+                              ? 'bg-[#24170d] text-[#fff4df] shadow-sm'
+                              : 'text-stone-500 hover:text-[#24170d]'
+                          }`}
+                        >
+                          Tất cả
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHistoryFilter('electric')}
+                          className={`rounded-lg px-3 py-1 transition-all ${
+                            historyFilter === 'electric'
+                              ? 'bg-[#f3c56b] text-[#24170d] shadow-sm'
+                              : 'text-stone-500 hover:text-[#24170d]'
+                          }`}
+                        >
+                          Điện
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHistoryFilter('water')}
+                          className={`rounded-lg px-3 py-1 transition-all ${
+                            historyFilter === 'water'
+                              ? 'bg-cyan-600 text-white shadow-sm'
+                              : 'text-stone-500 hover:text-[#24170d]'
+                          }`}
+                        >
+                          Nước
+                        </button>
+                      </div>
+                    </div>
+                    {renderPriceTable(filteredExpiredLogs)}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end border-t border-[#3d2a18]/10 bg-[#fff7e8]/70 p-4">
+              <button
+                type="button"
+                onClick={() => setIsPriceHistoryModalOpen(false)}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#24170d] px-6 text-xs font-black uppercase tracking-wider text-[#fff4df] hover:bg-[#3d2a18] active:scale-95 shadow-md shadow-[#24170d]/10 transition-all"
+              >
+                Đóng
               </button>
             </div>
           </div>

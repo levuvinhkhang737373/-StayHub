@@ -121,11 +121,11 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'meters',
-        element: <MetersScreen />,
+        element: <AdminRouteGuard access="all"><MetersScreen /></AdminRouteGuard>,
       },
       {
         path: 'meter-readings',
-        element: <MeterReadingsScreen />,
+        element: <AdminRouteGuard access="all"><MeterReadingsScreen /></AdminRouteGuard>,
       },
       {
         path: 'invoices',

@@ -21,7 +21,7 @@ class AppConfig {
     return useTunnel ? tunnelOrigin : localOrigin;
   }
 
-  static String get apiUrl => '$apiOrigin/api/v1';
+  static String get apiUrl => '$apiOrigin/api/v1/';
 
   static String get reverbHost {
     if (useTunnel) {

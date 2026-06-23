@@ -98,3 +98,10 @@ export async function updateUtilityPrices(buildingId: number, payload: {
     data: payload,
   })
 }
+
+export async function fetchUtilityPriceHistory(buildingId: number) {
+  return apiRequest<any[]>({
+    url: `admin/buildings/${buildingId}/utility-price-history`,
+    method: 'GET',
+  })
+}

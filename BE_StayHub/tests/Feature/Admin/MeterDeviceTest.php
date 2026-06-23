@@ -12,14 +12,15 @@ use App\Models\MeterDevice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class MeterReadingTest extends TestCase
+class MeterDeviceTest extends TestCase
 {
     use RefreshDatabase;
 
     private Admin $superAdmin;
     private Building $building;
     private Room $room;
-    private MeterDevice $meterDevice;
+    private Service $electricService;
+    private Service $waterService;
 
     protected function setUp(): void
     {
@@ -73,7 +74,7 @@ class MeterReadingTest extends TestCase
             'created_by' => $this->superAdmin->id,
         ]);
 
-        $service = Service::create([
+        $this->electricService = Service::create([
             'name' => 'Điện',
             'slug' => 'electric',
             'charge_method' => Service::CHARGE_METHOD_BY_METER,
@@ -81,60 +82,73 @@ class MeterReadingTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->meterDevice = MeterDevice::create([
-            'room_id' => $this->room->id,
-            'service_id' => $service->id,
-            'meter_type' => 1,
-            'initial_reading' => 100,
-            'status' => MeterDevice::STATUS_ACTIVE,
+        $this->waterService = Service::create([
+            'name' => 'Nước',
+            'slug' => 'water',
+            'charge_method' => Service::CHARGE_METHOD_BY_METER,
+            'unit_name' => 'm3',
+            'is_active' => true,
         ]);
     }
 
-    public function test_cannot_save_meter_reading_for_past_months(): void
+    public function test_meter_code_is_automatically_generated_on_creation(): void
     {
-        $pastYear = now()->year;
-        $pastMonth = now()->month - 1;
-        if ($pastMonth < 1) {
-            $pastMonth = 12;
-            $pastYear -= 1;
-        }
-
         $payload = [
-            'meter_device_id' => $this->meterDevice->id,
-            'billing_month' => $pastMonth,
-            'billing_year' => $pastYear,
-            'current_reading' => 150,
-            'reading_date' => now()->toDateString(),
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => 100,
+            'status' => MeterDevice::STATUS_ACTIVE,
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/v1/admin/meter-readings', $payload);
+            ->postJson('/api/v1/admin/meter-devices', $payload);
 
-        $response->assertStatus(422);
-        $response->assertJsonPath('status', false);
-        $response->assertJsonPath('message', 'Không thể chốt chỉ số cho tháng cũ.');
+        $response->assertStatus(201);
+        $response->assertJsonPath('status', true);
+        
+        $expectedCode = 'BUA-101-ĐHĐ-0';
+        $response->assertJsonPath('result.meter_code', $expectedCode);
+
+        $this->assertDatabaseHas('meter_devices', [
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricService->id,
+            'meter_code' => $expectedCode,
+        ]);
     }
 
-    public function test_can_save_meter_reading_for_current_or_future_months(): void
+    public function test_meter_code_index_increments_for_replacement_meters(): void
     {
-        $year = now()->year;
-        $month = now()->month;
+        // First meter (index 0)
+        $meter1 = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => 100,
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+        $this->assertEquals('BUA-101-ĐHĐ-0', $meter1->meter_code);
 
+        // Second meter (index 1) via API
         $payload = [
-            'meter_device_id' => $this->meterDevice->id,
-            'billing_month' => $month,
-            'billing_year' => $year,
-            'current_reading' => 150,
-            'reading_date' => now()->toDateString(),
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => 200,
+            'status' => MeterDevice::STATUS_ACTIVE,
+            'replaced_by_meter_id' => $meter1->id,
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->postJson('/api/v1/admin/meter-readings', $payload);
+            ->postJson('/api/v1/admin/meter-devices', $payload);
 
-        $response->assertStatus(200);
-        $response->assertJsonPath('status', true);
-        $response->assertJsonPath('message', 'Chốt số đồng hồ thành công');
+        $response->assertStatus(201);
+        $response->assertJsonPath('result.meter_code', 'BUA-101-ĐHĐ-1');
 
-        $this->assertEquals(150, (float)$this->meterDevice->fresh()->initial_reading);
+        $this->assertDatabaseHas('meter_devices', [
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricService->id,
+            'meter_code' => 'BUA-101-ĐHĐ-1',
+        ]);
     }
 }
