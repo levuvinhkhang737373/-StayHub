@@ -1167,7 +1167,7 @@ class ContractController extends Controller
 
             $type = (int) ($transaction['transaction_type'] ?? 0);
 
-            if (in_array($type, [ContractDepositTransaction::TRANSACTION_TYPE_COLLECT, ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER], true)) {
+            if (ContractDepositTransaction::increasesDepositBalance($type)) {
                 $balance += $amount;
             }
 
@@ -1448,7 +1448,7 @@ class ContractController extends Controller
             ->reduce(function (int $balance, ContractDepositTransaction $transaction): int {
                 $amount = $this->decimalToCents($transaction->amount);
 
-                if (in_array((int) $transaction->transaction_type, [ContractDepositTransaction::TRANSACTION_TYPE_COLLECT, ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER], true)) {
+                if (ContractDepositTransaction::increasesDepositBalance((int) $transaction->transaction_type)) {
                     return $balance + $amount;
                 }
 

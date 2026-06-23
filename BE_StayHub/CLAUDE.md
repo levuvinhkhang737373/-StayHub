@@ -81,9 +81,10 @@ Model, Request (FormRequest), Resource, Service/Repository (nếu có), Policy (
 use ... import đúng & đủ namespace/class.
 Khi chỉnh route/API:
 - nhớ comment lại bằng tiếng việt
-C. Quy tắc an toàn khi đổi DB (BẮT BUỘC)
-Luôn cân nhắc nullable / default để migrate không lỗi.
-Với index/FK:
+C. Quy tắc an toàn (BẮT BUỘC)
+- BẮT BUỘC KHÔNG ĐƯỢC CHẠY 3 LỆNH SAU: `git checkout .`, `git restore .`, và `git reset --hard`. Tuyệt đối không bao giờ dùng các lệnh này vì có thể làm mất các thay đổi chưa được commit của người dùng.
+- Luôn cân nhắc nullable / default để migrate không lỗi.
+With index/FK:
 Đặt constraint/index rõ ràng, đảm bảo rollback được, tránh thay đổi gây lock nặng không cần thiết.
 D. Chuẩn hóa response API (BẮT BUỘC)
 Tất cả API trả về format thống nhất:

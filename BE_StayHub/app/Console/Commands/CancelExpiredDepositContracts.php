@@ -12,13 +12,15 @@ use Illuminate\Database\Eloquent\Builder;
 class CancelExpiredDepositContracts extends Command
 {
     protected $signature = 'contracts:cancel-expired-deposits';
-    protected $description = 'Quét và tự động hủy các hợp đồng chưa đóng cọc quá 30 phút để giải phóng phòng.';
+    protected $description = 'Quét và tự động hủy các hợp đồng chưa đóng cọc quá 1 ngày để giải phóng phòng.';
 
     public function handle()
     {
-        $cutoffTime = now()->subMinutes(30);
+        $cutoffTime = now('Asia/Ho_Chi_Minh')
+            ->subDay()
+            ->setTimezone(config('app.timezone', 'UTC'));
 
-        // Lấy danh sách hợp đồng Đang hiệu lực, chưa đóng cọc thành công, tạo trước 30 phút trước
+        // Lấy danh sách hợp đồng Đang hiệu lực, chưa đóng cọc thành công, tạo trước 1 ngày.
         $contracts = Contract::query()
             ->where('status', Contract::STATUS_ACTIVE)
             ->where('payment_status', '!=', Contract::PAYMENT_STATUS_SUCCESS)
@@ -34,7 +36,7 @@ class CancelExpiredDepositContracts extends Command
                     // Cập nhật trạng thái hợp đồng thành Đã hủy (4) và trạng thái thanh toán thành Hết hạn (4)
                     $contract->status = Contract::STATUS_CANCELLED;
                     $contract->payment_status = Contract::PAYMENT_STATUS_EXPIRED;
-                    $contract->note = ($contract->note ? $contract->note . "\n" : "") . "[Hệ thống] Tự động hủy hợp đồng do quá hạn 30 phút chưa đóng tiền cọc.";
+                    $contract->note = ($contract->note ? $contract->note . "\n" : "") . "[Hệ thống] Tự động hủy hợp đồng do quá hạn 1 ngày chưa đóng tiền cọc.";
                     $contract->save();
 
                     // Tắt trạng thái ở của khách thuê và xe trong hợp đồng này
@@ -53,7 +55,7 @@ class CancelExpiredDepositContracts extends Command
                         Room::query()->whereKey($contract->room_id)->update(['current_occupants' => $occupants]);
                     }
 
-                    $this->info("Đã hủy hợp đồng {$contract->contract_code} do quá hạn 30 phút không đóng cọc.");
+                    $this->info("Đã hủy hợp đồng {$contract->contract_code} do quá hạn 1 ngày không đóng cọc.");
                     $cancelledCount++;
                 });
             }

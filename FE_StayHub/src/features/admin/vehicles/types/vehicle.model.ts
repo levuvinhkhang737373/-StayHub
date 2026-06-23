@@ -27,7 +27,7 @@ export interface AdminVehicleResource {
   tenant?: AdminVehicleTenantResource | null
   vehicle_type: number
   vehicle_type_label?: string | null
-  license_plate: string
+  license_plate: string | null
   brand?: string | null
   color?: string | null
   is_active: boolean
@@ -39,7 +39,7 @@ export interface AdminVehicleResource {
 export interface AdminVehiclePayload {
   tenant_id: number
   vehicle_type: number
-  license_plate: string
+  license_plate: string | null
   brand?: string
   color?: string
   is_active?: boolean

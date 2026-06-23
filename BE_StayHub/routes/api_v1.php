@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\MeterReadingController;
 use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\RoomMovementController;
 use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
@@ -51,6 +52,7 @@ Route::prefix('admin')->group(function (): void {
         // =========================Buildings================================
         Route::patch('buildings/{building}/status', [BuildingController::class, 'updateStatus']);
         Route::put('buildings/{building}/utility-prices', [BuildingController::class, 'updateUtilityPrices']);
+        Route::get('buildings/{building}/utility-price-history', [BuildingController::class, 'utilityPriceHistory']);
         Route::apiResource('buildings', BuildingController::class);
 
         // =========================Asset Templates================================
@@ -120,6 +122,7 @@ Route::prefix('admin')->group(function (): void {
 
         // =========================Invoices================================
         Route::post('buildings/{building}/invoices/bulk-generate', [BulkGenerateInvoiceController::class, '__invoke']);
+        Route::post('invoices/preview', [AdminInvoiceController::class, 'preview']);
         Route::post('invoices/generate', [AdminInvoiceController::class, 'generate']);
         Route::post('invoices/{invoice}/payments', [AdminInvoiceController::class, 'recordPayment']);
         Route::post('invoices/{invoice}/payments/{payment}/confirm', [AdminInvoiceController::class, 'confirmPayment']);
@@ -129,9 +132,12 @@ Route::prefix('admin')->group(function (): void {
         // ==========================Rooms===================================
         Route::apiResource('rooms', RoomController::class);
         Route::patch('rooms/{id}/status', [RoomController::class, 'updateStatus']);
+        Route::get('room-movements', [RoomMovementController::class, 'index']);
+        Route::get('room-movements/{roomMovement}', [RoomMovementController::class, 'show']);
         Route::post('room-transfers/tenant', [RoomController::class, 'transferTenant']);
 
         // ==========================Dashboard===============================
+        Route::get('dashboard/overview', [DashboardController::class, 'overview']);
         Route::get('dashboard/utility-price-history', [DashboardController::class, 'utilityPriceHistory']);
     });
 });
@@ -144,6 +150,7 @@ Route::prefix('tenant')->group(function (): void {
         Route::get('/me', [TenantAuthController::class, 'me']);
         Route::patch('/profile', [TenantAuthController::class, 'updateProfile']);
         Route::post('/logout', [TenantAuthController::class, 'logout']);
+        Route::get('utility-price-history', [TenantAuthController::class, 'utilityPriceHistory']);
 
         // =========================Maintenance=========================
         Route::post('maintenance-requests/{id}/feedback', [TenantMaintenanceController::class, 'feedback']);

@@ -626,6 +626,7 @@ class StayHubDemoSeeder extends Seeder
 
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
             $key => $this->upsertAndGetId('meter_devices', ['room_id' => $row[0], 'service_id' => $row[1]], [
+                'meter_code' => MeterDevice::generateMeterCode($row[0], $row[3]),
                 'meter_type' => $row[3],
                 'initial_reading' => $row[4],
                 'installed_at' => '2026-05-01',
@@ -1120,18 +1121,19 @@ class StayHubDemoSeeder extends Seeder
             $tenantKey = $tenantKeys[$i - 1];
             $room = DB::table('rooms')->where('id', $rooms[$roomKey])->first();
             $code = 'HD-2026-EX-' . str_pad((string) $i, 4, '0', STR_PAD_LEFT);
+            $isExpired = $i > 27;
 
             $contracts[$roomKey] = $this->upsertAndGetId('contracts', ['contract_code' => $code], [
                 'room_id' => $rooms[$roomKey],
-                'start_date' => '2026-05-01',
-                'end_date' => '2027-04-30',
+                'start_date' => $isExpired ? '2025-05-01' : '2026-05-01',
+                'end_date' => $isExpired ? '2026-04-30' : '2027-04-30',
                 'actual_end_date' => null,
                 'billing_cycle_day' => 5,
                 'room_price' => $room->base_price,
                 'deposit_amount' => $room->base_price * 2,
-                'status' => $i > 27 ? Contract::STATUS_EXPIRED : Contract::STATUS_ACTIVE,
+                'status' => $isExpired ? Contract::STATUS_EXPIRED : Contract::STATUS_ACTIVE,
                 'contract_files' => $this->json(["/storage/demo/contracts/expanded/{$code}.pdf"]),
-                'note' => 'Hợp đồng mở rộng dùng kiểm thử dữ liệu lớn.',
+                'note' => $isExpired ? 'Hợp đồng mẫu đã hết hạn.' : 'Hợp đồng mở rộng dùng kiểm thử dữ liệu lớn.',
                 'created_by' => $admins['manager_sg'],
                 ...$this->timestamps(),
             ]);
@@ -1146,12 +1148,15 @@ class StayHubDemoSeeder extends Seeder
         $offset = 30;
 
         foreach (array_values($contracts) as $index => $contractId) {
+            $contract = DB::table('contracts')->where('id', $contractId)->first();
+            $isExpired = $contract->status == Contract::STATUS_EXPIRED;
+
             $this->updateOrInsert('contract_tenants', ['contract_id' => $contractId, 'tenant_id' => $tenantIds[$index]], [
-                'join_date' => '2026-05-01',
-                'leave_date' => null,
-                'billing_start_date' => '2026-05-01',
-                'billing_end_date' => null,
-                'is_staying' => ContractTenant::STAYING,
+                'join_date' => $isExpired ? '2025-05-01' : '2026-05-01',
+                'leave_date' => $isExpired ? '2026-04-30' : null,
+                'billing_start_date' => $isExpired ? '2025-05-01' : '2026-05-01',
+                'billing_end_date' => $isExpired ? '2026-04-30' : null,
+                'is_staying' => $isExpired ? false : ContractTenant::STAYING,
                 'created_by' => $admins['manager_sg'],
                 ...$this->timestamps(),
             ]);
@@ -1199,14 +1204,18 @@ class StayHubDemoSeeder extends Seeder
                 continue;
             }
 
-            $this->updateOrInsert('contract_vehicles', ['contract_id' => $contractIds[$index - 1], 'vehicle_id' => $vehicleId], [
-                'started_at' => '2026-05-01',
-                'ended_at' => null,
-                'billing_start_date' => '2026-05-01',
-                'billing_end_date' => null,
+            $contractId = $contractIds[$index - 1];
+            $contract = DB::table('contracts')->where('id', $contractId)->first();
+            $isExpired = $contract->status == Contract::STATUS_EXPIRED;
+
+            $this->updateOrInsert('contract_vehicles', ['contract_id' => $contractId, 'vehicle_id' => $vehicleId], [
+                'started_at' => $isExpired ? '2025-05-01' : '2026-05-01',
+                'ended_at' => $isExpired ? '2026-04-30' : null,
+                'billing_start_date' => $isExpired ? '2025-05-01' : '2026-05-01',
+                'billing_end_date' => $isExpired ? '2026-04-30' : null,
                 'monthly_fee' => $index % 6 === 0 ? 180000 : 150000,
                 'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
-                'is_active' => ContractVehicle::ACTIVE,
+                'is_active' => $isExpired ? false : ContractVehicle::ACTIVE,
                 ...$this->timestamps(),
             ]);
         }
@@ -1236,6 +1245,7 @@ class StayHubDemoSeeder extends Seeder
             $upperKey = strtoupper(str_replace('_', '-', $key));
 
             $meters[$key . '_electric'] = $this->upsertAndGetId('meter_devices', ['room_id' => $roomId, 'service_id' => $services['electric']], [
+                'meter_code' => MeterDevice::generateMeterCode($roomId, MeterDevice::METER_TYPE_ELECTRIC),
                 'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
                 'initial_reading' => 700 + (crc32($key) % 500),
                 'installed_at' => '2026-05-01',
@@ -1247,6 +1257,7 @@ class StayHubDemoSeeder extends Seeder
             ]);
 
             $meters[$key . '_water'] = $this->upsertAndGetId('meter_devices', ['room_id' => $roomId, 'service_id' => $services['water']], [
+                'meter_code' => MeterDevice::generateMeterCode($roomId, MeterDevice::METER_TYPE_WATER),
                 'meter_type' => MeterDevice::METER_TYPE_WATER,
                 'initial_reading' => 150 + (crc32($key) % 120),
                 'installed_at' => '2026-05-01',
@@ -1292,6 +1303,9 @@ class StayHubDemoSeeder extends Seeder
 
         foreach ($contracts as $roomKey => $contractId) {
             $contract = DB::table('contracts')->where('id', $contractId)->first();
+            if ($contract->status == Contract::STATUS_EXPIRED) {
+                continue;
+            }
             $tenantCount = DB::table('contract_tenants')->where('contract_id', $contractId)->count();
             $vehicleFee = DB::table('contract_vehicles')->where('contract_id', $contractId)->sum('monthly_fee');
             $electric = DB::table('meter_readings')->where('id', $readings[$roomKey . '_electric'])->value('consumption') * 4000;

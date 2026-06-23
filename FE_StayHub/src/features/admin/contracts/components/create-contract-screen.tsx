@@ -171,78 +171,7 @@ export function CreateContractScreen() {
     }
   }, [])
 
-  const loadVehiclesForTenants = useCallback(async (tenantIds: number[]) => {
-    if (tenantIds.length === 0) {
-      setVehicles([])
-      return
-    }
 
-    try {
-      const responses = await Promise.all(
-        tenantIds.map((tenantId) => fetchAdminContractVehicles({ tenant_id: tenantId, is_active: true, without_active_contract: true, per_page: 100 }))
-      )
-      const nextVehicles = responses.flatMap((response) => getResourceList(response.result))
-      setVehicles(Array.from(new Map(nextVehicles.map((vehicle) => [vehicle.id, vehicle])).values()))
-    } catch (error) {
-      setVehicles([])
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
-    }
-  }, [])
-
-  const autoPopulateVehicles = useCallback(
-    async (tenantIds: number[], startDate: string) => {
-      // 1. Remove vehicles belonging to tenants no longer in the form
-      setForm((current) => {
-        const tenantIdSet = new Set(tenantIds)
-        const allKnownVehicles = [...vehicles, ...currentContractVehicles]
-        const cleanedVehicles = current.vehicles.filter((v) => {
-          const vehicleId = Number(v.vehicle_id)
-          if (!vehicleId) return true // keep empty/uncommitted rows
-          const vehicleInfo = allKnownVehicles.find((av) => av.id === vehicleId)
-          if (!vehicleInfo) return true // keep if we can't determine ownership
-          return tenantIdSet.has(vehicleInfo.tenant_id)
-        })
-        if (cleanedVehicles.length !== current.vehicles.length) {
-          return { ...current, vehicles: cleanedVehicles }
-        }
-        return current
-      })
-
-      // 2. Fetch available vehicles for these tenants
-      if (tenantIds.length === 0) return
-
-      try {
-        const responses = await Promise.all(
-          tenantIds.map((tenantId) => fetchAdminContractVehicles({ tenant_id: tenantId, is_active: true, without_active_contract: true, per_page: 100 }))
-        )
-        const fetchedVehicles = responses.flatMap((response) => getResourceList(response.result))
-        const uniqueFetched = Array.from(new Map(fetchedVehicles.map((v) => [v.id, v])).values())
-
-        // 3. Auto-append new vehicles that are not already in the form
-        setForm((current) => {
-          const existingVehicleIds = new Set(current.vehicles.map((v) => Number(v.vehicle_id)).filter((id) => id > 0))
-          const newRows: ContractVehicleFormRow[] = uniqueFetched
-            .filter((v) => !existingVehicleIds.has(v.id))
-            .map((v) => ({
-              vehicle_id: String(v.id),
-              started_at: startDate || current.start_date,
-              ended_at: '',
-              billing_start_date: startDate || current.start_date,
-              billing_end_date: '',
-              monthly_fee: '0.00',
-              charge_policy: CHARGE_MONTHLY,
-              is_active: true,
-            }))
-
-          if (newRows.length === 0) return current
-          return { ...current, vehicles: [...current.vehicles, ...newRows] }
-        })
-      } catch {
-        // Vehicle fetch errors are non-blocking for auto-population
-      }
-    },
-    [vehicles, currentContractVehicles]
-  )
 
   const loadContract = useCallback(async () => {
     if (!contractId) return
@@ -256,17 +185,22 @@ export function CreateContractScreen() {
 
       if (isRenewMode) {
         let nextStartDate = ''
+        let nextEndDate = ''
         if (contract.end_date) {
           const endDateObj = new Date(contract.end_date)
           endDateObj.setDate(endDateObj.getDate() + 1)
           nextStartDate = endDateObj.toISOString().split('T')[0]
+          const endDateCalc = new Date(nextStartDate)
+          endDateCalc.setFullYear(endDateCalc.getFullYear() + 1)
+          endDateCalc.setDate(endDateCalc.getDate() - 1)
+          nextEndDate = endDateCalc.toISOString().split('T')[0]
         }
         const formValues = contractToForm(contract)
         setForm({
           ...formValues,
           contract_code: '',
           start_date: nextStartDate,
-          end_date: '',
+          end_date: nextEndDate,
           actual_end_date: '',
           parent_contract_id: String(contract.parent_contract_id || contract.id),
           renew_from_contract_id: String(contract.id),
@@ -297,76 +231,76 @@ export function CreateContractScreen() {
       setIsLoading(false)
     }
   }, [contractId, isRenewMode])
-// XOÁ: loadVehiclesForTenants và autoPopulateVehicles riêng lẻ
-// THÊM: hàm gộp này, chỉ deps [currentContractVehicles] (stable, chỉ set 1 lần khi load contract)
+  // XOÁ: loadVehiclesForTenants và autoPopulateVehicles riêng lẻ
+  // THÊM: hàm gộp này, chỉ deps [currentContractVehicles] (stable, chỉ set 1 lần khi load contract)
 
-const loadAndAutoPopulateVehicles = useCallback(
-  async (tenantIds: number[], startDate: string) => {
-    if (tenantIds.length === 0) {
-      setVehicles([])
-      return
-    }
+  const loadAndAutoPopulateVehicles = useCallback(
+    async (tenantIds: number[], startDate: string) => {
+      if (tenantIds.length === 0) {
+        setVehicles([])
+        return
+      }
 
-    try {
-      const responses = await Promise.all(
-        tenantIds.map((tenantId) =>
-          fetchAdminContractVehicles({
-            tenant_id: tenantId,
-            is_active: true,
-            without_active_contract: true,
-            per_page: 100,
-          })
+      try {
+        const responses = await Promise.all(
+          tenantIds.map((tenantId) =>
+            fetchAdminContractVehicles({
+              tenant_id: tenantId,
+              is_active: true,
+              without_active_contract: true,
+              per_page: 100,
+            })
+          )
         )
-      )
-      const fetched = responses.flatMap((response) => getResourceList(response.result))
-      const uniqueFetched = Array.from(new Map(fetched.map((v) => [v.id, v])).values())
+        const fetched = responses.flatMap((response) => getResourceList(response.result))
+        const uniqueFetched = Array.from(new Map(fetched.map((v) => [v.id, v])).values())
 
-      // Cập nhật danh sách xe cho vehicleOptions dropdown
-      setVehicles(uniqueFetched)
+        // Cập nhật danh sách xe cho vehicleOptions dropdown
+        setVehicles(uniqueFetched)
 
-      // Auto-populate form — dùng thẳng uniqueFetched, KHÔNG đọc từ `vehicles` state
-      // Đây chính là điểm phá vỡ vòng lặp vô tận so với bản cũ
-      setForm((current) => {
-        const tenantIdSet = new Set(tenantIds)
-        const allKnown = [...uniqueFetched, ...currentContractVehicles]
+        // Auto-populate form — dùng thẳng uniqueFetched, KHÔNG đọc từ `vehicles` state
+        // Đây chính là điểm phá vỡ vòng lặp vô tận so với bản cũ
+        setForm((current) => {
+          const tenantIdSet = new Set(tenantIds)
+          const allKnown = [...uniqueFetched, ...currentContractVehicles]
 
-        // 1. Bỏ xe của tenant đã bị remove khỏi form
-        const cleaned = current.vehicles.filter((v) => {
-          const vid = Number(v.vehicle_id)
-          if (!vid) return true
-          const info = allKnown.find((av) => av.id === vid)
-          if (!info) return true
-          return tenantIdSet.has(info.tenant_id)
+          // 1. Bỏ xe của tenant đã bị remove khỏi form
+          const cleaned = current.vehicles.filter((v) => {
+            const vid = Number(v.vehicle_id)
+            if (!vid) return true
+            const info = allKnown.find((av) => av.id === vid)
+            if (!info) return true
+            return tenantIdSet.has(info.tenant_id)
+          })
+
+          // 2. Append xe mới chưa có trong form
+          const existingIds = new Set(cleaned.map((v) => Number(v.vehicle_id)).filter((id) => id > 0))
+          const newRows: ContractVehicleFormRow[] = uniqueFetched
+            .filter((v) => !existingIds.has(v.id))
+            .map((v) => ({
+              vehicle_id: String(v.id),
+              started_at: startDate || current.start_date,
+              ended_at: '',
+              billing_start_date: startDate || current.start_date,
+              billing_end_date: '',
+              monthly_fee: '0.00',
+              charge_policy: CHARGE_MONTHLY,
+              is_active: true,
+            }))
+
+          if (newRows.length === 0 && cleaned.length === current.vehicles.length) {
+            return current // không có gì thay đổi, tránh re-render thừa
+          }
+
+          return { ...current, vehicles: [...cleaned, ...newRows] }
         })
-
-        // 2. Append xe mới chưa có trong form
-        const existingIds = new Set(cleaned.map((v) => Number(v.vehicle_id)).filter((id) => id > 0))
-        const newRows: ContractVehicleFormRow[] = uniqueFetched
-          .filter((v) => !existingIds.has(v.id))
-          .map((v) => ({
-            vehicle_id: String(v.id),
-            started_at: startDate || current.start_date,
-            ended_at: '',
-            billing_start_date: startDate || current.start_date,
-            billing_end_date: '',
-            monthly_fee: '0.00',
-            charge_policy: CHARGE_MONTHLY,
-            is_active: true,
-          }))
-
-        if (newRows.length === 0 && cleaned.length === current.vehicles.length) {
-          return current // không có gì thay đổi, tránh re-render thừa
-        }
-
-        return { ...current, vehicles: [...cleaned, ...newRows] }
-      })
-    } catch (error) {
-      setVehicles([])
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
-    }
-  },
-  [currentContractVehicles] // KHÔNG có `vehicles` trong deps → không tạo reference mới khi vehicles đổi
-)
+      } catch (error) {
+        setVehicles([])
+        setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
+      }
+    },
+    [currentContractVehicles] // KHÔNG có `vehicles` trong deps → không tạo reference mới khi vehicles đổi
+  )
   useEffect(() => {
     void loadBuildings()
   }, [loadBuildings])
@@ -380,12 +314,12 @@ const loadAndAutoPopulateVehicles = useCallback(
     void loadTenants(form.building_id)
   }, [form.building_id, loadRoomsForBuilding, loadTenants])
 
-useEffect(() => {
-  const tenantIds = form.tenants
-    .map((tenant) => Number(tenant.tenant_id))
-    .filter((id) => id > 0)
-  void loadAndAutoPopulateVehicles(tenantIds, form.start_date)
-}, [form.tenants, form.start_date, loadAndAutoPopulateVehicles])
+  useEffect(() => {
+    const tenantIds = form.tenants
+      .map((tenant) => Number(tenant.tenant_id))
+      .filter((id) => id > 0)
+    void loadAndAutoPopulateVehicles(tenantIds, form.start_date)
+  }, [form.tenants, form.start_date, loadAndAutoPopulateVehicles])
 
 
   const updateForm = <K extends keyof ContractFormValues>(key: K, value: ContractFormValues[K]) => {
@@ -443,17 +377,22 @@ useEffect(() => {
     if (editingContract) {
       if (isRenewMode) {
         let nextStartDate = ''
+        let nextEndDate = ''
         if (editingContract.end_date) {
           const endDateObj = new Date(editingContract.end_date)
           endDateObj.setDate(endDateObj.getDate() + 1)
           nextStartDate = endDateObj.toISOString().split('T')[0]
+          const endDateCalc = new Date(nextStartDate)
+          endDateCalc.setFullYear(endDateCalc.getFullYear() + 1)
+          endDateCalc.setDate(endDateCalc.getDate() - 1)
+          nextEndDate = endDateCalc.toISOString().split('T')[0]
         }
         const formValues = contractToForm(editingContract)
         setForm({
           ...formValues,
           contract_code: '',
           start_date: nextStartDate,
-          end_date: '',
+          end_date: nextEndDate,
           actual_end_date: '',
           parent_contract_id: String(editingContract.parent_contract_id || editingContract.id),
           renew_from_contract_id: String(editingContract.id),
@@ -744,6 +683,7 @@ useEffect(() => {
                   onChange={(patch) => updateTenantRow(index, patch)}
                   onRemove={() => updateForm('tenants', form.tenants.filter((_, rowIndex) => rowIndex !== index))}
                   isEditMode={isEditMode || isRenewMode}
+                  isRenewMode={isRenewMode}
                 />
               ))}
             </div>
@@ -801,6 +741,7 @@ useEffect(() => {
                   onChange={(patch) => updateVehicleRow(index, patch)}
                   onRemove={() => updateForm('vehicles', form.vehicles.filter((_, rowIndex) => rowIndex !== index))}
                   isEditMode={isEditMode || isRenewMode}
+                  isRenewMode={isRenewMode}
                 />
               ))}
             </div>

@@ -107,6 +107,13 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
                             if (!notif.isRead) {
                               notificationController.markAsRead(notif.id);
                             }
+                            if (notif.notificationType == 1) {
+                              Navigator.pushNamed(context, '/tenant/maintenance');
+                            } else if (notif.notificationType == 2) {
+                              Navigator.pushNamed(context, '/tenant/invoices');
+                            } else if (notif.notificationType == 3) {
+                              Navigator.pushNamed(context, '/tenant/contract');
+                            }
                           },
                           borderRadius: BorderRadius.circular(16),
                           child: Padding(

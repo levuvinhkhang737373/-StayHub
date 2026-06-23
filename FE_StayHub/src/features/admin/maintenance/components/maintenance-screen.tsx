@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Wrench,
   Eye,
-  UserPlus,
   Settings,
   RefreshCw,
   Search,
@@ -22,8 +21,6 @@ import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-se
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
-import { fetchAdminAccounts } from '../../system-users/services/admin-accounts.service'
-import type { AdminAccountResource } from '../../system-users/types/admin-account-api.model'
 import {
   fetchAdminMaintenanceRequests,
   fetchAdminMaintenanceDetail,
@@ -74,7 +71,6 @@ export function MaintenanceScreen() {
   const [roomNumber, setRoomNumber] = useState('')
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [requests, setRequests] = useState<AdminMaintenanceRequestResource[]>([])
-  const [adminUsers, setAdminUsers] = useState<AdminAccountResource[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -84,7 +80,7 @@ export function MaintenanceScreen() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
 
- 
+
   const [updatingRequest, setUpdatingRequest] = useState<AdminMaintenanceRequestResource | null>(null)
   const [newStatus, setNewStatus] = useState<number>(1)
   const [updateNote, setUpdateNote] = useState<string>('')
@@ -107,14 +103,10 @@ export function MaintenanceScreen() {
 
   const loadBuildingsAndStaff = useCallback(async () => {
     try {
-      const [buildingsRes, staffRes] = await Promise.all([
-        fetchAdminBuildings({ per_page: 100 }),
-        fetchAdminAccounts({ per_page: 100, status: 1 }) // Only active staff
-      ])
+      const buildingsRes = await fetchAdminBuildings({ per_page: 100 })
       setBuildings(getResourceList(buildingsRes.result))
-      setAdminUsers(getResourceList(staffRes.result))
     } catch (e) {
-      console.error('Không thể load tòa nhà / nhân sự', e)
+      console.error('Không thể load tòa nhà', e)
     }
   }, [])
 
@@ -145,6 +137,10 @@ export function MaintenanceScreen() {
       setIsLoading(false)
     }
   }, [keyword, selectedStatus, selectedBuildingId, roomNumber])
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   useEffect(() => {
     void loadBuildingsAndStaff()
@@ -188,7 +184,7 @@ export function MaintenanceScreen() {
   }
 
   // // Assign staff
-  
+
 
   // Update status
   const handleStatusSubmit = async () => {
@@ -232,7 +228,7 @@ export function MaintenanceScreen() {
 
   return (
     <>
-    <section className="space-y-5 sm:space-y-6 text-[#24170d]">
+      <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         {/* Header and Summary Panel */}
         <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
           <div className="relative p-3 text-[#fff4df] sm:p-4">
@@ -399,7 +395,7 @@ export function MaintenanceScreen() {
                       >
                         <Eye className="h-4.5 w-4.5" />
                       </button>
-                    
+
                       <button
                         type="button"
                         onClick={() => { setUpdatingRequest(req); setNewStatus(Number(req.status) === 2 ? 3 : Number(req.status)) }}
@@ -536,7 +532,7 @@ export function MaintenanceScreen() {
             </div>
 
             <div className="p-4 bg-stone-100 border-t border-[#3d2a18]/10 flex gap-2 justify-end">
-             
+
               <button
                 type="button"
                 onClick={() => { setUpdatingRequest(detailRequest); setNewStatus(detailRequest.status) }}
@@ -549,7 +545,7 @@ export function MaintenanceScreen() {
         </div>
       )}
 
-     
+
 
       {/* UPDATE STATUS MODAL */}
       {updatingRequest && (

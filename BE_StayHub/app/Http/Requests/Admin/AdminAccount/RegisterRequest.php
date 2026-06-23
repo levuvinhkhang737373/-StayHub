@@ -19,7 +19,7 @@ class RegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'username' => ['required', 'string', 'max:255', Rule::unique('admins', 'username')],
+            'username' => ['required', 'string', 'alpha_dash', 'min:3', 'max:20', Rule::unique('admins', 'username')],
             'full_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('admins', 'email')],
             'phone' => ['required', 'string', 'max:20', Rule::unique('admins', 'phone')],
@@ -38,7 +38,9 @@ class RegisterRequest extends FormRequest
         return [
             'username.required' => 'Tên đăng nhập là bắt buộc.',
             'username.string' => 'Tên đăng nhập phải là chuỗi ký tự.',
-            'username.max' => 'Tên đăng nhập không được vượt quá 255 ký tự.',
+            'username.alpha_dash' => 'Tên đăng nhập chỉ được chứa chữ cái, chữ số, dấu gạch ngang và dấu gạch dưới.',
+            'username.min' => 'Tên đăng nhập phải có ít nhất 3 ký tự.',
+            'username.max' => 'Tên đăng nhập không được vượt quá 20 ký tự.',
             'username.unique' => 'Tên đăng nhập đã tồn tại.',
             'full_name.required' => 'Họ tên admin là bắt buộc.',
             'full_name.string' => 'Họ tên admin phải là chuỗi ký tự.',

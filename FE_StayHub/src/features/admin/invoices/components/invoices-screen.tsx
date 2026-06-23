@@ -26,9 +26,10 @@ import {
   fetchAdminInvoiceDetail,
   fetchAdminInvoices,
   generateAdminInvoice,
+  previewAdminInvoice,
   recordAdminInvoicePayment,
 } from '../services/invoices.service'
-import type { AdminInvoiceAdjustmentPayload, AdminInvoiceResource } from '../types/invoice-api.model'
+import type { AdminInvoiceAdjustmentPayload, AdminInvoiceGeneratePayload, AdminInvoicePreviewResource, AdminInvoiceResource } from '../types/invoice-api.model'
 import {
   INVOICE_STATUS_CANCELLED,
   INVOICE_STATUS_OVERDUE,
@@ -52,6 +53,7 @@ import {
   normalizeInvoices,
   perPageOptions,
 } from '../utils/invoice.helpers'
+import { InvoicePreviewModal } from './invoice-preview-modal'
 
 type RoomOption = {
   id: number
@@ -86,6 +88,8 @@ export function InvoicesScreen() {
   const [contracts, setContracts] = useState<AdminContractResource[]>([])
   const [detailInvoice, setDetailInvoice] = useState<AdminInvoiceResource | null>(null)
   const [isGenerateOpen, setIsGenerateOpen] = useState(false)
+  const [previewInvoice, setPreviewInvoice] = useState<AdminInvoicePreviewResource | null>(null)
+  const [pendingGeneratePayload, setPendingGeneratePayload] = useState<AdminInvoiceGeneratePayload | null>(null)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [paymentInvoice, setPaymentInvoice] = useState<AdminInvoiceResource | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -292,7 +296,7 @@ export function InvoicesScreen() {
 
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
         <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-          <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(8rem,10rem)]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(8rem,10rem)_minmax(6rem,8rem)]">
             <div className="relative min-w-0">
               <SearchIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
               <input
@@ -318,8 +322,6 @@ export function InvoicesScreen() {
             <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} disabled={!isSuperAdmin && buildingOptions.length <= 1} onChange={(nextValue) => { setSelectedBuildingId(String(nextValue)); setSelectedRoomId(''); setCurrentPage(1) }} />
             <AdminSelect value={selectedRoomId} options={[{ value: '', label: 'Tất cả phòng', tone: 'default' as const }, ...roomOptions]} disabled={!selectedBuildingId} onChange={(nextValue) => { setSelectedRoomId(String(nextValue)); setCurrentPage(1) }} />
             <AdminSelect value={selectedMonth} options={monthOptions} onChange={(nextValue) => { setSelectedMonth(String(nextValue)); setCurrentPage(1) }} />
-          </div>
-          <div className="mt-3 max-w-xs">
             <input
               type="number"
               min={2020}
@@ -330,7 +332,7 @@ export function InvoicesScreen() {
                 setCurrentPage(1)
               }}
               className={inputClass}
-              placeholder="Năm lập hóa đơn"
+              placeholder="Năm"
             />
           </div>
         </div>
@@ -431,17 +433,43 @@ export function InvoicesScreen() {
         </div>
       </section>
 
-      {isGenerateOpen && <GenerateInvoiceModal contracts={contractOptions} isSaving={isSaving} onClose={() => setIsGenerateOpen(false)} onSubmit={async (payload) => {
+      {isGenerateOpen && <GenerateInvoiceModal contracts={contractOptions} isSaving={isSaving} onClose={() => {
+        if (isSaving) return
+        setIsGenerateOpen(false)
+        setPreviewInvoice(null)
+        setPendingGeneratePayload(null)
+      }} onSubmit={async (payload) => {
         try {
           setIsSaving(true)
           setErrorMessage(null)
-          const response = await generateAdminInvoice(payload)
+          setSuccessMessage(null)
+          const response = await previewAdminInvoice(payload)
+          setPendingGeneratePayload(payload)
+          setPreviewInvoice(response.result)
+        } catch (error) {
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xem trước hóa đơn.'))
+        } finally {
+          setIsSaving(false)
+        }
+      }} />}
+
+      {previewInvoice && pendingGeneratePayload && <InvoicePreviewModal invoice={previewInvoice} isIssuing={isSaving} onClose={() => {
+        if (isSaving) return
+        setPreviewInvoice(null)
+      }} onConfirm={async () => {
+        try {
+          setIsSaving(true)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+          const response = await generateAdminInvoice(pendingGeneratePayload)
+          setPreviewInvoice(null)
+          setPendingGeneratePayload(null)
           setIsGenerateOpen(false)
           setDetailInvoice(response.result)
-          setSuccessMessage('Lập hóa đơn thành công.')
+          setSuccessMessage('Phát hành hóa đơn thành công.')
           await loadInvoices()
         } catch (error) {
-          setErrorMessage(getVisibleErrorMessage(error, 'Không thể lập hóa đơn.'))
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể phát hành hóa đơn.'))
         } finally {
           setIsSaving(false)
         }
@@ -468,7 +496,7 @@ export function InvoicesScreen() {
   )
 }
 
-function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { contracts: Array<{ value: number; label: string; description?: string; tone: 'default' }>; isSaving: boolean; onClose: () => void; onSubmit: (payload: { contract_id: number; billing_month: number; billing_year: number; due_date?: string | null; adjustments: AdminInvoiceAdjustmentPayload[] }) => Promise<void> }) {
+function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { contracts: Array<{ value: number; label: string; description?: string; tone: 'default' }>; isSaving: boolean; onClose: () => void; onSubmit: (payload: AdminInvoiceGeneratePayload) => Promise<void> }) {
   const period = currentMonthYear()
   const [contractId, setContractId] = useState('')
   const [month, setMonth] = useState(String(period.month))
@@ -490,7 +518,7 @@ function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { cont
         <textarea className={textAreaClass} value={adjustmentText} onChange={(event) => setAdjustmentText(event.target.value)} placeholder="Điều chỉnh tùy chọn, mỗi dòng: phu_thu|Mô tả|100000 hoặc giam_tru|Mô tả|50000" />
         <p className="text-xs font-bold text-[#6f6254]">Hệ thống tự tính tiền phòng, điện nước, dịch vụ, xe và nợ cũ theo plan. Phần điều chỉnh dùng mã: phu_thu, giam_tru, tang, giam.</p>
         <button type="button" disabled={isSaving || !contractId} onClick={() => onSubmit({ contract_id: Number(contractId), billing_month: Number(month), billing_year: Number(year), due_date: dueDate || null, adjustments })} className="h-12 w-full rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60">
-          {isSaving ? 'Đang lập...' : 'Lập hóa đơn'}
+          {isSaving ? 'Đang xem trước...' : 'Xem trước hóa đơn'}
         </button>
       </div>
     </ModalFrame>

@@ -134,5 +134,7 @@ class MeterReadingTest extends TestCase
         $response->assertStatus(200);
         $response->assertJsonPath('status', true);
         $response->assertJsonPath('message', 'Chốt số đồng hồ thành công');
+
+        $this->assertEquals(150, (float)$this->meterDevice->fresh()->initial_reading);
     }
 }

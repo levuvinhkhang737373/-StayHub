@@ -219,6 +219,10 @@ class VehicleController extends Controller
             }
         }
 
+        if (array_key_exists('license_plate', $payload) && trim((string) $payload['license_plate']) === '') {
+            $payload['license_plate'] = null;
+        }
+
         if (! $isUpdate) {
             $payload['is_active'] = $payload['is_active'] ?? Vehicle::ACTIVE;
         }

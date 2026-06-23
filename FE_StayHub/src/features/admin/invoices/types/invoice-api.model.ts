@@ -20,12 +20,28 @@ export interface AdminInvoiceItemResource {
   service_id?: number | null
   service_name?: string | null
   meter_reading_id?: number | null
+  meter_reading?: AdminInvoiceMeterReadingSummary | null
   item_type: number
   item_type_label?: string | null
   description: string
   quantity: string
   unit_price: string
   amount: string
+}
+
+export interface AdminInvoiceMeterReadingSummary {
+  id: number
+  meter_device_id?: number | null
+  previous_reading?: string | number | null
+  current_reading?: string | number | null
+  consumption?: string | number | null
+  reading_date?: string | null
+  image_url?: string | null
+}
+
+export interface AdminInvoicePreviewItemResource extends Omit<AdminInvoiceItemResource, 'id' | 'invoice_id'> {
+  id: number | null
+  invoice_id?: number | null
 }
 
 export interface AdminPaymentResource {
@@ -97,6 +113,17 @@ export interface AdminInvoiceResource {
   payments_count?: number
   created_at?: string | null
   updated_at?: string | null
+}
+
+export interface AdminInvoicePreviewResource extends Omit<AdminInvoiceResource, 'id' | 'invoice_code' | 'items' | 'payments'> {
+  is_preview: true
+  can_issue: boolean
+  id: number | null
+  invoice_code: string | null
+  invoice_code_note?: string | null
+  items?: AdminInvoicePreviewItemResource[]
+  payments: []
+  preview_generated_at?: string | null
 }
 
 export interface AdminInvoiceFilters {

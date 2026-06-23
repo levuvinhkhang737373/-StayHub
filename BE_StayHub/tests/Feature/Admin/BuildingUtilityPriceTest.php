@@ -373,4 +373,132 @@ class BuildingUtilityPriceTest extends TestCase
         $response->assertJsonPath('status', false);
         $response->assertJsonPath('message', 'Không thể thay đổi đơn giá cho tháng cũ.');
     }
+
+    public function test_updating_utility_price_multiple_times_creates_multiple_lines_and_expires_old_ones(): void
+    {
+        $targetYear = now()->year;
+        $targetMonth = now()->month + 1;
+        if ($targetMonth > 12) {
+            $targetMonth = 1;
+            $targetYear += 1;
+        }
+
+        // First update
+        $payload1 = [
+            'electric_price' => 4500,
+            'water_price' => 20000,
+            'billing_month' => $targetMonth,
+            'billing_year' => $targetYear,
+        ];
+
+        $response1 = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload1);
+
+        $response1->assertStatus(200);
+
+        // Verify first record exists
+        $effectiveFromDate = \Carbon\Carbon::create($targetYear, $targetMonth, 1)->startOfDay()->toDateTimeString();
+        $this->assertDatabaseHas('service_prices', [
+            'building_id' => $this->building->id,
+            'service_id' => $this->electricityService->id,
+            'price' => '4500.00',
+            'effective_from' => $effectiveFromDate,
+            'effective_to' => null,
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        // Second update for same billing cycle with different price
+        $payload2 = [
+            'electric_price' => 4600,
+            'water_price' => 21000,
+            'billing_month' => $targetMonth,
+            'billing_year' => $targetYear,
+        ];
+
+        $response2 = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload2);
+
+        $response2->assertStatus(200);
+
+        // Assert database has new active prices
+        $this->assertDatabaseHas('service_prices', [
+            'building_id' => $this->building->id,
+            'service_id' => $this->electricityService->id,
+            'price' => '4600.00',
+            'effective_from' => $effectiveFromDate,
+            'effective_to' => null,
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $this->assertDatabaseHas('service_prices', [
+            'building_id' => $this->building->id,
+            'service_id' => $this->waterService->id,
+            'price' => '21000.00',
+            'effective_from' => $effectiveFromDate,
+            'effective_to' => null,
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        // Assert the first update records are now expired
+        $effectiveToDate = \Carbon\Carbon::create($targetYear, $targetMonth, 1)->subDay()->startOfDay()->toDateTimeString();
+        $this->assertDatabaseHas('service_prices', [
+            'building_id' => $this->building->id,
+            'service_id' => $this->electricityService->id,
+            'price' => '4500.00',
+            'effective_from' => $effectiveFromDate,
+            'effective_to' => $effectiveToDate,
+            'status' => ServicePrice::STATUS_EXPIRED,
+        ]);
+
+        $this->assertDatabaseHas('service_prices', [
+            'building_id' => $this->building->id,
+            'service_id' => $this->waterService->id,
+            'price' => '20000.00',
+            'effective_from' => $effectiveFromDate,
+            'effective_to' => $effectiveToDate,
+            'status' => ServicePrice::STATUS_EXPIRED,
+        ]);
+    }
+
+    public function test_can_retrieve_utility_price_log_history(): void
+    {
+        $payload = [
+            'electric_price' => 4500,
+            'water_price' => 20000,
+            'billing_month' => now()->month,
+            'billing_year' => now()->year,
+        ];
+
+        $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload)
+            ->assertStatus(200);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson("/api/v1/admin/buildings/{$this->building->id}/utility-price-history");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true)
+            ->assertJsonStructure([
+                'result' => [
+                    '*' => [
+                        'id',
+                        'service_id',
+                        'service_name',
+                        'price',
+                        'effective_from',
+                        'effective_to',
+                        'status',
+                        'status_label',
+                        'created_by',
+                        'creator_name',
+                        'created_at',
+                    ]
+                ]
+            ]);
+
+        $result = $response->json('result');
+        $this->assertNotEmpty($result);
+        $this->assertEquals('Super Admin Test', $result[0]['creator_name']);
+        $this->assertEquals($this->superAdmin->id, $result[0]['created_by']);
+    }
 }
