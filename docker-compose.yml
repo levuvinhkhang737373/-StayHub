@@ -54,41 +54,20 @@ services:
         aliases:
           - db
 
-  mongo:
-    image: mongo:7
-    container_name: laravel_mongo
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_DB_USERNAME:-root}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD:-12345678}
-      MONGO_INITDB_DATABASE: ${MONGO_DB_DATABASE:-stay_hub}
-    ports:
-      - '${MONGO_FORWARD_PORT:-27017}:27017'
-    volumes:
-      - type: volume
-        source: mongodata
-        target: /data/db
-    healthcheck:
-      test: [ 'CMD-SHELL', 'mongosh mongodb://$${MONGO_INITDB_ROOT_USERNAME}:$${MONGO_INITDB_ROOT_PASSWORD}@127.0.0.1:27017/admin --quiet --eval "db.runCommand({ ping: 1 }).ok" | grep 1' ]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-    networks:
-      laravel_network:
-        aliases:
-          - mongo
 
   redis:
     image: redis:7-alpine
     container_name: laravel_redis
     restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-12345678}
     ports:
       - '${REDIS_FORWARD_PORT:-6379}:6379'
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-12345678}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ 'CMD', 'redis-cli', 'ping' ]
+      test: [ 'CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-12345678}', 'ping' ]
       interval: 10s
       timeout: 10s
       retries: 10
@@ -96,6 +75,21 @@ services:
       laravel_network:
         aliases:
           - redis
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: laravel_redis_commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-12345678}
+    ports:
+      - '${REDIS_COMMANDER_PORT:-8083}:8081'
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - laravel_network
+
 
   meilisearch:
     image: getmeili/meilisearch:latest
@@ -346,24 +340,6 @@ services:
     networks:
       - laravel_network
 
-  mongo-express:
-    image: mongo-express:latest
-    container_name: laravel_mongo_express
-    restart: unless-stopped
-    ports:
-      - '${MONGO_EXPRESS_PORT:-8081}:8081'
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_DB_USERNAME:-root}
-      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_DB_PASSWORD:-12345678}
-      ME_CONFIG_MONGODB_SERVER: mongo
-      ME_CONFIG_MONGODB_PORT: 27017
-      ME_CONFIG_MONGODB_AUTH_DATABASE: admin
-      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_DB_USERNAME:-root}:${MONGO_DB_PASSWORD:-12345678}@mongo:27017/?authSource=admin
-    depends_on:
-      mongo:
-        condition: service_healthy
-    networks:
-      - laravel_network
 
   cloudflared:
     build:
@@ -390,7 +366,7 @@ services:
 networks:
   laravel_network:
     external: true
-    name: stayhub_laravel_network
+    name: repokytucxaphongtro_laravel_network
 
 secrets:
   backend_env:
@@ -408,16 +384,15 @@ volumes:
     name: stayhub_ai_deepface_cache
   dbdata_new:
     external: true
-    name: stayhub_dbdata_new
-  mongodata:
-    external: true
-    name: repokytucxaphongtro_mongodata
+    name: repokytucxaphongtro_dbdata_new
+
   redis_data:
     name: repokytucxaphongtro_redis_data
   meili_data:
     external: true
-    name: stayhub_meili_data
+    name: repokytucxaphongtro_meili_data
   minio_data:
     name: stayhub_minio_data
   qdrant_data:
     name: stayhub_qdrant_data
+

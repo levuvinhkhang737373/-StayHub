@@ -46,8 +46,8 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     sockets
 
 # 5. Cài đặt Redis, MongoDB và OpenSwoole để chạy Octane + realtime
-RUN yes "" | pecl install redis mongodb openswoole \
-    && docker-php-ext-enable redis mongodb openswoole
+RUN yes "" | pecl install redis openswoole \
+    && docker-php-ext-enable redis openswoole
 
 # 6. Cài đặt Composer từ image chính thức
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
