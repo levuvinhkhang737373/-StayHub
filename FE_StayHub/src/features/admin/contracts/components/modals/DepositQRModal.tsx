@@ -5,6 +5,19 @@ import { cn } from '../../../../../shared/lib/utils/cn'
 import { formatCurrency } from '../../../../../shared/lib/utils/format'
 import type { AdminContractResource } from '../../types/contract-api.model'
 
+const DEPOSIT_QR_EXPIRES_SECONDS = 24 * 60 * 60
+
+function getDepositQrTimeLeft(contract: AdminContractResource) {
+  if (!contract.created_at) return DEPOSIT_QR_EXPIRES_SECONDS
+
+  const normalizedCreatedAt = contract.created_at.includes('T') ? contract.created_at : contract.created_at.replace(' ', 'T')
+  const createdAtWithTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(normalizedCreatedAt) ? normalizedCreatedAt : `${normalizedCreatedAt}Z`
+  const expiresAt = new Date(createdAtWithTimezone).getTime() + DEPOSIT_QR_EXPIRES_SECONDS * 1000
+  if (Number.isNaN(expiresAt)) return DEPOSIT_QR_EXPIRES_SECONDS
+
+  return Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
+}
+
 export function DepositQRModal({
   contract,
   isSaving = false,
@@ -17,7 +30,7 @@ export function DepositQRModal({
   onConfirm?: () => void
 }) {
   const { echo } = useAdminSocket()
-  const [timeLeft, setTimeLeft] = useState(1800) // 30 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(() => getDepositQrTimeLeft(contract))
   const [isPaidSuccess, setIsPaidSuccess] = useState(false)
 
   useEffect(() => {
@@ -46,9 +59,16 @@ export function DepositQRModal({
   }, [timeLeft, isPaidSuccess])
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
+    const days = Math.floor(seconds / 86400)
+    const hours = Math.floor((seconds % 86400) / 3600)
+    const mins = Math.floor((seconds % 3600) / 60)
     const secs = seconds % 60
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+
+    if (days > 0) {
+      return `${days} ngày ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    }
+
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
   }
 
   const isExpired = timeLeft <= 0
@@ -76,7 +96,7 @@ export function DepositQRModal({
               </div>
             ) : isExpired ? (
               <div className="flex h-[280px] w-[280px] flex-col items-center justify-center text-center p-4 bg-stone-50 rounded-2xl">
-                <p className="text-sm font-bold text-rose-500">Mã QR đã hết hạn (30 phút)</p>
+                <p className="text-sm font-bold text-rose-500">Mã QR đã hết hạn (1 ngày)</p>
                 <p className="mt-2 text-xs text-stone-500">Vui lòng đóng modal và tải lại để lấy mã mới.</p>
               </div>
             ) : contract.deposit_qr_url ? (

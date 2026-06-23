@@ -60,7 +60,7 @@
                             @endif
 
                             <p style="margin:0 0 10px;font-size:14px;line-height:1.7;color:#6f6254;">Nếu bạn đã thanh toán, vui lòng bỏ qua email này hoặc tải minh chứng thanh toán trong cổng khách thuê để ban quản lý xác nhận.</p>
-                            <p style="margin:0;font-size:13px;line-height:1.6;color:#8b5e34;">Email được gửi tự động từ hệ thống StayHub. Vui lòng không trả lời trực tiếp email này.</p>
+                            <p style="margin:0;font-size:13px;line-height:1.6;color:#8b5e34;">Vui lòng không trả lời trực tiếp email này.</p>
                         </td>
                     </tr>
                 </table>

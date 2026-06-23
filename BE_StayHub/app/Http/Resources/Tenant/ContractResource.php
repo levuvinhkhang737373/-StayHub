@@ -70,5 +70,5 @@ class ContractResource extends JsonResource
             ->values()
             ->all();
     }
-}
 
+}
