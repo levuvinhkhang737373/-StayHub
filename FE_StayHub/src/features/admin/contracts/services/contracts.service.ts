@@ -176,7 +176,7 @@ export async function createAdminContractDepositTransaction(
 export async function createAdminVehicle(payload: {
   tenant_id: number
   vehicle_type: number
-  license_plate: string
+  license_plate: string | null
   brand?: string
   color?: string
 }) {

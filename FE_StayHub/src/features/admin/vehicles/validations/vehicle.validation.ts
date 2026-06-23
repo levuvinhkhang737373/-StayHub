@@ -17,10 +17,18 @@ export function validateVehicleForm(form: AdminVehicleFormValues) {
     errors.vehicle_type = 'Loại phương tiện không hợp lệ.'
   }
 
-  if (!form.license_plate || !form.license_plate.trim()) {
-    errors.license_plate = 'Phải nhập biển số xe.'
-  } else if (form.license_plate.trim().length > 30) {
-    errors.license_plate = 'Biển số xe không được vượt quá 30 ký tự.'
+  const isLicensePlateRequired = Number(form.vehicle_type) !== 2 && Number(form.vehicle_type) !== 4
+
+  if (isLicensePlateRequired) {
+    if (!form.license_plate || !form.license_plate.trim()) {
+      errors.license_plate = 'Phải nhập biển số xe.'
+    } else if (form.license_plate.trim().length > 30) {
+      errors.license_plate = 'Biển số xe không được vượt quá 30 ký tự.'
+    }
+  } else {
+    if (form.license_plate && form.license_plate.trim().length > 30) {
+      errors.license_plate = 'Biển số xe không được vượt quá 30 ký tự.'
+    }
   }
 
   return errors

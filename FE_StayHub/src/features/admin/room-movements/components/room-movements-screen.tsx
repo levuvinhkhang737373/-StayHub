@@ -387,7 +387,7 @@ export function RoomMovementsScreen() {
       </section>
 
       {isDetailOpen && selectedMovement && (
-        <DetailDrawer movement={selectedMovement} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} />
+        <DetailModal movement={selectedMovement} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} />
       )}
     </>
   )
@@ -421,12 +421,12 @@ function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
   )
 }
 
-function DetailDrawer({ movement, isLoading, errorMessage, onClose }: { movement: AdminRoomMovementResource; isLoading: boolean; errorMessage: string | null; onClose: () => void }) {
+function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement: AdminRoomMovementResource; isLoading: boolean; errorMessage: string | null; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
-      <button type="button" aria-label="Đóng chi tiết lịch sử" onClick={onClose} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm" />
-      <aside className="relative z-10 h-full w-full max-w-2xl overflow-y-auto border-l border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/35">
-        <div className="sticky top-0 z-10 bg-[#24170d] p-5 text-[#fff4df] shadow-xl shadow-black/15">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
+      <button type="button" aria-label="Đóng chi tiết lịch sử" onClick={onClose} className="absolute inset-0 bg-[#120b06]/75 backdrop-blur-sm" />
+      <aside className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-[#f3c56b]/25 bg-[#fffaf1] shadow-2xl shadow-black/30">
+        <div className="sticky top-0 z-10 rounded-t-[2rem] bg-[#24170d] p-5 text-[#fff4df] shadow-xl shadow-black/15">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Chi tiết ledger</p>

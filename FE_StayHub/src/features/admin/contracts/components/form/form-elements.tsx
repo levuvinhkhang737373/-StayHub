@@ -81,6 +81,7 @@ export function TenantRow({
   onChange,
   onRemove,
   isEditMode,
+  isRenewMode,
 }: {
   index: number
   row: ContractTenantFormRow
@@ -90,19 +91,20 @@ export function TenantRow({
   onChange: (patch: Partial<ContractTenantFormRow>) => void
   onRemove: () => void
   isEditMode: boolean
+  isRenewMode?: boolean
 }) {
   return (
     <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3">
       <RowHeader title={`Khách #${index + 1}`} canRemove={canRemove} onRemove={onRemove} />
       <div className="mt-3 space-y-3">
         <AdminSelect value={row.tenant_id} options={options} invalid={!!error} placeholder="Chọn khách thuê" onChange={(value: string | number) => onChange({ tenant_id: String(value) })} />
-        <div className={cn('grid grid-cols-1 gap-3', isEditMode && 'sm:grid-cols-2')}>
+        <div className={cn('grid grid-cols-1 gap-3', isEditMode && !isRenewMode && 'sm:grid-cols-2')}>
           <AdminDateInput className={inputClass} value={row.join_date} onChange={(value: string) => onChange({ join_date: value, billing_start_date: row.billing_start_date || value })} />
-          {isEditMode && (
+          {isEditMode && !isRenewMode && (
             <AdminDateInput className={inputClass} value={row.leave_date} onChange={(value: string) => onChange({ leave_date: value, is_staying: !value })} placeholder="Ngày rời đi" />
           )}
         </div>
-        {isEditMode && (
+        {isEditMode && !isRenewMode && (
           <div className="flex flex-wrap gap-3 text-xs font-black text-[#6f6254]">
             <label className="inline-flex items-center gap-2">
               <input type="checkbox" checked={row.is_staying} onChange={(event) => onChange({ is_staying: event.target.checked })} /> Đang ở
@@ -123,6 +125,7 @@ export function VehicleRow({
   onChange,
   onRemove,
   isEditMode,
+  isRenewMode,
 }: {
   index: number
   row: ContractVehicleFormRow
@@ -131,15 +134,16 @@ export function VehicleRow({
   onChange: (patch: Partial<ContractVehicleFormRow>) => void
   onRemove: () => void
   isEditMode: boolean
+  isRenewMode?: boolean
 }) {
   return (
     <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3">
       <RowHeader title={`Xe #${index + 1}`} canRemove onRemove={onRemove} />
       <div className="mt-3 space-y-3">
         <AdminSelect value={row.vehicle_id} options={options} invalid={!!error} placeholder="Chọn phương tiện" onChange={(value: string | number) => onChange({ vehicle_id: String(value) })} />
-        <div className={cn('grid grid-cols-1 gap-3', isEditMode && 'sm:grid-cols-2')}>
+        <div className={cn('grid grid-cols-1 gap-3', isEditMode && !isRenewMode && 'sm:grid-cols-2')}>
           <AdminDateInput className={inputClass} value={row.started_at} disabled onChange={(value: string) => onChange({ started_at: value, billing_start_date: row.billing_start_date || value })} />
-          {isEditMode && (
+          {isEditMode && !isRenewMode && (
             <AdminDateInput className={inputClass} value={row.ended_at} onChange={(value: string) => onChange({ ended_at: value, is_active: !value })} placeholder="Ngày kết thúc" />
           )}
         </div>
@@ -155,7 +159,7 @@ export function VehicleRow({
           onChange={(event) => onChange({ monthly_fee: event.target.value })}
           placeholder="Phí gửi xe"
         />
-        {isEditMode && (
+        {isEditMode && !isRenewMode && (
           <label className="inline-flex items-center gap-2 text-xs font-black text-[#6f6254]">
             <input type="checkbox" checked={row.is_active} onChange={(event) => onChange({ is_active: event.target.checked })} /> Còn tính phí
           </label>

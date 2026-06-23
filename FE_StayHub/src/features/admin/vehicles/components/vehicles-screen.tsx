@@ -319,10 +319,11 @@ export function VehiclesScreen() {
       setErrorMessage(null)
       setSuccessMessage(null)
 
+      const isPlateRequired = Number(form.vehicle_type) !== 2 && Number(form.vehicle_type) !== 4
       const payload = {
         tenant_id: Number(form.tenant_id),
         vehicle_type: Number(form.vehicle_type),
-        license_plate: form.license_plate.trim(),
+        license_plate: isPlateRequired ? (form.license_plate.trim() || null) : null,
         brand: form.brand.trim() || undefined,
         color: form.color.trim() || undefined,
         is_active: form.is_active,
@@ -480,9 +481,13 @@ export function VehiclesScreen() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="font-mono text-sm font-black tracking-wider text-[#24170d] bg-stone-100 border border-stone-200/60 px-2.5 py-1 rounded-lg shadow-sm">
-                          {vehicle.license_plate}
-                        </span>
+                        {vehicle.license_plate ? (
+                          <span className="font-mono text-sm font-black tracking-wider text-[#24170d] bg-stone-100 border border-stone-200/60 px-2.5 py-1 rounded-lg shadow-sm">
+                            {vehicle.license_plate}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold text-[#8b5e34]/60 italic">Không có</span>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-sm font-black text-[#3d2a18]">{vehicle.tenant_name || 'Hệ thống'}</p>
@@ -592,7 +597,9 @@ export function VehiclesScreen() {
                     <FieldError message={errors.vehicle_type} />
                   </div>
                   <div>
-                    <label className={labelClass}>Biển số xe</label>
+                    <label className={labelClass}>
+                      Biển số xe { (Number(form.vehicle_type) !== 2 && Number(form.vehicle_type) !== 4) && <span className="text-rose-500">*</span> }
+                    </label>
                     <input className={cn(inputClass, errors.license_plate && inputErrorClass)} value={form.license_plate} onChange={(event) => updateForm('license_plate', event.target.value)} placeholder="Ví dụ: 59A-123.45" />
                     <FieldError message={errors.license_plate} />
                   </div>
@@ -657,7 +664,7 @@ export function VehiclesScreen() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <DetailTile label="Trạng thái" value={detailVehicle?.is_active_label || (detailVehicle?.is_active ? 'Còn sử dụng' : 'Hết sử dụng')} />
-                <DetailTile label="Biển số" value={detailVehicle?.license_plate || 'Chưa cập nhật'} />
+                <DetailTile label="Biển số" value={detailVehicle?.license_plate || 'Không có'} />
                 <DetailTile label="Màu xe" value={detailVehicle?.color || 'Chưa cập nhật'} />
               </div>
 

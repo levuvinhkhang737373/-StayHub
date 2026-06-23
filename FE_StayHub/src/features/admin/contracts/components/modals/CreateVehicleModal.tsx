@@ -36,7 +36,8 @@ export function CreateVehicleModal({
       setError('Vui lòng chọn khách thuê sở hữu xe.')
       return
     }
-    if (!vehicleForm.license_plate.trim()) {
+    const isLicensePlateRequired = Number(vehicleForm.vehicle_type) !== 2 && Number(vehicleForm.vehicle_type) !== 4
+    if (isLicensePlateRequired && !vehicleForm.license_plate.trim()) {
       setError('Vui lòng nhập biển số xe.')
       return
     }
@@ -47,7 +48,7 @@ export function CreateVehicleModal({
       const response = await createAdminVehicle({
         tenant_id: Number(vehicleForm.tenant_id),
         vehicle_type: Number(vehicleForm.vehicle_type),
-        license_plate: vehicleForm.license_plate.trim(),
+        license_plate: vehicleForm.license_plate.trim() || null,
         brand: vehicleForm.brand.trim() || undefined,
         color: vehicleForm.color.trim() || undefined,
       })
@@ -94,7 +95,7 @@ export function CreateVehicleModal({
           </div>
           <div>
             <label className={labelClass}>
-              Biển số xe <span className="text-rose-500">*</span>
+              Biển số xe { (Number(vehicleForm.vehicle_type) !== 2 && Number(vehicleForm.vehicle_type) !== 4) && <span className="text-rose-500">*</span> }
             </label>
             <input
               className={inputClass}

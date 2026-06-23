@@ -3,6 +3,7 @@
 Dự án này là Laravel backend phiên bản 13 sử dụng kiến trúc MVC. Cache dùng Redis, database chính là MySQL, Auth dùng Sanctum HttpOnly Cookie, API viết chuẩn RESTful, realtime dùng Soketi và chạy trên nền Octane. Mọi logic phức tạp phải đẩy vào Queues, không chạy đồng bộ. Khi tạo API luôn dùng API Resources.
 
 - Tự dùng tools để đọc file, chạy shell (`cat`, `ls`, `grep`, `rg`) và tự mò đường dẫn/dữ liệu cần thiết.
+- BẮT BUỘC KHÔNG ĐƯỢC CHẠY 3 LỆNH: `git checkout .`, `git restore .`, và `git reset --hard` để tránh làm mất code uncommitted của người dùng.
 - Project nằm trong Docker; lệnh nào cần chạy trong Docker thì tự chạy.
 - Làm xong việc thì báo cáo, không hỏi câu dư thừa.
 - Làm chính xác, chạy được, hạn chế để người dùng phải sửa lại.
