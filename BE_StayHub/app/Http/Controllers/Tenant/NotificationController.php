@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Tenant\NotificationResource;
+use App\Models\Contract;
 use App\Models\Notification;
 use App\Models\NotificationRead;
 use Illuminate\Http\JsonResponse;
@@ -23,8 +24,15 @@ class NotificationController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
             }
 
-            $buildingId = $tenant->room?->building_id;
-            $roomId = $tenant->room_id;
+            $currentRoom = $tenant->contractTenants()
+                ->where('is_staying', true)
+                ->whereNull('leave_date')
+                ->whereHas('contract', fn ($query) => $query->where('status', Contract::STATUS_ACTIVE))
+                ->with('contract.room')
+                ->latest('id')
+                ->first()?->contract?->room;
+            $buildingId = $currentRoom?->building_id ?? $tenant->building_id;
+            $roomId = $currentRoom?->id ?? $tenant->room_id;
 
             // Truy vấn các thông báo phù hợp với phạm vi của khách thuê
             $notifications = Notification::query()
@@ -111,8 +119,15 @@ class NotificationController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
             }
 
-            $buildingId = $tenant->room?->building_id;
-            $roomId = $tenant->room_id;
+            $currentRoom = $tenant->contractTenants()
+                ->where('is_staying', true)
+                ->whereNull('leave_date')
+                ->whereHas('contract', fn ($query) => $query->where('status', Contract::STATUS_ACTIVE))
+                ->with('contract.room')
+                ->latest('id')
+                ->first()?->contract?->room;
+            $buildingId = $currentRoom?->building_id ?? $tenant->building_id;
+            $roomId = $currentRoom?->id ?? $tenant->room_id;
 
             // Tìm toàn bộ danh sách thông báo chưa đọc của tenant
             $notificationIds = Notification::query()

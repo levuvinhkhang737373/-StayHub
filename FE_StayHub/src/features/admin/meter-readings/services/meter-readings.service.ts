@@ -74,18 +74,6 @@ export async function bulkGenerateInvoices(payload: {
   })
 }
 
-export async function generateSingleInvoice(payload: {
-  contract_id: number
-  billing_month: number
-  billing_year: number
-}) {
-  return apiRequest<any>({
-    url: 'admin/invoices/generate',
-    method: 'POST',
-    data: payload,
-  })
-}
-
 export async function updateUtilityPrices(buildingId: number, payload: {
   electric_price: number
   water_price: number

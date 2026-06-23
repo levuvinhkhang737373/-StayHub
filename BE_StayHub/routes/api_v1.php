@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\MeterReadingController;
 use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\RoomMovementController;
 use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
@@ -121,6 +122,7 @@ Route::prefix('admin')->group(function (): void {
 
         // =========================Invoices================================
         Route::post('buildings/{building}/invoices/bulk-generate', [BulkGenerateInvoiceController::class, '__invoke']);
+        Route::post('invoices/preview', [AdminInvoiceController::class, 'preview']);
         Route::post('invoices/generate', [AdminInvoiceController::class, 'generate']);
         Route::post('invoices/{invoice}/payments', [AdminInvoiceController::class, 'recordPayment']);
         Route::post('invoices/{invoice}/payments/{payment}/confirm', [AdminInvoiceController::class, 'confirmPayment']);
@@ -130,6 +132,8 @@ Route::prefix('admin')->group(function (): void {
         // ==========================Rooms===================================
         Route::apiResource('rooms', RoomController::class);
         Route::patch('rooms/{id}/status', [RoomController::class, 'updateStatus']);
+        Route::get('room-movements', [RoomMovementController::class, 'index']);
+        Route::get('room-movements/{roomMovement}', [RoomMovementController::class, 'show']);
         Route::post('room-transfers/tenant', [RoomController::class, 'transferTenant']);
 
         // ==========================Dashboard===============================

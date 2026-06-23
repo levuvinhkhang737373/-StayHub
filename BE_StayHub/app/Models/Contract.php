@@ -179,10 +179,7 @@ class Contract extends Model
         $balance = $transactions->reduce(function (float $balance, ContractDepositTransaction $transaction): float {
             $amount = (float) $transaction->amount;
 
-            if (in_array((int) $transaction->transaction_type, [
-                ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
-                ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER,
-            ], true)) {
+            if (ContractDepositTransaction::increasesDepositBalance((int) $transaction->transaction_type)) {
                 return $balance + $amount;
             }
 

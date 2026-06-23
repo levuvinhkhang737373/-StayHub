@@ -149,6 +149,200 @@ class InvoiceControllerTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_preview_invoice_without_persisting_or_side_effects(): void
+    {
+        Event::fake();
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-PREVIEW',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-08-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-02-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $electricDevice = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricityService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => '100.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        $waterDevice = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->waterService->id,
+            'meter_type' => MeterDevice::METER_TYPE_WATER,
+            'initial_reading' => '10.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        $electricReading = MeterReading::create([
+            'meter_device_id' => $electricDevice->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'previous_reading' => '100',
+            'current_reading' => '150',
+            'consumption' => '50',
+            'reading_date' => '2026-02-28',
+            'status' => MeterReading::STATUS_CONFIRMED,
+        ]);
+
+        $waterReading = MeterReading::create([
+            'meter_device_id' => $waterDevice->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'previous_reading' => '10',
+            'current_reading' => '15',
+            'consumption' => '5',
+            'reading_date' => '2026-02-28',
+            'status' => MeterReading::STATUS_CONFIRMED,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/invoices/preview', [
+                'contract_id' => $contract->id,
+                'billing_month' => 2,
+                'billing_year' => 2026,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('result.is_preview', true)
+            ->assertJsonPath('result.invoice_code', null)
+            ->assertJsonPath('result.invoice_code_note', 'Mã hóa đơn sẽ được cấp khi phát hành')
+            ->assertJsonPath('result.total_amount', '3300000.00')
+            ->assertJsonPath('result.items_count', 3);
+
+        $this->assertDatabaseCount('invoices', 0);
+        $this->assertDatabaseCount('invoice_items', 0);
+        $this->assertDatabaseCount('notifications', 0);
+        $this->assertEquals(MeterReading::STATUS_CONFIRMED, $electricReading->fresh()->status);
+        $this->assertEquals(MeterReading::STATUS_CONFIRMED, $waterReading->fresh()->status);
+        Event::assertNotDispatched(\App\Events\InvoiceIssued::class);
+    }
+
+    public function test_admin_invoice_preview_rejects_existing_invoice_period(): void
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-PREVIEW-DUP',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-08-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        Invoice::create([
+            'invoice_code' => 'INV-2026-02-0001',
+            'contract_id' => $contract->id,
+            'room_id' => $this->room->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'period_start' => '2026-02-01',
+            'period_end' => '2026-02-28',
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '3000000.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '3000000.00',
+            'status' => Invoice::STATUS_UNPAID,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/invoices/preview', [
+                'contract_id' => $contract->id,
+                'billing_month' => 2,
+                'billing_year' => 2026,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Hợp đồng này đã có hóa đơn trong kỳ đã chọn');
+
+        $this->assertDatabaseCount('invoice_items', 0);
+    }
+
+    public function test_admin_invoice_preview_rejects_unconfirmed_meter_reading(): void
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-PREVIEW-DRAFT-METER',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-08-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $electricDevice = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricityService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => '100.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        $waterDevice = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->waterService->id,
+            'meter_type' => MeterDevice::METER_TYPE_WATER,
+            'initial_reading' => '10.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        MeterReading::create([
+            'meter_device_id' => $electricDevice->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'previous_reading' => '100',
+            'current_reading' => '150',
+            'consumption' => '50',
+            'reading_date' => '2026-02-28',
+            'status' => MeterReading::STATUS_DRAFT,
+        ]);
+
+        MeterReading::create([
+            'meter_device_id' => $waterDevice->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'previous_reading' => '10',
+            'current_reading' => '15',
+            'consumption' => '5',
+            'reading_date' => '2026-02-28',
+            'status' => MeterReading::STATUS_CONFIRMED,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/invoices/preview', [
+                'contract_id' => $contract->id,
+                'billing_month' => 2,
+                'billing_year' => 2026,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Chỉ số Điện tháng 2/2026 chưa được xác nhận.');
+
+        $this->assertDatabaseCount('invoices', 0);
+        $this->assertDatabaseCount('invoice_items', 0);
+    }
+
     public function test_admin_can_generate_draft_invoice_with_prorating_for_mid_month_checkin(): void
     {
         // February 2026 has 28 days. Contract starts on February 15th.

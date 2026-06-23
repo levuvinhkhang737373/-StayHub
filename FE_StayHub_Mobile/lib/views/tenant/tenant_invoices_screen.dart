@@ -30,8 +30,17 @@ class _TenantInvoicesScreenState extends State<TenantInvoicesScreen> {
       final socketService = context.read<WebSocketService>();
       _socketSub = socketService.notificationsStream.listen((event) {
         final type = event['type'];
-        if (type == 'invoice_paid' || type == 'invoice_issued') {
+        if (type == 'invoice_paid' || type == 'invoice_issued' || type == 'notification_sent') {
           if (mounted) {
+            final notificationData = event['data'];
+            final isInvoiceReminder = type == 'notification_sent' &&
+                notificationData is Map &&
+                notificationData['notification_type'].toString() == '2';
+
+            if (type == 'notification_sent' && !isInvoiceReminder) {
+              return;
+            }
+
             context.read<InvoiceController>().fetchInvoices(isAdmin: false);
             final invoiceData = event['data'];
             final code = invoiceData != null ? invoiceData['invoice_code'] : '';
@@ -39,8 +48,14 @@ class _TenantInvoicesScreenState extends State<TenantInvoicesScreen> {
               SnackBar(
                 content: Text(type == 'invoice_paid'
                     ? 'Hóa đơn $code đã được thanh toán thành công!'
-                    : 'Hóa đơn mới $code vừa được phát hành!'),
-                backgroundColor: type == 'invoice_paid' ? Colors.green : Colors.blue,
+                    : type == 'invoice_issued'
+                        ? 'Hóa đơn mới $code vừa được phát hành!'
+                        : (notificationData['content'] as String? ?? 'Bạn có nhắc thanh toán hóa đơn tiền phòng.')),
+                backgroundColor: type == 'invoice_paid'
+                    ? Colors.green
+                    : type == 'invoice_issued'
+                        ? Colors.blue
+                        : const Color(0xFFEAB308),
               ),
             );
           }

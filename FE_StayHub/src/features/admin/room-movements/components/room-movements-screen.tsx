@@ -1,0 +1,521 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, DoorOpen, Eye, FilterX, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
+import { ApiError } from '../../../../shared/lib/api/api-client'
+import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
+import { cn } from '../../../../shared/lib/utils/cn'
+import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
+import { AdminSelect } from '../../shared/components/AdminSelect'
+import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
+import type { AdminRoomResource, BuildingResource } from '../../rooms/types/rooms.model'
+import { fetchAdminRoomMovementDetail, fetchAdminRoomMovements } from '../services/room-movements.service'
+import type { AdminRoomMovementPaginationMeta, AdminRoomMovementResource } from '../types/room-movement-api.model'
+
+const MOVEMENT_TRANSFER = 2
+const MOVEMENT_CHECKOUT = 1
+
+const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
+
+const movementTypeOptions = [
+  { value: '', label: 'Tất cả biến động', tone: 'default' as const },
+  { value: MOVEMENT_TRANSFER, label: 'Chuyển phòng', tone: 'success' as const },
+  { value: MOVEMENT_CHECKOUT, label: 'Trả phòng', tone: 'warning' as const },
+]
+
+const perPageOptions = [
+  { value: 10, label: '10 dòng', tone: 'default' as const },
+  { value: 20, label: '20 dòng', tone: 'default' as const },
+  { value: 50, label: '50 dòng', tone: 'default' as const },
+  { value: 100, label: '100 dòng', tone: 'default' as const },
+]
+
+const tableHeadCellClass = 'whitespace-nowrap px-3 py-3 align-middle'
+const tableBodyCellClass = 'whitespace-nowrap px-3 py-4 align-middle'
+
+export function RoomMovementsScreen() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tenantIdFilter = searchParams.get('tenant_id') || ''
+  const contractIdFilter = searchParams.get('contract_id') || ''
+  const deepLinkFilterKey = `${tenantIdFilter}:${contractIdFilter}`
+  const [keyword, setKeyword] = useState('')
+  const [movementType, setMovementType] = useState<string | number>('')
+  const [buildingId, setBuildingId] = useState<string | number>('')
+  const [roomId, setRoomId] = useState<string | number>('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [perPage, setPerPage] = useState(20)
+  const [pageState, setPageState] = useState({ key: deepLinkFilterKey, page: 1 })
+  const [movements, setMovements] = useState<AdminRoomMovementResource[]>([])
+  const [paginationMeta, setPaginationMeta] = useState<AdminRoomMovementPaginationMeta | null>(null)
+  const [buildings, setBuildings] = useState<BuildingResource[]>([])
+  const [rooms, setRooms] = useState<AdminRoomResource[]>([])
+  const [selectedMovement, setSelectedMovement] = useState<AdminRoomMovementResource | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isOptionsLoading, setIsOptionsLoading] = useState(true)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
+  const currentPage = pageState.key === deepLinkFilterKey ? pageState.page : 1
+
+  const setCurrentPage = useCallback((page: number) => {
+    setPageState({ key: deepLinkFilterKey, page })
+  }, [deepLinkFilterKey])
+
+  const loadMovements = useCallback(async () => {
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await fetchAdminRoomMovements({
+        keyword: keyword.trim() || undefined,
+        movement_type: movementType ? Number(movementType) : undefined,
+        building_id: buildingId ? Number(buildingId) : undefined,
+        room_id: roomId ? Number(roomId) : undefined,
+        tenant_id: tenantIdFilter ? Number(tenantIdFilter) : undefined,
+        contract_id: contractIdFilter ? Number(contractIdFilter) : undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        page: currentPage,
+        per_page: perPage,
+      })
+
+      setMovements(response.result?.data || [])
+      setPaginationMeta(response.result?.meta || null)
+
+      if (response.result?.meta?.last_page && currentPage > response.result.meta.last_page) {
+        setCurrentPage(response.result.meta.last_page)
+      }
+    } catch (error) {
+      setMovements([])
+      setPaginationMeta(null)
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải lịch sử phòng và cọc.'))
+    } finally {
+      setIsLoading(false)
+    }
+  }, [buildingId, contractIdFilter, currentPage, dateFrom, dateTo, keyword, movementType, perPage, roomId, setCurrentPage, tenantIdFilter])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadMovements()
+    }, 250)
+
+    return () => window.clearTimeout(timer)
+  }, [loadMovements])
+
+  useEffect(() => {
+    async function loadOptions() {
+      setIsOptionsLoading(true)
+      try {
+        const [buildingResponse, roomResponse] = await Promise.all([
+          fetchBuilding(),
+          fetchAdminRooms({ per_page: 1000 }),
+        ])
+
+        setBuildings(buildingResponse.result || [])
+        setRooms(roomResponse.result || [])
+      } catch (error) {
+        console.error('Không thể tải bộ lọc lịch sử phòng', error)
+      } finally {
+        setIsOptionsLoading(false)
+      }
+    }
+
+    void loadOptions()
+  }, [])
+
+  useEffect(() => {
+    if (!isDetailOpen) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closeDetail()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isDetailOpen])
+
+  const buildingOptions = useMemo(() => [
+    { value: '', label: 'Tất cả tòa nhà', tone: 'default' as const },
+    ...buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })),
+  ], [buildings])
+
+  const roomOptions = useMemo(() => [
+    { value: '', label: 'Tất cả phòng', tone: 'default' as const },
+    ...rooms
+      .filter((room) => !buildingId || Number(room.building_id) === Number(buildingId))
+      .map((room) => ({
+        value: room.id,
+        label: `Phòng ${room.room_number}${room.building?.name || room.building_name ? ` · ${room.building?.name || room.building_name}` : ''}`,
+        tone: 'default' as const,
+      })),
+  ], [buildingId, rooms])
+
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, paginationMeta?.last_page ?? currentPage))
+  const totalPages = Math.max(1, paginationMeta?.last_page ?? (movements.length >= perPage ? currentPage + 1 : currentPage))
+  const paginationStart = paginationMeta?.from ?? (movements.length === 0 ? 0 : (safeCurrentPage - 1) * perPage + 1)
+  const paginationEnd = paginationMeta?.to ?? (movements.length === 0 ? 0 : (safeCurrentPage - 1) * perPage + movements.length)
+  const totalMovements = paginationMeta?.total ?? (safeCurrentPage - 1) * perPage + movements.length
+  const visiblePages = useMemo(() => {
+    const pages = new Set<number>([1, totalPages, safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1])
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= totalPages)
+      .sort((left, right) => left - right)
+  }, [safeCurrentPage, totalPages])
+  const transferCount = useMemo(() => movements.filter((movement) => Number(movement.movement_type) === MOVEMENT_TRANSFER).length, [movements])
+  const checkoutCount = useMemo(() => movements.filter((movement) => Number(movement.movement_type) === MOVEMENT_CHECKOUT).length, [movements])
+  const hasDeepLinkFilter = Boolean(tenantIdFilter || contractIdFilter)
+  const hasActiveFilters = Boolean(keyword || movementType || buildingId || roomId || dateFrom || dateTo || hasDeepLinkFilter)
+
+  function updateFilter(setter: (value: string) => void, value: string) {
+    setter(value)
+    setCurrentPage(1)
+  }
+
+  function updateSelectFilter(setter: (value: string | number) => void, value: string | number) {
+    setter(value)
+    setCurrentPage(1)
+  }
+
+  function clearFilters() {
+    setKeyword('')
+    setMovementType('')
+    setBuildingId('')
+    setRoomId('')
+    setDateFrom('')
+    setDateTo('')
+    setSearchParams({})
+    setCurrentPage(1)
+  }
+
+  function changePage(page: number) {
+    setCurrentPage(Math.min(Math.max(1, page), totalPages))
+  }
+
+  function changePerPage(nextValue: string | number) {
+    setPerPage(Number(nextValue))
+    setCurrentPage(1)
+  }
+
+  async function openDetail(movement: AdminRoomMovementResource) {
+    setSelectedMovement(movement)
+    setIsDetailOpen(true)
+    setIsDetailLoading(true)
+    setDetailErrorMessage(null)
+
+    try {
+      const response = await fetchAdminRoomMovementDetail(movement.id)
+      setSelectedMovement(response.result)
+    } catch (error) {
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết lịch sử phòng và cọc.'))
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }
+
+  function closeDetail() {
+    setIsDetailOpen(false)
+    setSelectedMovement(null)
+    setDetailErrorMessage(null)
+  }
+
+  return (
+    <>
+      <section className="space-y-6 text-[#24170d]">
+        <section className="overflow-hidden rounded-[2.15rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
+          <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(243,197,107,0.28),transparent_30%),radial-gradient(circle_at_86%_4%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
+            <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
+            <div className="relative grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-end">
+              <div>
+                <Link to="/admin/tenants" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b] transition hover:text-[#ffd56f]">
+                  <ArrowLeft className="h-3.5 w-3.5" /> Khách thuê & hợp đồng
+                </Link>
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#f3c56b] shadow-xl shadow-black/15">
+                    <History className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Lịch sử phòng & cọc</h1>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <MetricCard label="Tổng ghi nhận" value={totalMovements} icon={<ReceiptText className="h-4 w-4" />} />
+                <MetricCard label="Chuyển phòng" value={transferCount} icon={<ArrowRightLeft className="h-4 w-4" />} />
+                <MetricCard label="Trả phòng" value={checkoutCount} icon={<DoorOpen className="h-4 w-4" />} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur lg:p-5">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-[1.35fr_0.85fr_0.95fr_0.95fr_0.85fr_0.85fr_auto]">
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
+              <input value={keyword} onChange={(event) => updateFilter(setKeyword, event.target.value)} placeholder="Tìm khách, phòng, hợp đồng, ghi chú..." className={cn(inputClass, 'pl-11')} />
+            </label>
+            <AdminSelect value={movementType} options={movementTypeOptions} onChange={(value) => updateSelectFilter(setMovementType, value)} />
+            <AdminSelect value={buildingId} options={buildingOptions} onChange={(value) => { updateSelectFilter(setBuildingId, value); setRoomId('') }} disabled={isOptionsLoading} />
+            <AdminSelect value={roomId} options={roomOptions} onChange={(value) => updateSelectFilter(setRoomId, value)} disabled={isOptionsLoading} />
+            <AdminDateInput value={dateFrom} onChange={(value) => updateFilter(setDateFrom, value)} placeholder="Từ ngày" className={inputClass} />
+            <AdminDateInput value={dateTo} onChange={(value) => updateFilter(setDateTo, value)} placeholder="Đến ngày" className={inputClass} />
+            <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#24170d] px-4 text-xs font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-45">
+              <FilterX className="h-4 w-4" /> Xóa lọc
+            </button>
+          </div>
+
+          {hasDeepLinkFilter && (
+            <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-[#0f5f59]">
+              {tenantIdFilter && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Đang lọc khách thuê #{tenantIdFilter}</span>}
+              {contractIdFilter && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Đang lọc hợp đồng #{contractIdFilter}</span>}
+            </div>
+          )}
+        </section>
+
+        <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-white/78 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur">
+          {errorMessage && <div className="m-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1280px] border-separate border-spacing-0 text-left">
+              <colgroup>
+                <col className="w-[170px]" />
+                <col className="w-[155px]" />
+                <col className="w-[515px]" />
+                <col className="w-[120px]" />
+                <col className="w-[125px]" />
+                <col className="w-[150px]" />
+                <col className="w-[80px]" />
+              </colgroup>
+              <thead className="bg-[#efe2cf]/45 text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/75">
+                <tr>
+                  <th scope="col" className={cn(tableHeadCellClass, 'pl-5')}>Thời điểm</th>
+                  <th scope="col" className={tableHeadCellClass}>Khách thuê</th>
+                  <th scope="col" className={tableHeadCellClass}>Luồng phòng</th>
+                  <th scope="col" className={tableHeadCellClass}>Loại</th>
+                  <th scope="col" className={tableHeadCellClass}>Hợp đồng</th>
+                  <th scope="col" className={tableHeadCellClass}>Người xử lý</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'pr-5 text-right')}>Chi tiết</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#3d2a18]/10">
+                {isLoading && (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-16 text-center text-sm font-black text-[#8b5e34]">
+                      <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải lịch sử phòng và cọc...</span>
+                    </td>
+                  </tr>
+                )}
+
+                {!isLoading && movements.map((movement) => (
+                  <tr key={movement.id} className="group bg-white/55 transition hover:bg-[#fff8eb]">
+                    <td className={cn(tableBodyCellClass, 'pl-5 text-[13px] font-black text-[#24170d]')}>
+                      <div className="flex items-start gap-2">
+                        <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5e34]" />
+                        <span className="whitespace-nowrap tabular-nums">{formatDateTime(movement.movement_date)}</span>
+                      </div>
+                    </td>
+                    <td className={tableBodyCellClass}>
+                      <p className="truncate text-[13px] font-black leading-5 text-[#24170d]" title={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}>{movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}</p>
+                      <p className="mt-1 truncate text-[11px] font-bold text-[#6f6254]" title={movement.tenant?.phone || movement.tenant?.email || '—'}>{movement.tenant?.phone || movement.tenant?.email || '—'}</p>
+                    </td>
+                    <td className={tableBodyCellClass}>
+                      <RoomFlow movement={movement} />
+                    </td>
+                    <td className={tableBodyCellClass}><MovementBadge movement={movement} /></td>
+                    <td className={cn(tableBodyCellClass, 'text-[12px] font-black text-[#24170d]')}>
+                      <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')}</span>
+                    </td>
+                    <td className={cn(tableBodyCellClass, 'truncate text-[12px] font-black leading-5 text-[#6f6254]')} title={movement.creator_name || '—'}>{movement.creator_name || '—'}</td>
+                    <td className={cn(tableBodyCellClass, 'pr-5 text-right')}>
+                      <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
+                        <Eye className="h-5 w-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+
+                {!isLoading && movements.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-20 text-center">
+                      <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-[#fffaf1]/70 px-6 py-8">
+                        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><History className="h-9 w-9" /></div>
+                        <p className="text-lg font-black tracking-tight text-[#24170d]">Chưa có lịch sử phù hợp</p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">Thử đổi bộ lọc hoặc kiểm tra lại nghiệp vụ chuyển/trả phòng.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <p className="text-xs font-black text-[#6f6254]">
+              Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalMovements}</span> bản ghi
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="w-full sm:w-36">
+                <AdminSelect value={perPage} options={perPageOptions} onChange={changePerPage} menuPlacement="top" />
+              </div>
+              <div className="flex items-center justify-end gap-1.5">
+                <button type="button" disabled={safeCurrentPage <= 1} onClick={() => changePage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                {visiblePages.map((page, index) => {
+                  const previousPage = visiblePages[index - 1]
+                  const hasGap = previousPage && page - previousPage > 1
+
+                  return (
+                    <div key={page} className="flex items-center gap-1.5">
+                      {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
+                      <button type="button" onClick={() => changePage(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === safeCurrentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')} aria-current={page === safeCurrentPage ? 'page' : undefined}>
+                        {page}
+                      </button>
+                    </div>
+                  )
+                })}
+                <button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => changePage(safeCurrentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      {isDetailOpen && selectedMovement && (
+        <DetailDrawer movement={selectedMovement} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} />
+      )}
+    </>
+  )
+}
+
+function MetricCard({ label, value, icon }: { label: string; value: number; icon: ReactNode }) {
+  return (
+    <div className="rounded-3xl border border-[#f8e8c8]/12 bg-[#f8e8c8]/10 px-4 py-3 text-[#fff4df] backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10">
+      <div className="flex items-center justify-between gap-3 text-[#f3c56b]">{icon}<span className="text-[10px] font-black uppercase tracking-[0.18em] opacity-75">{label}</span></div>
+      <p className="mt-2 text-3xl font-black tracking-tight tabular-nums">{value}</p>
+    </div>
+  )
+}
+
+function MovementBadge({ movement }: { movement: AdminRoomMovementResource }) {
+  const isTransfer = Number(movement.movement_type) === MOVEMENT_TRANSFER
+  return (
+    <span className={cn('inline-flex items-center whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-black leading-none', isTransfer ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#f3c56b]/35 bg-[#f3c56b]/18 text-[#8a4f18]')}>
+      {movement.movement_type_label || (isTransfer ? 'Chuyển phòng' : 'Trả phòng')}
+    </span>
+  )
+}
+
+function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
+  return (
+    <div className="inline-flex min-w-max items-center gap-2 whitespace-nowrap text-[12px] font-black leading-none text-[#24170d]">
+      <span className="inline-flex shrink-0 whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1.5">{roomLabel(movement.from_room, 'Phòng cũ')}</span>
+      <ArrowRightLeft className="h-4 w-4 shrink-0 text-[#8b5e34]" />
+      <span className="inline-flex shrink-0 whitespace-nowrap rounded-xl border border-[#0f766e]/15 bg-[#0f766e]/8 px-3 py-1.5 text-[#0f5f59]">{roomLabel(movement.to_room, 'Trả phòng')}</span>
+    </div>
+  )
+}
+
+function DetailDrawer({ movement, isLoading, errorMessage, onClose }: { movement: AdminRoomMovementResource; isLoading: boolean; errorMessage: string | null; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
+      <button type="button" aria-label="Đóng chi tiết lịch sử" onClick={onClose} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm" />
+      <aside className="relative z-10 h-full w-full max-w-2xl overflow-y-auto border-l border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/35">
+        <div className="sticky top-0 z-10 bg-[#24170d] p-5 text-[#fff4df] shadow-xl shadow-black/15">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Chi tiết ledger</p>
+              <h2 id="room-movement-detail-title" className="mt-2 text-2xl font-black tracking-tight">{movement.tenant?.full_name || movement.tenant?.username || `Khách #${movement.tenant_id}`}</h2>
+              <p className="mt-1 text-sm font-semibold text-[#f8e8c8]/78">{formatDateTime(movement.movement_date)} · {movement.movement_type_label || 'Biến động phòng'}</p>
+            </div>
+            <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết lịch sử">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-5">
+          {isLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết...</div>}
+          {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
+
+          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Luồng phòng</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <DetailTile label="Phòng cũ" value={roomLabel(movement.from_room, '—')} />
+              <DetailTile label="Phòng mới" value={roomLabel(movement.to_room, 'Trả phòng')} />
+              <DetailTile label="Hợp đồng" value={movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')} />
+              <DetailTile label="Người xử lý" value={movement.creator_name || '—'} />
+            </div>
+          </section>
+
+          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cọc & phí</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <MoneyTile label="Cọc bàn giao" value={movement.old_room_final_amount} tone="neutral" />
+              <MoneyTile label="Cọc chuyển sang" value={movement.deposit_transfer_amount} tone="success" />
+              <MoneyTile label="Hoàn cọc" value={movement.deposit_refund_amount} tone="warning" />
+              <MoneyTile label="Khấu trừ" value={movement.deduction_amount} tone="danger" />
+              <MoneyTile label="Phí chuyển phòng" value={movement.transfer_fee} tone="neutral" />
+            </div>
+          </section>
+
+          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Chỉ số chốt</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <DetailTile label="Điện" value={movement.final_electric_reading || '—'} />
+              <DetailTile label="Nước" value={movement.final_water_reading || '—'} />
+            </div>
+          </section>
+
+          {movement.note && (
+            <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Ghi chú</p>
+              <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-[#3d2a18]">{movement.note}</p>
+            </section>
+          )}
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function DetailTile({ label, value }: { label: string; value?: ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
+      <div className="mt-1 break-words text-sm font-black text-[#24170d]">{value ?? '—'}</div>
+    </div>
+  )
+}
+
+function MoneyTile({ label, value, tone }: { label: string; value?: string | null; tone: 'neutral' | 'success' | 'warning' | 'danger' }) {
+  const toneClassName = {
+    neutral: 'text-[#24170d]',
+    success: 'text-[#0f5f59]',
+    warning: 'text-[#8a4f18]',
+    danger: 'text-rose-700',
+  }[tone]
+
+  return (
+    <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 shadow-sm">
+      <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60"><Banknote className="h-3.5 w-3.5" /> {label}</p>
+      <p className={cn('mt-1 text-lg font-black tabular-nums', toneClassName)}>{formatCurrency(value)}</p>
+    </div>
+  )
+}
+
+function roomLabel(room: AdminRoomMovementResource['from_room'], fallback: string) {
+  if (!room) return fallback
+  return `Phòng ${room.room_number || room.id}${room.building_name ? ` · ${room.building_name}` : ''}`
+}
+
+function getVisibleErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiError) return error.message || fallback
+  if (error instanceof Error) return error.message
+  return fallback
+}

@@ -28,6 +28,7 @@ import { VehiclesScreen } from '../features/admin/vehicles'
 import { MeterReadingsScreen } from '../features/admin/meter-readings'
 import { TenantTransferRoomScreen } from '../features/admin/tenants/components/TenantTransferRoomScreen'
 import { ActivityLogsScreen } from '../features/admin/activity-logs'
+import { RoomMovementsScreen } from '../features/admin/room-movements'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -110,6 +111,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'contracts/:contractId/renew',
         element: <AdminRouteGuard access="contract-manager"><CreateContractScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'room-movements',
+        element: <AdminRouteGuard access="all"><RoomMovementsScreen /></AdminRouteGuard>,
       },
       {
         path: 'services',

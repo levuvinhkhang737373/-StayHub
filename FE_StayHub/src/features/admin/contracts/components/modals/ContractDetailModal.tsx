@@ -1,4 +1,5 @@
 import { FileText, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { formatCurrency, formatDate, formatDateTime, formatMoneyText } from '../../../../../shared/lib/utils/format'
 import type { AdminContractResource } from '../../types/contract-api.model'
 import { getStatusLabel } from '../../utils/contract.helpers'
@@ -492,7 +493,14 @@ export function ContractDetailModal({
           </section>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <DetailTile label="Chuyển phòng" value={contract.room_movements_count ?? 0} />
+            <DetailTile
+              label="Lịch sử phòng"
+              value={
+                <Link to={`/admin/room-movements?contract_id=${contract.id}`} className="inline-flex items-center rounded-full border border-[#0f766e]/15 bg-[#0f766e]/10 px-3 py-1 text-xs font-black text-[#0f5f59] transition hover:bg-[#0f766e]/15">
+                  {contract.room_movements_count ?? 0} bản ghi
+                </Link>
+              }
+            />
             <DetailTile label="Cập nhật" value={formatDateTime(contract.updated_at)} />
           </div>
 

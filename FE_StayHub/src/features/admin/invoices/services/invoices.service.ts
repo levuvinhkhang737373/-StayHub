@@ -3,6 +3,7 @@ import type {
   AdminInvoiceFilters,
   AdminInvoiceGeneratePayload,
   AdminInvoicePaymentPayload,
+  AdminInvoicePreviewResource,
   AdminInvoiceResource,
   AdminInvoiceUpdatePayload,
   AdminPaginator,
@@ -50,6 +51,14 @@ export async function fetchAdminInvoiceDetail(invoiceId: number) {
 export async function generateAdminInvoice(payload: AdminInvoiceGeneratePayload) {
   return apiRequest<AdminInvoiceResource>({
     url: 'admin/invoices/generate',
+    method: 'POST',
+    data: payload,
+  })
+}
+
+export async function previewAdminInvoice(payload: AdminInvoiceGeneratePayload) {
+  return apiRequest<AdminInvoicePreviewResource>({
+    url: 'admin/invoices/preview',
     method: 'POST',
     data: payload,
   })

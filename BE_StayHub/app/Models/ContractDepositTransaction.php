@@ -12,14 +12,22 @@ class ContractDepositTransaction extends Model
 
     public const TRANSACTION_TYPE_COLLECT = 1;
     public const TRANSACTION_TYPE_REFUND = 2;
-    public const TRANSACTION_TYPE_TRANSFER = 3;
+    public const TRANSACTION_TYPE_TRANSFER_IN = 3;
+    public const TRANSACTION_TYPE_TRANSFER = self::TRANSACTION_TYPE_TRANSFER_IN;
     public const TRANSACTION_TYPE_DEDUCT = 4;
+    public const TRANSACTION_TYPE_TRANSFER_OUT = 5;
 
     public const TRANSACTION_TYPE_LABELS = [
         self::TRANSACTION_TYPE_COLLECT => 'Thu cọc',
         self::TRANSACTION_TYPE_REFUND => 'Hoàn cọc',
-        self::TRANSACTION_TYPE_TRANSFER => 'Chuyển cọc',
+        self::TRANSACTION_TYPE_TRANSFER_IN => 'Nhận cọc chuyển vào',
         self::TRANSACTION_TYPE_DEDUCT => 'Khấu trừ cọc',
+        self::TRANSACTION_TYPE_TRANSFER_OUT => 'Chuyển cọc ra',
+    ];
+
+    public const POSITIVE_BALANCE_TYPES = [
+        self::TRANSACTION_TYPE_COLLECT,
+        self::TRANSACTION_TYPE_TRANSFER_IN,
     ];
 
     public const PAYMENT_METHOD_CASH = 1;
@@ -43,6 +51,11 @@ class ContractDepositTransaction extends Model
             'transaction_date' => 'date',
             'transaction_reference' => 'string'
         ];
+    }
+
+    public static function increasesDepositBalance(int $transactionType): bool
+    {
+        return in_array($transactionType, self::POSITIVE_BALANCE_TYPES, true);
     }
 
     protected static function booted()

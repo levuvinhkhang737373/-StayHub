@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
-import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, generateSingleInvoice, updateUtilityPrices } from '../services/meter-readings.service'
+import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, updateUtilityPrices } from '../services/meter-readings.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import type { AnalyzeMeterImageResponse, RoomReadingInit, ServicePriceInit } from '../types/meter-readings.model'
+import { generateAdminInvoice, previewAdminInvoice } from '../../invoices/services/invoices.service'
+import type { AdminInvoiceGeneratePayload, AdminInvoicePreviewResource } from '../../invoices/types/invoice-api.model'
+import { InvoicePreviewModal } from '../../invoices/components/invoice-preview-modal'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
@@ -134,6 +137,8 @@ export function MeterReadingsScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isGeneratingBulk, setIsGeneratingBulk] = useState(false)
   const [isGeneratingSingle, setIsGeneratingSingle] = useState<number | null>(null)
+  const [previewInvoice, setPreviewInvoice] = useState<AdminInvoicePreviewResource | null>(null)
+  const [pendingGeneratePayload, setPendingGeneratePayload] = useState<AdminInvoiceGeneratePayload | null>(null)
   const { echo } = useAdminSocket()
 
   // Modal State
@@ -266,15 +271,34 @@ export function MeterReadingsScreen() {
     setErrorMessage(null)
     setSuccessMessage(null)
     try {
-      await generateSingleInvoice({
+      const payload = {
         contract_id: contractId,
         billing_month: selectedMonth,
         billing_year: selectedYear
-      })
-      setSuccessMessage('Tạo hóa đơn thành công.')
+      }
+      const response = await previewAdminInvoice(payload)
+      setPendingGeneratePayload(payload)
+      setPreviewInvoice(response.result)
+    } catch (e) {
+      setErrorMessage(getVisibleErrorMessage(e, 'Không thể xem trước hóa đơn.'))
+    } finally {
+      setIsGeneratingSingle(null)
+    }
+  }
+
+  const handleConfirmGenerateSingle = async () => {
+    if (!pendingGeneratePayload || isGeneratingSingle === pendingGeneratePayload.contract_id) return
+    setIsGeneratingSingle(pendingGeneratePayload.contract_id)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    try {
+      await generateAdminInvoice(pendingGeneratePayload)
+      setPreviewInvoice(null)
+      setPendingGeneratePayload(null)
+      setSuccessMessage('Phát hành hóa đơn thành công.')
       await loadReadingsData()
     } catch (e) {
-      setErrorMessage(getVisibleErrorMessage(e, 'Không thể tạo hóa đơn.'))
+      setErrorMessage(getVisibleErrorMessage(e, 'Không thể phát hành hóa đơn.'))
     } finally {
       setIsGeneratingSingle(null)
     }
@@ -1119,6 +1143,18 @@ export function MeterReadingsScreen() {
         alt={previewImage?.alt ?? 'Ảnh đồng hồ'}
         onClose={() => setPreviewImage(null)}
       />
+
+      {previewInvoice && pendingGeneratePayload && (
+        <InvoicePreviewModal
+          invoice={previewInvoice}
+          isIssuing={isGeneratingSingle === pendingGeneratePayload.contract_id}
+          onClose={() => {
+            if (isGeneratingSingle === pendingGeneratePayload.contract_id) return
+            setPreviewInvoice(null)
+          }}
+          onConfirm={() => void handleConfirmGenerateSingle()}
+        />
+      )}
 
       {/* Price Edit Dialog */}
       {isPriceModalOpen && (

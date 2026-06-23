@@ -12,6 +12,7 @@ use App\Helpers\DecimalMoney;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\InvoiceDetailResource;
+use App\Http\Resources\Admin\InvoicePreviewResource;
 use App\Http\Resources\Admin\InvoiceResource;
 use App\Http\Requests\Admin\Invoice\IndexRequest;
 use App\Http\Requests\Admin\Invoice\ShowRequest;
@@ -94,6 +95,24 @@ class InvoiceController extends Controller
         }
     }
 
+    public function preview(GenerateRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $admin = $request->user('admin');
+
+            $draft = $this->prepareInvoiceDraft($validated, $admin, false);
+            if ($draft instanceof JsonResponse) {
+                return $draft;
+            }
+
+            return ApiResponse::responseJson(true, 'Xem trước hóa đơn thành công', 200, new InvoicePreviewResource($draft), 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
     public function generate(GenerateRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -102,60 +121,17 @@ class InvoiceController extends Controller
             $admin = $request->user('admin');
 
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
-                $contract = Contract::query()
-                    ->with(['room.building', 'contractTenants.tenant', 'contractVehicles.vehicle'])
-                    ->lockForUpdate()
-                    ->find($validated['contract_id']);
-
-                if (! $contract) {
-                    return ApiResponse::responseJson(false, 'Không tìm thấy hợp đồng', 404, null, 404);
+                $draft = $this->prepareInvoiceDraft($validated, $admin, true);
+                if ($draft instanceof JsonResponse) {
+                    return $draft;
                 }
 
-                if (! $contract->room || ! $this->canAccessBuilding($admin, (int) $contract->room->building_id)) {
-                    return ApiResponse::responseJson(false, 'Bạn không có quyền lập hóa đơn cho phòng này', 403, null, 403);
-                }
-
-                if (! in_array((int) $contract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
-                    return ApiResponse::responseJson(false, 'Chỉ lập hóa đơn cho hợp đồng đang hiệu lực hoặc vừa hết hạn', 422, null, 422);
-                }
-
-                $periodStart = Carbon::create((int) $validated['billing_year'], (int) $validated['billing_month'], 1)->startOfDay();
-                $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
-                $dueDate = isset($validated['due_date'])
-                    ? Carbon::parse($validated['due_date'])->startOfDay()
-                    : $periodStart->copy()->addMonthNoOverflow()->day(5)->startOfDay();
-
-                if ($contract->start_date && $contract->start_date->copy()->startOfDay()->greaterThan($periodEnd)) {
-                    return ApiResponse::responseJson(false, 'Hợp đồng chưa bắt đầu trong kỳ hóa đơn này', 422, null, 422);
-                }
-
-                $contractEndDate = $contract->actual_end_date ?: $contract->end_date;
-                if ($contractEndDate && $contractEndDate->copy()->startOfDay()->lessThan($periodStart)) {
-                    return ApiResponse::responseJson(false, 'Hợp đồng đã kết thúc trước kỳ hóa đơn này', 422, null, 422);
-                }
-
-                $existingInvoice = Invoice::query()
-                    ->where('contract_id', $contract->id)
-                    ->where('billing_year', $periodStart->year)
-                    ->where('billing_month', $periodStart->month)
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($existingInvoice) {
-                    return ApiResponse::responseJson(false, 'Hợp đồng này đã có hóa đơn trong kỳ đã chọn', 422, null, 422);
-                }
-
-                $automaticItems = $this->buildAutomaticItems($contract, $periodStart, $periodEnd);
-                if (! empty($automaticItems['errors'])) {
-                    return ApiResponse::responseJson(false, implode(' ', $automaticItems['errors']), 422, null, 422);
-                }
-
-                $items = array_merge($automaticItems['items'], $this->buildAdjustmentItems($validated['adjustments'] ?? []));
-                $totalAmount = $this->calculateItemsTotal($items);
-
-                if (DecimalMoney::compare($totalAmount, '0') < 0) {
-                    return ApiResponse::responseJson(false, 'Tổng tiền hóa đơn không được âm', 422, null, 422);
-                }
+                $contract = $draft['contract'];
+                $periodStart = $draft['period_start'];
+                $periodEnd = $draft['period_end'];
+                $dueDate = $draft['due_date'];
+                $items = $draft['items'];
+                $totalAmount = $draft['total_amount'];
 
                 $invoice = Invoice::query()->create([
                     'invoice_code' => $this->makeInvoiceCode($periodStart),
@@ -165,12 +141,12 @@ class InvoiceController extends Controller
                     'billing_year' => $periodStart->year,
                     'period_start' => $periodStart->toDateString(),
                     'period_end' => $periodEnd->toDateString(),
-                    'previous_debt_amount' => $automaticItems['previous_debt_amount'],
+                    'previous_debt_amount' => $draft['previous_debt_amount'],
                     'total_amount' => $totalAmount,
                     'paid_amount' => '0.00',
                     'remaining_amount' => $totalAmount,
                     'due_date' => $dueDate->toDateString(),
-                    'status' => DecimalMoney::compare($totalAmount, '0') <= 0 ? Invoice::STATUS_PAID : Invoice::STATUS_UNPAID,
+                    'status' => $draft['status'],
                     'issued_at' => now(),
                     'created_by' => $admin->id,
                 ]);
@@ -196,6 +172,82 @@ class InvoiceController extends Controller
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
+    }
+
+    private function prepareInvoiceDraft(array $validated, Admin $admin, bool $forIssue): array|JsonResponse
+    {
+        $contractQuery = Contract::query()
+            ->with(['room.building', 'contractTenants.tenant', 'contractVehicles.vehicle']);
+
+        if ($forIssue) {
+            $contractQuery->lockForUpdate();
+        }
+
+        $contract = $contractQuery->find($validated['contract_id']);
+
+        if (! $contract) {
+            return ApiResponse::responseJson(false, 'Không tìm thấy hợp đồng', 404, null, 404);
+        }
+
+        if (! $contract->room || ! $this->canAccessBuilding($admin, (int) $contract->room->building_id)) {
+            return ApiResponse::responseJson(false, 'Bạn không có quyền lập hóa đơn cho phòng này', 403, null, 403);
+        }
+
+        if (! in_array((int) $contract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
+            return ApiResponse::responseJson(false, 'Chỉ lập hóa đơn cho hợp đồng đang hiệu lực hoặc vừa hết hạn', 422, null, 422);
+        }
+
+        $periodStart = Carbon::create((int) $validated['billing_year'], (int) $validated['billing_month'], 1)->startOfDay();
+        $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
+        $dueDate = isset($validated['due_date'])
+            ? Carbon::parse($validated['due_date'])->startOfDay()
+            : $periodStart->copy()->addMonthNoOverflow()->day(5)->startOfDay();
+
+        if ($contract->start_date && $contract->start_date->copy()->startOfDay()->greaterThan($periodEnd)) {
+            return ApiResponse::responseJson(false, 'Hợp đồng chưa bắt đầu trong kỳ hóa đơn này', 422, null, 422);
+        }
+
+        $contractEndDate = $contract->actual_end_date ?: $contract->end_date;
+        if ($contractEndDate && $contractEndDate->copy()->startOfDay()->lessThan($periodStart)) {
+            return ApiResponse::responseJson(false, 'Hợp đồng đã kết thúc trước kỳ hóa đơn này', 422, null, 422);
+        }
+
+        $existingInvoiceQuery = Invoice::query()
+            ->where('contract_id', $contract->id)
+            ->where('billing_year', $periodStart->year)
+            ->where('billing_month', $periodStart->month);
+
+        $existingInvoice = $forIssue
+            ? $existingInvoiceQuery->lockForUpdate()->first()
+            : $existingInvoiceQuery->first();
+
+        if ($existingInvoice) {
+            return ApiResponse::responseJson(false, 'Hợp đồng này đã có hóa đơn trong kỳ đã chọn', 422, null, 422);
+        }
+
+        $automaticItems = $this->buildAutomaticItems($contract, $periodStart, $periodEnd);
+        if (! empty($automaticItems['errors'])) {
+            return ApiResponse::responseJson(false, implode(' ', $automaticItems['errors']), 422, null, 422);
+        }
+
+        $items = array_merge($automaticItems['items'], $this->buildAdjustmentItems($validated['adjustments'] ?? []));
+        $totalAmount = $this->calculateItemsTotal($items);
+
+        if (DecimalMoney::compare($totalAmount, '0') < 0) {
+            return ApiResponse::responseJson(false, 'Tổng tiền hóa đơn không được âm', 422, null, 422);
+        }
+
+        return [
+            'admin' => $admin,
+            'contract' => $contract,
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
+            'due_date' => $dueDate,
+            'previous_debt_amount' => $automaticItems['previous_debt_amount'],
+            'total_amount' => $totalAmount,
+            'items' => $items,
+            'status' => DecimalMoney::compare($totalAmount, '0') <= 0 ? Invoice::STATUS_PAID : Invoice::STATUS_UNPAID,
+        ];
     }
 
     public function update(UpdateRequest $request, int $invoice): JsonResponse

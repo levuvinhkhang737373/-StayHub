@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { Building2, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, Search, Trash2, UserRound, X, ArrowLeft,ArrowRightLeft } from 'lucide-react'
@@ -499,6 +499,16 @@ export function TenantsScreen() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <DetailTile label="Ngày ngừng thuê" value={formatDate(detailTenant?.leave_date)} />
                   <DetailTile label="Ngày tạo" value={formatDateTime(detailTenant?.created_at)} />
+                  <DetailTile
+                    label="Lịch sử phòng"
+                    value={
+                      detailTenant?.id ? (
+                        <Link to={`/admin/room-movements?tenant_id=${detailTenant.id}`} className="inline-flex items-center rounded-full border border-[#0f766e]/15 bg-[#0f766e]/10 px-3 py-1 text-xs font-black text-[#0f5f59] transition hover:bg-[#0f766e]/15">
+                          Xem phòng & cọc
+                        </Link>
+                      ) : '—'
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -665,7 +675,7 @@ function ImageTile({ label, url }: { label: string; url?: string | null }) {
   )
 }
 
-function DetailTile({ label, value }: { label: string; value?: string | number | null }) {
+function DetailTile({ label, value }: { label: string; value?: ReactNode }) {
   return (
     <div className="min-w-0 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 shadow-sm">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>

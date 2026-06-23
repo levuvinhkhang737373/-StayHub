@@ -34,41 +34,6 @@ class RoomController extends Controller
     private const ROOM_STATUS_ACTIVE = 1;     // TODO: xác nhận lại theo enum RoomStatus thật
     private const CONTRACT_STATUS_ACTIVE = 1; // Khớp dữ liệu mẫu
     private const CONTRACT_STATUS_ENDED = 2;  // Khớp dữ liệu mẫu
-    const DEPOSIT_COLLECT      = 1;
-    const DEPOSIT_REFUND       = 2;
-    const DEPOSIT_DEDUCTION    = 3;
-    const DEPOSIT_TRANSFER_OUT = 4;
-    const DEPOSIT_TRANSFER_IN  = 5;
-    const MOVEMENT_TRANSFER = 1;
-    const MOVEMENT_MERGE    = 2;
-
-    /**
-     * CHỈ dùng để hiển thị text cho người dùng (vd trang lịch sử chuyển phòng).
-     * KHÔNG được gọi hàm này khi ghi giá trị xuống DB - các cột movement_type/
-     * transaction_type là tinyint, phải ghi đúng số nguyên (self::MOVEMENT_*,
-     * self::DEPOSIT_*), ghi chuỗi label vào sẽ lỗi insert hoặc bị ép sai giá trị.
-     */
-    protected function getMovementLabel(int $type): string
-    {
-        return match ($type) {
-            self::MOVEMENT_TRANSFER => 'Chuyển phòng (tạo hợp đồng mới)',
-            self::MOVEMENT_MERGE    => 'Ghép vào hợp đồng đang ở',
-            default => 'Không xác định',
-        };
-    }
-
-    /** CHỈ dùng để hiển thị - xem ghi chú ở getMovementLabel(). */
-    protected function getDepositLabel(int $type): string
-    {
-        return match ($type) {
-            self::DEPOSIT_COLLECT      => 'Thu cọc',
-            self::DEPOSIT_REFUND       => 'Hoàn cọc',
-            self::DEPOSIT_DEDUCTION    => 'Trừ cọc',
-            self::DEPOSIT_TRANSFER_OUT => 'Chuyển cọc ra (hợp đồng cũ)',
-            self::DEPOSIT_TRANSFER_IN  => 'Nhận cọc chuyển vào (hợp đồng mới)',
-            default => 'Không xác định',
-        };
-    }
 
     /**
      * Display a listing of the resource.
@@ -427,9 +392,7 @@ class RoomController extends Controller
                 ]);
             }
 
-            // Dùng thẳng hằng số (int) - KHÔNG gọi getDepositLabel()/getMovementLabel() ở đây,
-            // 2 hàm đó chỉ trả về chuỗi text để hiển thị, ghi chuỗi vào cột tinyint sẽ sai.
-            $movementType = self::MOVEMENT_TRANSFER;
+            $movementType = RoomMovement::MOVEMENT_TYPE_TRANSFER;
 
             $destinationContract = Contract::where('room_id', $toRoom->id)
                 ->where('status', self::CONTRACT_STATUS_ACTIVE)
@@ -437,9 +400,7 @@ class RoomController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if ($destinationContract) {
-                $movementType = self::MOVEMENT_MERGE;
-            } else {
+            if (! $destinationContract) {
                 $destinationContract = Contract::create([
                     'contract_code' => $this->generateContractCode($toRoom),
                     'room_id' => $toRoom->id,
@@ -715,7 +676,7 @@ class RoomController extends Controller
         if ($deductionAmount > 0) {
             ContractDepositTransaction::create([
                 'contract_id' => $oldContract->id,
-                'transaction_type' => self::DEPOSIT_DEDUCTION, // số nguyên, KHÔNG gọi getDepositLabel()
+                'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
                 'amount' => $deductionAmount,
                 'transaction_date' => $movementDate->toDateString(),
                 'note' => 'Trừ cọc khi chuyển phòng.',
@@ -726,7 +687,7 @@ class RoomController extends Controller
         if ($refundAmount > 0) {
             ContractDepositTransaction::create([
                 'contract_id' => $oldContract->id,
-                'transaction_type' => self::DEPOSIT_REFUND,
+                'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
                 'amount' => $refundAmount,
                 'transaction_date' => $movementDate->toDateString(),
                 'note' => 'Hoàn cọc khi chuyển phòng.',
@@ -742,7 +703,7 @@ class RoomController extends Controller
 
         ContractDepositTransaction::create([
             'contract_id' => $oldContract->id,
-            'transaction_type' => self::DEPOSIT_TRANSFER_OUT,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER_OUT,
             'amount' => $transferAmount,
             'transaction_date' => $movementDate->toDateString(),
             'note' => "Chuyển cọc sang hợp đồng #{$destinationContract->id}.",
@@ -751,7 +712,7 @@ class RoomController extends Controller
 
         ContractDepositTransaction::create([
             'contract_id' => $destinationContract->id,
-            'transaction_type' => self::DEPOSIT_TRANSFER_IN,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER_IN,
             'amount' => $transferAmount,
             'transaction_date' => $movementDate->toDateString(),
             'note' => "Nhận cọc chuyển từ hợp đồng #{$oldContract->id}.",
