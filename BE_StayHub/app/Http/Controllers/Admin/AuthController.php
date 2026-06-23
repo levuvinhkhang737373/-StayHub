@@ -38,6 +38,10 @@ class AuthController extends Controller
                 return ApiResponse::responseJson(false, 'Tài khoản của bạn đã bị khóa', 403, null, 403);
             }
 
+            if (! Admin::isSupportedRole($admin->role)) {
+                return ApiResponse::responseJson(false, 'Vai trò tài khoản không còn được hỗ trợ', 403, null, 403);
+            }
+
             if (! Hash::check($validated['password'], $admin->password)) {
                 return ApiResponse::responseJson(false, 'Tên đăng nhập hoặc mật khẩu không chính xác', 401, null, 401);
             }
@@ -88,6 +92,10 @@ class AuthController extends Controller
 
             if ($admin->status !== Admin::STATUS_ACTIVE) {
                 return ApiResponse::responseJson(false, 'Tài khoản của bạn đã bị khóa', 403, null, 403);
+            }
+
+            if (! Admin::isSupportedRole($admin->role)) {
+                return ApiResponse::responseJson(false, 'Vai trò tài khoản không còn được hỗ trợ', 403, null, 403);
             }
 
             $this->loginAdminSession($request, $admin);

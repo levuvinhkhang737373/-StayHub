@@ -26,7 +26,6 @@ class RegisterRequest extends FormRequest
 
             'start_date' => ['required', 'date_format:Y-m-d'],
             'end_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'],
-            'actual_end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'billing_cycle_day' => ['required', 'integer', 'min:1', 'max:28'],
             'room_price' => ['required', 'regex:/^\d{1,13}(\.\d{1,2})?$/'],
             'deposit_amount' => ['required', 'regex:/^\d{1,13}(\.\d{1,2})?$/', 'gte:0'],
@@ -90,8 +89,6 @@ class RegisterRequest extends FormRequest
             'end_date.required' => 'Ngày kết thúc hợp đồng là bắt buộc.',
             'end_date.date_format' => 'Ngày kết thúc hợp đồng phải đúng định dạng YYYY-MM-DD.',
             'end_date.after_or_equal' => 'Ngày kết thúc hợp đồng phải lớn hơn hoặc bằng ngày bắt đầu.',
-            'actual_end_date.date_format' => 'Ngày kết thúc thực tế phải đúng định dạng YYYY-MM-DD.',
-            'actual_end_date.after_or_equal' => 'Ngày kết thúc thực tế phải lớn hơn hoặc bằng ngày bắt đầu.',
             'billing_cycle_day.required' => 'Ngày chốt tiền hằng tháng là bắt buộc.',
             'billing_cycle_day.integer' => 'Ngày chốt tiền hằng tháng phải là số nguyên.',
             'billing_cycle_day.min' => 'Ngày chốt tiền hằng tháng tối thiểu là ngày 1.',

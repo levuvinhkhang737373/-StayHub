@@ -255,6 +255,25 @@ export interface AdminContractStatusPayload {
   note?: string | null
 }
 
+export interface AdminContractTerminatePayload {
+  actual_end_date: string
+  deduction_amount?: string | null
+  payment_method?: number | null
+  note?: string | null
+}
+
+export interface AdminContractTerminationSettlement {
+  deposit_balance_before: string
+  deduction_amount: string
+  refund_amount: string
+  deposit_balance_after: string
+}
+
+export interface AdminContractTerminationResult {
+  contract: AdminContractResource
+  settlement: AdminContractTerminationSettlement
+}
+
 export interface ContractTenantFormRow {
   tenant_id: string
   join_date: string

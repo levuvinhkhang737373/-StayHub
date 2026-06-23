@@ -8,6 +8,7 @@ import {
   Car,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   Edit3,
   Eye,
   FileText,
@@ -29,6 +30,7 @@ import {
   fetchAdminContractDetail,
   fetchAdminContracts,
   fetchAvailableRooms,
+  terminateAdminContract,
   updateAdminContractStatus,
 } from '../services/contracts.service'
 import type {
@@ -48,6 +50,7 @@ import {
   getResourceList,
   getVisibleErrorMessage,
   getStatusLabel,
+  todayStr,
 } from '../utils/contract.helpers'
 
 import { MetricCard, IconButton, StatusBadge } from './ui/ui-elements'
@@ -56,6 +59,7 @@ import { ContractDetailModal } from './modals/ContractDetailModal'
 import { PayDepositModal } from './modals/PayDepositModal'
 import { DepositQRModal } from './modals/DepositQRModal'
 import { StatusModal } from './modals/StatusModal'
+import { TerminateContractModal, type TerminateContractForm } from './modals/TerminateContractModal'
 
 type ContractRoomOption = {
   id: number
@@ -98,6 +102,14 @@ export function ContractsScreen() {
   const [qrModalContract, setQrModalContract] = useState<AdminContractResource | null>(null)
   const [isConfirmingDeposit, setIsConfirmingDeposit] = useState(false)
   const [payingDepositContract, setPayingDepositContract] = useState<AdminContractResource | null>(null)
+  const [terminatingContract, setTerminatingContract] = useState<AdminContractResource | null>(null)
+  const [isTerminating, setIsTerminating] = useState(false)
+  const [terminateForm, setTerminateForm] = useState<TerminateContractForm>({
+    actual_end_date: todayStr,
+    deduction_amount: '0.00',
+    payment_method: 2,
+    note: '',
+  })
 
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
   const filterBuildingOptions = useMemo(
@@ -280,6 +292,69 @@ export function ContractsScreen() {
       setErrorMessage(getVisibleErrorMessage(error, 'Không thể cập nhật trạng thái hợp đồng.'))
     } finally {
       setIsStatusSaving(false)
+    }
+  }
+
+  const openTerminateModal = (contract: AdminContractResource) => {
+    setTerminatingContract(contract)
+    setTerminateForm({
+      actual_end_date: contract.actual_end_date || todayStr,
+      deduction_amount: '0.00',
+      payment_method: 2,
+      note: '',
+    })
+  }
+
+  const submitTerminate = async () => {
+    if (!terminatingContract || isTerminating) return
+
+    const depositBalance = Number(terminatingContract.deposit_balance || '0')
+    const deductionAmount = Number(terminateForm.deduction_amount || '0')
+
+    if (!terminateForm.actual_end_date) {
+      setErrorMessage('Vui lòng nhập ngày thanh lý hợp đồng.')
+      return
+    }
+
+    if (Number.isNaN(deductionAmount) || deductionAmount < 0) {
+      setErrorMessage('Số tiền cấn trừ cọc không hợp lệ.')
+      return
+    }
+
+    if (deductionAmount > depositBalance) {
+      setErrorMessage('Số tiền cấn trừ không được vượt quá số dư cọc hiện tại.')
+      return
+    }
+
+    try {
+      setIsTerminating(true)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+
+      const response = await terminateAdminContract(terminatingContract.id, {
+        actual_end_date: terminateForm.actual_end_date,
+        deduction_amount: terminateForm.deduction_amount || '0.00',
+        payment_method: Number(terminateForm.payment_method),
+        note: terminateForm.note.trim() || undefined,
+      })
+
+      const settlement = response.result?.settlement
+      setSuccessMessage(
+        settlement
+          ? `Thanh lý hợp đồng thành công. Hoàn cọc ${formatCurrency(settlement.refund_amount)}, cấn trừ ${formatCurrency(settlement.deduction_amount)}.`
+          : 'Thanh lý hợp đồng thành công.'
+      )
+      setTerminatingContract(null)
+
+      if (detailContract?.id === terminatingContract.id && response.result?.contract) {
+        setDetailContract(response.result.contract)
+      }
+
+      await loadContracts()
+    } catch (error) {
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể thanh lý hợp đồng.'))
+    } finally {
+      setIsTerminating(false)
     }
   }
 
@@ -490,12 +565,19 @@ export function ContractsScreen() {
                               <CalendarPlus className="h-5 w-5" />
                             </IconButton>
                           )}
+                          {[STATUS_ACTIVE, STATUS_EXPIRED].includes(Number(contract.status)) && (
+                            <IconButton title="Thanh lý hợp đồng" onClick={() => openTerminateModal(contract)}>
+                              <ClipboardCheck className="h-5 w-5" />
+                            </IconButton>
+                          )}
                           <IconButton title="Chỉnh sửa" onClick={() => navigate(`/admin/contracts/${contract.id}/edit`)}>
                             <Edit3 className="h-5 w-5" />
                           </IconButton>
-                          <IconButton title="Đổi trạng thái" onClick={() => openStatusModal(contract)}>
-                            <Power className="h-5 w-5" />
-                          </IconButton>
+                          {![STATUS_EXPIRED, STATUS_LIQUIDATED, STATUS_CANCELLED].includes(Number(contract.status)) && (
+                            <IconButton title="Đổi trạng thái" onClick={() => openStatusModal(contract)}>
+                              <Power className="h-5 w-5" />
+                            </IconButton>
+                          )}
                           <IconButton title="Xóa" disabled={deletingId === contract.id} danger onClick={() => void removeContract(contract)}>
                             <Trash2 className="h-5 w-5" />
                           </IconButton>
@@ -646,6 +728,17 @@ export function ContractsScreen() {
           onChange={setStatusForm}
           onClose={() => setStatusContract(null)}
           onSubmit={() => void submitStatus()}
+        />
+      )}
+
+      {terminatingContract && (
+        <TerminateContractModal
+          contract={terminatingContract}
+          form={terminateForm}
+          isSaving={isTerminating}
+          onChange={setTerminateForm}
+          onClose={() => setTerminatingContract(null)}
+          onSubmit={() => void submitTerminate()}
         />
       )}
     </section>

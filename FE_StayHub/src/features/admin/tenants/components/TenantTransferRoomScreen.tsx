@@ -4,13 +4,17 @@ import { ArrowLeft, Building2, ChevronRight, DoorOpen, Loader2, Plus, Search, Tr
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { buildingAllowsTenantGender } from '../../shared/config/gender-policy'
 import { fetchAdminTenantDetail } from '../services/tenants.service'
 import { transferTenantRoom } from '../services/TranferRoom'
 import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
 import type { AdminTenantResource } from '../types/tenant-api.model'
 import type { AdminRoomResource, BuildingResource } from '../../rooms/types/rooms.model'
 import type { TransferTenantPayload } from '../types/TranferModel'
-
+import type { AdminMeterDeviceResource } from '../../meters/types/meter-api.model'
+import { fetchAdminMeterDevices } from '../../meters/services/meters.service'
+import type { AdminVehicleOptionResource } from '../../contracts/types/contract-api.model'
+import { fetchAdminContractVehicles } from '../../contracts/services/contracts.service'
 const ROOM_STATUS_ACTIVE = 1
 
 const inputClass =
@@ -52,7 +56,9 @@ export function TenantTransferRoomScreen() {
   const [transferFee, setTransferFee] = useState('')
   const [meterReadingRows, setMeterReadingRows] = useState<MeterReadingRow[]>([])
   const [openingReadingRows, setOpeningReadingRows] = useState<OpeningReadingRow[]>([])
-  const [carryVehicleIdsText, setCarryVehicleIdsText] = useState('')
+  const [meterDevices,setMeterDevices]=useState<AdminMeterDeviceResource[]>([]);
+  const [carryVehicleIds, setCarryVehicleIds] = useState<number[]>([]);
+  const [vehicles,setVehicles]=useState<AdminVehicleOptionResource[]>([]);   
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -62,7 +68,7 @@ export function TenantTransferRoomScreen() {
   const currentBuildingId = tenant?.current_room?.building_id ?? tenant?.building_id ?? null
   const currentRoomNumber = tenant?.current_room?.room_number ?? tenant?.room_number ?? null
   const currentBuildingName = tenant?.current_room?.building_name ?? tenant?.building_name ?? null
-
+   
   // --- Tải thông tin tenant + phòng hiện tại ---
   useEffect(() => {
     if (!parsedTenantId) return
@@ -116,6 +122,40 @@ export function TenantTransferRoomScreen() {
       .catch(() => setRooms([]))
       .finally(() => setIsRoomsLoading(false))
   }, [selectedBuildingId])
+  useEffect(()=>{
+    if(!currentRoomId) return;
+    fetchAdminMeterDevices({
+      room_id:currentRoomId,
+      per_page:100,
+    }).then((response)=>{
+      const result=unwrap(response);
+        const devices = result.data ?? []
+      setMeterDevices(devices);
+      setMeterReadingRows(
+          devices.map((meter)=>({
+            meterDeviceId:String(meter.id),
+            currentReading:"",
+          }))
+      )
+    }).catch(()=>{
+      setMeterDevices([]);
+    });
+  },[currentRoomId]);
+
+   useEffect(()=>{
+    if(!parsedTenantId) return
+    fetchAdminContractVehicles({
+      tenant_id:parsedTenantId,
+      is_active:true,
+      per_page:100,
+    }).then((response)=>{
+      const result=unwrap(response);
+      setVehicles(result.data??[]);
+    }).catch(()=>{
+      setVehicles([]);
+    });
+   },[parsedTenantId])
+  
 
   const availableRooms = useMemo(() => {
     const keyword = roomKeyword.trim().toLowerCase()
@@ -123,10 +163,12 @@ export function TenantTransferRoomScreen() {
       if (room.id === currentRoomId) return false
       if (room.status !== ROOM_STATUS_ACTIVE) return false
       if (room.current_occupants >= room.max_occupants) return false
+      const roomBuildingPolicy = room.building?.gender_policy ?? buildings.find((building) => building.id === room.building_id)?.gender_policy
+      if (!buildingAllowsTenantGender(roomBuildingPolicy, tenant?.gender)) return false
       if (keyword && !room.room_number.toLowerCase().includes(keyword)) return false
       return true
     })
-  }, [rooms, currentRoomId, roomKeyword])
+  }, [rooms, currentRoomId, roomKeyword, buildings, tenant?.gender])
 
   const buildingOptions = useMemo(
     () => [
@@ -147,12 +189,6 @@ export function TenantTransferRoomScreen() {
     setStep(1)
   }
 
-  function addMeterReadingRow() {
-    setMeterReadingRows((rows) => [...rows, { meterDeviceId: '', currentReading: '' }])
-  }
-  function removeMeterReadingRow(index: number) {
-    setMeterReadingRows((rows) => rows.filter((_, i) => i !== index))
-  }
   function updateMeterReadingRow(index: number, key: keyof MeterReadingRow, value: string) {
     setMeterReadingRows((rows) => rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)))
   }
@@ -186,13 +222,6 @@ export function TenantTransferRoomScreen() {
       }
       return acc
     }, {})
-
-    const carryVehicleIds = carryVehicleIdsText
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .map(Number)
-      .filter((value) => !Number.isNaN(value))
 
     const payload: TransferTenantPayload = {
       tenant_id: parsedTenantId,
@@ -299,7 +328,6 @@ export function TenantTransferRoomScreen() {
 
             {!isRoomsLoading &&
               availableRooms.map((room) => {
-                const isDifferentBuilding = room.building_id !== currentBuildingId
                 return (
                   <button
                     key={room.id}
@@ -318,11 +346,6 @@ export function TenantTransferRoomScreen() {
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0f5f59]">
                       <Building2 className="h-3.5 w-3.5" /> {room.building?.name || room.building_name}
                     </span>
-                    {isDifferentBuilding && (
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
-                        Khác tòa - sẽ kiểm tra giới tính
-                      </span>
-                    )}
                   </button>
                 )
               })}
@@ -382,16 +405,13 @@ export function TenantTransferRoomScreen() {
           >
             {meterReadingRows.map((row, index) => (
               <div key={index} className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                <input type="number" placeholder="meter_device_id" value={row.meterDeviceId} onChange={(e) => updateMeterReadingRow(index, 'meterDeviceId', e.target.value)} className={inputClass} />
+                <input   className={inputClass}  value={
+                  meterDevices.find((m)=>String(m.id)===row.meterDeviceId,)?.service_name?? ""} disabled/>
                 <input type="number" placeholder="Chỉ số hiện tại" value={row.currentReading} onChange={(e) => updateMeterReadingRow(index, 'currentReading', e.target.value)} className={inputClass} />
-                <button type="button" onClick={() => removeMeterReadingRow(index)} className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+               
               </div>
             ))}
-            <button type="button" onClick={addMeterReadingRow} className="mt-1 inline-flex items-center gap-1.5 rounded-xl border border-dashed border-[#3d2a18]/20 px-3 py-2 text-xs font-black text-[#8b5e34] hover:bg-[#f3c56b]/10">
-              <Plus className="h-3.5 w-3.5" /> Thêm chỉ số
-            </button>
+            
           </FormSection>
 
           <FormSection title="Chỉ số khởi điểm phòng mới" hint="Chỉ cần điền nếu phòng đích CHƯA có công tơ cho dịch vụ đó (service_id).">
@@ -410,7 +430,25 @@ export function TenantTransferRoomScreen() {
           </FormSection>
 
           <FormSection title="Phương tiện mang theo" hint="Nhập vehicle_id của xe muốn mang theo, cách nhau bằng dấu phẩy. Để trống nếu không có xe.">
-            <input type="text" placeholder="vd: 4, 9" value={carryVehicleIdsText} onChange={(e) => setCarryVehicleIdsText(e.target.value)} className={inputClass} />
+              {vehicles.map((vehicle) => (
+  <label key={vehicle.id}>
+    <input
+            type="checkbox"
+          checked={carryVehicleIds.includes(vehicle.id)}
+      onChange={(e) => {
+        if (e.target.checked) {
+          setCarryVehicleIds((prev) => [...prev, vehicle.id])
+        } else {
+          setCarryVehicleIds((prev) =>
+            prev.filter((id) => id !== vehicle.id),
+          )
+        }
+      }}
+    />
+
+    {vehicle.license_plate} ({vehicle.vehicle_type_label})
+  </label>
+))}
           </FormSection>
 
           <div className="flex items-center justify-end gap-3 pb-2">

@@ -146,22 +146,6 @@ class StayHubDemoSeeder extends Seeder
         }
 
         $admins['manager_sg'] = $admins['sg_central'];
-        $admins['tech_sg'] = $this->upsertAndGetId('admins', ['email' => 'tech.sg@stayhub.local'], [
-            'username' => 'tech_sg',
-            'full_name' => 'Trần Quốc Huy',
-            'email' => 'tech.sg@stayhub.local',
-            'phone' => '0900000002',
-            'password' => Hash::make('12345678'),
-            'role' => Admin::ROLE_TECHNICIAN,
-            'avatar_url' => '/storage/admins/tech-sg.png',
-            'status' => Admin::STATUS_ACTIVE,
-            'gender' => Admin::GENDER_MALE,
-            'address' => 'Phường Bến Thành, TP.HCM',
-            'image_path_faceid' => null,
-            'created_faceid_at' => null,
-            'updated_faceid_at' => null,
-            ...$this->timestamps(),
-        ]);
 
         return $admins;
     }
@@ -789,7 +773,7 @@ class StayHubDemoSeeder extends Seeder
                 'description' => $row[4],
                 'status' => $row[5],
                 'images' => $this->json(["/storage/demo/maintenance/{$key}.jpg"]),
-                'assigned_to' => $admins['tech_sg'],
+                'assigned_to' => $admins['manager_sg'],
                 'received_at' => $row[6],
                 'completed_at' => $row[7],
                 ...$this->timestamps(),
@@ -805,7 +789,7 @@ class StayHubDemoSeeder extends Seeder
         ], [
             'rating' => 5,
             'images' => $this->json(['/storage/demo/maintenance/feedback-aircon.jpg']),
-            'comment' => 'Kỹ thuật xử lý nhanh, máy lạnh đã hoạt động bình thường.',
+            'comment' => 'Nhân sự phụ trách xử lý nhanh, máy lạnh đã hoạt động bình thường.',
             ...$this->timestamps(),
         ]);
     }
@@ -814,10 +798,10 @@ class StayHubDemoSeeder extends Seeder
     {
         $rows = [
             [$maintenanceRequests['aircon'], null, MaintenanceRequest::STATUS_CREATED, 'Khách thuê tạo phiếu sửa chữa.'],
-            [$maintenanceRequests['aircon'], MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_PROCESSING, 'Quản lý đã phân công và kỹ thuật bắt đầu kiểm tra.'],
+            [$maintenanceRequests['aircon'], MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_PROCESSING, 'Quản lý đã phân công nhân sự phụ trách kiểm tra.'],
             [$maintenanceRequests['aircon'], MaintenanceRequest::STATUS_PROCESSING, MaintenanceRequest::STATUS_COMPLETED, 'Đã vệ sinh đường thoát nước máy lạnh.'],
             [$maintenanceRequests['light'], null, MaintenanceRequest::STATUS_CREATED, 'Khách thuê tạo phiếu sửa chữa.'],
-            [$maintenanceRequests['light'], MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_PROCESSING, 'Kỹ thuật đang xử lý.'],
+            [$maintenanceRequests['light'], MaintenanceRequest::STATUS_CREATED, MaintenanceRequest::STATUS_PROCESSING, 'Nhân sự phụ trách đang xử lý.'],
         ];
 
         foreach ($rows as $row) {
@@ -827,7 +811,7 @@ class StayHubDemoSeeder extends Seeder
                 'note' => $row[3],
             ], [
                 'old_status' => $row[1],
-                'created_by' => $admins['tech_sg'],
+                'created_by' => $admins['manager_sg'],
                 'created_at' => $this->now,
             ]);
         }
@@ -935,11 +919,11 @@ class StayHubDemoSeeder extends Seeder
     private function seedAdminLogs(array $admins, array $buildings, array $rooms, array $tenants, array $contracts, array $invoices): void
     {
         $rows = [
-            ['seed_create', 'building', $buildings['sg_central'], ['name' => 'StayHub Sài Gòn Central']],
-            ['seed_create', 'room', $rooms['sg_a101'], ['room_number' => 'A101']],
-            ['seed_create', 'tenant', $tenants['an'], ['full_name' => 'Lê Hoàng An']],
-            ['seed_create', 'contract', $contracts['sg_a101'], ['contract_code' => 'HD-2026-0001']],
-            ['seed_create', 'invoice', $invoices['sg_a101'], ['invoice_code' => 'INV-2026-05-0001']],
+            ['Tạo dữ liệu mẫu', 'building', $buildings['sg_central'], ['name' => 'StayHub Sài Gòn Central']],
+            ['Tạo dữ liệu mẫu', 'room', $rooms['sg_a101'], ['room_number' => 'A101']],
+            ['Tạo dữ liệu mẫu', 'tenant', $tenants['an'], ['full_name' => 'Lê Hoàng An']],
+            ['Tạo dữ liệu mẫu', 'contract', $contracts['sg_a101'], ['contract_code' => 'HD-2026-0001']],
+            ['Tạo dữ liệu mẫu', 'invoice', $invoices['sg_a101'], ['invoice_code' => 'INV-2026-05-0001']],
         ];
 
         foreach ($rows as $row) {
@@ -1414,7 +1398,7 @@ class StayHubDemoSeeder extends Seeder
                 'description' => 'Phiếu sửa chữa mở rộng phục vụ kiểm thử danh sách và trạng thái.',
                 'status' => $status,
                 'images' => $this->json(["/storage/demo/maintenance/expanded/{$code}.jpg"]),
-                'assigned_to' => $admins['tech_sg'],
+                'assigned_to' => $admins['manager_sg'],
                 'received_at' => $status >= MaintenanceRequest::STATUS_PROCESSING ? '2026-05-18 09:00:00' : null,
                 'completed_at' => $status === MaintenanceRequest::STATUS_COMPLETED ? '2026-05-19 15:30:00' : null,
                 ...$this->timestamps(),
@@ -1422,7 +1406,7 @@ class StayHubDemoSeeder extends Seeder
 
             $this->updateOrInsert('maintenance_request_logs', ['maintenance_request_id' => $requestId, 'new_status' => $status, 'note' => 'Log trạng thái mở rộng.'], [
                 'old_status' => null,
-                'created_by' => $admins['tech_sg'],
+                'created_by' => $admins['manager_sg'],
                 'created_at' => $this->now,
             ]);
         }

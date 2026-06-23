@@ -7,6 +7,7 @@ import { canManageContractsRole, isSuperAdminRole, useAdminSession } from '../..
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { buildingAllowsTenantGender } from '../../shared/config/gender-policy'
 import { fetchAdminTenants } from '../../tenants/services/tenants.service'
 import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
 import {
@@ -76,6 +77,7 @@ export function CreateContractScreen() {
   const [isCreateVehicleOpen, setIsCreateVehicleOpen] = useState(false)
 
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
+  const selectedBuilding = useMemo(() => buildings.find((building) => String(building.id) === form.building_id) || null, [buildings, form.building_id])
   const roomOptions = useMemo(
     () =>
       rooms.map((room) => ({
@@ -91,7 +93,7 @@ export function CreateContractScreen() {
     if (!form.building_id || !form.room_id) {
       return []
     }
-    const merged = [...tenants]
+    const merged = tenants.filter((tenant) => buildingAllowsTenantGender(selectedBuilding?.gender_policy, tenant.gender))
     const existingIds = new Set(merged.map((t) => t.id))
     for (const t of currentContractTenants) {
       if (!existingIds.has(t.id)) {
@@ -104,7 +106,7 @@ export function CreateContractScreen() {
       description: tenant.phone || tenant.email || tenant.identity_number || undefined,
       tone: 'default' as const,
     }))
-  }, [tenants, currentContractTenants, form.building_id, form.room_id])
+  }, [tenants, currentContractTenants, form.building_id, form.room_id, selectedBuilding?.gender_policy])
 
   const vehicleOptions = useMemo(() => {
     const merged = [...vehicles]
@@ -389,6 +391,11 @@ useEffect(() => {
   const updateForm = <K extends keyof ContractFormValues>(key: K, value: ContractFormValues[K]) => {
     setForm((current) => {
       const next = { ...current, [key]: value }
+      if (key === 'building_id') {
+        next.room_id = ''
+        next.tenants = [{ ...defaultTenantRow, join_date: current.start_date, billing_start_date: current.start_date }]
+        next.vehicles = []
+      }
       if (key === 'start_date' && typeof value === 'string') {
         next.vehicles = current.vehicles.map((v) => ({
           ...v,
@@ -496,7 +503,7 @@ useEffect(() => {
 
     const selectedRoom = rooms.find((room) => String(room.id) === form.room_id)
     const roomMaxOccupants = selectedRoom ? selectedRoom.max_occupants : null
-    const nextErrors = validateContractForm(form, roomMaxOccupants, isSuperAdminRole(adminRole))
+    const nextErrors = validateContractForm(form, roomMaxOccupants, isSuperAdminRole(adminRole), isEditMode)
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length > 0) {
@@ -509,7 +516,7 @@ useEffect(() => {
       setErrorMessage(null)
       setSuccessMessage(null)
 
-      const payload = buildPayload(form, !isEditMode && !isRenewMode)
+      const payload = buildPayload(form, !isEditMode && !isRenewMode, isEditMode)
 
       if (isEditMode && editingContract) {
         await updateAdminContract(editingContract.id, payload)
@@ -573,9 +580,7 @@ useEffect(() => {
               <h1 className="mt-4 flex items-center gap-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl">
                 <FileText className="h-9 w-9 text-[#f3c56b]" /> {isEditMode ? 'Cập nhật hợp đồng' : isRenewMode ? 'Gia hạn hợp đồng' : 'Thêm hợp đồng'}
               </h1>
-              <p className="mt-2 max-w-3xl text-sm font-semibold text-[#f8e8c8]/75">
-                Form được tách ra page riêng để nhập đầy đủ tenant, xe, tiền cọc và file hợp đồng.
-              </p>
+
             </div>
             <div className="flex gap-2">
               <button
@@ -625,10 +630,7 @@ useEffect(() => {
                     options={buildingOptions}
                     invalid={!!errors.building_id}
                     placeholder="Chọn tòa nhà"
-                    onChange={(value: string | number) => {
-                      updateForm('building_id', String(value))
-                      updateForm('room_id', '')
-                    }}
+                    onChange={(value: string | number) => updateForm('building_id', String(value))}
                   />
                 </Field>
               )}
@@ -663,14 +665,16 @@ useEffect(() => {
                   onChange={(event) => updateForm('billing_cycle_day', event.target.value)}
                 />
               </Field>
-              <Field label="Ngày kết thúc thực tế" error={errors.actual_end_date}>
-                <AdminDateInput
-                  className={cn(inputClass, errors.actual_end_date && inputErrorClass)}
-                  value={form.actual_end_date}
-                  onChange={(value: string) => updateForm('actual_end_date', value)}
-                  minDate={toDate(form.start_date)}
-                />
-              </Field>
+              {isEditMode && (
+                <Field label="Ngày kết thúc thực tế" error={errors.actual_end_date}>
+                  <AdminDateInput
+                    className={cn(inputClass, errors.actual_end_date && inputErrorClass)}
+                    value={form.actual_end_date}
+                    onChange={(value: string) => updateForm('actual_end_date', value)}
+                    minDate={toDate(form.start_date)}
+                  />
+                </Field>
+              )}
               <Field label="Giá phòng" required error={errors.room_price}>
                 <input
                   className={cn(inputClass, errors.room_price && inputErrorClass)}

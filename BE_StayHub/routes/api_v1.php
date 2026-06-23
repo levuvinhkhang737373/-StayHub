@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminAccountController;
+use App\Http\Controllers\Admin\AdminLogController;
 use App\Http\Controllers\Admin\AssetTemplateController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
@@ -89,6 +90,12 @@ Route::prefix('admin')->group(function (): void {
         Route::patch('accounts/{account}/status', [AdminAccountController::class, 'updateStatus']);
         Route::apiResource('accounts', AdminAccountController::class);
 
+        // =========================Admin Activity Logs================================
+        Route::middleware(['auth.admin:2'])->group(function (): void {
+            Route::get('activity-logs', [AdminLogController::class, 'index']);
+            Route::get('activity-logs/{adminLog}', [AdminLogController::class, 'show']);
+        });
+
         // =========================Tenants================================
         Route::patch('tenants/{tenant}/status', [TenantController::class, 'updateStatus']);
         Route::apiResource('tenants', TenantController::class);
@@ -106,6 +113,7 @@ Route::prefix('admin')->group(function (): void {
         // =========================Contracts================================
         Route::get('contracts/available-rooms', [ContractController::class, 'availableRooms']);
         Route::patch('contracts/{contract}/status', [ContractController::class, 'updateStatus']);
+        Route::post('contracts/{contract}/terminate', [ContractController::class, 'terminate']);
         Route::post('contracts/{contract}/renew', [ContractController::class, 'renew']);
         Route::post('contracts/{contract}/deposit-transactions', [ContractController::class, 'addDepositTransaction']);
         Route::apiResource('contracts', ContractController::class);

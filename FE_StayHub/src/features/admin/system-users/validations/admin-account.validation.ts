@@ -60,7 +60,7 @@ export function validateAdminAccountForm(form: AdminAccountFormValues, isEdit: b
     errors.password = 'Mật khẩu admin tối đa 255 ký tự.'
   }
 
-  if (![1, 2, 3].includes(Number(form.role))) {
+  if (![1, 2].includes(Number(form.role))) {
     errors.role = 'Vai trò admin không hợp lệ.'
   }
 

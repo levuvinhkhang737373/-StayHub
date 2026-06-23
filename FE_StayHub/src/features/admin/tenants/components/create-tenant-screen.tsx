@@ -15,11 +15,11 @@ import type { AdminTenantPayload } from '../types/tenant-api.model'
 import { validateTenantForm, type TenantFormErrors, type TenantFormValues } from '../validations/tenant.validation'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
+import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
+import { GENDER_FEMALE, GENDER_MALE } from '../../shared/config/gender-policy'
 
 const STATUS_RENTING = 1
 const STATUS_STOPPED_RENTING = 2
-const GENDER_MALE = 1
-const GENDER_FEMALE = 2
 const IDENTITY_TYPE_CCCD = 1
 const IDENTITY_TYPE_PASSPORT = 3
 
@@ -99,13 +99,26 @@ export function CreateTenantScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(isEditMode)
+  const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [buildingOptions, setBuildingOptions] = useState<{ value: string | number; label: string; tone: 'default' }[]>([])
   const [existingTenant, setExistingTenant] = useState<any | null>(null)
+
+  const selectedBuildingGenderPolicy = useMemo(() => {
+    const selectedBuildingId = Number(isSuperAdmin ? form.building_id : defaultBuildingId)
+    if (!selectedBuildingId) return null
+
+    const loadedBuilding = buildings.find((building) => building.id === selectedBuildingId)
+    const managedBuilding = session?.admin?.managed_buildings?.find((building) => building.id === selectedBuildingId)
+
+    return loadedBuilding?.gender_policy ?? managedBuilding?.gender_policy ?? null
+  }, [buildings, defaultBuildingId, form.building_id, isSuperAdmin, session?.admin?.managed_buildings])
 
   useEffect(() => {
     if (isSuperAdmin) {
       fetchAdminBuildings().then((response) => {
-        const list = response.result || []
+        const result = response.result as AdminBuildingResource[] | { data?: AdminBuildingResource[] } | null | undefined
+        const list = Array.isArray(result) ? result : result?.data || []
+        setBuildings(list)
         setBuildingOptions([
           { value: '', label: 'Chọn tòa nhà', tone: 'default' },
           ...list.map(b => ({ value: b.id, label: b.name, tone: 'default' as const }))
@@ -170,7 +183,7 @@ export function CreateTenantScreen() {
   const submit = async () => {
     if (isSaving) return
 
-    const nextErrors = validateTenantForm(form, isSuperAdmin)
+    const nextErrors = validateTenantForm(form, isSuperAdmin, selectedBuildingGenderPolicy)
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length > 0) {

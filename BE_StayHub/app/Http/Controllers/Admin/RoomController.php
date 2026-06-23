@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Helpers\ImageHelper;
@@ -9,7 +10,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Room\RoomRequest;
 use App\Http\Requests\Admin\Room\TranferSingleTenantRequest;
 use App\Models\Admin;
-use App\Models\AdminLog;
 use App\Models\AssetTemplate;
 use App\Models\Building;
 use App\Models\Contract;
@@ -148,6 +148,8 @@ class RoomController extends Controller
                 }
             }
 
+            AdminActivityLogger::write($admin, 'create_room', Room::class, $room->id, null, $room->fresh()->toArray(), $request);
+
             DB::commit();
 
             $room->load(['building', 'roomType', 'images', 'assets.assetTemplate']);
@@ -204,6 +206,7 @@ class RoomController extends Controller
 
         try {
             $validatedData = $request->validated();
+            $oldData = $room->fresh()->toArray();
 
             $room->update([
                 'building_id'   => $validatedData['building_id'],
@@ -268,6 +271,8 @@ class RoomController extends Controller
                 $room->assets()->delete();
             }
 
+            AdminActivityLogger::write($admin, 'update_room', Room::class, $room->id, $oldData, $room->fresh()->toArray(), $request);
+
             DB::commit();
 
             $room->load(['building', 'roomType', 'images', 'assets.assetTemplate', 'meterDevices']);
@@ -310,10 +315,12 @@ class RoomController extends Controller
             if ($hasData) {
                 return ApiResponse::responseJson(false, 'Không thể xóa phòng này vì có dữ liệu liên quan ', 400, null, 400);
             }
+            $oldData = $room->fresh()->toArray();
             $roomImages = $room->images;
             $room->assets()->delete();
             $room->images()->delete();
             $room->delete();
+            AdminActivityLogger::write($admin, 'delete_room', Room::class, (int) $id, $oldData, null, $request);
             foreach ($roomImages as $image) {
                 if ($image->image_path) {
                     ImageHelper::delete($image->image_path);
@@ -325,16 +332,19 @@ class RoomController extends Controller
         }
     }
 
-    public function updateStatus(string $id)
+    public function updateStatus(Request $request, string $id)
     {
         try {
+            $admin = $request->user();
             $room = Room::find($id);
             if (!$room) {
                 return ApiResponse::responseJson(false, 'Không thể tìm thấy phòng', 404, null, 404);
             }
+            $oldData = $room->fresh()->toArray();
             $update_status_for_room = $room->update([
                 'status' => $room->status == 1 ? 3 : 1
             ]);
+            AdminActivityLogger::write($admin, 'update_room_status', Room::class, $room->id, $oldData, $room->fresh()->toArray(), $request);
             return ApiResponse::responseJson(true, "Cập nhật trạng thái phòng thành công", 200, null, 200);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
@@ -512,7 +522,7 @@ class RoomController extends Controller
                 'created_by' => $request->actor_admin_id ?? $request->user()->id,
             ]);
 
-            $this->writeAdminLog($request->actor_admin_id ?? $request->user()->id, $oldContract, $destinationContract, $oldRoom, $toRoom);
+            $this->writeAdminLog($request->actor_admin_id ?? $request->user()->id, $oldContract, $destinationContract, $oldRoom, $toRoom, $request);
             $this->notifyTenant($tenant, $toRoom, $movementDate);
 
             DB::commit();
@@ -547,24 +557,15 @@ class RoomController extends Controller
             ]);
         }
 
-        if (
-            $toRoom->building_id !== $oldRoom->building_id
-            && !$this->buildingAllowsGender($toRoom->building, $tenant->gender)
-        ) {
+        $destinationBuilding = $toRoom->relationLoaded('building')
+            ? $toRoom->building
+            : $toRoom->building()->select(['id', 'gender_policy'])->first();
+
+        if (! $destinationBuilding?->allowsTenantGender($tenant->gender)) {
             throw ValidationException::withMessages([
-                'to_room_id' => 'Giới tính khách thuê không phù hợp với quy định của tòa nhà đích.',
+                'to_room_id' => 'Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.',
             ]);
         }
-    }
-
-    private function buildingAllowsGender($building, int $tenantGender): bool
-    {
-        return match ($building->gender_policy) {
-            1 => true,                 // hỗn hợp / không giới hạn
-            2 => $tenantGender === 1,  // chỉ nam
-            3 => $tenantGender === 2,  // chỉ nữ
-            default => true,
-        };
     }
 
     private function closeOldRoomMeters(Room $oldRoom, Carbon $movementDate, array $closingReadings, ?int $actorAdminId): array
@@ -764,35 +765,37 @@ class RoomController extends Controller
         $destinationContract->increment('deposit_amount', $transferAmount);
     }
 
-    private function writeAdminLog(?int $actorAdminId, Contract $oldContract, Contract $destinationContract, Room $oldRoom, Room $toRoom): void
+    private function writeAdminLog(?int $actorAdminId, Contract $oldContract, Contract $destinationContract, Room $oldRoom, Room $toRoom, Request $request): void
     {
         if (!$actorAdminId) {
             return;
         }
 
-        AdminLog::create([
-            'admin_id' => $actorAdminId,
-            'action' => 'transfer_room',
-            'entity_type' => Contract::class,
-            'entity_id' => $oldContract->id,
-            'old_data' => ['room_id' => $oldRoom->id, 'status' => self::CONTRACT_STATUS_ACTIVE],
-            'new_data' => $oldContract->fresh()->toArray(),
-            'ip_address' => request()?->ip(),
-            'user_agent' => request()?->userAgent(),
-            'created_at' => now(),
-        ]);
+        $actorAdmin = Admin::find($actorAdminId);
 
-        AdminLog::create([
-            'admin_id' => $actorAdminId,
-            'action' => 'transfer_room',
-            'entity_type' => Contract::class,
-            'entity_id' => $destinationContract->id,
-            'old_data' => null,
-            'new_data' => $destinationContract->fresh()->toArray(),
-            'ip_address' => request()?->ip(),
-            'user_agent' => request()?->userAgent(),
-            'created_at' => now(),
-        ]);
+        if (! $actorAdmin) {
+            return;
+        }
+
+        AdminActivityLogger::write(
+            $actorAdmin,
+            'transfer_room',
+            Contract::class,
+            $oldContract->id,
+            ['room_id' => $oldRoom->id, 'status' => self::CONTRACT_STATUS_ACTIVE],
+            $oldContract->fresh()->toArray(),
+            $request,
+        );
+
+        AdminActivityLogger::write(
+            $actorAdmin,
+            'transfer_room',
+            Contract::class,
+            $destinationContract->id,
+            null,
+            $destinationContract->fresh()->toArray(),
+            $request,
+        );
     }
 
     private function notifyTenant(Tenant $tenant, Room $toRoom, Carbon $movementDate): void
