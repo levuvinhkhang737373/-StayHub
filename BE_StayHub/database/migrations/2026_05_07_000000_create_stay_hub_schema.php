@@ -244,8 +244,9 @@ return new class extends Migration
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
             $table->unsignedTinyInteger('status')->default(1);
+            $table->foreignId('created_by')->nullable()->constrained('admins')->nullOnDelete();
             $table->timestamps();
-            $table->unique(['service_id', 'building_id', 'effective_from']);
+            $table->index(['service_id', 'building_id', 'effective_from']);
         });
 
         Schema::create('contracts', function (Blueprint $table) {
@@ -343,6 +344,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('room_id')->constrained('rooms')->restrictOnDelete();
             $table->foreignId('service_id')->constrained('services')->restrictOnDelete();
+            $table->string('meter_code', 100)->nullable()->unique();
             $table->unsignedTinyInteger('meter_type')->default(1);
             $table->decimal('initial_reading', 12, 2);
             $table->date('installed_at')->nullable();

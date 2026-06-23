@@ -278,7 +278,6 @@ class BuildingController extends Controller
 
             $response = DB::transaction(function () use ($validated, $buildingModel, $admin, $request): JsonResponse {
                 $startDate = \Illuminate\Support\Carbon::create($validated['billing_year'], $validated['billing_month'], 1)->toDateString();
-                $endDate = \Illuminate\Support\Carbon::create($validated['billing_year'], $validated['billing_month'], 1)->subDay()->toDateString();
                 
                 // Find services by slug
                 $electricService = Service::whereIn('slug', ['electric', 'dien-sinh-hoat', 'dien'])->first();
@@ -288,50 +287,33 @@ class BuildingController extends Controller
                     return ApiResponse::responseJson(false, 'Không tìm thấy cấu hình dịch vụ điện hoặc nước', 422, null, 422);
                 }
 
-                $services = [
-                    ['service' => $electricService, 'price' => $validated['electric_price']],
-                    ['service' => $waterService, 'price' => $validated['water_price']],
+                $servicesPayload = [
+                    [
+                        'service_id' => $electricService->id,
+                        'price' => $validated['electric_price'],
+                        'effective_from' => $startDate,
+                        'status' => ServicePrice::STATUS_ACTIVE,
+                    ],
+                    [
+                        'service_id' => $waterService->id,
+                        'price' => $validated['water_price'],
+                        'effective_from' => $startDate,
+                        'status' => ServicePrice::STATUS_ACTIVE,
+                    ],
                 ];
 
-                $updatedPrices = [];
-
-                foreach ($services as $item) {
-                    $service = $item['service'];
-                    $price = $this->normalizeDecimal($item['price']);
-
-                    $activePrice = $this->activeServicePrice($buildingModel, $service->id);
-
-                    if ($activePrice) {
-                        if (! $this->servicePriceChanged($activePrice, $service->id, $price)) {
-                            $updatedPrices[$service->slug] = (float) $activePrice->price;
-                            continue;
-                        }
-
-                        if ($this->servicePriceEffectiveFrom($activePrice) === $startDate) {
-                            $activePrice->forceFill([
-                                'price' => $price,
-                                'effective_to' => null,
-                                'status' => ServicePrice::STATUS_ACTIVE,
-                            ])->save();
-
-                            $updatedPrices[$service->slug] = (float) $price;
-                            continue;
-                        }
-
-                        $this->expireServicePrice($activePrice, $endDate);
-                    }
-
-                    $this->expireOtherActiveServicePrices($buildingModel, $service->id, $endDate);
-                    $newPrice = $buildingModel->servicePrices()->create([
-                        'service_id' => $service->id,
-                        'price' => $price,
-                        'effective_from' => $startDate,
-                        'effective_to' => null,
-                        'status' => ServicePrice::STATUS_ACTIVE,
-                    ]);
-
-                    $updatedPrices[$service->slug] = (float) $price;
+                $syncError = $this->syncServicePrices($buildingModel, ['service_prices' => $servicesPayload], $admin);
+                if ($syncError) {
+                    return $syncError;
                 }
+
+                $activeElectricPrice = $this->activeServicePrice($buildingModel, $electricService->id);
+                $activeWaterPrice = $this->activeServicePrice($buildingModel, $waterService->id);
+
+                $updatedPrices = [
+                    $electricService->slug => (float) ($activeElectricPrice ? $activeElectricPrice->price : $validated['electric_price']),
+                    $waterService->slug => (float) ($activeWaterPrice ? $activeWaterPrice->price : $validated['water_price']),
+                ];
 
                 try {
                     $activeContractTenants = ContractTenant::query()
@@ -379,6 +361,59 @@ class BuildingController extends Controller
         }
     }
 
+    public function utilityPriceHistory(Request $request, int $building): JsonResponse
+    {
+        try {
+            $admin = $request->user('admin');
+            if (! $admin) {
+                return ApiResponse::responseJson(false, 'Unauthorized', 401, null, 401);
+            }
+
+            if (! AdminScope::ensureBuildingAccess($admin, $building)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền quản lý tòa nhà này', 403, null, 403);
+            }
+
+            $buildingModel = Building::query()->find($building);
+            if (! $buildingModel) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy tòa nhà', 404, null, 404);
+            }
+
+            $electricService = Service::whereIn('slug', ['electric', 'dien-sinh-hoat', 'dien'])->first();
+            $waterService = Service::whereIn('slug', ['water', 'nuoc-sinh-hoat', 'nuoc'])->first();
+
+            if (! $electricService || ! $waterService) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy cấu hình dịch vụ điện hoặc nước', 422, null, 422);
+            }
+
+            $prices = ServicePrice::where('building_id', $building)
+                ->whereIn('service_id', [$electricService->id, $waterService->id])
+                ->with(['creator', 'service'])
+                ->orderBy('effective_from', 'desc')
+                ->orderBy('id', 'desc')
+                ->get();
+
+            $data = $prices->map(function ($price) {
+                return [
+                    'id' => $price->id,
+                    'service_id' => $price->service_id,
+                    'service_name' => $price->service?->name ?? 'Dịch vụ',
+                    'price' => (float) $price->price,
+                    'effective_from' => $price->effective_from->toDateString(),
+                    'effective_to' => $price->effective_to ? $price->effective_to->toDateString() : null,
+                    'status' => $price->status,
+                    'status_label' => ServicePrice::STATUS_LABELS[$price->status] ?? 'Không xác định',
+                    'created_by' => $price->created_by,
+                    'creator_name' => $price->creator?->full_name ?? 'Hệ thống',
+                    'created_at' => $price->created_at->toDateTimeString(),
+                ];
+            });
+
+            return ApiResponse::responseJson(true, 'Lịch sử thay đổi đơn giá điện nước', 200, $data, 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
     private function payload(array $validated, Admin $admin, bool $isUpdate = false): array
     {
         $payload = [];
@@ -409,7 +444,7 @@ class BuildingController extends Controller
     private function syncBuildingConfiguration(Building $building, array $validated, Admin $admin): void
     {
         foreach ([
-            fn (): ?JsonResponse => $this->syncServicePrices($building, $validated),
+            fn (): ?JsonResponse => $this->syncServicePrices($building, $validated, $admin),
             fn (): ?JsonResponse => $this->syncSettings($building, $validated, $admin),
         ] as $sync) {
             $errorResponse = $sync();
@@ -582,7 +617,7 @@ class BuildingController extends Controller
     }
 
 
-    private function syncServicePrices(Building $building, array $validated): ?JsonResponse
+    private function syncServicePrices(Building $building, array $validated, ?Admin $admin = null): ?JsonResponse
     {
         $today = now()->toDateString();
         $deleteIds = $this->ids($validated['delete_service_price_ids'] ?? []);
@@ -606,7 +641,9 @@ class BuildingController extends Controller
             $price = $this->normalizeDecimal($servicePriceData['price']);
             $status = (int) ($servicePriceData['status'] ?? ServicePrice::STATUS_ACTIVE);
             $effectiveFrom = $servicePriceData['effective_from'] ?? $today;
-            $effectiveTo = $status === ServicePrice::STATUS_EXPIRED ? ($servicePriceData['effective_to'] ?? $today) : null;
+            
+            $expireDate = \Illuminate\Support\Carbon::parse($effectiveFrom)->subDay()->toDateString();
+            $effectiveTo = $status === ServicePrice::STATUS_EXPIRED ? ($servicePriceData['effective_to'] ?? $expireDate) : null;
 
             if ($servicePriceId) {
                 $servicePrice = $building->servicePrices()->whereKey($servicePriceId)->lockForUpdate()->first();
@@ -620,13 +657,13 @@ class BuildingController extends Controller
                 }
 
                 if ($status === ServicePrice::STATUS_EXPIRED) {
-                    $this->expireServicePrice($servicePrice, $effectiveTo ?? $today);
+                    $this->expireServicePrice($servicePrice, $effectiveTo ?? $expireDate);
 
                     continue;
                 }
 
                 if (! $this->servicePriceChanged($servicePrice, $serviceId, $price)) {
-                    $this->expireOtherActiveServicePrices($building, $serviceId, $today, $servicePrice->id);
+                    $this->expireOtherActiveServicePrices($building, $serviceId, $expireDate, $servicePrice->id);
                     $servicePrice->forceFill([
                         'price' => $price,
                         'effective_to' => null,
@@ -636,62 +673,15 @@ class BuildingController extends Controller
                     continue;
                 }
 
-                if ($this->servicePriceEffectiveFrom($servicePrice) === $today) {
-                    $sameDatePrice = $this->servicePriceByEffectiveDate($building, $serviceId, $today, $servicePrice->id);
-
-                    if ($sameDatePrice) {
-                        if ($this->isExpiredServicePrice($sameDatePrice)) {
-                            return $this->servicePriceEffectiveDateConflictResponse();
-                        }
-
-                        $this->expireServicePrice($servicePrice, $today);
-                        $this->expireOtherActiveServicePrices($building, $serviceId, $today, $sameDatePrice->id);
-                        $sameDatePrice->forceFill([
-                            'price' => $price,
-                            'effective_to' => null,
-                            'status' => ServicePrice::STATUS_ACTIVE,
-                        ])->save();
-
-                        continue;
-                    }
-
-                    $this->expireOtherActiveServicePrices($building, $serviceId, $today, $servicePrice->id);
-                    $servicePrice->forceFill([
-                        'service_id' => $serviceId,
-                        'price' => $price,
-                        'effective_to' => null,
-                        'status' => ServicePrice::STATUS_ACTIVE,
-                    ])->save();
-
-                    continue;
-                }
-
-                $sameDatePrice = $this->servicePriceByEffectiveDate($building, $serviceId, $today, $servicePrice->id);
-
-                if ($sameDatePrice) {
-                    if ($this->isExpiredServicePrice($sameDatePrice)) {
-                        return $this->servicePriceEffectiveDateConflictResponse();
-                    }
-
-                    $this->expireServicePrice($servicePrice, $today);
-                    $this->expireOtherActiveServicePrices($building, $serviceId, $today, $sameDatePrice->id);
-                    $sameDatePrice->forceFill([
-                        'price' => $price,
-                        'effective_to' => null,
-                        'status' => ServicePrice::STATUS_ACTIVE,
-                    ])->save();
-
-                    continue;
-                }
-
-                $this->expireServicePrice($servicePrice, $today);
-                $this->expireOtherActiveServicePrices($building, $serviceId, $today);
+                $this->expireServicePrice($servicePrice, $expireDate);
+                $this->expireOtherActiveServicePrices($building, $serviceId, $expireDate);
                 $building->servicePrices()->create([
                     'service_id' => $serviceId,
                     'price' => $price,
-                    'effective_from' => $today,
+                    'effective_from' => $effectiveFrom,
                     'effective_to' => null,
                     'status' => ServicePrice::STATUS_ACTIVE,
+                    'created_by' => $admin?->id,
                 ]);
 
                 continue;
@@ -701,7 +691,7 @@ class BuildingController extends Controller
 
             if ($activePrice) {
                 if ($status === ServicePrice::STATUS_EXPIRED) {
-                    $this->expireServicePrice($activePrice, $effectiveTo ?? $today);
+                    $this->expireServicePrice($activePrice, $effectiveTo ?? $expireDate);
 
                     continue;
                 }
@@ -710,40 +700,11 @@ class BuildingController extends Controller
                     continue;
                 }
 
-                if ($this->servicePriceEffectiveFrom($activePrice) === $effectiveFrom) {
-                    $activePrice->forceFill([
-                        'price' => $price,
-                        'effective_to' => null,
-                        'status' => ServicePrice::STATUS_ACTIVE,
-                    ])->save();
-
-                    continue;
-                }
-            }
-
-            $sameDatePrice = $this->servicePriceByEffectiveDate($building, $serviceId, $effectiveFrom, $activePrice?->id);
-
-            if ($sameDatePrice) {
-                if ($this->isExpiredServicePrice($sameDatePrice)) {
-                    return $this->servicePriceEffectiveDateConflictResponse();
-                }
-
-                $this->expireOtherActiveServicePrices($building, $serviceId, $today, $sameDatePrice->id);
-                $sameDatePrice->forceFill([
-                    'price' => $price,
-                    'effective_to' => $effectiveTo,
-                    'status' => $status,
-                ])->save();
-
-                continue;
-            }
-
-            if ($activePrice) {
-                $this->expireServicePrice($activePrice, $today);
+                $this->expireServicePrice($activePrice, $expireDate);
             }
 
             if ($status === ServicePrice::STATUS_ACTIVE) {
-                $this->expireOtherActiveServicePrices($building, $serviceId, $today);
+                $this->expireOtherActiveServicePrices($building, $serviceId, $expireDate);
             }
 
             $building->servicePrices()->create([
@@ -752,6 +713,7 @@ class BuildingController extends Controller
                 'effective_from' => $effectiveFrom,
                 'effective_to' => $effectiveTo,
                 'status' => $status,
+                'created_by' => $admin?->id,
             ]);
         }
 

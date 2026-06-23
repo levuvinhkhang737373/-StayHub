@@ -626,6 +626,7 @@ class StayHubDemoSeeder extends Seeder
 
         return collect($rows)->mapWithKeys(fn (array $row, string $key): array => [
             $key => $this->upsertAndGetId('meter_devices', ['room_id' => $row[0], 'service_id' => $row[1]], [
+                'meter_code' => MeterDevice::generateMeterCode($row[0], $row[3]),
                 'meter_type' => $row[3],
                 'initial_reading' => $row[4],
                 'installed_at' => '2026-05-01',
@@ -1236,6 +1237,7 @@ class StayHubDemoSeeder extends Seeder
             $upperKey = strtoupper(str_replace('_', '-', $key));
 
             $meters[$key . '_electric'] = $this->upsertAndGetId('meter_devices', ['room_id' => $roomId, 'service_id' => $services['electric']], [
+                'meter_code' => MeterDevice::generateMeterCode($roomId, MeterDevice::METER_TYPE_ELECTRIC),
                 'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
                 'initial_reading' => 700 + (crc32($key) % 500),
                 'installed_at' => '2026-05-01',
@@ -1247,6 +1249,7 @@ class StayHubDemoSeeder extends Seeder
             ]);
 
             $meters[$key . '_water'] = $this->upsertAndGetId('meter_devices', ['room_id' => $roomId, 'service_id' => $services['water']], [
+                'meter_code' => MeterDevice::generateMeterCode($roomId, MeterDevice::METER_TYPE_WATER),
                 'meter_type' => MeterDevice::METER_TYPE_WATER,
                 'initial_reading' => 150 + (crc32($key) % 120),
                 'installed_at' => '2026-05-01',

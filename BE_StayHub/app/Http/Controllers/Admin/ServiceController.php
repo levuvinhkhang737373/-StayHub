@@ -271,7 +271,7 @@ class ServiceController extends Controller
 
     private function canViewServices(Admin $admin): bool
     {
-        return AdminScope::isSuperAdmin($admin);
+        return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
     private function canMutateServices(Admin $admin): bool

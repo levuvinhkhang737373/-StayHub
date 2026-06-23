@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import { fetchUtilityPriceHistory, type UtilityPriceHistoryItem } from '../services/dashboard.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -18,17 +18,249 @@ const RECENT_ACTIVITIES = [
   'Tòa C cập nhật chỉ số điện nước thành công.',
 ]
 
+interface SinglePriceChartProps {
+  type: 'electric' | 'water'
+  history: UtilityPriceHistoryItem[]
+  maxVal: number
+  minVal: number
+}
+
+function SinglePriceChart({ type, history, maxVal, minVal }: SinglePriceChartProps) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 })
+
+  const color = type === 'electric' ? '#f3c56b' : '#0f766e'
+  const textColor = type === 'electric' ? '#a65f16' : '#0f766e'
+  const label = type === 'electric' ? 'Đơn giá Điện (đ/kWh)' : 'Đơn giá Nước (đ/m³)'
+  const unit = type === 'electric' ? 'đ/kWh' : 'đ/m³'
+
+  const points = useMemo(() => {
+    const width = 800
+    const height = 300
+    const paddingLeft = 60
+    const paddingRight = 20
+    const paddingTop = 30
+    const paddingBottom = 40
+    
+    const chartWidth = width - paddingLeft - paddingRight
+    const chartHeight = height - paddingTop - paddingBottom
+    
+    return history.map((item, idx) => {
+      const x = paddingLeft + (idx * chartWidth) / (history.length - 1 || 1)
+      const val = type === 'electric' ? item.electric_price : item.water_price
+      const range = maxVal - minVal || 1
+      const y = paddingTop + chartHeight - ((val - minVal) / range) * chartHeight
+      
+      return {
+        x,
+        y,
+        val,
+        item,
+      }
+    })
+  }, [history, type, maxVal, minVal])
+
+  const pathD = useMemo(() => {
+    if (points.length === 0) return ''
+    return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  }, [points])
+
+  const areaD = useMemo(() => {
+    if (points.length === 0) return ''
+    const chartBottom = 300 - 40
+    const firstPoint = points[0]
+    const lastPoint = points[points.length - 1]
+    return `${pathD} L ${lastPoint.x} ${chartBottom} L ${firstPoint.x} ${chartBottom} Z`
+  }, [points, pathD])
+
+  const gridLines = useMemo(() => {
+    return Array.from({ length: 4 }).map((_, idx) => {
+      const y = 30 + (idx * 230) / 3
+      const pct = (3 - idx) / 3
+      const val = minVal + pct * (maxVal - minVal)
+      
+      return {
+        y,
+        val,
+      }
+    })
+  }, [minVal, maxVal])
+
+  const formatPrice = (val: number) => {
+    return new Intl.NumberFormat('vi-VN').format(Math.round(val)) + ' đ'
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
+    if (points.length === 0) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    
+    const svgWidth = 800
+    const scaleX = svgWidth / rect.width
+    const svgMouseX = mouseX * scaleX
+    
+    let closestIdx = 0
+    let minDiff = Infinity
+    points.forEach((p, idx) => {
+      const diff = Math.abs(p.x - svgMouseX)
+      if (diff < minDiff) {
+        minDiff = diff
+        closestIdx = idx
+      }
+    })
+    
+    setHoveredIndex(closestIdx)
+    
+    const hoveredPoint = points[closestIdx]
+    const tooltipX = (hoveredPoint.x * rect.width) / 800
+    const tooltipY = (hoveredPoint.y * rect.height) / 300 - 15
+    setTooltipPos({ x: tooltipX, y: tooltipY })
+  }
+
+  const handleMouseLeave = () => {
+    setHoveredIndex(null)
+  }
+
+  const gradientId = `${type}Gradient`
+
+  return (
+    <div className="rounded-2xl border border-[#3d2a18]/8 bg-[#fff7e8]/30 p-4 shadow-sm">
+      <div className="mb-2 flex items-center justify-between text-xs font-black text-[#24170d] uppercase tracking-[0.06em]">
+        <span>{label}</span>
+      </div>
+      <div className="relative">
+        <svg
+          viewBox="0 0 800 300"
+          className="w-full overflow-visible"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.32" />
+              <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid Lines */}
+          {gridLines.map((line, idx) => (
+            <g key={idx}>
+              <line
+                x1={60}
+                y1={line.y}
+                x2={780}
+                y2={line.y}
+                stroke="#3d2a18"
+                strokeOpacity={0.07}
+                strokeDasharray="4 4"
+              />
+              <text
+                x={50}
+                y={line.y + 4}
+                textAnchor="end"
+                className="text-[10px] font-black fill-[#8b5e34]/70"
+              >
+                {formatPrice(line.val)}
+              </text>
+            </g>
+          ))}
+
+          {/* Area fill */}
+          <path d={areaD} fill={`url(#${gradientId})`} />
+
+          {/* Stroke Line */}
+          <path
+            d={pathD}
+            fill="none"
+            stroke={color}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Nodes circles */}
+          {points.map((p, idx) => (
+            <g key={idx}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={4}
+                fill="#fffaf1"
+                stroke={color}
+                strokeWidth={2}
+              />
+              <text
+                x={p.x}
+                y={280}
+                textAnchor="middle"
+                className="text-[10px] font-black fill-[#8b5e34]/70"
+              >
+                {p.item.month}
+              </text>
+            </g>
+          ))}
+
+          {/* Vertical Hover Tracking */}
+          {hoveredIndex !== null && points[hoveredIndex] && (
+            <g>
+              <line
+                x1={points[hoveredIndex].x}
+                y1={30}
+                x2={points[hoveredIndex].x}
+                y2={260}
+                stroke="#3d2a18"
+                strokeOpacity={0.15}
+                strokeWidth={1.5}
+                strokeDasharray="3 3"
+              />
+              <circle
+                cx={points[hoveredIndex].x}
+                cy={points[hoveredIndex].y}
+                r={7}
+                fill={color}
+                stroke="#fffaf1"
+                strokeWidth={2}
+                className="drop-shadow-[0_0_6px_rgba(0,0,0,0.2)]"
+              />
+            </g>
+          )}
+        </svg>
+
+        {/* Tooltip Overlay */}
+        {hoveredIndex !== null && points[hoveredIndex] && (
+          <div
+            className="absolute z-10 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1]/96 p-4 shadow-2xl backdrop-blur-md text-xs pointer-events-none space-y-1 min-w-40"
+            style={{
+              left: `${tooltipPos.x}px`,
+              top: `${tooltipPos.y}px`,
+              transform: 'translate(-50%, -100%)',
+            }}
+          >
+            <div className="font-black text-[#8b5e34] border-b border-[#3d2a18]/5 pb-1">
+              Kỳ tháng {points[hoveredIndex].item.month}
+            </div>
+            <div className="flex items-center justify-between gap-4 font-semibold">
+              <span className="flex items-center gap-1.5 font-bold" style={{ color: textColor }}>
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                Đơn giá:
+              </span>
+              <span className="font-black text-[#24170d]">
+                {new Intl.NumberFormat('vi-VN').format(points[hoveredIndex].val)} {unit}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function AdminDashboardScreen() {
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState('')
   const [history, setHistory] = useState<UtilityPriceHistoryItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedMonthsCount, setSelectedMonthsCount] = useState(6)
-
-  // Chart Interactive Hover States
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 })
-  const containerRef = useRef<HTMLDivElement>(null)
 
   const loadBuildings = useCallback(async () => {
     try {
@@ -93,126 +325,6 @@ export function AdminDashboardScreen() {
     }
   }, [history])
 
-  const points = useMemo(() => {
-    const width = 800
-    const height = 300
-    const paddingLeft = 60
-    const paddingRight = 60
-    const paddingTop = 30
-    const paddingBottom = 40
-    
-    const chartWidth = width - paddingLeft - paddingRight
-    const chartHeight = height - paddingTop - paddingBottom
-    
-    if (history.length === 0) return []
-    
-    return history.map((item, idx) => {
-      const x = paddingLeft + (idx * chartWidth) / (history.length - 1 || 1)
-      
-      const eRange = maxElectric - minElectric || 1
-      const yElectric = paddingTop + chartHeight - ((item.electric_price - minElectric) / eRange) * chartHeight
-      
-      const wRange = maxWater - minWater || 1
-      const yWater = paddingTop + chartHeight - ((item.water_price - minWater) / wRange) * chartHeight
-      
-      return {
-        x,
-        yElectric,
-        yWater,
-        item,
-      }
-    })
-  }, [history, maxElectric, minElectric, maxWater, minWater])
-
-  const electricPathD = useMemo(() => {
-    if (points.length === 0) return ''
-    return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.yElectric}`).join(' ')
-  }, [points])
-
-  const electricAreaD = useMemo(() => {
-    if (points.length === 0) return ''
-    const height = 300
-    const paddingBottom = 40
-    const chartBottom = height - paddingBottom
-    const firstPoint = points[0]
-    const lastPoint = points[points.length - 1]
-    return `${electricPathD} L ${lastPoint.x} ${chartBottom} L ${firstPoint.x} ${chartBottom} Z`
-  }, [points, electricPathD])
-
-  const waterPathD = useMemo(() => {
-    if (points.length === 0) return ''
-    return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.yWater}`).join(' ')
-  }, [points])
-
-  const waterAreaD = useMemo(() => {
-    if (points.length === 0) return ''
-    const height = 300
-    const paddingBottom = 40
-    const chartBottom = height - paddingBottom
-    const firstPoint = points[0]
-    const lastPoint = points[points.length - 1]
-    return `${waterPathD} L ${lastPoint.x} ${chartBottom} L ${firstPoint.x} ${chartBottom} Z`
-  }, [points, waterPathD])
-
-  const gridLines = useMemo(() => {
-    const height = 300
-    const paddingTop = 30
-    const paddingBottom = 40
-    const chartHeight = height - paddingTop - paddingBottom
-    
-    return Array.from({ length: 4 }).map((_, idx) => {
-      const y = paddingTop + (idx * chartHeight) / 3
-      const pct = (3 - idx) / 3
-      const electricValue = minElectric + pct * (maxElectric - minElectric)
-      const waterValue = minWater + pct * (maxWater - minWater)
-      
-      return {
-        y,
-        electricValue,
-        waterValue,
-      }
-    })
-  }, [minElectric, maxElectric, minWater, maxWater])
-
-  const formatElectricPrice = (val: number) => {
-    return new Intl.NumberFormat('vi-VN').format(Math.round(val)) + ' đ'
-  }
-  const formatWaterPrice = (val: number) => {
-    return new Intl.NumberFormat('vi-VN').format(Math.round(val)) + ' đ'
-  }
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
-    if (points.length === 0 || !containerRef.current) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const mouseX = e.clientX - rect.left
-    
-    const svgWidth = 800
-    const scaleX = svgWidth / rect.width
-    const svgMouseX = mouseX * scaleX
-    
-    let closestIdx = 0
-    let minDiff = Infinity
-    points.forEach((p, idx) => {
-      const diff = Math.abs(p.x - svgMouseX)
-      if (diff < minDiff) {
-        minDiff = diff
-        closestIdx = idx
-      }
-    })
-    
-    setHoveredIndex(closestIdx)
-    
-    const hoveredPoint = points[closestIdx]
-    const tooltipX = (hoveredPoint.x * rect.width) / 800
-    const highestY = Math.min(hoveredPoint.yElectric, hoveredPoint.yWater)
-    const tooltipY = (highestY * rect.height) / 300 - 15
-    setTooltipPos({ x: tooltipX, y: tooltipY })
-  }
-
-  const handleMouseLeave = () => {
-    setHoveredIndex(null)
-  }
-
   return (
     <section className="space-y-6 text-[#24170d]">
       <div className="relative overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/18 sm:p-6">
@@ -272,7 +384,7 @@ export function AdminDashboardScreen() {
       </div>
 
       {/* Utility Price History Card */}
-      <div ref={containerRef} className="relative rounded-3xl border border-[#3d2a18]/10 bg-[#fffaf1]/82 p-6 shadow-lg shadow-[#6b3f1d]/8 backdrop-blur-md">
+      <div className="relative rounded-3xl border border-[#3d2a18]/10 bg-[#fffaf1]/82 p-6 shadow-lg shadow-[#6b3f1d]/8 backdrop-blur-md">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-black text-[#24170d]">Biến động đơn giá điện & nước</h2>
@@ -304,17 +416,6 @@ export function AdminDashboardScreen() {
           </div>
         </div>
 
-        <div className="mb-4 flex items-center gap-4 text-xs font-bold">
-          <div className="flex items-center gap-1.5 text-[#24170d]">
-            <span className="h-3 w-3 rounded-md bg-[#f3c56b] shadow-sm" />
-            <span>Điện (đ/kWh)</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[#24170d]">
-            <span className="h-3 w-3 rounded-md bg-[#0f766e] shadow-sm" />
-            <span>Nước (đ/m³)</span>
-          </div>
-        </div>
-
         {isLoading && history.length === 0 ? (
           <div className="flex h-[320px] items-center justify-center rounded-2xl bg-[#fff7e8]/40">
             <span className="text-sm font-bold text-[#8b5e34]/70 animate-pulse">Đang tải lịch sử đơn giá...</span>
@@ -324,179 +425,9 @@ export function AdminDashboardScreen() {
             <span className="text-sm font-bold text-[#8b5e34]/60">Chưa có lịch sử thay đổi đơn giá</span>
           </div>
         ) : (
-          <div className="relative">
-            <svg
-              viewBox="0 0 800 300"
-              className="w-full overflow-visible"
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-            >
-              <defs>
-                <linearGradient id="electricGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f3c56b" stopOpacity="0.32" />
-                  <stop offset="100%" stopColor="#f3c56b" stopOpacity="0.0" />
-                </linearGradient>
-                <linearGradient id="waterGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0f766e" stopOpacity="0.32" />
-                  <stop offset="100%" stopColor="#0f766e" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              {/* Grid Lines */}
-              {gridLines.map((line, idx) => (
-                <g key={idx}>
-                  <line
-                    x1={60}
-                    y1={line.y}
-                    x2={740}
-                    y2={line.y}
-                    stroke="#3d2a18"
-                    strokeOpacity={0.07}
-                    strokeDasharray="4 4"
-                  />
-                  
-                  {/* Left Axis: Electric */}
-                  <text
-                    x={50}
-                    y={line.y + 4}
-                    textAnchor="end"
-                    className="text-[10px] font-black fill-[#a65f16]/70"
-                  >
-                    {formatElectricPrice(line.electricValue)}
-                  </text>
-
-                  {/* Right Axis: Water */}
-                  <text
-                    x={750}
-                    y={line.y + 4}
-                    textAnchor="start"
-                    className="text-[10px] font-black fill-[#0f766e]/75"
-                  >
-                    {formatWaterPrice(line.waterValue)}
-                  </text>
-                </g>
-              ))}
-
-              {/* Fills */}
-              <path d={electricAreaD} fill="url(#electricGradient)" />
-              <path d={waterAreaD} fill="url(#waterGradient)" />
-
-              {/* Stroke Lines */}
-              <path
-                d={electricPathD}
-                fill="none"
-                stroke="#f3c56b"
-                strokeWidth={3}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d={waterPathD}
-                fill="none"
-                stroke="#0f766e"
-                strokeWidth={3}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-
-              {/* Nodes circles */}
-              {points.map((p, idx) => (
-                <g key={idx}>
-                  <circle
-                    cx={p.x}
-                    cy={p.yElectric}
-                    r={4}
-                    fill="#fffaf1"
-                    stroke="#f3c56b"
-                    strokeWidth={2}
-                  />
-                  <circle
-                    cx={p.x}
-                    cy={p.yWater}
-                    r={4}
-                    fill="#fffaf1"
-                    stroke="#0f766e"
-                    strokeWidth={2}
-                  />
-                  <text
-                    x={p.x}
-                    y={280}
-                    textAnchor="middle"
-                    className="text-[10px] font-black fill-[#8b5e34]/70"
-                  >
-                    {p.item.month}
-                  </text>
-                </g>
-              ))}
-
-              {/* Vertical Hover Tracking */}
-              {hoveredIndex !== null && points[hoveredIndex] && (
-                <g>
-                  <line
-                    x1={points[hoveredIndex].x}
-                    y1={30}
-                    x2={points[hoveredIndex].x}
-                    y2={260}
-                    stroke="#3d2a18"
-                    strokeOpacity={0.15}
-                    strokeWidth={1.5}
-                    strokeDasharray="3 3"
-                  />
-                  <circle
-                    cx={points[hoveredIndex].x}
-                    cy={points[hoveredIndex].yElectric}
-                    r={7}
-                    fill="#f3c56b"
-                    stroke="#fffaf1"
-                    strokeWidth={2}
-                    className="drop-shadow-[0_0_6px_rgba(243,197,107,0.8)]"
-                  />
-                  <circle
-                    cx={points[hoveredIndex].x}
-                    cy={points[hoveredIndex].yWater}
-                    r={7}
-                    fill="#0f766e"
-                    stroke="#fffaf1"
-                    strokeWidth={2}
-                    className="drop-shadow-[0_0_6px_rgba(15,118,110,0.8)]"
-                  />
-                </g>
-              )}
-            </svg>
-
-            {/* Tooltip Overlay */}
-            {hoveredIndex !== null && points[hoveredIndex] && (
-              <div
-                className="absolute z-10 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1]/96 p-4 shadow-2xl backdrop-blur-md text-xs pointer-events-none space-y-2 min-w-44"
-                style={{
-                  left: `${tooltipPos.x}px`,
-                  top: `${tooltipPos.y}px`,
-                  transform: 'translate(-50%, -100%)',
-                }}
-              >
-                <div className="font-black text-[#8b5e34] border-b border-[#3d2a18]/5 pb-1">
-                  Kỳ tháng {points[hoveredIndex].item.month}
-                </div>
-                <div className="flex items-center justify-between gap-4 font-semibold">
-                  <span className="flex items-center gap-1.5 text-[#a65f16]">
-                    <span className="h-2 w-2 rounded-full bg-[#f3c56b]" />
-                    Điện:
-                  </span>
-                  <span className="font-black text-[#24170d]">
-                    {new Intl.NumberFormat('vi-VN').format(points[hoveredIndex].item.electric_price)} đ/kWh
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-4 font-semibold">
-                  <span className="flex items-center gap-1.5 text-[#0f766e]">
-                    <span className="h-2 w-2 rounded-full bg-[#0f766e]" />
-                    Nước:
-                  </span>
-                  <span className="font-black text-[#24170d]">
-                    {new Intl.NumberFormat('vi-VN').format(points[hoveredIndex].item.water_price)} đ/m³
-                  </span>
-                </div>
-              </div>
-            )}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SinglePriceChart type="electric" history={history} maxVal={maxElectric} minVal={minElectric} />
+            <SinglePriceChart type="water" history={history} maxVal={maxWater} minVal={minWater} />
           </div>
         )}
       </div>

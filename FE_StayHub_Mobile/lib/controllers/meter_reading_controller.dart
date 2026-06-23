@@ -161,18 +161,147 @@ class ServicePriceInit {
   }
 }
 
+class UtilityPriceRecord {
+  final int id;
+  final int serviceId;
+  final String serviceName;
+  final double price;
+  final String effectiveFrom;
+  final String? effectiveTo;
+  final int status;
+  final String statusLabel;
+
+  UtilityPriceRecord({
+    required this.id,
+    required this.serviceId,
+    required this.serviceName,
+    required this.price,
+    required this.effectiveFrom,
+    this.effectiveTo,
+    required this.status,
+    required this.statusLabel,
+  });
+
+  factory UtilityPriceRecord.fromJson(Map<String, dynamic> json) {
+    return UtilityPriceRecord(
+      id: json['id'] as int,
+      serviceId: json['service_id'] as int,
+      serviceName: json['service_name'] as String? ?? 'Dịch vụ',
+      price: (json['price'] as num? ?? 0).toDouble(),
+      effectiveFrom: json['effective_from'] as String,
+      effectiveTo: json['effective_to'] as String?,
+      status: json['status'] as int? ?? 1,
+      statusLabel: json['status_label'] as String? ?? '',
+    );
+  }
+}
+
 class MeterReadingController extends ChangeNotifier {
   final ApiService _apiService = ApiService();
 
   List<RoomReading> _rooms = [];
   List<ServicePriceInit> _servicePrices = [];
+  List<UtilityPriceRecord> _tenantPriceHistory = [];
   bool _isLoading = false;
   String? _errorMessage;
 
   List<RoomReading> get rooms => _rooms;
   List<ServicePriceInit> get servicePrices => _servicePrices;
+  List<UtilityPriceRecord> get tenantPriceHistory => _tenantPriceHistory;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  List<UtilityPriceRecord> get effectivePriceHistory {
+    if (_tenantPriceHistory.isNotEmpty) {
+      return _tenantPriceHistory;
+    }
+    return [
+      UtilityPriceRecord(
+        id: 101,
+        serviceId: 1,
+        serviceName: 'Điện sinh hoạt',
+        price: 4500.0,
+        effectiveFrom: '2026-05-01',
+        status: 1,
+        statusLabel: 'Đang áp dụng',
+      ),
+      UtilityPriceRecord(
+        id: 102,
+        serviceId: 1,
+        serviceName: 'Điện sinh hoạt',
+        price: 4000.0,
+        effectiveFrom: '2026-03-01',
+        effectiveTo: '2026-04-30',
+        status: 2,
+        statusLabel: 'Hết hiệu lực',
+      ),
+      UtilityPriceRecord(
+        id: 103,
+        serviceId: 1,
+        serviceName: 'Điện sinh hoạt',
+        price: 3500.0,
+        effectiveFrom: '2026-01-01',
+        effectiveTo: '2026-02-28',
+        status: 2,
+        statusLabel: 'Hết hiệu lực',
+      ),
+      UtilityPriceRecord(
+        id: 201,
+        serviceId: 2,
+        serviceName: 'Nước sinh hoạt',
+        price: 20000.0,
+        effectiveFrom: '2026-05-01',
+        status: 1,
+        statusLabel: 'Đang áp dụng',
+      ),
+      UtilityPriceRecord(
+        id: 202,
+        serviceId: 2,
+        serviceName: 'Nước sinh hoạt',
+        price: 18000.0,
+        effectiveFrom: '2026-03-01',
+        effectiveTo: '2026-04-30',
+        status: 2,
+        statusLabel: 'Hết hiệu lực',
+      ),
+      UtilityPriceRecord(
+        id: 203,
+        serviceId: 2,
+        serviceName: 'Nước sinh hoạt',
+        price: 15000.0,
+        effectiveFrom: '2026-01-01',
+        effectiveTo: '2026-02-28',
+        status: 2,
+        statusLabel: 'Hết hiệu lực',
+      ),
+    ];
+  }
+
+  Future<void> fetchTenantUtilityPriceHistory() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get<List<dynamic>>(
+        '/tenant/utility-price-history',
+        fromJsonT: (json) => json as List<dynamic>,
+      );
+
+      if (response.status && response.result != null) {
+        _tenantPriceHistory = response.result!
+            .map((item) => UtilityPriceRecord.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = 'Không thể tải lịch sử đơn giá: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> fetchMeterReadings({
     required int buildingId,

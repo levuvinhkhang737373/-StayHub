@@ -1,30 +1,45 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:provider/provider.dart';
 import 'package:fe_stayhub_mobile/main.dart';
+import 'package:fe_stayhub_mobile/controllers/auth_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/dashboard_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/facility_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/service_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/tenant_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/room_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/invoice_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/maintenance_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/contract_controller.dart';
+import 'package:fe_stayhub_mobile/controllers/notification_controller.dart';
+import 'package:fe_stayhub_mobile/services/websocket_service.dart';
+import 'package:fe_stayhub_mobile/controllers/meter_reading_controller.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('Splash screen shows logo and loader', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => AuthController()),
+          ChangeNotifierProvider(create: (_) => DashboardController()),
+          ChangeNotifierProvider(create: (_) => FacilityController()),
+          ChangeNotifierProvider(create: (_) => ServiceController()),
+          ChangeNotifierProvider(create: (_) => TenantController()),
+          ChangeNotifierProvider(create: (_) => RoomController()),
+          ChangeNotifierProvider(create: (_) => InvoiceController()),
+          ChangeNotifierProvider(create: (_) => MaintenanceController()),
+          ChangeNotifierProvider(create: (_) => ContractController()),
+          ChangeNotifierProvider(create: (_) => NotificationController()),
+          ChangeNotifierProvider(create: (_) => WebSocketService()),
+          ChangeNotifierProvider(create: (_) => MeterReadingController()),
+        ],
+        child: const MyApp(),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that the splash screen shows the home work icon and loading indicator.
+    expect(find.byIcon(Icons.home_work_rounded), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 }

@@ -6,6 +6,7 @@ import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
+import { useAdminSession, isBuildingManagerRole } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildingDetail, fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import {
   createAdminMeterDevice,
@@ -45,8 +46,8 @@ const defaultForm: AdminMeterFormValues = {
   service_id: '',
   meter_code: '',
   meter_type: 1,
-  initial_reading: '',
-  installed_at: '',
+  initial_reading: '0',
+  installed_at: new Date().toLocaleDateString('en-CA'),
   status: 1,
   replaced_by_meter_id: '',
   note: '',
@@ -80,6 +81,9 @@ const getStatusBadgeClass = (status: number) => {
 }
 
 export function MetersScreen() {
+  const { session } = useAdminSession()
+  const isManager = isBuildingManagerRole(session?.admin.role)
+
   const [keyword, setKeyword] = useState('')
   const [selectedMeterType, setSelectedMeterType] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
@@ -96,12 +100,15 @@ export function MetersScreen() {
   const loadBuildings = useCallback(async () => {
     try {
       const response = await fetchAdminBuildings({ per_page: 100 })
-      const results = getResourceList(response.result)
+      let results = getResourceList(response.result)
+      if (isManager && session?.admin.id) {
+        results = results.filter((b: any) => Number(b.manager_admin_id) === Number(session.admin.id))
+      }
       setBuildings(results)
     } catch (error) {
       console.error('Failed to load buildings:', error)
     }
-  }, [])
+  }, [isManager, session?.admin.id])
 
   const loadRoomsForBuilding = useCallback(async (buildingId: number) => {
     if (!buildingId) {
@@ -337,6 +344,9 @@ export function MetersScreen() {
     if (matchedService) {
       initialForm.service_id = String(matchedService.id)
     }
+    if (isManager && buildings.length === 1) {
+      initialForm.building_id = String(buildings[0].id)
+    }
     setForm(initialForm)
     setErrors({})
     setErrorMessage(null)
@@ -363,6 +373,9 @@ export function MetersScreen() {
       const matchedService = rawServices.find(s => s.slug?.includes('dien'))
       if (matchedService) {
         initialForm.service_id = String(matchedService.id)
+      }
+      if (isManager && buildings.length === 1) {
+        initialForm.building_id = String(buildings[0].id)
       }
       setForm(initialForm)
     }
@@ -493,6 +506,9 @@ export function MetersScreen() {
       const matchedService = rawServices.find(s => s.slug?.includes('dien'))
       if (matchedService) {
         initialForm.service_id = String(matchedService.id)
+      }
+      if (isManager && buildings.length === 1) {
+        initialForm.building_id = String(buildings[0].id)
       }
       setForm(initialForm)
       setErrors({})
@@ -629,23 +645,24 @@ export function MetersScreen() {
             <table className="w-full min-w-[780px] text-left">
               <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
-                  <th className="px-5 py-4 w-[15%]">Phòng</th>
-                  <th className="px-5 py-4 w-[18%]">Loại</th>
-                  <th className="px-5 py-4 w-[27%]">Chỉ số</th>
-                  <th className="px-5 py-4 w-[20%]">Trạng thái</th>
-                  <th className="px-5 py-4 w-[20%] text-right">Hành động</th>
+                  <th className="px-5 py-4 w-[12%]">Phòng</th>
+                  <th className="px-5 py-4 w-[18%]">Mã đồng hồ</th>
+                  <th className="px-5 py-4 w-[15%]">Loại</th>
+                  <th className="px-5 py-4 w-[20%]">Chỉ số</th>
+                  <th className="px-5 py-4 w-[18%]">Trạng thái</th>
+                  <th className="px-5 py-4 w-[17%] text-right">Hành động</th>
                 </tr>
               </thead>
               <tbody className={cn('divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70 transition-opacity duration-200', isLoading && 'opacity-50 pointer-events-none')}>
                 {isLoading && meterDevices.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-20 text-center text-sm font-semibold text-[#6f6254]">
+                    <td colSpan={6} className="px-5 py-20 text-center text-sm font-semibold text-[#6f6254]">
                       Đang tải danh sách đồng hồ...
                     </td>
                   </tr>
                 ) : meterDevices.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-20 text-center">
+                    <td colSpan={6} className="px-5 py-20 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-8">
                         <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><Zap className="h-9 w-9" /></div>
                         <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy đồng hồ</p>
@@ -656,10 +673,15 @@ export function MetersScreen() {
                 ) : (
                   meterDevices.map((meter) => (
                     <tr key={meter.id} className="group transition hover:bg-[#f3c56b]/10">
-                      <td className="px-5 py-4 text-sm font-black text-[#24170d] w-[15%]">
+                      <td className="px-5 py-4 text-sm font-black text-[#24170d] w-[12%]">
                         {meter.room_number || `Phòng #${meter.room_id}`}
                       </td>
-                      <td className="px-5 py-4 text-sm text-[#6f6254] w-[18%]">
+                      <td className="px-5 py-4 text-sm text-[#24170d] w-[18%]">
+                        <span className="font-mono text-xs bg-[#efe2cf]/50 px-2.5 py-1 rounded border border-[#3d2a18]/10 text-[#3d2a18]">
+                          {meter.meter_code || '-'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-[#6f6254] w-[15%]">
                         <div className="flex items-center gap-1.5 font-bold">
                           {meter.meter_type === 1 ? (
                             <>
@@ -674,7 +696,7 @@ export function MetersScreen() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-sm text-[#6f6254] w-[27%]">
+                      <td className="px-5 py-4 text-sm text-[#6f6254] w-[20%]">
                         {(() => {
                           const unit = meter.meter_type === 1 ? ' kWh' : ' m³'
                           return (
@@ -686,12 +708,12 @@ export function MetersScreen() {
                           )
                         })()}
                       </td>
-                      <td className="px-5 py-4 w-[20%]">
+                      <td className="px-5 py-4 w-[18%]">
                         <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', getStatusBadgeClass(meter.status))}>
                           {meter.status_label || 'Không xác định'}
                         </span>
                       </td>
-                      <td className="px-5 py-4 w-[20%]">
+                      <td className="px-5 py-4 w-[17%]">
                         <div className="flex items-center justify-end gap-2">
                           <button type="button" onClick={() => void viewMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
                           <button type="button" onClick={() => editMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa"><Edit3 className="h-5 w-5" /></button>
@@ -772,6 +794,7 @@ export function MetersScreen() {
                     options={buildings.map((b) => ({ value: b.id, label: b.name }))}
                     invalid={!!errors.building_id}
                     placeholder="Chọn tòa nhà"
+                    disabled={isManager && buildings.length === 1}
                     onChange={(nextValue) => {
                       updateForm('building_id', String(nextValue))
                       updateForm('room_id', '')

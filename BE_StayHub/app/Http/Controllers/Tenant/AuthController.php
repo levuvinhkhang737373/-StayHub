@@ -146,4 +146,56 @@ class AuthController extends Controller
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
+
+    /**
+     * Lấy lịch sử đơn giá điện nước của tòa nhà
+     */
+    public function utilityPriceHistory(Request $request): JsonResponse
+    {
+        try {
+            $tenant = $request->user('tenant');
+            if (! $tenant) {
+                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+            }
+
+            $buildingId = $tenant->building_id;
+            if (! $buildingId) {
+                return ApiResponse::responseJson(false, 'Khách thuê chưa được gắn với tòa nhà nào', 400, null, 400);
+            }
+
+            $electricService = \App\Models\Service::whereIn('slug', ['electric', 'dien-sinh-hoat', 'dien'])->first();
+            $waterService = \App\Models\Service::whereIn('slug', ['water', 'nuoc-sinh-hoat', 'nuoc'])->first();
+
+            if (! $electricService || ! $waterService) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy cấu hình dịch vụ điện hoặc nước', 422, null, 422);
+            }
+
+            $prices = \App\Models\ServicePrice::where('building_id', $buildingId)
+                ->whereIn('service_id', [$electricService->id, $waterService->id])
+                ->with(['creator', 'service'])
+                ->orderBy('effective_from', 'desc')
+                ->orderBy('id', 'desc')
+                ->get();
+
+            $data = $prices->map(function ($price) {
+                return [
+                    'id' => $price->id,
+                    'service_id' => $price->service_id,
+                    'service_name' => $price->service?->name ?? 'Dịch vụ',
+                    'price' => (float) $price->price,
+                    'effective_from' => $price->effective_from->toDateString(),
+                    'effective_to' => $price->effective_to ? $price->effective_to->toDateString() : null,
+                    'status' => $price->status,
+                    'status_label' => \App\Models\ServicePrice::STATUS_LABELS[$price->status] ?? 'Không xác định',
+                    'created_by' => $price->created_by,
+                    'creator_name' => $price->creator?->full_name ?? 'Hệ thống',
+                    'created_at' => $price->created_at->toDateTimeString(),
+                ];
+            });
+
+            return ApiResponse::responseJson(true, 'Lịch sử thay đổi đơn giá điện nước', 200, $data, 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
 }

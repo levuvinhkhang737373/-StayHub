@@ -301,7 +301,7 @@ class MeterReadingController extends Controller
 
             $consumption = $currentReading - $previousReading;
 
-            $reading = DB::transaction(function () use ($validated, $previousReading, $consumption, $admin, $request) {
+            $reading = DB::transaction(function () use ($validated, $previousReading, $consumption, $admin, $request, $meter) {
                 $readingData = [
                     'previous_reading' => $previousReading,
                     'current_reading' => $validated['current_reading'],
@@ -324,6 +324,10 @@ class MeterReadingController extends Controller
                     ],
                     $readingData
                 );
+
+                $meter->update([
+                    'initial_reading' => $validated['current_reading']
+                ]);
 
                 AdminActivityLogger::write($admin, 'save_meter_reading', MeterReading::class, $record->id, null, $record->toArray(), $request);
 

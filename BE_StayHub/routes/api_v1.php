@@ -52,6 +52,7 @@ Route::prefix('admin')->group(function (): void {
         // =========================Buildings================================
         Route::patch('buildings/{building}/status', [BuildingController::class, 'updateStatus']);
         Route::put('buildings/{building}/utility-prices', [BuildingController::class, 'updateUtilityPrices']);
+        Route::get('buildings/{building}/utility-price-history', [BuildingController::class, 'utilityPriceHistory']);
         Route::apiResource('buildings', BuildingController::class);
 
         // =========================Asset Templates================================
@@ -148,6 +149,7 @@ Route::prefix('tenant')->group(function (): void {
         Route::get('/me', [TenantAuthController::class, 'me']);
         Route::patch('/profile', [TenantAuthController::class, 'updateProfile']);
         Route::post('/logout', [TenantAuthController::class, 'logout']);
+        Route::get('utility-price-history', [TenantAuthController::class, 'utilityPriceHistory']);
 
         // =========================Maintenance=========================
         Route::post('maintenance-requests/{id}/feedback', [TenantMaintenanceController::class, 'feedback']);
