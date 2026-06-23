@@ -394,6 +394,7 @@ class BuildingController extends Controller
             $payload['created_by'] = $admin->id;
             $payload['gender_policy'] = $payload['gender_policy'] ?? Building::GENDER_POLICY_MIXED;
             $payload['status'] = $payload['status'] ?? Building::STATUS_ACTIVE;
+
         }
 
         return $payload;

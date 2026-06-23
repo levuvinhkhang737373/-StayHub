@@ -577,6 +577,8 @@ class RoomController extends Controller
                 ]
             );
 
+            
+
             $slug = $device->service?->slug;
             if ($slug === 'dien-sinh-hoat') {
                 $result['electric'] = $currentReading;

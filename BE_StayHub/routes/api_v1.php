@@ -105,7 +105,6 @@ Route::prefix('admin')->group(function (): void {
         Route::apiResource('vehicles', VehicleController::class);
 
         // =========================Maintenance Requests====================
-        Route::patch('maintenance-requests/{id}/assign', [AdminMaintenanceController::class, 'assign']);
         Route::patch('maintenance-requests/{id}/status', [AdminMaintenanceController::class, 'updateStatus']);
         Route::apiResource('maintenance-requests', AdminMaintenanceController::class)->only(['index', 'show']);
 

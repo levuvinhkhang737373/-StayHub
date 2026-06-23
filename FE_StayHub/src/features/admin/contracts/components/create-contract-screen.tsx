@@ -297,7 +297,76 @@ export function CreateContractScreen() {
       setIsLoading(false)
     }
   }, [contractId, isRenewMode])
+// XOÁ: loadVehiclesForTenants và autoPopulateVehicles riêng lẻ
+// THÊM: hàm gộp này, chỉ deps [currentContractVehicles] (stable, chỉ set 1 lần khi load contract)
 
+const loadAndAutoPopulateVehicles = useCallback(
+  async (tenantIds: number[], startDate: string) => {
+    if (tenantIds.length === 0) {
+      setVehicles([])
+      return
+    }
+
+    try {
+      const responses = await Promise.all(
+        tenantIds.map((tenantId) =>
+          fetchAdminContractVehicles({
+            tenant_id: tenantId,
+            is_active: true,
+            without_active_contract: true,
+            per_page: 100,
+          })
+        )
+      )
+      const fetched = responses.flatMap((response) => getResourceList(response.result))
+      const uniqueFetched = Array.from(new Map(fetched.map((v) => [v.id, v])).values())
+
+      // Cập nhật danh sách xe cho vehicleOptions dropdown
+      setVehicles(uniqueFetched)
+
+      // Auto-populate form — dùng thẳng uniqueFetched, KHÔNG đọc từ `vehicles` state
+      // Đây chính là điểm phá vỡ vòng lặp vô tận so với bản cũ
+      setForm((current) => {
+        const tenantIdSet = new Set(tenantIds)
+        const allKnown = [...uniqueFetched, ...currentContractVehicles]
+
+        // 1. Bỏ xe của tenant đã bị remove khỏi form
+        const cleaned = current.vehicles.filter((v) => {
+          const vid = Number(v.vehicle_id)
+          if (!vid) return true
+          const info = allKnown.find((av) => av.id === vid)
+          if (!info) return true
+          return tenantIdSet.has(info.tenant_id)
+        })
+
+        // 2. Append xe mới chưa có trong form
+        const existingIds = new Set(cleaned.map((v) => Number(v.vehicle_id)).filter((id) => id > 0))
+        const newRows: ContractVehicleFormRow[] = uniqueFetched
+          .filter((v) => !existingIds.has(v.id))
+          .map((v) => ({
+            vehicle_id: String(v.id),
+            started_at: startDate || current.start_date,
+            ended_at: '',
+            billing_start_date: startDate || current.start_date,
+            billing_end_date: '',
+            monthly_fee: '0.00',
+            charge_policy: CHARGE_MONTHLY,
+            is_active: true,
+          }))
+
+        if (newRows.length === 0 && cleaned.length === current.vehicles.length) {
+          return current // không có gì thay đổi, tránh re-render thừa
+        }
+
+        return { ...current, vehicles: [...cleaned, ...newRows] }
+      })
+    } catch (error) {
+      setVehicles([])
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
+    }
+  },
+  [currentContractVehicles] // KHÔNG có `vehicles` trong deps → không tạo reference mới khi vehicles đổi
+)
   useEffect(() => {
     void loadBuildings()
   }, [loadBuildings])
@@ -311,11 +380,13 @@ export function CreateContractScreen() {
     void loadTenants(form.building_id)
   }, [form.building_id, loadRoomsForBuilding, loadTenants])
 
-  useEffect(() => {
-    const tenantIds = form.tenants.map((tenant) => Number(tenant.tenant_id)).filter((id) => id > 0)
-    void loadVehiclesForTenants(tenantIds)
-    void autoPopulateVehicles(tenantIds, form.start_date)
-  }, [form.tenants, form.start_date, loadVehiclesForTenants, autoPopulateVehicles])
+useEffect(() => {
+  const tenantIds = form.tenants
+    .map((tenant) => Number(tenant.tenant_id))
+    .filter((id) => id > 0)
+  void loadAndAutoPopulateVehicles(tenantIds, form.start_date)
+}, [form.tenants, form.start_date, loadAndAutoPopulateVehicles])
+
 
   const updateForm = <K extends keyof ContractFormValues>(key: K, value: ContractFormValues[K]) => {
     setForm((current) => {
