@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Wrench,
@@ -65,7 +65,11 @@ export function MaintenanceScreen() {
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin.role)
 
-  const [keyword, setKeyword] = useState('')
+  const [searchParams] = useSearchParams()
+  const maintenanceIdParam = searchParams.get('id')
+  const requestCodeParam = searchParams.get('request_code')
+
+  const [keyword, setKeyword] = useState(requestCodeParam || '')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedBuildingId, setSelectedBuildingId] = useState('')
   const [roomNumber, setRoomNumber] = useState('')
@@ -163,6 +167,21 @@ export function MaintenanceScreen() {
       window.removeEventListener('maintenance-created', handleMaintenanceCreated)
     }
   }, [loadRequests])
+
+  useEffect(() => {
+    if (maintenanceIdParam) {
+      void openDetail({ id: Number(maintenanceIdParam) } as any)
+    }
+  }, [maintenanceIdParam])
+
+  useEffect(() => {
+    if (!isLoading && requestCodeParam && requests.length > 0) {
+      const found = requests.find((r) => r.request_code === requestCodeParam)
+      if (found) {
+        void openDetail(found)
+      }
+    }
+  }, [isLoading, requestCodeParam, requests])
 
   // View details
   const openDetail = async (req: AdminMaintenanceRequestResource) => {

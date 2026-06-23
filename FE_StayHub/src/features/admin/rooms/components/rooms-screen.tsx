@@ -7,6 +7,7 @@ import { Eye, Trash2, Pencil, PackageOpen, Plus, Search, X, Power, ChevronLeft, 
 import { Link } from 'react-router-dom'
 import { useAdminSession } from '../../auth/hooks/admin-session-store'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { formatCurrency } from '../../../../shared/lib/utils/format'
 
 const statusLabels: Record<number, string> = {
   1: 'Hoạt động',
@@ -566,7 +567,7 @@ export function RoomsScreen() {
                 </div>
                 <div className="flex items-center justify-between py-3">
                   <span className="text-[11px] font-black uppercase tracking-widest text-[#8b5e34]">Giá</span>
-                  <span className="text-[13px] font-bold text-[#24170d]">{Number(room?.base_price).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' })}</span>
+                  <span className="text-[13px] font-bold text-[#24170d]">{formatCurrency(room?.base_price)}</span>
                 </div>
                 <div className="flex items-center justify-between py-3">
                   <span className="text-[11px] font-black uppercase tracking-widest text-[#8b5e34]">Tổng số người</span>

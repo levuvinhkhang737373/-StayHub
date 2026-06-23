@@ -342,11 +342,18 @@ export function NotificationsScreen() {
                     <div 
                       key={notif.id} 
                       onClick={() => {
-                        const link = notif.notification_type === 1 
-                          ? '/admin/maintenance' 
-                          : notif.notification_type === 2 
-                          ? '/admin/invoices' 
-                          : '/admin/contracts';
+                        const scMatch = (notif.content || '').match(/(SC-\d{6})/i)
+                        const invMatch = (notif.content || '').match(/(INV-[A-Z0-9-]+)/i)
+                        const hdMatch = (notif.content || '').match(/(HD-[A-Z0-9-]+)/i)
+
+                        let link = '/admin/contracts'
+                        if (notif.notification_type === 1) {
+                          link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
+                        } else if (notif.notification_type === 2) {
+                          link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+                        } else {
+                          link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
+                        }
                         navigate(link);
                       }}
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#3d2a18]/10 bg-white hover:border-[#f3c56b]/40 cursor-pointer hover:bg-stone-50/50 transition"

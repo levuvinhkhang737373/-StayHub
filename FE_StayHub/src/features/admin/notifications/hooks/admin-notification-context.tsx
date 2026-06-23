@@ -78,11 +78,24 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               notifType = 'invoice'
             }
 
+            const scMatch = (item.content || '').match(/(SC-\d{6})/i)
+            const invMatch = (item.content || '').match(/(INV-[A-Z0-9-]+)/i)
+            const hdMatch = (item.content || '').match(/(HD-[A-Z0-9-]+)/i)
+
+            let link = '/admin/contracts'
+            if (item.notification_type === 1) {
+              link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
+            } else if (item.notification_type === 2) {
+              link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+            } else {
+              link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
+            }
+
             return {
               id: notifId,
               title: item.title,
               description: item.content || '',
-              link: item.notification_type === 1 ? '/admin/maintenance' : item.notification_type === 2 ? '/admin/invoices' : '/admin/contracts',
+              link,
               read: localItem ? localItem.read : false,
               createdAt: item.created_at,
               type: notifType,
@@ -159,7 +172,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           addNotification({
             title: 'Yêu cầu bảo trì mới',
             description: `Phòng ${request.room_number ?? '?'}: ${request.title ?? ''} — ${request.description ?? ''}`,
-            link: '/admin/maintenance',
+            link: `/admin/maintenance?id=${request.id}`,
             type: 'maintenance',
           })
         }
@@ -197,7 +210,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           addNotification({
             title: 'Phản hồi bảo trì mới',
             description: `Phòng ${feedback.room_number ?? '?'}: Khách ${feedback.tenant_name ?? 'không rõ'} ${commentText}`,
-            link: '/admin/maintenance',
+            link: `/admin/maintenance?id=${feedback.maintenance_request_id}`,
             type: 'maintenance',
           })
         }
@@ -236,10 +249,23 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           window.dispatchEvent(new CustomEvent('notification-refresh'))
 
           if (Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
+            const scMatch = (notification.content || '').match(/(SC-\d{6})/i)
+            const invMatch = (notification.content || '').match(/(INV-[A-Z0-9-]+)/i)
+            const hdMatch = (notification.content || '').match(/(HD-[A-Z0-9-]+)/i)
+
+            let link = '/admin/contracts'
+            if (notification.notification_type === 1) {
+              link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
+            } else if (notification.notification_type === 2) {
+              link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+            } else {
+              link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
+            }
+
             addNotification({
               title: notification.title,
               description: notification.content,
-              link: notification.notification_type === 1 ? '/admin/maintenance' : notification.notification_type === 2 ? '/admin/invoices' : '/admin/contracts',
+              link,
               type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : 'system',
             })
           }
@@ -263,7 +289,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           addNotification({
             title: 'Hợp đồng hết hạn',
             description: `Hợp đồng ${contract.contract_code ?? ''} (Phòng ${contract.room_number ?? '?'}) đã hết hạn.`,
-            link: '/admin/contracts',
+            link: `/admin/contracts?id=${contract.id}`,
             type: 'system',
           })
           window.dispatchEvent(new CustomEvent('contract-refresh', { detail: contract }))
