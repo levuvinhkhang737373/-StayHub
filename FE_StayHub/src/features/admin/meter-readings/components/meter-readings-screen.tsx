@@ -726,6 +726,7 @@ export function MeterReadingsScreen() {
               step="any"
               placeholder="Nhập số mới"
               className={cn(inputClass, accent.ring, fieldError && inputErrorClass)}
+              value={meter.curr}
               onChange={(event) => {
                 const nextValue = event.target.value
                 updateMeterState(kind, current => ({ ...current, curr: nextValue }))
