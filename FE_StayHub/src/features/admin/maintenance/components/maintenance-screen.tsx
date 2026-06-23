@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Wrench,
   Eye,
-  UserPlus,
   Settings,
   RefreshCw,
   Search,
@@ -22,8 +21,6 @@ import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-se
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
-import { fetchAdminAccounts } from '../../system-users/services/admin-accounts.service'
-import type { AdminAccountResource } from '../../system-users/types/admin-account-api.model'
 import {
   fetchAdminMaintenanceRequests,
   fetchAdminMaintenanceDetail,
@@ -74,7 +71,6 @@ export function MaintenanceScreen() {
   const [roomNumber, setRoomNumber] = useState('')
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [requests, setRequests] = useState<AdminMaintenanceRequestResource[]>([])
-  const [adminUsers, setAdminUsers] = useState<AdminAccountResource[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -107,14 +103,10 @@ export function MaintenanceScreen() {
 
   const loadBuildingsAndStaff = useCallback(async () => {
     try {
-      const [buildingsRes, staffRes] = await Promise.all([
-        fetchAdminBuildings({ per_page: 100 }),
-        fetchAdminAccounts({ per_page: 100, status: 1 }) // Only active staff
-      ])
+      const buildingsRes = await fetchAdminBuildings({ per_page: 100 })
       setBuildings(getResourceList(buildingsRes.result))
-      setAdminUsers(getResourceList(staffRes.result))
     } catch (e) {
-      console.error('Không thể load tòa nhà / nhân sự', e)
+      console.error('Không thể load tòa nhà', e)
     }
   }, [])
 

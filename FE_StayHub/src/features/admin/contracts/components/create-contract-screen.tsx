@@ -171,78 +171,7 @@ export function CreateContractScreen() {
     }
   }, [])
 
-  const loadVehiclesForTenants = useCallback(async (tenantIds: number[]) => {
-    if (tenantIds.length === 0) {
-      setVehicles([])
-      return
-    }
 
-    try {
-      const responses = await Promise.all(
-        tenantIds.map((tenantId) => fetchAdminContractVehicles({ tenant_id: tenantId, is_active: true, without_active_contract: true, per_page: 100 }))
-      )
-      const nextVehicles = responses.flatMap((response) => getResourceList(response.result))
-      setVehicles(Array.from(new Map(nextVehicles.map((vehicle) => [vehicle.id, vehicle])).values()))
-    } catch (error) {
-      setVehicles([])
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
-    }
-  }, [])
-
-  const autoPopulateVehicles = useCallback(
-    async (tenantIds: number[], startDate: string) => {
-      // 1. Remove vehicles belonging to tenants no longer in the form
-      setForm((current) => {
-        const tenantIdSet = new Set(tenantIds)
-        const allKnownVehicles = [...vehicles, ...currentContractVehicles]
-        const cleanedVehicles = current.vehicles.filter((v) => {
-          const vehicleId = Number(v.vehicle_id)
-          if (!vehicleId) return true // keep empty/uncommitted rows
-          const vehicleInfo = allKnownVehicles.find((av) => av.id === vehicleId)
-          if (!vehicleInfo) return true // keep if we can't determine ownership
-          return tenantIdSet.has(vehicleInfo.tenant_id)
-        })
-        if (cleanedVehicles.length !== current.vehicles.length) {
-          return { ...current, vehicles: cleanedVehicles }
-        }
-        return current
-      })
-
-      // 2. Fetch available vehicles for these tenants
-      if (tenantIds.length === 0) return
-
-      try {
-        const responses = await Promise.all(
-          tenantIds.map((tenantId) => fetchAdminContractVehicles({ tenant_id: tenantId, is_active: true, without_active_contract: true, per_page: 100 }))
-        )
-        const fetchedVehicles = responses.flatMap((response) => getResourceList(response.result))
-        const uniqueFetched = Array.from(new Map(fetchedVehicles.map((v) => [v.id, v])).values())
-
-        // 3. Auto-append new vehicles that are not already in the form
-        setForm((current) => {
-          const existingVehicleIds = new Set(current.vehicles.map((v) => Number(v.vehicle_id)).filter((id) => id > 0))
-          const newRows: ContractVehicleFormRow[] = uniqueFetched
-            .filter((v) => !existingVehicleIds.has(v.id))
-            .map((v) => ({
-              vehicle_id: String(v.id),
-              started_at: startDate || current.start_date,
-              ended_at: '',
-              billing_start_date: startDate || current.start_date,
-              billing_end_date: '',
-              monthly_fee: '0.00',
-              charge_policy: CHARGE_MONTHLY,
-              is_active: true,
-            }))
-
-          if (newRows.length === 0) return current
-          return { ...current, vehicles: [...current.vehicles, ...newRows] }
-        })
-      } catch {
-        // Vehicle fetch errors are non-blocking for auto-population
-      }
-    },
-    [vehicles, currentContractVehicles]
-  )
 
   const loadContract = useCallback(async () => {
     if (!contractId) return
