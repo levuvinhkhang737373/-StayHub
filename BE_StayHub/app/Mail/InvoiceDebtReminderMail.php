@@ -52,6 +52,7 @@ class InvoiceDebtReminderMail extends Mailable implements ShouldBeEncrypted, Sho
             with: [
                 'amountText' => number_format(DecimalMoney::toIntegerAmount($this->invoice->remaining_amount), 0, ',', '.').' VND',
                 'billingPeriod' => str_pad((string) $this->invoice->billing_month, 2, '0', STR_PAD_LEFT).'/'.$this->invoice->billing_year,
+                'paymentQrUrl' => $this->paymentQrUrl,
             ],
         );
     }

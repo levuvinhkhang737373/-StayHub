@@ -27,10 +27,11 @@ class SendInvoiceDebtReminders extends Command
     public function handle(): int
     {
         $runDate = $this->resolveRunDate();
+        $billingDate = $runDate->copy()->subMonthNoOverflow();
         $reminderDate = $runDate->toDateString();
         $dryRun = (bool) $this->option('dry-run');
 
-        $invoices = $this->reminderInvoices($runDate)->get();
+        $invoices = $this->reminderInvoices($billingDate)->get();
         $summary = [
             'processed' => 0,
             'skipped' => 0,
@@ -40,7 +41,8 @@ class SendInvoiceDebtReminders extends Command
             'room_ids' => [],
         ];
 
-        $this->info('Bắt đầu nhắc nợ ngày '.$reminderDate.' cho tháng '.str_pad((string) $runDate->month, 2, '0', STR_PAD_LEFT).'/'.$runDate->year.'.');
+        $billingPeriod = str_pad((string) $billingDate->month, 2, '0', STR_PAD_LEFT).'/'.$billingDate->year;
+        $this->info('Bắt đầu nhắc nợ ngày '.$reminderDate.' cho tháng '.$billingPeriod.'.');
         $this->info('Tìm thấy '.$invoices->count().' hóa đơn còn dư nợ.'.($dryRun ? ' Đang chạy dry-run.' : ''));
 
         foreach ($invoices as $invoice) {
@@ -89,7 +91,7 @@ class SendInvoiceDebtReminders extends Command
         }
 
         if (! $dryRun) {
-            $this->sendAdminSummary($summary, $runDate);
+            $this->sendAdminSummary($summary, $billingDate);
         }
 
         $this->info('Hoàn tất nhắc nợ. Đã gửi: '.$summary['processed'].', bỏ qua: '.$summary['skipped'].', lỗi: '.$summary['errors'].'.');
@@ -108,15 +110,15 @@ class SendInvoiceDebtReminders extends Command
         return now('Asia/Ho_Chi_Minh')->startOfDay();
     }
 
-    private function reminderInvoices(Carbon $runDate): Builder
+    private function reminderInvoices(Carbon $billingDate): Builder
     {
         return Invoice::query()
             ->with([
                 'room.building',
                 'contract.contractTenants.tenant',
             ])
-            ->where('billing_month', (int) $runDate->month)
-            ->where('billing_year', (int) $runDate->year)
+            ->where('billing_month', (int) $billingDate->month)
+            ->where('billing_year', (int) $billingDate->year)
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE])
             ->where('remaining_amount', '>', 0)
             ->whereHas('contract', fn (Builder $query): Builder => $query->where('status', Contract::STATUS_ACTIVE))
@@ -229,10 +231,10 @@ class SendInvoiceDebtReminders extends Command
         ];
     }
 
-    private function sendAdminSummary(array $summary, Carbon $runDate): void
+    private function sendAdminSummary(array $summary, Carbon $billingDate): void
     {
         $roomCount = count($summary['room_ids']);
-        $billingPeriod = str_pad((string) $runDate->month, 2, '0', STR_PAD_LEFT).'/'.$runDate->year;
+        $billingPeriod = str_pad((string) $billingDate->month, 2, '0', STR_PAD_LEFT).'/'.$billingDate->year;
 
         $notification = Notification::query()->create([
             'title' => 'Tổng kết nhắc nợ tiền phòng',

@@ -12,7 +12,7 @@ class VietQRHelper
         ?string $description = null,
         ?string $template = null
     ): string {
-        $baseUrl = 'https://api.vietqr.io/image/';
+        $baseUrl = 'https://img.vietqr.io/image/';
 
         $bankBin = $bankBin ?: config('services.vietqr.bank_bin', '970423');
         $accountNo = $accountNo ?: config('services.vietqr.account_number', '99928876789');
@@ -29,7 +29,7 @@ class VietQRHelper
         }
 
         $path = sprintf(
-            '%s-%s-%s.jpg',
+            '%s-%s-%s.png',
             urlencode($bankBin),
             urlencode($accountNo),
             urlencode($template)

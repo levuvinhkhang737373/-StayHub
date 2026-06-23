@@ -21,7 +21,12 @@ class RegisterRequest extends FormRequest
         return [
             'tenant_id' => ['required', 'integer', 'exists:tenants,id'],
             'vehicle_type' => ['required', 'integer', Rule::in(array_keys(Vehicle::VEHICLE_TYPE_LABELS))],
-            'license_plate' => ['required', 'string', 'max:50'],
+            'license_plate' => [
+                Rule::requiredIf(fn () => in_array((int) $this->input('vehicle_type'), [Vehicle::VEHICLE_TYPE_MOTORBIKE, Vehicle::VEHICLE_TYPE_CAR])),
+                'nullable',
+                'string',
+                'max:50',
+            ],
             'brand' => ['nullable', 'string', 'max:100'],
             'color' => ['nullable', 'string', 'max:50'],
             'is_active' => ['nullable', 'boolean'],

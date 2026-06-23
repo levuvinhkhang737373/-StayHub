@@ -122,52 +122,66 @@ class SePayWebhookController extends Controller
                 return ApiResponse::responseJson(false, 'Không tìm thấy hợp đồng/hóa đơn hoặc không thể trích xuất mã từ nội dung giao dịch.', 404, null, 404);
             }
 
-            DB::transaction(function () use ($contract, $amount, $transactionReference, $content): void {
-                ContractDepositTransaction::create([
-                    'contract_id' => $contract->id,
-                    'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
-                    'amount' => $amount,
-                    'transaction_date' => now()->toDateString(),
-                    'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
-                    'transaction_reference' => $transactionReference,
-                    'note' => 'Hệ thống tự động ghi nhận qua SePay Webhook. Nội dung gốc: ' . $content,
-                    'created_by' => null,
-                ]);
+            $lock = Cache::lock('sepay-contract-payment:' . sha1($transactionReference), 10);
 
-                if ($contract->status === Contract::STATUS_CANCELLED) {
-                    $hasOtherActiveContract = Contract::where('room_id', $contract->room_id)
-                        ->where('id', '!=', $contract->id)
-                        ->where('status', Contract::STATUS_ACTIVE)
-                        ->exists();
+            if (! $lock->get()) {
+                return ApiResponse::responseJson(false, 'Giao dịch đang được xử lý, vui lòng thử lại sau.', 409, null, 409);
+            }
 
-                    if (! $hasOtherActiveContract) {
-                        $contract->status = Contract::STATUS_ACTIVE;
-                        $contract->note = ($contract->note ? $contract->note . "\n" : '') . '[Hệ thống] Tự động khôi phục hợp đồng và kích hoạt lại do đã nhận được tiền cọc qua SePay.';
-                        $contract->save();
-
-                        $contract->contractTenants()->update(['is_staying' => true]);
-                        $contract->contractVehicles()->update(['is_active' => true]);
-
-                        if ($contract->room_id) {
-                            $occupants = \App\Models\ContractTenant::query()
-                                ->where('is_staying', true)
-                                ->whereNull('leave_date')
-                                ->whereHas('contract', fn ($query) => $query->where('room_id', $contract->room_id)->where('status', Contract::STATUS_ACTIVE))
-                                ->distinct('tenant_id')
-                                ->count('tenant_id');
-
-                            \App\Models\Room::query()->whereKey($contract->room_id)->update(['current_occupants' => $occupants]);
-                        }
-
-                        Log::info("SePay Webhook: Restored auto-cancelled contract {$contract->contract_code} as deposit paid successfully.");
-                    } else {
-                        $contract->note = ($contract->note ? $contract->note . "\n" : '') . '[Hệ thống] Nhận được tiền cọc ' . number_format(DecimalMoney::toIntegerAmount($amount), 0, ',', '.') . ' VND qua SePay nhưng KHÔNG THỂ tự động khôi phục hợp đồng vì phòng này đã có hợp đồng hoạt động khác. Vui lòng hoàn tiền hoặc xử lý thủ công.';
-                        $contract->save();
-
-                        Log::warning("SePay Webhook: Received payment for auto-cancelled contract {$contract->contract_code} but room {$contract->room_id} is already occupied.");
+            try {
+                DB::transaction(function () use ($contract, $amount, $transactionReference, $content): void {
+                    if (ContractDepositTransaction::query()->where('transaction_reference', $transactionReference)->exists()) {
+                        return;
                     }
-                }
-            });
+
+                    ContractDepositTransaction::create([
+                        'contract_id' => $contract->id,
+                        'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+                        'amount' => $amount,
+                        'transaction_date' => now()->toDateString(),
+                        'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+                        'transaction_reference' => $transactionReference,
+                        'note' => 'Hệ thống tự động ghi nhận qua SePay Webhook. Nội dung gốc: ' . $content,
+                        'created_by' => null,
+                    ]);
+
+                    if ($contract->status === Contract::STATUS_CANCELLED) {
+                        $hasOtherActiveContract = Contract::where('room_id', $contract->room_id)
+                            ->where('id', '!=', $contract->id)
+                            ->where('status', Contract::STATUS_ACTIVE)
+                            ->exists();
+
+                        if (! $hasOtherActiveContract) {
+                            $contract->status = Contract::STATUS_ACTIVE;
+                            $contract->note = ($contract->note ? $contract->note . "\n" : '') . '[Hệ thống] Tự động khôi phục hợp đồng và kích hoạt lại do đã nhận được tiền cọc qua SePay.';
+                            $contract->save();
+
+                            $contract->contractTenants()->update(['is_staying' => true]);
+                            $contract->contractVehicles()->update(['is_active' => true]);
+
+                            if ($contract->room_id) {
+                                $occupants = \App\Models\ContractTenant::query()
+                                    ->where('is_staying', true)
+                                    ->whereNull('leave_date')
+                                    ->whereHas('contract', fn ($query) => $query->where('room_id', $contract->room_id)->where('status', Contract::STATUS_ACTIVE))
+                                    ->distinct('tenant_id')
+                                    ->count('tenant_id');
+
+                                \App\Models\Room::query()->whereKey($contract->room_id)->update(['current_occupants' => $occupants]);
+                            }
+
+                            Log::info("SePay Webhook: Restored auto-cancelled contract {$contract->contract_code} as deposit paid successfully.");
+                        } else {
+                            $contract->note = ($contract->note ? $contract->note . "\n" : '') . '[Hệ thống] Nhận được tiền cọc ' . number_format(DecimalMoney::toIntegerAmount($amount), 0, ',', '.') . ' VND qua SePay nhưng KHÔNG THỂ tự động khôi phục hợp đồng vì phòng này đã có hợp đồng hoạt động khác. Vui lòng hoàn tiền hoặc xử lý thủ công.';
+                            $contract->save();
+
+                            Log::warning("SePay Webhook: Received payment for auto-cancelled contract {$contract->contract_code} but room {$contract->room_id} is already occupied.");
+                        }
+                    }
+                });
+            } finally {
+                optional($lock)->release();
+            }
 
             try {
                 $contract->loadMissing(['room.building']);
@@ -199,6 +213,31 @@ class SePayWebhookController extends Controller
         }
     }
 
+    private function notifyAdminExcessPayment(Invoice $invoice, Payment $payment, string $amount, string $reason): void
+    {
+        try {
+            $invoice->loadMissing(['room.building']);
+            $amountText = number_format(DecimalMoney::toIntegerAmount($amount), 0, ',', '.') . ' VND';
+
+            $notification = Notification::query()->create([
+                'title' => 'Cảnh báo giao dịch dư thừa',
+                'content' => 'Phòng ' . ($invoice->room?->room_number ?? 'chưa rõ') . ' của tòa nhà ' . ($invoice->room?->building?->name ?? 'chưa rõ') . " nhận được giao dịch {$amountText} cho hóa đơn {$invoice->invoice_code}. Lý do: {$reason}. Mã thanh toán: {$payment->payment_code}. Vui lòng đối soát và hoàn tiền.",
+                'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
+                'target_type' => Notification::TARGET_TYPE_ADMIN,
+                'building_id' => $invoice->room?->building_id,
+                'room_id' => $invoice->room_id,
+                'tenant_id' => null,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => null,
+            ]);
+
+            event(new NotificationSent($notification));
+        } catch (\Exception $e) {
+            Log::error('SePay Webhook: Error creating excess payment admin notification: ' . $e->getMessage());
+        }
+    }
+
     private function processInvoicePayment(Invoice $invoice, string $amount, string $transactionReference, string $content): JsonResponse
     {
         $lock = Cache::lock('sepay-invoice-payment:' . sha1($transactionReference), 10);
@@ -223,7 +262,26 @@ class SePayWebhookController extends Controller
                 }
 
                 if ((int) $invoiceModel->status === Invoice::STATUS_PAID) {
-                    return ApiResponse::responseJson(true, 'Hóa đơn đã thanh toán trước đó.', 0, ['status' => 'ignored'], 200);
+                    $payment = Payment::query()->create([
+                        'payment_code' => $this->makePaymentCode(),
+                        'invoice_id' => $invoiceModel->id,
+                        'amount' => $amount,
+                        'payment_date' => now(),
+                        'payment_method' => Payment::PAYMENT_METHOD_BANK_TRANSFER,
+                        'transaction_reference' => $transactionReference,
+                        'status' => Payment::STATUS_PENDING_CONFIRMATION,
+                        'proof_image' => null,
+                        'note' => '[Hệ thống cảnh báo] Hóa đơn này đã được thanh toán đầy đủ trước đó. Giao dịch này bị dư thừa. Vui lòng đối soát và hoàn tiền cho khách thuê. Nội dung gốc: ' . $content,
+                        'collected_by' => null,
+                    ]);
+
+                    DB::afterCommit(function () use ($invoiceModel, $payment, $amount): void {
+                        $this->notifyAdminExcessPayment($invoiceModel, $payment, $amount, 'Hóa đơn đã thanh toán đầy đủ trước đó');
+                    });
+
+                    Log::warning("SePay Webhook: Duplicate payment for already-paid invoice {$invoiceModel->invoice_code}, amount: {$amount}, ref: {$transactionReference}");
+
+                    return ApiResponse::responseJson(true, 'Giao dịch dư thừa đã được ghi nhận để đối soát.', 0, ['status' => 'duplicate_logged'], 200);
                 }
 
                 if (! in_array((int) $invoiceModel->status, [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE], true)) {
@@ -231,7 +289,26 @@ class SePayWebhookController extends Controller
                 }
 
                 if (DecimalMoney::toIntegerAmount($amount) > DecimalMoney::toIntegerAmount($invoiceModel->remaining_amount)) {
-                    return ApiResponse::responseJson(false, 'Số tiền giao dịch vượt quá số tiền hóa đơn còn lại.', 422, null, 422);
+                    $payment = Payment::query()->create([
+                        'payment_code' => $this->makePaymentCode(),
+                        'invoice_id' => $invoiceModel->id,
+                        'amount' => $amount,
+                        'payment_date' => now(),
+                        'payment_method' => Payment::PAYMENT_METHOD_BANK_TRANSFER,
+                        'transaction_reference' => $transactionReference,
+                        'status' => Payment::STATUS_PENDING_CONFIRMATION,
+                        'proof_image' => null,
+                        'note' => '[Hệ thống cảnh báo] Số tiền giao dịch vượt quá số tiền còn lại của hóa đơn. Vui lòng đối soát và hoàn trả tiền thừa cho khách thuê. Nội dung gốc: ' . $content,
+                        'collected_by' => null,
+                    ]);
+
+                    DB::afterCommit(function () use ($invoiceModel, $payment, $amount): void {
+                        $this->notifyAdminExcessPayment($invoiceModel, $payment, $amount, 'Số tiền giao dịch vượt quá số tiền còn lại');
+                    });
+
+                    Log::warning("SePay Webhook: Overpayment for invoice {$invoiceModel->invoice_code}, amount: {$amount}, remaining: {$invoiceModel->remaining_amount}, ref: {$transactionReference}");
+
+                    return ApiResponse::responseJson(true, 'Giao dịch vượt mức đã được ghi nhận để đối soát.', 0, ['status' => 'overpaid_logged'], 200);
                 }
 
                 $payment = Payment::query()->create([
