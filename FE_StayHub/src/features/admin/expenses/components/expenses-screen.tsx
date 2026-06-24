@@ -484,7 +484,7 @@ export function ExpensesScreen() {
                   <th className="px-4 py-3 text-right">Số tiền</th>
                   <th className="px-4 py-3">Ngày chi</th>
                   <th className="px-4 py-3">Trạng thái</th>
-                  <th className="px-4 py-3 text-right">Thao tác</th>
+                  <th className="px-4 py-3 w-[120px]"><div className="flex justify-end"><div className="w-[120px] text-center">Thao tác</div></div></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-white/45">

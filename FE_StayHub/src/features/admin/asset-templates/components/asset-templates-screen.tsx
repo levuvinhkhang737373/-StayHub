@@ -292,10 +292,10 @@ export function AssetTemplatesScreen() {
                 <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
                     <th className="px-5 py-4">Mẫu tài sản</th>
-                    <th className="px-5 py-4">Đơn vị</th>
+                    <th className="px-5 py-4 text-center">Đơn vị</th>
                     <th className="px-5 py-4 text-center">Đang gán</th>
-                    <th className="px-5 py-4">Trạng thái</th>
-                    <th className="px-5 py-4"><span className="flex justify-end"><span className="w-47.5 text-center">Thao tác</span></span></th>
+                    <th className="px-5 py-4 text-center">Trạng thái</th>
+                    <th className="px-5 py-4 w-[190px]"><div className="flex justify-end"><div className="w-[190px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8">
@@ -319,9 +319,9 @@ export function AssetTemplatesScreen() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-[13px] font-black text-[#24170d]">{assetTemplate.default_unit_label || unitLabels[Number(assetTemplate.default_unit_name || 1)]}</td>
+                      <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d]">{assetTemplate.default_unit_label || unitLabels[Number(assetTemplate.default_unit_name || 1)]}</td>
                       <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d] tabular-nums">{assetTemplate.room_assets_count ?? 0}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center">
                         <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm', Number(assetTemplate.status) === 1 ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
                           {assetTemplate.status_label || statusLabels[Number(assetTemplate.status)]}
                         </span>

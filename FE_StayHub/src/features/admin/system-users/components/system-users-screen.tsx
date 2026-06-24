@@ -305,7 +305,7 @@ export function SystemUsersScreen() {
                     <th className="px-5 py-4 text-center">FaceID</th>
                     <th className="px-5 py-4 text-center">Tòa nhà</th>
                     <th className="px-5 py-4">Cập nhật</th>
-                    <th className="px-5 py-4 text-right">Thao tác</th>
+                    <th className="px-5 py-4 w-[180px]"><div className="flex justify-end"><div className="w-[180px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">

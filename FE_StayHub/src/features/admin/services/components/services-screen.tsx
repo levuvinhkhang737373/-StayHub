@@ -276,11 +276,11 @@ export function ServicesScreen() {
                   <tr>
                     <th className="px-5 py-4">Dịch vụ</th>
                     <th className="px-5 py-4">Cách tính phí</th>
-                    <th className="px-5 py-4">Đơn vị</th>
+                    <th className="px-5 py-4 text-center">Đơn vị</th>
                     <th className="px-5 py-4 text-center">Bắt buộc</th>
                     <th className="px-5 py-4 text-center">Dữ liệu</th>
-                    <th className="px-5 py-4">Trạng thái</th>
-                    <th className="px-5 py-4 text-right">Thao tác</th>
+                    <th className="px-5 py-4 text-center">Trạng thái</th>
+                    <th className="px-5 py-4 w-[180px]"><div className="flex justify-end"><div className="w-[180px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -308,7 +308,7 @@ export function ServicesScreen() {
                         <td className="px-5 py-4">
                           <span className="text-sm font-black text-[#3d2a18]">{service.charge_method_label || service.charge_method}</span>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-4 text-center">
                           <span className={cn('inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-black', service.unit_name ? 'border-[#3d2a18]/10 bg-white/70 text-[#24170d]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
                             {service.unit_name || 'Chưa khai báo'}
                           </span>
@@ -323,7 +323,7 @@ export function ServicesScreen() {
                             <Database className="h-3.5 w-3.5" /> <span className="tabular-nums">{usedCount}</span>
                           </span>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-4 text-center">
                           <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', service.is_active ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
                             {service.is_active_label || (service.is_active ? 'Hoạt động' : 'Ngừng hoạt động')}
                           </span>

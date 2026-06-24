@@ -507,8 +507,8 @@ export function ContractsScreen() {
                   <th className="px-5 py-4">Thời hạn</th>
                   <th className="px-5 py-4">Giá / Cọc</th>
                   <th className="px-5 py-4 text-center">Dữ liệu</th>
-                  <th className="px-5 py-4">Trạng thái</th>
-                  <th className="px-5 py-4 text-right">Thao tác</th>
+                  <th className="px-5 py-4 text-center">Trạng thái</th>
+                  <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[232px] text-center">Thao tác</div></div></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -552,7 +552,7 @@ export function ContractsScreen() {
                           <Car className="ml-1 h-3.5 w-3.5" /> {contract.vehicles_count ?? 0}
                         </div>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-center">
                         <StatusBadge status={contract.status} label={contract.status_label || getStatusLabel(contract.status)} />
                       </td>
                       <td className="px-5 py-4">
