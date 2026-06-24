@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Banknote,
@@ -73,7 +73,11 @@ export function InvoicesScreen() {
   const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
 
-  const [keyword, setKeyword] = useState('')
+  const [searchParams] = useSearchParams()
+  const invoiceIdParam = searchParams.get('id')
+  const invoiceCodeParam = searchParams.get('invoice_code')
+
+  const [keyword, setKeyword] = useState(invoiceCodeParam || '')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedBuildingId, setSelectedBuildingId] = useState(isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : '')
   const [selectedRoomId, setSelectedRoomId] = useState('')
@@ -215,6 +219,21 @@ export function InvoicesScreen() {
     window.addEventListener('invoice-refresh', onRefresh)
     return () => window.removeEventListener('invoice-refresh', onRefresh)
   }, [loadInvoices])
+
+  useEffect(() => {
+    if (invoiceIdParam) {
+      void viewInvoice({ id: Number(invoiceIdParam) } as any)
+    }
+  }, [invoiceIdParam])
+
+  useEffect(() => {
+    if (!isLoading && invoiceCodeParam && invoices.length > 0) {
+      const found = invoices.find((inv) => inv.invoice_code === invoiceCodeParam)
+      if (found) {
+        void viewInvoice(found)
+      }
+    }
+  }, [isLoading, invoiceCodeParam, invoices])
 
   const clearFilters = () => {
     setKeyword('')

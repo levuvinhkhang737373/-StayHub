@@ -121,6 +121,7 @@ export function TenantTransferRoomScreen() {
     if(!currentRoomId) return;
     fetchAdminMeterDevices({
       room_id:currentRoomId,
+      status: 1,
       per_page:100,
     }).then((response)=>{
       const result=unwrap(response);
@@ -384,14 +385,16 @@ export function TenantTransferRoomScreen() {
             title="Chỉ số điện/nước chốt sổ phòng cũ"
             hint="Admin tự đọc chỉ số trên đồng hồ rồi nhập meter_device_id + chỉ số tương ứng. Để trống nếu không cần chốt sổ điện/nước cho lần chuyển này."
           >
-            {meterReadingRows.map((row, index) => (
-              <div key={index} className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                <input   className={inputClass}  value={
-                  meterDevices.find((m)=>String(m.id)===row.meterDeviceId,)?.service_name?? ""} disabled/>
-                <input type="number" placeholder="Chỉ số hiện tại" value={row.currentReading} onChange={(e) => updateMeterReadingRow(index, 'currentReading', e.target.value)} className={inputClass} />
-               
-              </div>
-            ))}
+            {meterReadingRows.map((row, index) => {
+              const meter = meterDevices.find((m) => String(m.id) === row.meterDeviceId)
+              const label = meter ? `${meter.service_name} (${meter.meter_code ?? ''})` : ''
+              return (
+                <div key={index} className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <input className={inputClass} value={label} disabled />
+                  <input type="number" placeholder="Chỉ số hiện tại" value={row.currentReading} onChange={(e) => updateMeterReadingRow(index, 'currentReading', e.target.value)} className={inputClass} />
+                </div>
+              )
+            })}
             
           </FormSection>
 

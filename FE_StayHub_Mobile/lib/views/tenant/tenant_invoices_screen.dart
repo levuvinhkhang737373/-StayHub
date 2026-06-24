@@ -287,7 +287,7 @@ class _TenantInvoicesScreenState extends State<TenantInvoicesScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${(invoice.isUnpaid ? invoice.remainingAmount : invoice.totalAmount).toStringAsFixed(0)}đ',
+                                _formatCurrency(invoice.isUnpaid ? invoice.remainingAmount : invoice.totalAmount),
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 16,
@@ -502,7 +502,7 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
                     children: [
                       const Text('Số tiền thanh toán:', style: TextStyle(color: Colors.grey, fontSize: 13)),
                       Text(
-                        '${liveInvoice.totalAmount.toStringAsFixed(0)}đ',
+                        _formatCurrency(liveInvoice.totalAmount),
                         style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917), fontSize: 13),
                       ),
                     ],
@@ -642,7 +642,7 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
                         const SizedBox(height: 6),
                         _buildModalRow('Kỳ thanh toán:', 'Tháng ${invoice.billingMonth}/${invoice.billingYear}'),
                         const SizedBox(height: 6),
-                        _buildModalRow('Số tiền cần đóng:', '${invoice.remainingAmount.toStringAsFixed(0)}đ'),
+                        _buildModalRow('Số tiền cần đóng:', _formatCurrency(invoice.remainingAmount)),
                       ],
                     ),
                   ),
@@ -757,7 +757,7 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
                                       const Text('SỐ TIỀN', style: TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
                                       const SizedBox(height: 2),
                                       Text(
-                                        '${invoice.remainingAmount.toStringAsFixed(0)}đ',
+                                        _formatCurrency(invoice.remainingAmount),
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                                       ),
                                     ],
@@ -1273,14 +1273,14 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          item.description.isNotEmpty ? item.description : 'Đơn giá: ${item.unitPrice.toStringAsFixed(0)}đ x ${item.quantity.toStringAsFixed(0)}',
+                                          item.description.isNotEmpty ? item.description : 'Đơn giá: ${_formatCurrency(item.unitPrice)} x ${item.quantity.toStringAsFixed(0)}',
                                           style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.w500),
                                         ),
                                       ],
                                     ),
                                   ),
                                   Text(
-                                    '${item.amount >= 0 ? '+' : ''}${item.amount.toStringAsFixed(0)}đ',
+                                    '${item.amount >= 0 ? '+' : ''}${_formatCurrency(item.amount)}',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 13,
@@ -1319,19 +1319,19 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
                     ),
                     child: Column(
                       children: [
-                        _buildSummaryRow('Nợ cũ kỳ trước:', '${invoice.previousDebtAmount.toStringAsFixed(0)}đ', color: Colors.white70),
+                        _buildSummaryRow('Nợ cũ kỳ trước:', _formatCurrency(invoice.previousDebtAmount), color: Colors.white70),
                         const SizedBox(height: 6),
-                        _buildSummaryRow('Phí phát sinh kỳ này:', '${(invoice.totalAmount - invoice.previousDebtAmount).toStringAsFixed(0)}đ', color: Colors.white70),
-                        const SizedBox(height: 6),
-                        const Divider(height: 12, color: Colors.white24),
-                        const SizedBox(height: 6),
-                        _buildSummaryRow('Tổng cộng hóa đơn:', '${invoice.totalAmount.toStringAsFixed(0)}đ', isBold: true, color: Colors.white),
-                        const SizedBox(height: 6),
-                        _buildSummaryRow('Đã thanh toán:', '${invoice.paidAmount.toStringAsFixed(0)}đ', color: const Color(0xFFEAB308)),
+                        _buildSummaryRow('Phí phát sinh kỳ này:', _formatCurrency(invoice.totalAmount - invoice.previousDebtAmount), color: Colors.white70),
                         const SizedBox(height: 6),
                         const Divider(height: 12, color: Colors.white24),
                         const SizedBox(height: 6),
-                        _buildSummaryRow('Còn lại cần thanh toán:', '${invoice.remainingAmount.toStringAsFixed(0)}đ', isBold: true, color: Colors.redAccent, isLarge: true),
+                        _buildSummaryRow('Tổng cộng hóa đơn:', _formatCurrency(invoice.totalAmount), isBold: true, color: Colors.white),
+                        const SizedBox(height: 6),
+                        _buildSummaryRow('Đã thanh toán:', _formatCurrency(invoice.paidAmount), color: const Color(0xFFEAB308)),
+                        const SizedBox(height: 6),
+                        const Divider(height: 12, color: Colors.white24),
+                        const SizedBox(height: 6),
+                        _buildSummaryRow('Còn lại cần thanh toán:', _formatCurrency(invoice.remainingAmount), isBold: true, color: Colors.redAccent, isLarge: true),
                       ],
                     ),
                   ),
@@ -1398,4 +1398,10 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
       ],
     );
   }
+}
+
+String _formatCurrency(double value) {
+  final str = value.toStringAsFixed(0);
+  final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+  return '${str.replaceAllMapped(reg, (Match m) => '${m[1]}.')}đ';
 }

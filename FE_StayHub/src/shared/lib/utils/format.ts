@@ -1,10 +1,6 @@
 export function formatMoneyText(value: string | number | null | undefined): string {
-  const [integerPart, decimalPart] = String(value || '0').split('.')
-  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-
-  if (!decimalPart || /^0+$/.test(decimalPart)) return formattedInteger
-
-  return `${formattedInteger},${decimalPart}`
+  const numValue = Math.round(Number(value || 0))
+  return String(numValue).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
 export function formatCurrency(value: string | number | null | undefined): string {

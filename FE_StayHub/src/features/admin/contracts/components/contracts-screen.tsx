@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Building2,
@@ -79,7 +79,11 @@ export function ContractsScreen() {
   const canManageContracts = useMemo(() => canManageContractsRole(adminRole), [adminRole])
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
 
-  const [keyword, setKeyword] = useState('')
+  const [searchParams] = useSearchParams()
+  const contractIdParam = searchParams.get('id')
+  const contractCodeParam = searchParams.get('contract_code')
+
+  const [keyword, setKeyword] = useState(contractCodeParam || '')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedBuildingId, setSelectedBuildingId] = useState(isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : '')
   const [selectedRoomId, setSelectedRoomId] = useState('')
@@ -240,6 +244,21 @@ export function ContractsScreen() {
       window.removeEventListener('contract-deposit-paid', handleRefresh)
     }
   }, [loadContracts])
+
+  useEffect(() => {
+    if (contractIdParam) {
+      void viewContract({ id: Number(contractIdParam) } as any)
+    }
+  }, [contractIdParam])
+
+  useEffect(() => {
+    if (!isLoading && contractCodeParam && contracts.length > 0) {
+      const found = contracts.find((c) => c.contract_code === contractCodeParam)
+      if (found) {
+        void viewContract(found)
+      }
+    }
+  }, [isLoading, contractCodeParam, contracts])
 
   const viewContract = async (contract: AdminContractResource) => {
     setDetailContract(contract)
