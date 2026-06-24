@@ -480,21 +480,10 @@ export function VehiclesScreen() {
                           </div>
                         </div>
                       </td>
-<<<<<<< HEAD
-                      <td className="px-5 py-4">
-                        {vehicle.license_plate ? (
-                          <span className="font-mono text-sm font-black tracking-wider text-[#24170d] bg-stone-100 border border-stone-200/60 px-2.5 py-1 rounded-lg shadow-sm">
-                            {vehicle.license_plate}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-bold text-[#8b5e34]/60 italic">Không có</span>
-                        )}
-=======
                       <td className="px-5 py-4 text-center">
                         <span className="font-mono text-sm font-black tracking-wider text-[#24170d] bg-stone-100 border border-stone-200/60 px-2.5 py-1 rounded-lg shadow-sm">
                           {vehicle.license_plate}
                         </span>
->>>>>>> Hoa
                       </td>
                       <td className="px-5 py-4 text-center">
                         <p className="text-sm font-black text-[#3d2a18]">{vehicle.tenant_name || 'Hệ thống'}</p>
