@@ -100,6 +100,19 @@ class RoomController extends Controller
                 }
             }
 
+            if ($request->has('meters') && is_array($request->meters)) {
+                foreach ($request->meters as $meter) {
+                    MeterDevice::create([
+                        'room_id' => $room->id,
+                        'service_id' => $meter['service_id'],
+                        'meter_code' => $meter['service_id'] == 1 ? $room->room_number . '-ĐHĐ-' . $room->building_id : $room->room_number . '-ĐHN-' . $room->building_id,
+                        'meter_type' => $meter['meter_type'],
+                        'initial_reading' => $meter['initial_reading'],
+                        'status' => MeterDevice::STATUS_ACTIVE,
+                        'installed_at' => now(),
+                    ]);
+                }
+            }
 
             if ($request->has('assets') && is_array($request->assets)) {
                 foreach ($request->assets as $assetInput) {
@@ -577,7 +590,7 @@ class RoomController extends Controller
                 ]
             );
 
-            
+
 
             $slug = $device->service?->slug;
             if ($slug === 'dien-sinh-hoat') {
@@ -590,39 +603,28 @@ class RoomController extends Controller
         return $result;
     }
 
-    private function ensureNewRoomMeters(Room $toRoom, array $openingReadings, Carbon $movementDate): void
-    {
-        $meteredServices = Service::where('charge_method', 1)->where('is_active', true)->get();
+    private function ensureNewRoomMeters(
+        Room $toRoom,
+        array $openingReadings,
+        Carbon $movementDate
+    ): void {
+        $meteredServices = Service::where('charge_method', 1)
+            ->where('is_active', true)
+            ->get();
 
         foreach ($meteredServices as $service) {
+
             $exists = MeterDevice::where('room_id', $toRoom->id)
                 ->where('service_id', $service->id)
                 ->where('status', 1)
                 ->exists();
 
-            if ($exists) {
-                continue;
-            }
-
-            $openingReading = $openingReadings[$service->id] ?? null;
-
-            if ($openingReading === null) {
-                // THROW, không return - bản trước return response ở đây chỉ thoát khỏi
-                // chính hàm này, transferTenant() vẫn chạy tiếp như chưa có gì sai.
+            if (! $exists) {
                 throw ValidationException::withMessages([
-                    'new_room_opening_readings' => "Phòng đích chưa có công tơ {$service->name}, cần nhập chỉ số khởi điểm.",
+                    'to_room_id'
+                    => "Phòng đích chưa được cấu hình công tơ {$service->name}.",
                 ]);
             }
-
-            MeterDevice::create([
-                'room_id' => $toRoom->id,
-                'service_id' => $service->id,
-                'meter_type' => $this->resolveMeterType($service),
-                'initial_reading' => $openingReading,
-                'installed_at' => $movementDate->toDateString(),
-                'status' => 1,
-                'note' => 'Công tơ tạo khi tenant chuyển vào phòng.',
-            ]);
         }
     }
 

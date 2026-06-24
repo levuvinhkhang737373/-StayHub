@@ -15,6 +15,8 @@ interface LocalFormState {
   max_occupants: string;
   status: number;
   description: string;
+  electric_reading: string,
+water_reading: string,
 }
 
 interface SelectedAssetItem {
@@ -45,6 +47,8 @@ export function CreateRoomScreen() {
     max_occupants: '',
     status: 1,
     description: '',
+    electric_reading: '',
+    water_reading: '',
   });
 
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssetItem[]>([]);
@@ -121,6 +125,13 @@ export function CreateRoomScreen() {
     data.append('max_occupants', formData.max_occupants);
     data.append('status', String(formData.status));
     data.append('description', formData.description);
+    data.append('meters[0][service_id]','1');
+    data.append('meters[0][meter_type]','1');
+    data.append('meters[0][initial_reading]',formData.electric_reading);
+
+    data.append('meters[1][service_id]','2');
+    data.append('meters[1][meter_type]','2');
+    data.append('meters[1][initial_reading]',formData.water_reading);
 
     selectedAssets.forEach((item, index) => {
       data.append(`assets[${index}][template_id]`, String(item.template_id));
@@ -295,7 +306,41 @@ export function CreateRoomScreen() {
               </div>
             </div>
           </section>
+                   <section className="rounded-[2rem] border bg-[#fffaf1] p-6">
+  <h2 className="font-black mb-4">Chỉ số đồng hồ ban đầu</h2>
 
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label className={labelClass}>Điện (kWh)</label>
+      <input
+        type="number"
+        className={inputClass}
+        value={formData.electric_reading}
+        onChange={(e) =>
+          setFormData((p) => ({
+            ...p,
+            electric_reading: e.target.value,
+          }))
+        }
+      />
+    </div>
+
+    <div>
+      <label className={labelClass}>Nước (m³)</label>
+      <input
+        type="number"
+        className={inputClass}
+        value={formData.water_reading}
+        onChange={(e) =>
+          setFormData((p) => ({
+            ...p,
+            water_reading: e.target.value,
+          }))
+        }
+      />
+    </div>
+  </div>
+</section>
           {/* Tài sản bàn giao */}
           <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-6 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="mb-6 flex items-center gap-3 border-b border-[#3d2a18]/10 pb-4">
@@ -309,6 +354,7 @@ export function CreateRoomScreen() {
             </div>
 
             <div>
+         
               {/* Danh sách các tài sản để click chọn */}
               <div className="mb-5 flex flex-wrap gap-2">
                 {assets.map((asset) => {
