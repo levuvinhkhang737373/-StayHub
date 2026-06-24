@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { ArrowLeft, BadgeCheck, Car, FileText, RefreshCw, UserPlus, X } from 'lucide-react'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
@@ -75,6 +75,8 @@ export function CreateContractScreen() {
   const [qrModalContract, setQrModalContract] = useState<AdminContractResource | null>(null)
   const [isConfirmingDeposit, setIsConfirmingDeposit] = useState(false)
   const [isCreateVehicleOpen, setIsCreateVehicleOpen] = useState(false)
+
+  const deletedVehicleIdsRef = useRef<number[]>([])
 
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
   const selectedBuilding = useMemo(() => buildings.find((building) => String(building.id) === form.building_id) || null, [buildings, form.building_id])
@@ -178,6 +180,7 @@ export function CreateContractScreen() {
 
     try {
       setIsLoading(true)
+      deletedVehicleIdsRef.current = []
       const response = await fetchAdminContractDetail(Number(contractId))
       const contract = response.result
       if (!contract) return
@@ -284,7 +287,11 @@ export function CreateContractScreen() {
           // 2. Append xe mới chưa có trong form
           const existingIds = new Set(cleaned.map((v) => Number(v.vehicle_id)).filter((id) => id > 0))
           const newRows: ContractVehicleFormRow[] = uniqueFetched
-            .filter((v) => !existingIds.has(v.id))
+            .filter((v) => {
+              if (existingIds.has(v.id)) return false
+              if (deletedVehicleIdsRef.current.includes(v.id)) return false
+              return true
+            })
             .map((v) => ({
               vehicle_id: String(v.id),
               started_at: startDate || current.start_date,
@@ -387,6 +394,7 @@ export function CreateContractScreen() {
   }
 
   const resetForm = () => {
+    deletedVehicleIdsRef.current = []
     if (editingContract) {
       if (isRenewMode) {
         let nextStartDate = ''
@@ -760,7 +768,13 @@ export function CreateContractScreen() {
                   options={vehicleOptions}
                   error={errors[`vehicles.${index}`]}
                   onChange={(patch) => updateVehicleRow(index, patch)}
-                  onRemove={() => updateForm('vehicles', form.vehicles.filter((_, rowIndex) => rowIndex !== index))}
+                  onRemove={() => {
+                    const vehicleId = Number(vehicle.vehicle_id)
+                    if (vehicleId) {
+                      deletedVehicleIdsRef.current.push(vehicleId)
+                    }
+                    updateForm('vehicles', form.vehicles.filter((_, rowIndex) => rowIndex !== index))
+                  }}
                   isEditMode={isEditMode || isRenewMode}
                   isRenewMode={isRenewMode}
                 />

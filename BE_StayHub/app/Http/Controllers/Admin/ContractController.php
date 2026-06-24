@@ -298,6 +298,13 @@ class ContractController extends Controller
                 if (array_key_exists('vehicles', $validated)) {
                     $vehiclePayloads = $this->normalizedVehiclePayloads($validated, false);
                     $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, $contractModel->id, $status);
+
+                    $incomingVehicleIds = collect($vehiclePayloads)->pluck('vehicle_id')->all();
+                    $tenantVehicleIds = Vehicle::whereIn('tenant_id', $tenantIds)->where('is_active', true)->pluck('id')->toArray();
+                    $removedVehicleIds = array_diff($tenantVehicleIds, $incomingVehicleIds);
+                    if ($removedVehicleIds !== []) {
+                        Vehicle::query()->whereIn('id', $removedVehicleIds)->update(['is_active' => false]);
+                    }
                 } else {
                     $vehiclePayloads = null;
                     $currentVehiclePayloads = $this->currentVehiclePayloads($contractModel);
@@ -645,6 +652,13 @@ class ContractController extends Controller
 
                 $vehiclePayloads = $this->normalizedVehiclePayloads($validated, true);
                 $this->assertVehiclePayloads($admin, $vehiclePayloads, $tenantIds, $oldContract->id, $status);
+
+                $incomingVehicleIds = collect($vehiclePayloads)->pluck('vehicle_id')->all();
+                $tenantVehicleIds = Vehicle::whereIn('tenant_id', $tenantIds)->where('is_active', true)->pluck('id')->toArray();
+                $removedVehicleIds = array_diff($tenantVehicleIds, $incomingVehicleIds);
+                if ($removedVehicleIds !== []) {
+                    Vehicle::query()->whereIn('id', $removedVehicleIds)->update(['is_active' => false]);
+                }
 
                 $oldContractActualEndDate = date('Y-m-d', strtotime($validated['start_date'].' - 1 day'));
                 $oldContract->forceFill([
@@ -1229,11 +1243,17 @@ class ContractController extends Controller
 
             if ($contractVehicle) {
                 $contractVehicle->fill($payload)->save();
+                if ($contractVehicle->is_active) {
+                    $contractVehicle->vehicle()->update(['is_active' => true]);
+                }
 
                 continue;
             }
 
-            $contract->contractVehicles()->create($payload);
+            $cv = $contract->contractVehicles()->create($payload);
+            if ($cv->is_active) {
+                $cv->vehicle()->update(['is_active' => true]);
+            }
         }
 
         $missingVehicleRows = $contract->contractVehicles()->whereNotIn('vehicle_id', $incomingVehicleIds)->lockForUpdate()->get();
@@ -1245,11 +1265,15 @@ class ContractController extends Controller
         }
 
         $today = now()->toDateString();
-        $missingVehicleRows->each(fn (ContractVehicle $contractVehicle): bool => $contractVehicle->forceFill([
-            'ended_at' => $contractVehicle->ended_at?->toDateString() ?? $today,
-            'billing_end_date' => $contractVehicle->billing_end_date?->toDateString() ?? $today,
-            'is_active' => false,
-        ])->save());
+        $missingVehicleRows->each(function (ContractVehicle $contractVehicle) use ($today): void {
+            $contractVehicle->forceFill([
+                'ended_at' => $contractVehicle->ended_at?->toDateString() ?? $today,
+                'billing_end_date' => $contractVehicle->billing_end_date?->toDateString() ?? $today,
+                'is_active' => false,
+            ])->save();
+
+            $contractVehicle->vehicle()->update(['is_active' => false]);
+        });
     }
 
     private function appendDepositTransactions(Contract $contract, array $transactions, Admin $admin): void
