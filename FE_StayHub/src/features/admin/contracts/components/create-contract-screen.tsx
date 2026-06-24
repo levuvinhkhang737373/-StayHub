@@ -218,6 +218,7 @@ export function CreateContractScreen() {
             billing_start_date: nextStartDate,
             leave_date: '',
             billing_end_date: '',
+            is_staying: true,
           })),
           deposit_transactions: [],
         })
@@ -422,6 +423,7 @@ export function CreateContractScreen() {
             billing_start_date: nextStartDate,
             leave_date: '',
             billing_end_date: '',
+            is_staying: true,
           })),
           deposit_transactions: [],
         })
