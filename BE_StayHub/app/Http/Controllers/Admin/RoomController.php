@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
+use App\Helpers\DecimalMoney;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Room\RoomRequest;
@@ -16,6 +17,8 @@ use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\MeterDevice;
 use App\Models\MeterReading;
 use App\Models\Notification;
@@ -387,7 +390,10 @@ class RoomController extends Controller
             $this->assertCanTransfer($tenant, $oldRoom, $toRoom);
 
             $finalReadings = $this->closeOldRoomMeters($oldRoom, $movementDate, $request->closing_meter_readings ?? [], $request->actor_admin_id ?? $request->user()->id);
-
+            $this->generateTransferOutInvoice(
+                $oldContract,
+                $movementDate
+            );
             $currentContractTenant->update([
                 'leave_date' => $movementDate->toDateString(),
                 'billing_end_date' => $movementDate->toDateString(),
@@ -400,8 +406,11 @@ class RoomController extends Controller
 
             if (!$remainingInOldContract) {
                 $oldContract->update([
-                    'status' => self::CONTRACT_STATUS_ENDED,
-                    'actual_end_date' => $movementDate->toDateString(),
+                    'status' => Contract::STATUS_EXPIRED,
+                    'actual_end_date' => $movementDate
+                        ->copy()
+                        ->subDay()
+                        ->toDateString(),
                 ]);
             }
 
@@ -412,6 +421,7 @@ class RoomController extends Controller
                 ->whereNull('actual_end_date')
                 ->lockForUpdate()
                 ->first();
+            $isNewContract = false;
 
             if (! $destinationContract) {
                 $destinationContract = Contract::create([
@@ -422,15 +432,20 @@ class RoomController extends Controller
                     'billing_cycle_day' => $oldContract->billing_cycle_day,
                     'room_price' => $toRoom->base_price,
                     'deposit_amount' => 0, // sẽ được cộng dần ở bước handleDeposit() bên dưới
-                    'status' => self::CONTRACT_STATUS_ACTIVE,
-                    'payment_status' => 2, // dữ liệu mẫu toàn bộ hợp đồng đều dùng giá trị 2, dùng tạm làm baseline
+                    'status' => Contract::STATUS_PENDING_SIGN,
+                    'payment_status' => Contract::PAYMENT_STATUS_PENDING, // dữ liệu mẫu toàn bộ hợp đồng đều dùng giá trị 2, dùng tạm làm baseline
                     'note' => $request->note,
                     'created_by' => $request->actor_admin_id ?? $request->user()->id,
                     'parent_contract_id' => $oldContract->id,
                 ]);
+                $isNewContract = true;
             }
-
-            // --- Từ đây trở xuống PHẢI chạy cho CẢ 2 trường hợp (tạo mới lẫn ghép) ---
+            if ($isNewContract) {
+                $this->generateTransferInInvoice(
+                    $destinationContract,
+                    $movementDate
+                );
+            }            // --- Từ đây trở xuống PHẢI chạy cho CẢ 2 trường hợp (tạo mới lẫn ghép) ---
             // Bản trước đặt nhầm toàn bộ khối này vào trong nhánh "else", khiến case ghép
             // phòng (phổ biến nhất) không thêm được tenant vào hợp đồng mới, không trừ sức
             // chứa phòng cũ, và không return response nào cả.
@@ -781,5 +796,112 @@ class RoomController extends Controller
         // Đơn giản, đủ dùng cho MVP. Nếu lo va chạm khi nhiều request cùng giây,
         // nên đổi sang 1 bộ sinh mã có kiểm tra unique hoặc dùng uuid ngắn.
         return sprintf('HD-%s-%s', $room->slug ?? $room->room_number, now()->format('YmdHis'));
+    }
+    private function generateTransferOutInvoice(
+        Contract $contract,
+        Carbon $movementDate
+    ): void {
+
+        $periodStart = $movementDate->copy()->startOfMonth();
+        $periodEnd = $movementDate->copy()->subDay();
+
+        if ($periodEnd->lt($periodStart)) {
+            return;
+        }
+
+        $exists = Invoice::where('contract_id', $contract->id)
+            ->where('billing_month', $periodStart->month)
+            ->where('billing_year', $periodStart->year)
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        $daysInMonth = $periodStart->daysInMonth;
+        $daysUsed = $periodStart->diffInDays($periodEnd) + 1;
+
+        $roomAmount = DecimalMoney::prorateByDays(
+            $contract->room_price,
+            $daysUsed,
+            $daysInMonth
+        );
+
+        $invoice = Invoice::create([
+            'invoice_code' => 'TRF-OLD-' . uniqid(),
+            'contract_id' => $contract->id,
+            'room_id' => $contract->room_id,
+            'billing_month' => $periodStart->month,
+            'billing_year' => $periodStart->year,
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
+            'previous_debt_amount' => 0,
+            'total_amount' => $roomAmount,
+            'paid_amount' => 0,
+            'remaining_amount' => $roomAmount,
+            'due_date' => now()->addDays(7),
+            'status' => Invoice::STATUS_UNPAID,
+            'issued_at' => now(),
+        ]);
+
+        $invoice->items()->create([
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'description' => 'Tiền phòng khi chuyển đi',
+            'quantity' => 1,
+            'unit_price' => $roomAmount,
+            'amount' => $roomAmount,
+        ]);
+    }
+    private function generateTransferInInvoice(
+        Contract $contract,
+        Carbon $movementDate
+    ): void {
+
+        $periodStart = $movementDate->copy();
+        $periodEnd = $movementDate->copy()->endOfMonth();
+
+        // Đã có hóa đơn tháng này rồi thì không tạo nữa
+        $exists = Invoice::where('contract_id', $contract->id)
+            ->where('billing_month', $periodStart->month)
+            ->where('billing_year', $periodStart->year)
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        $daysInMonth = $periodStart->daysInMonth;
+        $daysUsed = $periodStart->diffInDays($periodEnd) + 1;
+
+        $roomAmount = DecimalMoney::prorateByDays(
+            $contract->room_price,
+            $daysUsed,
+            $daysInMonth
+        );
+
+        $invoice = Invoice::create([
+            'invoice_code' => 'TRF-NEW-' . uniqid(),
+            'contract_id' => $contract->id,
+            'room_id' => $contract->room_id,
+            'billing_month' => $periodStart->month,
+            'billing_year' => $periodStart->year,
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
+            'previous_debt_amount' => 0,
+            'total_amount' => $roomAmount,
+            'paid_amount' => 0,
+            'remaining_amount' => $roomAmount,
+            'due_date' => now()->addDays(7),
+            'status' => Invoice::STATUS_UNPAID,
+            'issued_at' => now(),
+        ]);
+
+        $invoice->items()->create([
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'description' => 'Tiền phòng khi chuyển đến',
+            'quantity' => 1,
+            'unit_price' => $roomAmount,
+            'amount' => $roomAmount,
+        ]);
     }
 }
