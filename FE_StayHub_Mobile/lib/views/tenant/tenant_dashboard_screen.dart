@@ -8,6 +8,7 @@ import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import '../settings/settings_screen.dart';
 import 'tenant_chat_screen.dart';
+import 'tenant_building_settings_screen.dart';
 
 class TenantDashboardScreen extends StatefulWidget {
   const TenantDashboardScreen({super.key});
@@ -242,6 +243,20 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
                         icon: Icons.assignment_outlined,
                         color: Colors.green,
                         onTap: () => Navigator.pushNamed(context, '/tenant/contract'),
+                      ),
+                      _buildMenuShortcutCard(
+                        title: 'Quy định tòa nhà',
+                        subtitle: 'Cài đặt & Hỗ trợ',
+                        icon: Icons.domain_verification,
+                        color: Colors.teal,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const TenantBuildingSettingsScreen(),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

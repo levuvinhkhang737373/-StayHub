@@ -308,7 +308,7 @@ export function ActivityLogsScreen() {
                   <th className="px-4 py-3">Đối tượng</th>
                   <th className="px-4 py-3">IP</th>
                   <th className="px-4 py-3">Thiết bị</th>
-                  <th className="px-4 py-3 text-right">Thao tác</th>
+                  <th className="px-4 py-3 w-[45px]"><div className="flex justify-end"><div className="w-[45px] text-center">Thao tác</div></div></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-white/45">

@@ -361,7 +361,7 @@ export function SettingsScreen() {
                     <th className="px-5 py-4">Tòa nhà</th>
                     <th className="px-5 py-4">Giá trị</th>
                     <th className="px-5 py-4">Hiển thị</th>
-                    <th className="px-5 py-4"><span className="flex justify-end"><span className="w-32 text-center">Thao tác</span></span></th>
+                    <th className="px-5 py-4 w-[190px]"><div className="flex justify-end"><div className="w-[190px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8">

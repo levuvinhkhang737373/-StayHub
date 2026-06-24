@@ -444,11 +444,11 @@ export function VehiclesScreen() {
                 <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
                     <th className="px-5 py-4">Hãng & Loại</th>
-                    <th className="px-5 py-4">Biển số</th>
-                    <th className="px-5 py-4">Khách thuê</th>
-                    <th className="px-5 py-4">Trạng thái</th>
-                    <th className="px-5 py-4">Ngày đăng ký</th>
-                    <th className="px-5 py-4 text-right">Thao tác</th>
+                    <th className="px-5 py-4 text-center">Biển số</th>
+                    <th className="px-5 py-4 text-center">Khách thuê</th>
+                    <th className="px-5 py-4 text-center">Trạng thái</th>
+                    <th className="px-5 py-4 text-center">Ngày đăng ký</th>
+                    <th className="px-5 py-4 w-[130px]"><div className="flex justify-end"><div className="w-[130px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -479,20 +479,20 @@ export function VehiclesScreen() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-center">
                         <span className="font-mono text-sm font-black tracking-wider text-[#24170d] bg-stone-100 border border-stone-200/60 px-2.5 py-1 rounded-lg shadow-sm">
                           {vehicle.license_plate}
                         </span>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-center">
                         <p className="text-sm font-black text-[#3d2a18]">{vehicle.tenant_name || 'Hệ thống'}</p>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-center">
                         <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', vehicle.is_active ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
                           {vehicle.is_active_label || (vehicle.is_active ? 'Còn sử dụng' : 'Hết sử dụng')}
                         </span>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-center">
                         <span className="text-xs font-bold text-[#6f6254]">{formatDateTime(vehicle.created_at)}</span>
                       </td>
                       <td className="px-5 py-4">

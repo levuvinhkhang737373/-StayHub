@@ -150,6 +150,7 @@ Route::prefix('tenant')->group(function (): void {
         Route::patch('/profile', [TenantAuthController::class, 'updateProfile']);
         Route::post('/logout', [TenantAuthController::class, 'logout']);
         Route::get('utility-price-history', [TenantAuthController::class, 'utilityPriceHistory']);
+        Route::get('building-settings', [TenantAuthController::class, 'buildingSettings']);
 
         // =========================Maintenance=========================
         Route::post('maintenance-requests/{id}/feedback', [TenantMaintenanceController::class, 'feedback']);

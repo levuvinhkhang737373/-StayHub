@@ -345,8 +345,8 @@ export function InvoicesScreen() {
                 <th className="px-5 py-4">Phòng / Tòa nhà</th>
                 <th className="px-5 py-4">Kỳ tính tiền</th>
                 <th className="px-5 py-4">Tổng / Còn lại</th>
-                <th className="px-5 py-4">Trạng thái</th>
-                <th className="px-5 py-4 text-right">Thao tác</th>
+                <th className="px-5 py-4 text-center">Trạng thái</th>
+                <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[88px] text-center">Thao tác</div></div></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -375,7 +375,7 @@ export function InvoicesScreen() {
                     <p className="text-xs font-black text-[#24170d]">{formatCurrency(invoice.total_amount)}</p>
                     <p className="mt-1 text-xs font-bold text-rose-600">Còn {formatCurrency(invoice.remaining_amount)}</p>
                   </td>
-                  <td className="px-5 py-4"><InvoiceStatusBadge status={invoice.status} label={invoice.status_label || getInvoiceStatusLabel(invoice.status)} /></td>
+                  <td className="px-5 py-4 text-center"><InvoiceStatusBadge status={invoice.status} label={invoice.status_label || getInvoiceStatusLabel(invoice.status)} /></td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <IconButton title="Xem chi tiết" onClick={() => void viewInvoice(invoice)}><Eye className="h-5 w-5" /></IconButton>

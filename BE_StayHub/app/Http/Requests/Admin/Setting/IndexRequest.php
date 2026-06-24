@@ -21,7 +21,7 @@ class IndexRequest extends FormRequest
             'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
             'only_global' => ['nullable', 'boolean'],
             'is_public' => ['nullable', 'boolean'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:1000'],
         ];
     }
 
@@ -36,7 +36,7 @@ class IndexRequest extends FormRequest
             'is_public.boolean' => 'Trạng thái hiển thị của cài đặt không hợp lệ.',
             'per_page.integer' => 'Số dòng mỗi trang phải là số nguyên.',
             'per_page.min' => 'Số dòng mỗi trang phải lớn hơn hoặc bằng 1.',
-            'per_page.max' => 'Số dòng mỗi trang không được vượt quá 100.',
+            'per_page.max' => 'Số dòng mỗi trang không được vượt quá 1000.',
         ];
     }
 

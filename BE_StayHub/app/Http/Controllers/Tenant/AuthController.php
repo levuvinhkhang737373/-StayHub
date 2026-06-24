@@ -198,4 +198,47 @@ class AuthController extends Controller
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
+
+    /**
+     * Lấy danh sách cài đặt liên quan đến tòa nhà của khách thuê
+     */
+    public function buildingSettings(Request $request): JsonResponse
+    {
+        try {
+            $tenant = $request->user('tenant');
+            if (! $tenant) {
+                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+            }
+
+            $buildingId = $tenant->building_id;
+
+            $settings = \App\Models\Setting::query()
+                ->where('is_public', true)
+                ->where(function ($query) use ($buildingId) {
+                    $query->whereNull('building_id');
+                    if ($buildingId) {
+                        $query->orWhere('building_id', $buildingId);
+                    }
+                })
+                ->with(['building:id,name'])
+                ->orderBy('building_id', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            $data = $settings->map(function ($setting) {
+                return [
+                    'id' => $setting->id,
+                    'building_id' => $setting->building_id,
+                    'building_name' => $setting->building?->name,
+                    'setting_label' => $setting->setting_label,
+                    'setting_value' => $setting->setting_value,
+                    'description' => $setting->description,
+                ];
+            });
+
+            return ApiResponse::responseJson(true, 'Danh sách cài đặt tòa nhà', 200, $data, 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
 }
