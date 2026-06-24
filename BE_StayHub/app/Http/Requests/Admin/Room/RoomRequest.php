@@ -41,6 +41,10 @@ class RoomRequest extends FormRequest
             'assets.*.template_id' => 'required|integer|exists:asset_templates,id',
             'assets.*.quantity'    => 'required|integer|min:1',
             'assets.*.note'        => 'nullable|string|max:255',
+            'meters' => 'nullable|array',
+            'meters.*.service_id' => 'required|exists:services,id',
+            'meters.*.meter_type' => 'required|in:1,2',
+            'meters.*.initial_reading' => 'required|numeric|min:0',
         ];
     }
 
@@ -95,6 +99,14 @@ class RoomRequest extends FormRequest
 
             'assets.*.note.string'          => 'Ghi chú tài sản phải là chuỗi ký tự.',
             'assets.*.note.max'             => 'Ghi chú tài sản không được dài quá 255 ký tự.',
+            'meter.array' => 'Danh sách công tơ gửi lên phải là định dạng mảng',
+            "meters.*.service_id.required" => 'Mã thiết bị là bắt buộc',
+            'meters.*.service_id.exists' => "Mã thiết bị phải tồn tại trong bảng",
+            'meters.*.meter_type.required' => "Loại công tơ là bắt buộc",
+            'meters.*.meter_type.in' => "Loại công tơ chỉ có hai giá trị 1,2",
+            'meters.*.initial_reading.required' => "Giá trị công tơ là bắt buộc",
+            'meters.*.initial_reading.numeric' => "Giá trị công tơ phả là số",
+            'meters.*.initial_reading.min' => "Giá trị nhỏ nhất của công tơ phải lớn hơn hoặc bằng 0"
         ];
     }
     protected function failedValidation(Validator $validator)

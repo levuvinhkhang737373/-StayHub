@@ -100,6 +100,19 @@ class RoomController extends Controller
                 }
             }
 
+            if ($request->has('meters') && is_array($request->meters)) {
+                foreach ($request->meters as $meter) {
+                    MeterDevice::create([
+                        'room_id' => $room->id,
+                        'service_id' => $meter['service_id'],
+                        'meter_code' => $meter['service_id'] == 1 ? $room->room_number . '-ĐHĐ-' . $room->building_id : $room->room_number . '-ĐHN-' . $room->building_id,
+                        'meter_type' => $meter['meter_type'],
+                        'initial_reading' => $meter['initial_reading'],
+                        'status' => MeterDevice::STATUS_ACTIVE,
+                        'installed_at' => now(),
+                    ]);
+                }
+            }
 
             if ($request->has('assets') && is_array($request->assets)) {
                 foreach ($request->assets as $assetInput) {

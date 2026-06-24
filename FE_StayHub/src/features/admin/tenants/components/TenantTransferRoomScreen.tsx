@@ -25,10 +25,6 @@ interface MeterReadingRow {
   currentReading: string
 }
 
-interface OpeningReadingRow {
-  serviceId: string
-  value: string
-}
 
 export function TenantTransferRoomScreen() {
   const { tenantId } = useParams<{ tenantId: string }>()
