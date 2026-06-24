@@ -212,6 +212,7 @@ export function ContractFormPanel({
                 onChange={(patch) => onUpdateTenant(index, patch)}
                 onRemove={() => onRemoveTenant(index)}
                 isEditMode={editing || renewing}
+                isRenewMode={renewing}
               />
             ))}
           </div>
@@ -238,6 +239,7 @@ export function ContractFormPanel({
                 onChange={(patch) => onUpdateVehicle(index, patch)}
                 onRemove={() => onRemoveVehicle(index)}
                 isEditMode={editing || renewing}
+                isRenewMode={renewing}
               />
             ))}
           </div>

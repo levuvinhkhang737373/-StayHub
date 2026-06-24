@@ -212,6 +212,14 @@ export function CreateContractScreen() {
             billing_start_date: nextStartDate,
             billing_end_date: '',
           })),
+          tenants: formValues.tenants.map((t) => ({
+            ...t,
+            join_date: nextStartDate,
+            billing_start_date: nextStartDate,
+            leave_date: '',
+            billing_end_date: '',
+            is_staying: true,
+          })),
           deposit_transactions: [],
         })
       } else {
@@ -336,6 +344,11 @@ export function CreateContractScreen() {
           started_at: value,
           billing_start_date: value,
         }))
+        next.tenants = current.tenants.map((t) => ({
+          ...t,
+          join_date: value,
+          billing_start_date: value,
+        }))
         if (value) {
           const startDateObj = new Date(value)
           if (!isNaN(startDateObj.getTime())) {
@@ -403,6 +416,14 @@ export function CreateContractScreen() {
             ended_at: '',
             billing_start_date: nextStartDate,
             billing_end_date: '',
+          })),
+          tenants: formValues.tenants.map((t) => ({
+            ...t,
+            join_date: nextStartDate,
+            billing_start_date: nextStartDate,
+            leave_date: '',
+            billing_end_date: '',
+            is_staying: true,
           })),
           deposit_transactions: [],
         })
