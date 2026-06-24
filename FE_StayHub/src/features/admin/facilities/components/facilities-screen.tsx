@@ -508,12 +508,12 @@ export function FacilitiesScreen() {
                                 <table className="min-w-[980px] w-full text-left">
                                     <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                                         <tr>
-                                            <th className="px-5 py-4">Tòa nhà</th>
-                                            <th className="px-5 py-4">Khu vực</th>
-                                            <th className="px-5 py-4">Quản lý</th>
-                                            <th className="px-5 py-4 text-center">Phòng</th>
-                                            <th className="px-5 py-4">Trạng thái</th>
-                                            <th className="px-5 py-4"><span className="flex justify-end"><span className="w-[150px] text-center">Thao tác</span></span></th>
+                                            <th className="px-4 py-4">Tòa nhà</th>
+                                            <th className="px-4 py-4">Khu vực</th>
+                                            <th className="px-4 py-4">Quản lý</th>
+                                            <th className="px-4 py-4 text-center">Phòng</th>
+                                            <th className="px-4 py-4 text-center">Trạng thái</th>
+                                            <th className="px-4 py-4 w-[162px]"><div className="flex justify-end"><div className="w-[162px] text-center">Thao tác</div></div></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[#3d2a18]/8">
@@ -542,7 +542,7 @@ export function FacilitiesScreen() {
                                                 <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">{building.region_name || "Chưa cập nhật"}</td>
                                                 <td className="px-4 py-3 text-[13px] font-bold text-[#6f6254]">{building.manager_name || "Chưa phân công"}</td>
                                                 <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d] tabular-nums">{building.rooms_count ?? 0}</td>
-                                                <td className="px-4 py-3"><span className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm", statusClassNames[building.status])}>{statusLabels[building.status]}</span></td>
+                                                <td className="px-4 py-3 text-center"><span className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm", statusClassNames[building.status])}>{statusLabels[building.status]}</span></td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center justify-end gap-1.5">
                                                         <button type="button" onClick={() => void openViewBuildingModal(building)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:border-[#f3c56b] hover:bg-[#f3c56b]/15 hover:text-[#a65f16] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20" title="Xem chi tiết" aria-label={`Xem chi tiết tòa nhà ${building.name}`}><Eye className="h-3.5 w-3.5" /></button>

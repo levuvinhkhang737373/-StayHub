@@ -312,12 +312,12 @@ export function TenantsScreen() {
                     <tr>
                       <th className="px-5 py-4">Khách thuê</th>
                       <th className="px-5 py-4">Liên hệ</th>
-                      <th className="px-5 py-4">Giấy tờ</th>
-                      <th className="px-5 py-4">Trạng thái</th>
+                      <th className="px-5 py-4"><div className="w-[100px] text-center">Giấy tờ</div></th>
+                      <th className="px-5 py-4 text-center">Trạng thái</th>
                       <th className="px-5 py-4">Tòa nhà</th>
                       <th className="whitespace-nowrap px-5 py-4">Phòng</th>
                       <th className="px-5 py-4 text-center">Phương tiện</th>
-                      <th className="px-5 py-4 text-right">Thao tác</th>
+                      <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[232px] text-center">Thao tác</div></div></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -353,7 +353,7 @@ export function TenantsScreen() {
                               <p className="text-xs font-bold text-[#8b5e34]/75">{tenant.identity_number || 'Chưa nhập số giấy tờ'}</p>
                             </div>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-5 py-4 text-center">
                             <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', renting ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-rose-200 bg-rose-50 text-rose-700')}>
                               {tenant.status_label || (renting ? 'Đang thuê' : 'Ngừng thuê')}
                             </span>

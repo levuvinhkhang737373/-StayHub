@@ -282,10 +282,10 @@ export function RoomTypesScreen() {
               <table className="min-w-190 w-full text-left">
                 <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
-                    <th className="px-5 py-4">Loại phòng</th>
-                    <th className="px-5 py-4 text-center">Số lượng phòng đang áp dụng</th>
-                    <th className="px-5 py-4">Trạng thái</th>
-                    <th className="px-5 py-4"><span className="flex justify-end"><span className="w-47.5 text-center">Thao tác</span></span></th>
+                    <th className="px-4 py-4">Loại phòng</th>
+                    <th className="px-4 py-4 text-center">Số lượng phòng đang áp dụng</th>
+                    <th className="px-4 py-4 text-center">Trạng thái</th>
+                    <th className="px-4 py-4 w-[190px]"><div className="flex justify-end"><div className="w-[190px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8">
@@ -310,7 +310,7 @@ export function RoomTypesScreen() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center text-[13px] font-black text-[#24170d] tabular-nums">{roomType.rooms_count ?? 0}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center">
                         <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm', Number(roomType.status) === 1 ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
                           {roomType.status_label || statusLabels[Number(roomType.status)]}
                         </span>

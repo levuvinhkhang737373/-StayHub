@@ -645,12 +645,12 @@ export function MetersScreen() {
             <table className="w-full min-w-[780px] text-left">
               <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
-                  <th className="px-5 py-4 w-[12%]">Phòng</th>
-                  <th className="px-5 py-4 w-[18%]">Mã đồng hồ</th>
-                  <th className="px-5 py-4 w-[15%]">Loại</th>
-                  <th className="px-5 py-4 w-[20%]">Chỉ số</th>
-                  <th className="px-5 py-4 w-[18%]">Trạng thái</th>
-                  <th className="px-5 py-4 w-[17%] text-right">Hành động</th>
+                  <th className="px-5 py-4">Phòng</th>
+                  <th className="px-5 py-4">Mã đồng hồ</th>
+                  <th className="px-5 py-4">Loại</th>
+                  <th className="px-5 py-4">Chỉ số</th>
+                  <th className="px-5 py-4">Trạng thái</th>
+                  <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[136px] text-center">Thao tác</div></div></th>
                 </tr>
               </thead>
               <tbody className={cn('divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70 transition-opacity duration-200', isLoading && 'opacity-50 pointer-events-none')}>
@@ -714,10 +714,12 @@ export function MetersScreen() {
                         </span>
                       </td>
                       <td className="px-5 py-4 w-[17%]">
-                        <div className="flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => void viewMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
-                          <button type="button" onClick={() => editMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa"><Edit3 className="h-5 w-5" /></button>
-                          <button type="button" onClick={() => void removeMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Xóa" disabled={deletingId === meter.id}><Trash2 className="h-5 w-5" /></button>
+                        <div className="flex justify-end">
+                          <div className="w-[136px] flex items-center justify-end gap-2">
+                            <button type="button" onClick={() => void viewMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
+                            <button type="button" onClick={() => editMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa"><Edit3 className="h-5 w-5" /></button>
+                            <button type="button" onClick={() => void removeMeter(meter)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Xóa" disabled={deletingId === meter.id}><Trash2 className="h-5 w-5" /></button>
+                          </div>
                         </div>
                       </td>
                     </tr>

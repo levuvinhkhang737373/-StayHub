@@ -37,7 +37,7 @@ class SettingController extends Controller
 
             $settings = $this->querySettings($validated, $admin)->paginate($validated['per_page'] ?? 20);
 
-            return ApiResponse::responseJson(true, 'Danh sách cài đặt tòa nhà', 200, SettingResource::collection($settings), 200);
+            return ApiResponse::responseJson(true, 'Danh sách cài đặt tòa nhà', 200, $this->paginatedResource($settings), 200);
         } catch (\Exception $e) {
             logger()->error('SettingController index error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
@@ -310,5 +310,26 @@ class SettingController extends Controller
         return AdminScope::ensureBuildingAccess($admin, (int) $buildingId);
     }
 
+    private function paginatedResource(\Illuminate\Contracts\Pagination\LengthAwarePaginator $paginator): array
+    {
+        return [
+            'data' => SettingResource::collection($paginator->items())->resolve(),
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
+            ],
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'last_page' => $paginator->lastPage(),
+                'path' => $paginator->path(),
+                'per_page' => $paginator->perPage(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
+        ];
+    }
 
 }

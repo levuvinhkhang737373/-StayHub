@@ -978,11 +978,11 @@ export function MeterReadingsScreen() {
             <table className="w-full min-w-[980px] text-left">
               <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
-                  <th className="px-5 py-4 w-[20%]">Phòng</th>
-                  <th className="px-5 py-4 w-[28%]">Chỉ số Điện (kWh)</th>
-                  <th className="px-5 py-4 w-[28%]">Chỉ số Nước (m³)</th>
-                  <th className="px-5 py-4 w-[12%] text-right">Tổng thành tiền</th>
-                  <th className="px-5 py-4 text-center w-[16%]">Thao tác</th>
+                  <th className="px-5 py-4">Phòng</th>
+                  <th className="px-5 py-4">Chỉ số Điện (kWh)</th>
+                  <th className="px-5 py-4">Chỉ số Nước (m³)</th>
+                  <th className="px-5 py-4"><div className="flex justify-center"><div className="w-[180px] text-center">Tổng thành tiền</div></div></th>
+                  <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[185px] text-center">Thao tác</div></div></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -1075,59 +1075,64 @@ export function MeterReadingsScreen() {
                       </td>
 
                       {/* Cost Summary Column */}
-                      <td className="px-5 py-4 text-right">
-                        {isChotElec || isChotWater ? (
-                          <span className="text-sm font-black text-[#24170d] tabular-nums">
-                            {formatCurrency(totalUtilityCost)}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-stone-400">-</span>
-                        )}
+                      <td className="px-5 py-4">
+                        <div className="flex justify-center">
+                          <div className="w-[180px] text-center">
+                            {isChotElec || isChotWater ? (
+                              <span className="text-sm font-black text-[#24170d] tabular-nums">
+                                {formatCurrency(totalUtilityCost)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-stone-400">-</span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Actions Column */}
-                      <td className="px-5 py-4 text-center">
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openReadingModal(room)}
-                            disabled={room.meters.length === 0 || isPastMonth}
-                            className={cn(
-                              'inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
-                              (isChotElec && isChotWater)
-                                ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15'
-                                : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] shadow-sm shadow-[#24170d]/10'
-                            )}
-                          >
-                            {(isChotElec && isChotWater) ? (
-                              <>
-                                <Edit3 className="h-3.5 w-3.5" /> Sửa số
-                              </>
-                            ) : (
-                              <>
-                                <Calendar className="h-3.5 w-3.5" /> Ghi số
-                              </>
-                            )}
-                          </button>
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end">
+                          <div className="w-[185px] flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openReadingModal(room)}
+                              disabled={room.meters.length === 0 || isPastMonth}
+                              className={cn(
+                                'inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
+                                (isChotElec && isChotWater)
+                                  ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15'
+                                  : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] shadow-sm shadow-[#24170d]/10'
+                              )}
+                            >
+                              {(isChotElec && isChotWater) ? (
+                                <>
+                                  <Edit3 className="h-3.5 w-3.5" /> Sửa số
+                                </>
+                              ) : (
+                                <>
+                                  <Calendar className="h-3.5 w-3.5" /> Ghi số
+                                </>
+                              )}
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!room.contract_id) return;
-                              void handleGenerateSingle(room.contract_id)
-                            }}
-                            disabled={!room.contract_id || isGeneratingSingle === room.contract_id || (elec && !isChotElec) || (water && !isChotWater)}
-                            title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : 'Tạo hóa đơn'}
-                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5 mt-1 sm:mt-0 sm:ml-2"
-                          >
-                            {isGeneratingSingle === room.contract_id && room.contract_id ? (
-                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <FileText className="h-3.5 w-3.5" />
-                            )}
-                            Tạo HĐ
-                          </button>
-
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!room.contract_id) return;
+                                void handleGenerateSingle(room.contract_id)
+                              }}
+                              disabled={!room.contract_id || isGeneratingSingle === room.contract_id || (elec && !isChotElec) || (water && !isChotWater)}
+                              title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : 'Tạo hóa đơn'}
+                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5 mt-1 sm:mt-0 sm:ml-2"
+                            >
+                              {isGeneratingSingle === room.contract_id && room.contract_id ? (
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <FileText className="h-3.5 w-3.5" />
+                              )}
+                              Tạo HĐ
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>

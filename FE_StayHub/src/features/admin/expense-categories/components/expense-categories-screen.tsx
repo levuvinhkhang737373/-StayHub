@@ -268,9 +268,9 @@ export function ExpenseCategoriesScreen() {
                     <th className="px-5 py-4">Danh mục</th>
                     <th className="px-5 py-4">Mô tả</th>
                     <th className="px-5 py-4 text-center">Phiếu chi</th>
-                    <th className="px-5 py-4">Người tạo</th>
-                    <th className="px-5 py-4">Trạng thái</th>
-                    <th className="px-5 py-4 text-right">Thao tác</th>
+                    <th className="px-5 py-4 text-center">Người tạo</th>
+                    <th className="px-5 py-4 text-center">Trạng thái</th>
+                    <th className="px-5 py-4 w-[180px]"><div className="flex justify-end"><div className="w-[180px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -301,10 +301,10 @@ export function ExpenseCategoriesScreen() {
                           <Database className="h-3.5 w-3.5" /> <span className="tabular-nums">{Number(expenseCategory.expenses_count || 0)}</span>
                         </span>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-center">
                         <span className="text-sm font-black text-[#3d2a18]">{expenseCategory.creator_name || 'Hệ thống'}</span>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-center">
                         <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', expenseCategory.is_active ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
                           {expenseCategory.status_label || (expenseCategory.is_active ? 'Đang sử dụng' : 'Hết sử dụng')}
                         </span>

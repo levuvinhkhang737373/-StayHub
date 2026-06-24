@@ -336,8 +336,8 @@ export function RoomsScreen() {
               <th className="px-5 py-4 text-center">Loại Phòng</th>
               <th className="px-5 py-4 text-center">Tầng</th>
               <th className="px-5 py-4 text-center">Số người đang ở</th>
-              <th className="px-5 py-4">Trạng thái</th>
-              <th className="px-5 py-4 text-right">Thao tác</th>
+              <th className="px-5 py-4 text-center">Trạng thái</th>
+              <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[184px] text-center">Thao tác</div></div></th>
             </tr>
           </thead>
 
@@ -376,7 +376,7 @@ export function RoomsScreen() {
                     {roomItem.current_occupants}
                   </td>
 
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 text-center">
                     <span
                       className={cn(
                         'inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-sm',
