@@ -34,4 +34,4 @@ wait_for_http "Nginx/Frontend" "${CLOUDFLARED_FRONTEND_URL:-http://webserver/}" 
 wait_for_http "Nginx/Laravel" "${CLOUDFLARED_WEB_URL:-http://webserver/sanctum/csrf-cookie}" "${CLOUDFLARED_WAIT_ATTEMPTS:-120}" "${CLOUDFLARED_WAIT_DELAY:-2}"
 wait_for_http "phpMyAdmin" "${CLOUDFLARED_DB_URL:-http://phpmyadmin/}" "${CLOUDFLARED_WAIT_ATTEMPTS:-120}" "${CLOUDFLARED_WAIT_DELAY:-2}"
 
-exec cloudflared "$@"
+exec /usr/local/bin/cloudflared "$@"

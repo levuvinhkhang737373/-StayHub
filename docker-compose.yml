@@ -11,6 +11,7 @@ x-backend-environment: &backend-environment
   APP_USER: ${DOCKER_USER:-khang}
   APP_UID: ${DOCKER_UID:-1000}
   COMPOSER_CACHE_DIR: /tmp/composer-cache
+  OCTANE_SERVER: ${OCTANE_SERVER:-swoole}
   RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
   PROJECT_MOUNT_ATTEMPTS: ${PROJECT_MOUNT_ATTEMPTS:-60}
   PROJECT_MOUNT_DELAY: ${PROJECT_MOUNT_DELAY:-1}
@@ -215,7 +216,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'cd /var/www/html/BE_StayHub && test -f artisan && test -f vendor/autoload.php && curl -fsS http://127.0.0.1:8000/up >/dev/null || exit 1' ]
+      test: [ 'CMD-SHELL', 'cd /var/www/current-backend && test -f artisan && test -f vendor/autoload.php && curl -fsS http://127.0.0.1:8000/up >/dev/null || exit 1' ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -241,7 +242,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ 'CMD-SHELL', 'cd /var/www/html/BE_StayHub && test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
+      test: [ 'CMD-SHELL', 'cd /var/www/current-backend && test -f artisan && test -f vendor/autoload.php && pgrep -f "artisan horizon" >/dev/null || exit 1' ]
       interval: 15s
       timeout: 10s
       retries: 20
@@ -256,7 +257,7 @@ services:
     environment: *backend-environment
     working_dir: /var/www/html/BE_StayHub
     volumes: *backend-volumes
-    command: php artisan reverb:start --host=0.0.0.0 --port=8009 --debug
+    command: [ 'sh', '/usr/local/bin/start-container.sh', 'reverb' ]
     ports:
       - '8009:8009'
     depends_on:
@@ -288,7 +289,7 @@ services:
       - type: volume
         source: frontend_npm_cache
         target: /root/.npm
-    command: sh -lc 'set -e; lock_hash="$$(sha256sum package-lock.json | cut -d " " -f 1)"; installed_hash="$$(cat node_modules/.package-lock.sha256 2>/dev/null || true)"; if [ ! -f node_modules/.package-lock.sha256 ] || [ "$$lock_hash" != "$$installed_hash" ]; then npm ci --prefer-offline; echo "$$lock_hash" > node_modules/.package-lock.sha256; fi; npm run dev -- --host 0.0.0.0 --port 80'
+    command: sh /app/scripts/docker-dev.sh
     expose:
       - '80'
     depends_on:
@@ -395,4 +396,3 @@ volumes:
     name: stayhub_minio_data
   qdrant_data:
     name: stayhub_qdrant_data
-

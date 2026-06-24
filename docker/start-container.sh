@@ -241,6 +241,11 @@ start_horizon() {
     exec_as_app_user "php artisan horizon"
 }
 
+start_reverb() {
+    wait_for_backend_services
+    exec_as_app_user "php artisan reverb:start --host=0.0.0.0 --port=8009 --debug"
+}
+
 start_octane_supervisor() {
     exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
 }
@@ -255,6 +260,9 @@ ensure_storage_link
 case "${1:-app}" in
     horizon)
         start_horizon
+        ;;
+    reverb)
+        start_reverb
         ;;
     app|octane)
         start_octane_supervisor

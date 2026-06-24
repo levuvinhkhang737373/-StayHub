@@ -99,7 +99,7 @@ export function TenantRow({
       <div className="mt-3 space-y-3">
         <AdminSelect value={row.tenant_id} options={options} invalid={!!error} placeholder="Chọn khách thuê" onChange={(value: string | number) => onChange({ tenant_id: String(value) })} />
         <div className={cn('grid grid-cols-1 gap-3', isEditMode && !isRenewMode && 'sm:grid-cols-2')}>
-          <AdminDateInput className={inputClass} value={row.join_date} onChange={(value: string) => onChange({ join_date: value, billing_start_date: row.billing_start_date || value })} />
+          <AdminDateInput className={inputClass} value={row.join_date} onChange={(value: string) => onChange({ join_date: value, billing_start_date: value })} />
           {isEditMode && !isRenewMode && (
             <AdminDateInput className={inputClass} value={row.leave_date} onChange={(value: string) => onChange({ leave_date: value, is_staying: !value })} placeholder="Ngày rời đi" />
           )}

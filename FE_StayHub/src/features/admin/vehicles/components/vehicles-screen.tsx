@@ -66,7 +66,7 @@ export function VehiclesScreen() {
   const [vehicles, setVehicles] = useState<AdminVehicleResource[]>([])
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
-  
+
   const [keyword, setKeyword] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
@@ -598,7 +598,7 @@ export function VehiclesScreen() {
                   </div>
                   <div>
                     <label className={labelClass}>
-                      Biển số xe { (Number(form.vehicle_type) !== 2 && Number(form.vehicle_type) !== 4) && <span className="text-rose-500">*</span> }
+                      Biển số xe {(Number(form.vehicle_type) !== 2 && Number(form.vehicle_type) !== 4) && <span className="text-rose-500">*</span>}
                     </label>
                     <input className={cn(inputClass, errors.license_plate && inputErrorClass)} value={form.license_plate} onChange={(event) => updateForm('license_plate', event.target.value)} placeholder="Ví dụ: 59A-123.45" />
                     <FieldError message={errors.license_plate} />
