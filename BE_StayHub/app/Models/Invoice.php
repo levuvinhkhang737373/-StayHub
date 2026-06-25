@@ -76,11 +76,11 @@ class Invoice extends Model
         self::STATUS_CANCELLED => 'Đã hủy',
     ];
 
-    protected $fillable = ['invoice_code', 'contract_id', 'room_id', 'billing_month', 'billing_year', 'period_start', 'period_end', 'previous_debt_amount', 'total_amount', 'paid_amount', 'remaining_amount', 'due_date', 'status', 'issued_at', 'created_by'];
+    protected $fillable = ['invoice_code', 'contract_id', 'room_id', 'billing_month', 'billing_year', 'period_start', 'period_end', 'previous_debt_amount', 'total_amount', 'paid_amount', 'remaining_amount', 'due_date', 'status', 'issued_at', 'revision', 'reissued_at', 'reissue_reason', 'created_by', 'updated_by'];
 
     protected function casts(): array
     {
-        return ['billing_month' => 'integer', 'billing_year' => 'integer', 'period_start' => 'date', 'period_end' => 'date', 'previous_debt_amount' => 'decimal:2', 'total_amount' => 'decimal:2', 'paid_amount' => 'decimal:2', 'remaining_amount' => 'decimal:2', 'due_date' => 'date', 'status' => 'integer', 'issued_at' => 'datetime'];
+        return ['billing_month' => 'integer', 'billing_year' => 'integer', 'period_start' => 'date', 'period_end' => 'date', 'previous_debt_amount' => 'decimal:2', 'total_amount' => 'decimal:2', 'paid_amount' => 'decimal:2', 'remaining_amount' => 'decimal:2', 'due_date' => 'date', 'status' => 'integer', 'issued_at' => 'datetime', 'revision' => 'integer', 'reissued_at' => 'datetime'];
     }
 
     public function contract(): BelongsTo
@@ -96,6 +96,11 @@ class Invoice extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'created_by');
+    }
+
+    public function updater(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'updated_by');
     }
 
     public function items(): HasMany

@@ -196,6 +196,50 @@ class InvoiceController extends ChangeNotifier {
     return null;
   }
 
+  Future<bool> reissueInvoice({
+    required int invoiceId,
+    required String reason,
+    String? dueDate,
+    List<Map<String, dynamic>> meterReadings = const [],
+    List<Map<String, dynamic>> adjustments = const [],
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.put<Map<String, dynamic>>(
+        '/admin/invoices/$invoiceId',
+        data: {
+          'reason': reason,
+          if (dueDate != null) 'due_date': dueDate,
+          'meter_readings': meterReadings,
+          'adjustments': adjustments,
+        },
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status && response.result != null) {
+        updateInvoiceRealtime(response.result!);
+        await fetchInvoices(isAdmin: true);
+        return true;
+      }
+
+      _errorMessage = response.message;
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = 'Lỗi phát hành lại hóa đơn: $e';
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+
+    return false;
+  }
+
   /// Send Debt Reminder notification (Admin action)
   Future<bool> sendDebtReminder(int id) async {
     _isLoading = true;

@@ -8,8 +8,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Pencil,
   Plus,
+  PlusCircle,
   Receipt,
+  RefreshCw,
+  Trash2,
   WalletCards,
   X,
 } from 'lucide-react'
@@ -28,8 +32,9 @@ import {
   generateAdminInvoice,
   previewAdminInvoice,
   recordAdminInvoicePayment,
+  updateAdminInvoice,
 } from '../services/invoices.service'
-import type { AdminInvoiceAdjustmentPayload, AdminInvoiceGeneratePayload, AdminInvoicePreviewResource, AdminInvoiceResource } from '../types/invoice-api.model'
+import type { AdminInvoiceAdjustmentPayload, AdminInvoiceGeneratePayload, AdminInvoicePreviewResource, AdminInvoiceResource, AdminInvoiceUpdatePayload } from '../types/invoice-api.model'
 import {
   INVOICE_STATUS_CANCELLED,
   INVOICE_STATUS_OVERDUE,
@@ -67,6 +72,13 @@ type RoomOption = {
 const inputClass = 'h-11 w-full rounded-2xl border border-[#3d2a18]/10 bg-white/80 px-4 text-sm font-bold text-[#24170d] outline-none transition placeholder:text-[#8b5e34]/45 focus:border-[#0f766e]/45 focus:ring-4 focus:ring-[#0f766e]/10 disabled:opacity-60'
 const textAreaClass = 'min-h-24 w-full rounded-2xl border border-[#3d2a18]/10 bg-white/80 px-4 py-3 text-sm font-bold text-[#24170d] outline-none transition placeholder:text-[#8b5e34]/45 focus:border-[#0f766e]/45 focus:ring-4 focus:ring-[#0f766e]/10 disabled:opacity-60'
 const nowPeriod = currentMonthYear()
+const editableInvoiceStatuses = [INVOICE_STATUS_UNPAID, INVOICE_STATUS_OVERDUE]
+const adjustmentItemTypeOptions = [
+  { value: ITEM_TYPE_SURCHARGE, label: 'Phụ thu', tone: 'default' as const },
+  { value: ITEM_TYPE_DISCOUNT, label: 'Giảm trừ', tone: 'warning' as const },
+  { value: ITEM_TYPE_ADJUST_INCREASE, label: 'Điều chỉnh tăng', tone: 'success' as const },
+  { value: ITEM_TYPE_ADJUST_DECREASE, label: 'Điều chỉnh giảm', tone: 'danger' as const },
+]
 
 export function InvoicesScreen() {
   const { session } = useAdminSession()
@@ -94,6 +106,8 @@ export function InvoicesScreen() {
   const [isGenerateOpen, setIsGenerateOpen] = useState(false)
   const [previewInvoice, setPreviewInvoice] = useState<AdminInvoicePreviewResource | null>(null)
   const [pendingGeneratePayload, setPendingGeneratePayload] = useState<AdminInvoiceGeneratePayload | null>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editInvoice, setEditInvoice] = useState<AdminInvoiceResource | null>(null)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [paymentInvoice, setPaymentInvoice] = useState<AdminInvoiceResource | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -215,10 +229,16 @@ export function InvoicesScreen() {
   }, [loadInvoices])
 
   useEffect(() => {
-    const onRefresh = () => void loadInvoices()
+    const onRefresh = (event: Event) => {
+      void loadInvoices()
+      const invoice = (event as CustomEvent<AdminInvoiceResource>).detail
+      if (detailInvoice?.id && Number(invoice?.id) === Number(detailInvoice.id)) {
+        void fetchAdminInvoiceDetail(detailInvoice.id).then((response) => setDetailInvoice(response.result)).catch(() => undefined)
+      }
+    }
     window.addEventListener('invoice-refresh', onRefresh)
     return () => window.removeEventListener('invoice-refresh', onRefresh)
-  }, [loadInvoices])
+  }, [detailInvoice?.id, loadInvoices])
 
   useEffect(() => {
     if (invoiceIdParam) {
@@ -254,6 +274,21 @@ export function InvoicesScreen() {
       setDetailInvoice(response.result)
     } catch (error) {
       setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết hóa đơn.'))
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }
+
+  const openEditInvoice = async (invoice: AdminInvoiceResource) => {
+    setIsDetailLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await fetchAdminInvoiceDetail(invoice.id)
+      setEditInvoice(response.result)
+      setIsEditOpen(true)
+    } catch (error) {
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải dữ liệu chỉnh sửa hóa đơn.'))
     } finally {
       setIsDetailLoading(false)
     }
@@ -398,6 +433,7 @@ export function InvoicesScreen() {
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <IconButton title="Xem chi tiết" onClick={() => void viewInvoice(invoice)}><Eye className="h-5 w-5" /></IconButton>
+                      {canReissueInvoice(invoice) && <IconButton title="Chỉnh sửa & phát hành lại" onClick={() => void openEditInvoice(invoice)}><Pencil className="h-5 w-5" /></IconButton>}
                       
                       {[INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status)) && <IconButton title="Ghi nhận thanh toán" onClick={() => { setPaymentInvoice(invoice); setIsPaymentOpen(true) }}><Banknote className="h-5 w-5" /></IconButton>}
                     </div>
@@ -494,7 +530,25 @@ export function InvoicesScreen() {
         }
       }} />}
 
-      {detailInvoice && <InvoiceDetailModal invoice={detailInvoice} isLoading={isDetailLoading} isSaving={isSaving} onClose={() => setDetailInvoice(null)} onCancel={() => void cancelInvoice(detailInvoice)} onPay={() => { setPaymentInvoice(detailInvoice); setIsPaymentOpen(true) }} />}
+      {detailInvoice && <InvoiceDetailModal invoice={detailInvoice} isLoading={isDetailLoading} isSaving={isSaving} onClose={() => setDetailInvoice(null)} onCancel={() => void cancelInvoice(detailInvoice)} onPay={() => { setPaymentInvoice(detailInvoice); setIsPaymentOpen(true) }} onEdit={() => void openEditInvoice(detailInvoice)} />}
+
+      {isEditOpen && editInvoice && <EditInvoiceModal invoice={editInvoice} isSaving={isSaving} onClose={() => { if (!isSaving) { setIsEditOpen(false); setEditInvoice(null) } }} onSubmit={async (payload) => {
+        try {
+          setIsSaving(true)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+          const response = await updateAdminInvoice(editInvoice.id, payload)
+          setIsEditOpen(false)
+          setEditInvoice(null)
+          setDetailInvoice(response.result)
+          setSuccessMessage('Đã cập nhật và phát hành lại hóa đơn. Mã QR mới đã được gửi cho khách thuê.')
+          await loadInvoices()
+        } catch (error) {
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể cập nhật và phát hành lại hóa đơn.'))
+        } finally {
+          setIsSaving(false)
+        }
+      }} />}
 
       {isPaymentOpen && paymentInvoice && <PaymentModal invoice={paymentInvoice} isSaving={isSaving} onClose={() => { setIsPaymentOpen(false); setPaymentInvoice(null) }} onSubmit={async (payload) => {
         try {
@@ -571,8 +625,172 @@ function PaymentModal({ invoice, isSaving, onClose, onSubmit }: { invoice: Admin
   )
 }
 
-function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, onPay }: { invoice: AdminInvoiceResource; isLoading: boolean; isSaving: boolean; onClose: () => void; onCancel: () => void; onPay: () => void }) {
+type MeterReadingDraft = {
+  meter_reading_id: number
+  label: string
+  previous_reading: string
+  current_reading: string
+  original_current_reading: string
+  unit_price: string
+  reading_date: string
+  image_url?: string | null
+}
+
+type AdjustmentDraft = {
+  key: string
+  item_type: number
+  description: string
+  quantity: string
+  unit_price: string
+}
+
+function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: AdminInvoiceResource; isSaving: boolean; onClose: () => void; onSubmit: (payload: AdminInvoiceUpdatePayload) => Promise<void> }) {
+  const [dueDate, setDueDate] = useState(invoice.due_date || '')
+  const [reason, setReason] = useState('')
+  const [meterReadings, setMeterReadings] = useState<MeterReadingDraft[]>(() => (invoice.items || [])
+    .filter((item) => item.meter_reading_id && item.meter_reading)
+    .map((item) => ({
+      meter_reading_id: Number(item.meter_reading_id),
+      label: `${item.service_name || item.item_type_label || 'Chỉ số'} · ${item.description}`,
+      previous_reading: String(item.meter_reading?.previous_reading ?? '0'),
+      current_reading: String(item.meter_reading?.current_reading ?? '0'),
+      original_current_reading: String(item.meter_reading?.current_reading ?? '0'),
+      unit_price: String(item.unit_price || '0'),
+      reading_date: item.meter_reading?.reading_date || '',
+      image_url: item.meter_reading?.image_url,
+    })))
+  const [adjustments, setAdjustments] = useState<AdjustmentDraft[]>(() => (invoice.items || [])
+    .filter((item) => !item.service_id && !item.meter_reading_id && [ITEM_TYPE_SURCHARGE, ITEM_TYPE_DISCOUNT, ITEM_TYPE_ADJUST_INCREASE, ITEM_TYPE_ADJUST_DECREASE].includes(Number(item.item_type)))
+    .map((item) => ({
+      key: `existing-${item.id}`,
+      item_type: Number(item.item_type),
+      description: item.description,
+      quantity: String(item.quantity || '1'),
+      unit_price: absDecimal(item.unit_price),
+    })))
+
+  const previewTotal = useMemo(() => {
+    const meterAmountById = new Map<number, number>()
+    meterReadings.forEach((reading) => {
+      meterAmountById.set(reading.meter_reading_id, Math.max(0, Number(reading.current_reading || 0) - Number(reading.previous_reading || 0)) * Number(reading.unit_price || 0))
+    })
+
+    const baseTotal = (invoice.items || [])
+      .filter((item) => !(!item.service_id && !item.meter_reading_id && [ITEM_TYPE_SURCHARGE, ITEM_TYPE_DISCOUNT, ITEM_TYPE_ADJUST_INCREASE, ITEM_TYPE_ADJUST_DECREASE].includes(Number(item.item_type))))
+      .reduce((total, item) => total + (item.meter_reading_id && meterAmountById.has(Number(item.meter_reading_id)) ? meterAmountById.get(Number(item.meter_reading_id)) || 0 : Number(item.amount || 0)), 0)
+
+    const adjustmentTotal = adjustments.reduce((total, adjustment) => {
+      const rawAmount = Number(adjustment.quantity || 1) * Number(adjustment.unit_price || 0)
+      const signedAmount = [ITEM_TYPE_DISCOUNT, ITEM_TYPE_ADJUST_DECREASE].includes(Number(adjustment.item_type)) ? -rawAmount : rawAmount
+      return total + signedAmount
+    }, 0)
+
+    return baseTotal + adjustmentTotal
+  }, [adjustments, invoice.items, meterReadings])
+
+  const updateMeterReading = (meterReadingId: number, field: keyof Pick<MeterReadingDraft, 'current_reading' | 'reading_date'>, value: string) => {
+    setMeterReadings((current) => current.map((reading) => reading.meter_reading_id === meterReadingId ? { ...reading, [field]: value } : reading))
+  }
+
+  const updateAdjustment = (key: string, field: keyof Omit<AdjustmentDraft, 'key'>, value: string | number) => {
+    setAdjustments((current) => current.map((adjustment) => adjustment.key === key ? { ...adjustment, [field]: value } : adjustment))
+  }
+
+  const addAdjustment = () => {
+    setAdjustments((current) => [...current, { key: `new-${Date.now()}`, item_type: ITEM_TYPE_SURCHARGE, description: '', quantity: '1', unit_price: '0' }])
+  }
+
+  const removeAdjustment = (key: string) => {
+    setAdjustments((current) => current.filter((adjustment) => adjustment.key !== key))
+  }
+
+  const canSubmit = reason.trim().length > 0 && previewTotal >= 0 && meterReadings.every((reading) => Number(reading.current_reading || 0) >= Number(reading.previous_reading || 0))
+
+  return (
+    <ModalFrame title={`Chỉnh sửa & phát hành lại ${invoice.invoice_code}`} onClose={onClose} wide>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-[#3d2a18]/10 bg-white/70 p-4">
+            <p className="text-sm font-black text-[#24170d]">Thông tin phát hành lại</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <input className={inputClass} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+              <input className={inputClass} value={`Phiên bản hiện tại: ${invoice.revision || 1}`} disabled />
+            </div>
+            <textarea className={`${textAreaClass} mt-3`} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Lý do phát hành lại, ví dụ: Nhập sai chỉ số điện phòng 101" />
+          </div>
+
+          <div className="rounded-3xl border border-[#3d2a18]/10 bg-white/70 p-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-black text-[#24170d]">Chỉ số điện/nước</p>
+              <span className="text-[11px] font-bold text-[#8b5e34]">Đổi ở đây sẽ cập nhật bảng chỉ số và dòng hóa đơn liên quan</span>
+            </div>
+            <div className="mt-3 space-y-3">
+              {meterReadings.length === 0 && <p className="rounded-2xl bg-[#fffaf1] p-3 text-xs font-bold text-[#6f6254]">Hóa đơn này không có dòng chỉ số điện/nước.</p>}
+              {meterReadings.map((reading) => {
+                const consumption = Math.max(0, Number(reading.current_reading || 0) - Number(reading.previous_reading || 0))
+                return (
+                  <div key={reading.meter_reading_id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-black text-[#24170d]">{reading.label}</p>
+                        <p className="mt-1 text-[11px] font-bold text-[#8b5e34]">Cũ: {reading.previous_reading} → {reading.original_current_reading}</p>
+                      </div>
+                      {reading.image_url && <a href={reading.image_url} target="_blank" rel="noreferrer" className="text-xs font-black text-[#0f766e] underline">Xem ảnh đồng hồ</a>}
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      <input className={inputClass} value={reading.previous_reading} disabled />
+                      <input className={inputClass} type="number" min={0} step="0.01" value={reading.current_reading} onChange={(event) => updateMeterReading(reading.meter_reading_id, 'current_reading', event.target.value)} />
+                      <input className={inputClass} type="date" value={reading.reading_date} onChange={(event) => updateMeterReading(reading.meter_reading_id, 'reading_date', event.target.value)} />
+                    </div>
+                    <p className="mt-2 text-xs font-bold text-[#6f6254]">Tiêu thụ mới: <span className="font-black text-[#24170d]">{consumption.toLocaleString('vi-VN')}</span> · Thành tiền: <span className="font-black text-[#0f5f59]">{formatCurrency(consumption * Number(reading.unit_price || 0))}</span></p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-[#3d2a18]/10 bg-white/70 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-black text-[#24170d]">Phụ thu / giảm trừ</p>
+              <button type="button" onClick={addAdjustment} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#f3c56b] px-3 text-xs font-black text-[#24170d]"><PlusCircle className="h-4 w-4" /> Thêm dòng</button>
+            </div>
+            <div className="mt-3 space-y-3">
+              {adjustments.length === 0 && <p className="rounded-2xl bg-[#fffaf1] p-3 text-xs font-bold text-[#6f6254]">Chưa có dòng điều chỉnh.</p>}
+              {adjustments.map((adjustment) => (
+                <div key={adjustment.key} className="grid gap-3 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 lg:grid-cols-[11rem_minmax(0,1fr)_7rem_9rem_2.5rem]">
+                  <AdminSelect value={adjustment.item_type} options={adjustmentItemTypeOptions} onChange={(value) => updateAdjustment(adjustment.key, 'item_type', Number(value))} />
+                  <input className={inputClass} value={adjustment.description} onChange={(event) => updateAdjustment(adjustment.key, 'description', event.target.value)} placeholder="Mô tả điều chỉnh" />
+                  <input className={inputClass} value={adjustment.quantity} onChange={(event) => updateAdjustment(adjustment.key, 'quantity', event.target.value)} placeholder="SL" />
+                  <input className={inputClass} value={adjustment.unit_price} onChange={(event) => updateAdjustment(adjustment.key, 'unit_price', event.target.value)} placeholder="Đơn giá" />
+                  <button type="button" onClick={() => removeAdjustment(adjustment.key)} className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <aside className="h-fit rounded-3xl border border-[#0f766e]/20 bg-[#0f766e]/8 p-4 lg:sticky lg:top-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Preview phát hành lại</p>
+          <p className="mt-2 text-3xl font-black tracking-tight text-[#24170d]">{formatCurrency(previewTotal)}</p>
+          <p className="mt-2 text-xs font-bold leading-5 text-[#6f6254]">Sau khi lưu, hệ thống cập nhật bảng chỉ số, dòng hóa đơn, tổng tiền và gửi mã QR mới cho khách thuê qua realtime.</p>
+          {previewTotal < 0 && <p className="mt-3 rounded-2xl bg-rose-50 p-3 text-xs font-black text-rose-700">Tổng tiền không được âm.</p>}
+          <button type="button" disabled={isSaving || !canSubmit} onClick={() => onSubmit({
+            reason: reason.trim(),
+            due_date: dueDate || null,
+            meter_readings: meterReadings.map((reading) => ({ meter_reading_id: reading.meter_reading_id, current_reading: reading.current_reading, reading_date: reading.reading_date || null })),
+            adjustments: adjustments.map((adjustment) => ({ item_type: Number(adjustment.item_type), description: adjustment.description || 'Điều chỉnh hóa đơn', quantity: adjustment.quantity || '1', unit_price: adjustment.unit_price || '0' })),
+          })} className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#0f766e] px-4 text-sm font-black text-white shadow-lg shadow-[#0f766e]/20 transition hover:bg-[#0c5f59] disabled:opacity-60">
+            <RefreshCw className="h-4 w-4" /> {isSaving ? 'Đang phát hành lại...' : 'Cập nhật & gửi QR mới'}
+          </button>
+        </aside>
+      </div>
+    </ModalFrame>
+  )
+}
+
+function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, onPay, onEdit }: { invoice: AdminInvoiceResource; isLoading: boolean; isSaving: boolean; onClose: () => void; onCancel: () => void; onPay: () => void; onEdit: () => void }) {
   const canPay = [INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status))
+  const canEdit = canReissueInvoice(invoice)
 
   return (
     <ModalFrame title={`Chi tiết ${invoice.invoice_code}`} onClose={onClose} wide>
@@ -605,7 +823,7 @@ function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, o
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            
+            {canEdit && <button disabled={isSaving} type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#0f766e]/20 bg-[#0f766e]/10 px-4 text-sm font-black text-[#0f5f59] disabled:opacity-60"><Pencil className="h-4 w-4" /> Chỉnh sửa & phát hành lại</button>}
             {canPay && <button disabled={isSaving} type="button" onClick={onPay} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#24170d] px-4 text-sm font-black text-[#fff4df] disabled:opacity-60"><WalletCards className="h-4 w-4" /> Ghi nhận thanh toán</button>}
             {![INVOICE_STATUS_PAID, INVOICE_STATUS_CANCELLED].includes(Number(invoice.status)) && <button disabled={isSaving} type="button" onClick={onCancel} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-700 disabled:opacity-60"><X className="h-4 w-4" /> Hủy</button>}
           </div>
@@ -621,6 +839,15 @@ function parseAdjustments(value: string): AdminInvoiceAdjustmentPayload[] {
     const type = rawType === 'giam_tru' ? ITEM_TYPE_DISCOUNT : rawType === 'tang' ? ITEM_TYPE_ADJUST_INCREASE : rawType === 'giam' ? ITEM_TYPE_ADJUST_DECREASE : ITEM_TYPE_SURCHARGE
     return { item_type: type, description: description || 'Điều chỉnh hóa đơn', quantity: '1', unit_price: amount || '0' }
   })
+}
+
+function canReissueInvoice(invoice: AdminInvoiceResource) {
+  const paymentsCount = Number(invoice.payments_count ?? invoice.payments?.length ?? 0)
+  return editableInvoiceStatuses.includes(Number(invoice.status)) && paymentsCount === 0
+}
+
+function absDecimal(value: string | number | null | undefined) {
+  return String(Math.abs(Number(value || 0)))
 }
 
 function ModalFrame({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {

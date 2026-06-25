@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Events\InvoicePaid;
 use App\Events\InvoiceIssued;
+use App\Events\InvoiceReissued;
 use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
@@ -259,7 +260,7 @@ class InvoiceController extends Controller
 
             $response = DB::transaction(function () use ($validated, $invoice, $admin, $request): JsonResponse {
                 $invoiceModel = $this->accessibleInvoiceQuery($admin)
-                    ->with('items')
+                    ->with($this->detailRelations())
                     ->withCount('payments')
                     ->lockForUpdate()
                     ->find($invoice);
@@ -268,54 +269,95 @@ class InvoiceController extends Controller
                     return ApiResponse::responseJson(false, 'Không tìm thấy hóa đơn', 404, null, 404);
                 }
 
-                if (! in_array((int) $invoiceModel->status, [Invoice::STATUS_UNPAID, Invoice::STATUS_OVERDUE], true)) {
-                    return ApiResponse::responseJson(false, 'Chỉ được sửa hóa đơn chưa thanh toán hoặc quá hạn', 422, null, 422);
+                $guardResponse = $this->ensureInvoiceCanBeReissued($invoiceModel);
+                if ($guardResponse instanceof JsonResponse) {
+                    return $guardResponse;
                 }
 
-                if ((int) $invoiceModel->payments_count > 0) {
-                    return ApiResponse::responseJson(false, 'Không thể sửa hóa đơn đã phát sinh giao dịch thanh toán', 422, null, 422);
-                }
-
-                $oldData = $invoiceModel->load($this->detailRelations())->toArray();
+                $oldData = $invoiceModel->toArray();
+                $reason = trim($validated['reason']);
+                $affectedInvoiceIds = collect([$invoiceModel->id]);
 
                 if (array_key_exists('due_date', $validated)) {
                     $invoiceModel->due_date = $validated['due_date'] ?? null;
                 }
 
-                $invoiceModel->items()
-                    ->whereIn('item_type', self::ADJUSTMENT_ITEM_TYPES)
-                    ->whereNull('service_id')
-                    ->whereNull('meter_reading_id')
-                    ->delete();
-
-                if (! empty($validated['adjustments'])) {
-                    $invoiceModel->items()->createMany($this->buildAdjustmentItems($validated['adjustments']));
+                if (! empty($validated['meter_readings'])) {
+                    $affectedInvoiceIds = $affectedInvoiceIds->merge($this->applyMeterReadingCorrections($invoiceModel, $validated['meter_readings']));
                 }
 
-                $totalAmount = $this->calculateItemsTotal($invoiceModel->items()->get()->map(fn (InvoiceItem $item): array => [
-                    'amount' => (string) $item->amount,
-                ])->all());
+                if (array_key_exists('adjustments', $validated)) {
+                    $invoiceModel->items()
+                        ->whereIn('item_type', self::ADJUSTMENT_ITEM_TYPES)
+                        ->whereNull('service_id')
+                        ->whereNull('meter_reading_id')
+                        ->delete();
 
-                if (DecimalMoney::compare($totalAmount, '0') < 0) {
-                    return ApiResponse::responseJson(false, 'Tổng tiền hóa đơn không được âm', 422, null, 422);
+                    if (! empty($validated['adjustments'])) {
+                        $invoiceModel->items()->createMany($this->buildAdjustmentItems($validated['adjustments']));
+                    }
                 }
 
-                $invoiceModel->forceFill([
-                    'total_amount' => $totalAmount,
-                    'paid_amount' => '0.00',
-                    'remaining_amount' => $totalAmount,
-                    'previous_debt_amount' => (string) $invoiceModel->items()->where('item_type', InvoiceItem::ITEM_TYPE_OLD_DEBT)->sum('amount'),
-                    'status' => DecimalMoney::compare($totalAmount, '0') <= 0 ? Invoice::STATUS_PAID : Invoice::STATUS_UNPAID,
-                ])->save();
+                $affectedInvoiceIds = $affectedInvoiceIds->merge($this->futureDebtInvoiceIds($invoiceModel));
 
-                AdminActivityLogger::write($admin, 'update_invoice', Invoice::class, $invoiceModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
+                $affectedInvoices = Invoice::query()
+                    ->whereIn('id', $affectedInvoiceIds->unique()->values()->all())
+                    ->withCount('payments')
+                    ->orderBy('billing_year')
+                    ->orderBy('billing_month')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
 
-                $invoiceModel->load($this->detailRelations());
+                foreach ($affectedInvoices as $affectedInvoice) {
+                    $guardResponse = $this->ensureInvoiceCanBeReissued($affectedInvoice, $affectedInvoice->id === $invoiceModel->id ? null : 'Hóa đơn phụ thuộc');
+                    if ($guardResponse instanceof JsonResponse) {
+                        $this->failReissue($guardResponse->getData(true)['message'] ?? 'Không thể phát hành lại hóa đơn phụ thuộc', $guardResponse->getStatusCode());
+                    }
+                }
 
-                return ApiResponse::responseJson(true, 'Cập nhật hóa đơn thành công', 200, new InvoiceDetailResource($invoiceModel), 200);
+                $notifications = collect();
+                $reissuedInvoices = collect();
+                foreach ($affectedInvoices as $affectedInvoice) {
+                    $isSourceInvoice = (int) $affectedInvoice->id === (int) $invoiceModel->id;
+                    if (! $isSourceInvoice) {
+                        $this->syncPreviousDebtItem($affectedInvoice);
+                    }
+
+                    $this->recalculateReissuedInvoice(
+                        $affectedInvoice,
+                        $admin,
+                        $isSourceInvoice ? $reason : "Tự động cập nhật do phát hành lại hóa đơn {$invoiceModel->invoice_code}",
+                        $isSourceInvoice ? ($invoiceModel->due_date?->toDateString()) : null,
+                        $isSourceInvoice
+                    );
+
+                    $freshInvoice = $affectedInvoice->fresh($this->detailRelations());
+                    $reissuedInvoices->push($freshInvoice);
+                    $notifications = $notifications->merge($this->createInvoiceReissuedNotifications($freshInvoice, $admin, ! $isSourceInvoice));
+                }
+
+                AdminActivityLogger::write($admin, 'reissue_invoice', Invoice::class, $invoiceModel->id, $oldData, [
+                    'invoice' => $invoiceModel->fresh()->toArray(),
+                    'affected_invoice_ids' => $affectedInvoices->pluck('id')->values()->all(),
+                    'reason' => $reason,
+                ], $request);
+
+                DB::afterCommit(function () use ($reissuedInvoices, $notifications): void {
+                    $reissuedInvoices->each(fn (Invoice $reissuedInvoice): mixed => event(new InvoiceReissued($reissuedInvoice)));
+                    $this->broadcastNotifications($notifications);
+                });
+
+                $invoiceModel = $invoiceModel->fresh($this->detailRelations());
+
+                return ApiResponse::responseJson(true, 'Cập nhật và phát hành lại hóa đơn thành công', 200, new InvoiceDetailResource($invoiceModel), 200);
             });
 
             return $response;
+        } catch (\DomainException $e) {
+            $status = in_array((int) $e->getCode(), [403, 404, 409, 422], true) ? (int) $e->getCode() : 422;
+
+            return ApiResponse::responseJson(false, $e->getMessage(), $status, null, $status);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
@@ -794,6 +836,255 @@ class InvoiceController extends Controller
         }
     }
 
+    private function ensureInvoiceCanBeReissued(Invoice $invoice, ?string $prefix = null): ?JsonResponse
+    {
+        $label = $prefix ? $prefix.' '.$invoice->invoice_code.': ' : '';
+
+        if (! in_array((int) $invoice->status, [Invoice::STATUS_UNPAID, Invoice::STATUS_OVERDUE], true)) {
+            return ApiResponse::responseJson(false, $label.'Chỉ được sửa hóa đơn chưa thanh toán hoặc quá hạn', 422, null, 422);
+        }
+
+        $paymentsCount = array_key_exists('payments_count', $invoice->getAttributes())
+            ? (int) $invoice->payments_count
+            : $invoice->payments()->count();
+
+        if ($paymentsCount > 0) {
+            return ApiResponse::responseJson(false, $label.'Không thể sửa hóa đơn đã phát sinh giao dịch hoặc minh chứng thanh toán', 422, null, 422);
+        }
+
+        return null;
+    }
+
+    private function applyMeterReadingCorrections(Invoice $invoice, array $corrections): Collection
+    {
+        $correctionsByReadingId = collect($corrections)
+            ->keyBy(fn (array $correction): int => (int) $correction['meter_reading_id']);
+        $readingIds = $correctionsByReadingId->keys()->map(fn ($readingId): int => (int) $readingId)->values();
+
+        if ($readingIds->isEmpty()) {
+            return collect([$invoice->id]);
+        }
+
+        $linkedReadingIds = $invoice->items()
+            ->whereIn('meter_reading_id', $readingIds->all())
+            ->pluck('meter_reading_id')
+            ->map(fn ($readingId): int => (int) $readingId)
+            ->unique()
+            ->values();
+
+        if ($linkedReadingIds->count() !== $readingIds->count()) {
+            $this->failReissue('Chỉ được chỉnh sửa chỉ số đang thuộc hóa đơn này');
+        }
+
+        $correctedReadings = MeterReading::query()
+            ->whereIn('id', $readingIds->all())
+            ->lockForUpdate()
+            ->get();
+
+        if ($correctedReadings->count() !== $readingIds->count()) {
+            $this->failReissue('Không tìm thấy đầy đủ chỉ số cần chỉnh sửa', 404);
+        }
+
+        $affectedInvoiceIds = collect([$invoice->id]);
+
+        foreach ($correctedReadings->groupBy('meter_device_id') as $meterDeviceId => $readingsForDevice) {
+            $earliestReading = $readingsForDevice
+                ->sortBy(fn (MeterReading $reading): int => ((int) $reading->billing_year * 100) + (int) $reading->billing_month)
+                ->first();
+
+            if (! $earliestReading) {
+                continue;
+            }
+
+            $deviceReadings = MeterReading::query()
+                ->where('meter_device_id', (int) $meterDeviceId)
+                ->where(function (Builder $query) use ($earliestReading): void {
+                    $query->where('billing_year', '>', $earliestReading->billing_year)
+                        ->orWhere(function (Builder $sameYearQuery) use ($earliestReading): void {
+                            $sameYearQuery->where('billing_year', $earliestReading->billing_year)
+                                ->where('billing_month', '>=', $earliestReading->billing_month);
+                        });
+                })
+                ->orderBy('billing_year')
+                ->orderBy('billing_month')
+                ->lockForUpdate()
+                ->get();
+
+            $previousReading = DecimalMoney::normalize($earliestReading->previous_reading);
+
+            foreach ($deviceReadings as $deviceReading) {
+                $correction = $correctionsByReadingId->get((int) $deviceReading->id);
+                $currentReading = DecimalMoney::normalize($correction['current_reading'] ?? $deviceReading->current_reading);
+
+                if (DecimalMoney::compare($currentReading, $previousReading) < 0) {
+                    $this->failReissue("Chỉ số mới của đồng hồ #{$deviceReading->meter_device_id} tháng {$deviceReading->billing_month}/{$deviceReading->billing_year} không được nhỏ hơn chỉ số trước đó {$previousReading}");
+                }
+
+                $readingData = [
+                    'previous_reading' => $previousReading,
+                    'current_reading' => $currentReading,
+                    'consumption' => DecimalMoney::subtract($currentReading, $previousReading),
+                ];
+
+                if ($correction) {
+                    if (! empty($correction['reading_date'])) {
+                        $readingData['reading_date'] = $correction['reading_date'];
+                    }
+
+                    if (array_key_exists('note', $correction)) {
+                        $readingData['note'] = $correction['note'];
+                    }
+                }
+
+                $deviceReading->forceFill($readingData)->save();
+                $affectedInvoiceIds = $affectedInvoiceIds->merge($this->syncInvoiceItemsForMeterReading($deviceReading));
+                $previousReading = $currentReading;
+            }
+
+            $this->syncMeterDeviceInitialReading((int) $meterDeviceId);
+        }
+
+        return $affectedInvoiceIds->unique()->values();
+    }
+
+    private function syncInvoiceItemsForMeterReading(MeterReading $reading): Collection
+    {
+        $items = InvoiceItem::query()
+            ->with('service:id,name')
+            ->where('meter_reading_id', $reading->id)
+            ->lockForUpdate()
+            ->get();
+
+        $invoiceIds = collect();
+        foreach ($items as $item) {
+            $item->forceFill([
+                'description' => $this->meterReadingItemDescription($item, $reading),
+                'quantity' => DecimalMoney::normalize($reading->consumption),
+                'amount' => DecimalMoney::multiply($reading->consumption, $item->unit_price),
+            ])->save();
+
+            $invoiceIds->push((int) $item->invoice_id);
+        }
+
+        return $invoiceIds->unique()->values();
+    }
+
+    private function meterReadingItemDescription(InvoiceItem $item, MeterReading $reading): string
+    {
+        $name = $item->service?->name;
+        if (! $name) {
+            $name = trim(explode('(', $item->description, 2)[0]) ?: 'Chỉ số đồng hồ';
+        }
+
+        return $name.' ('.DecimalMoney::normalize($reading->previous_reading).' → '.DecimalMoney::normalize($reading->current_reading).')';
+    }
+
+    private function syncMeterDeviceInitialReading(int $meterDeviceId): void
+    {
+        $latestReading = MeterReading::query()
+            ->where('meter_device_id', $meterDeviceId)
+            ->orderByDesc('billing_year')
+            ->orderByDesc('billing_month')
+            ->lockForUpdate()
+            ->first();
+
+        if ($latestReading) {
+            MeterDevice::query()->whereKey($meterDeviceId)->update(['initial_reading' => $latestReading->current_reading]);
+        }
+    }
+
+    private function futureDebtInvoiceIds(Invoice $invoice): Collection
+    {
+        return Invoice::query()
+            ->where('contract_id', $invoice->contract_id)
+            ->where(function (Builder $query) use ($invoice): void {
+                $query->where('billing_year', '>', $invoice->billing_year)
+                    ->orWhere(function (Builder $sameYearQuery) use ($invoice): void {
+                        $sameYearQuery->where('billing_year', $invoice->billing_year)
+                            ->where('billing_month', '>', $invoice->billing_month);
+                    });
+            })
+            ->whereHas('items', fn (Builder $query): Builder => $query->where('item_type', InvoiceItem::ITEM_TYPE_OLD_DEBT))
+            ->pluck('id')
+            ->map(fn ($invoiceId): int => (int) $invoiceId)
+            ->values();
+    }
+
+    private function syncPreviousDebtItem(Invoice $invoice): void
+    {
+        $previousDebtAmount = $this->previousDebtAmount($invoice->contract, (int) $invoice->billing_year, (int) $invoice->billing_month);
+
+        $oldDebtItems = $invoice->items()
+            ->where('item_type', InvoiceItem::ITEM_TYPE_OLD_DEBT)
+            ->lockForUpdate()
+            ->orderBy('id')
+            ->get();
+
+        foreach ($oldDebtItems as $index => $item) {
+            $amount = $index === 0 ? $previousDebtAmount : '0.00';
+            $item->forceFill([
+                'description' => 'Nợ cũ các kỳ trước',
+                'quantity' => '1.00',
+                'unit_price' => $amount,
+                'amount' => $amount,
+            ])->save();
+        }
+    }
+
+    private function recalculateReissuedInvoice(Invoice $invoice, Admin $admin, string $reason, ?string $dueDate = null, bool $applyDueDate = false): void
+    {
+        $items = $invoice->items()->lockForUpdate()->get();
+        $totalAmount = $this->calculateItemsTotal($items->map(fn (InvoiceItem $item): array => [
+            'amount' => (string) $item->amount,
+        ])->all());
+
+        if (DecimalMoney::compare($totalAmount, '0') < 0) {
+            $this->failReissue("Tổng tiền hóa đơn {$invoice->invoice_code} không được âm");
+        }
+
+        $previousDebtAmount = DecimalMoney::add($items
+            ->where('item_type', InvoiceItem::ITEM_TYPE_OLD_DEBT)
+            ->map(fn (InvoiceItem $item): string => (string) $item->amount)
+            ->values()
+            ->all());
+
+        $data = [
+            'previous_debt_amount' => $previousDebtAmount,
+            'total_amount' => $totalAmount,
+            'paid_amount' => '0.00',
+            'remaining_amount' => $totalAmount,
+            'status' => $this->reissuedInvoiceStatus($totalAmount, $applyDueDate ? $dueDate : optional($invoice->due_date)->toDateString(), (int) $invoice->status),
+            'revision' => max(1, (int) ($invoice->revision ?? 1)) + 1,
+            'reissued_at' => now(),
+            'reissue_reason' => $reason,
+            'updated_by' => $admin->id,
+        ];
+
+        if ($applyDueDate) {
+            $data['due_date'] = $dueDate;
+        }
+
+        $invoice->forceFill($data)->save();
+    }
+
+    private function reissuedInvoiceStatus(string $totalAmount, ?string $dueDate, int $currentStatus): int
+    {
+        if (DecimalMoney::compare($totalAmount, '0') <= 0) {
+            return Invoice::STATUS_PAID;
+        }
+
+        if ($dueDate && Carbon::parse($dueDate)->startOfDay()->lt(now()->startOfDay())) {
+            return Invoice::STATUS_OVERDUE;
+        }
+
+        return Invoice::STATUS_UNPAID;
+    }
+
+    private function failReissue(string $message, int $status = 422): never
+    {
+        throw new \DomainException($message, $status);
+    }
+
     private function applyConfirmedPayment(Invoice $invoice, string $amount): void
     {
         $paidAmount = DecimalMoney::add([$invoice->paid_amount, $amount]);
@@ -821,6 +1112,32 @@ class InvoiceController extends Controller
             ->map(fn ($contractTenant): Notification => Notification::query()->create([
                 'title' => 'Hóa đơn mới đã được phát hành',
                 'content' => "Hóa đơn {$invoice->invoice_code} tháng ".str_pad((string) $invoice->billing_month, 2, '0', STR_PAD_LEFT)."/{$invoice->billing_year} của phòng ".($invoice->room?->room_number ?? 'chưa rõ').' đã được phát hành. Số tiền: '.number_format(DecimalMoney::toIntegerAmount($invoice->total_amount), 0, ',', '.').' VND.',
+                'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
+                'target_type' => Notification::TARGET_TYPE_TENANT,
+                'building_id' => $invoice->room?->building_id,
+                'room_id' => $invoice->room_id,
+                'tenant_id' => $contractTenant->tenant_id,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => $admin->id,
+            ]))
+            ->values();
+    }
+
+    private function createInvoiceReissuedNotifications(Invoice $invoice, Admin $admin, bool $isCascade = false): Collection
+    {
+        $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
+        $amountText = number_format(DecimalMoney::toIntegerAmount($invoice->remaining_amount), 0, ',', '.').' VND';
+        $title = $isCascade ? 'Hóa đơn liên quan đã được cập nhật' : 'Hóa đơn đã được cập nhật và phát hành lại';
+        $contentPrefix = $isCascade
+            ? "Hóa đơn {$invoice->invoice_code} được cập nhật do thay đổi chỉ số kỳ trước."
+            : "Hóa đơn {$invoice->invoice_code} đã được ban quản lý cập nhật và phát hành lại.";
+
+        return $invoice->contract->contractTenants
+            ->filter(fn ($contractTenant): bool => (bool) $contractTenant->is_staying)
+            ->map(fn ($contractTenant): Notification => Notification::query()->create([
+                'title' => $title,
+                'content' => $contentPrefix.' Số tiền còn lại: '.$amountText.'. Mã QR thanh toán đã được cập nhật theo số tiền mới.',
                 'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
                 'target_type' => Notification::TARGET_TYPE_TENANT,
                 'building_id' => $invoice->room?->building_id,
@@ -973,6 +1290,7 @@ class InvoiceController extends Controller
             'contract.contractTenants:id,contract_id,tenant_id,is_staying',
             'contract.contractTenants.tenant:id,full_name,phone,email',
             'creator:id,full_name',
+            'updater:id,full_name',
         ];
     }
 
@@ -985,6 +1303,7 @@ class InvoiceController extends Controller
             'contract.contractTenants:id,contract_id,tenant_id,is_staying',
             'contract.contractTenants.tenant:id,full_name,phone,email',
             'creator:id,full_name',
+            'updater:id,full_name',
             'items' => fn ($query) => $query->orderBy('id'),
             'items.service:id,name,slug,charge_method,unit_name',
             'items.meterReading:id,meter_device_id,previous_reading,current_reading,consumption,reading_date,image_path',

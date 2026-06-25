@@ -30,7 +30,7 @@ class _TenantInvoicesScreenState extends State<TenantInvoicesScreen> {
       final socketService = context.read<WebSocketService>();
       _socketSub = socketService.notificationsStream.listen((event) {
         final type = event['type'];
-        if (type == 'invoice_paid' || type == 'invoice_issued' || type == 'notification_sent') {
+        if (type == 'invoice_paid' || type == 'invoice_issued' || type == 'invoice_reissued' || type == 'notification_sent') {
           if (mounted) {
             final notificationData = event['data'];
             final isInvoiceReminder = type == 'notification_sent' &&
@@ -50,11 +50,15 @@ class _TenantInvoicesScreenState extends State<TenantInvoicesScreen> {
                     ? 'Hóa đơn $code đã được thanh toán thành công!'
                     : type == 'invoice_issued'
                         ? 'Hóa đơn mới $code vừa được phát hành!'
-                        : (notificationData['content'] as String? ?? 'Bạn có nhắc thanh toán hóa đơn tiền phòng.')),
+                        : type == 'invoice_reissued'
+                            ? 'Hóa đơn $code đã được cập nhật. Vui lòng dùng mã QR mới để thanh toán.'
+                            : (notificationData['content'] as String? ?? 'Bạn có nhắc thanh toán hóa đơn tiền phòng.')),
                 backgroundColor: type == 'invoice_paid'
                     ? Colors.green
                     : type == 'invoice_issued'
                         ? Colors.blue
+                        : type == 'invoice_reissued'
+                            ? const Color(0xFF0F766E)
                         : const Color(0xFFEAB308),
               ),
             );
@@ -398,11 +402,31 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
   Invoice? _detailedInvoice;
   bool _isLoading = true;
   String? _error;
+  StreamSubscription? _reissueSub;
 
   @override
   void initState() {
     super.initState();
     _loadDetails();
+    _reissueSub = context.read<WebSocketService>().notificationsStream.listen((event) {
+      if (event['type'] == 'invoice_reissued') {
+        final data = event['data'];
+        if (data is Map && data['id'] == widget.invoice.id) {
+          _loadDetails();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Hóa đơn đã cập nhật. Mã QR mới đã được tải lại.'), backgroundColor: Color(0xFF0F766E)),
+            );
+          }
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _reissueSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadDetails() async {
@@ -650,11 +674,19 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
 
                   // VietQR Code Dynamic Display
                   if (invoice.paymentQrUrl != null) ...[
-                    const Text(
-                      'Quét mã VietQR chuyển khoản nhanh',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1C1917)),
+                    Text(
+                      invoice.revision > 1 ? 'Quét mã VietQR mới sau cập nhật' : 'Quét mã VietQR chuyển khoản nhanh',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1C1917)),
                       textAlign: TextAlign.center,
                     ),
+                    if (invoice.revision > 1) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Phiên bản ${invoice.revision}${invoice.reissuedAt != null ? ' · cập nhật ${invoice.reissuedAt}' : ''}',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F766E)),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Center(
                       child: Container(
@@ -871,11 +903,31 @@ class _InvoiceDetailsBottomSheetContentState extends State<_InvoiceDetailsBottom
   Invoice? _detailedInvoice;
   bool _isLoading = true;
   String? _error;
+  StreamSubscription? _reissueSub;
 
   @override
   void initState() {
     super.initState();
     _loadDetails();
+    _reissueSub = context.read<WebSocketService>().notificationsStream.listen((event) {
+      if (event['type'] == 'invoice_reissued') {
+        final data = event['data'];
+        if (data is Map && data['id'] == widget.invoiceId) {
+          _loadDetails();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Hóa đơn đã cập nhật. Chi tiết và QR mới đã được tải lại.'), backgroundColor: Color(0xFF0F766E)),
+            );
+          }
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _reissueSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadDetails() async {

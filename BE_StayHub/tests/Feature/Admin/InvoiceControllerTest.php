@@ -864,4 +864,195 @@ class InvoiceControllerTest extends TestCase
             'room_id' => $this->room->id,
         ]);
     }
+
+    public function test_admin_can_reissue_invoice_and_sync_meter_readings_items_debt_and_notifications(): void
+    {
+        Event::fake();
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-REISSUE',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-02-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $meter = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricityService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => '190.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        $februaryReading = MeterReading::create([
+            'meter_device_id' => $meter->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'previous_reading' => '100.00',
+            'current_reading' => '150.00',
+            'consumption' => '50.00',
+            'reading_date' => '2026-02-28',
+            'status' => MeterReading::STATUS_INVOICED,
+        ]);
+
+        $marchReading = MeterReading::create([
+            'meter_device_id' => $meter->id,
+            'billing_month' => 3,
+            'billing_year' => 2026,
+            'previous_reading' => '150.00',
+            'current_reading' => '190.00',
+            'consumption' => '40.00',
+            'reading_date' => '2026-03-31',
+            'status' => MeterReading::STATUS_INVOICED,
+        ]);
+
+        $februaryInvoice = Invoice::create([
+            'invoice_code' => 'INV-2026-02-0001',
+            'contract_id' => $contract->id,
+            'room_id' => $this->room->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'period_start' => '2026-02-01',
+            'period_end' => '2026-02-28',
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '3200000.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '3200000.00',
+            'due_date' => '2026-03-05',
+            'status' => Invoice::STATUS_UNPAID,
+            'issued_at' => now(),
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $februaryInvoice->items()->createMany([
+            ['item_type' => InvoiceItem::ITEM_TYPE_ROOM, 'description' => 'Tiền phòng tháng 02/2026', 'quantity' => '1.00', 'unit_price' => '3000000.00', 'amount' => '3000000.00'],
+            ['service_id' => $this->electricityService->id, 'meter_reading_id' => $februaryReading->id, 'item_type' => InvoiceItem::ITEM_TYPE_ELECTRIC, 'description' => 'Điện (100.00 → 150.00)', 'quantity' => '50.00', 'unit_price' => '4000.00', 'amount' => '200000.00'],
+        ]);
+
+        $marchInvoice = Invoice::create([
+            'invoice_code' => 'INV-2026-03-0001',
+            'contract_id' => $contract->id,
+            'room_id' => $this->room->id,
+            'billing_month' => 3,
+            'billing_year' => 2026,
+            'period_start' => '2026-03-01',
+            'period_end' => '2026-03-31',
+            'previous_debt_amount' => '3200000.00',
+            'total_amount' => '6360000.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '6360000.00',
+            'due_date' => '2026-04-05',
+            'status' => Invoice::STATUS_UNPAID,
+            'issued_at' => now(),
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $marchInvoice->items()->createMany([
+            ['item_type' => InvoiceItem::ITEM_TYPE_ROOM, 'description' => 'Tiền phòng tháng 03/2026', 'quantity' => '1.00', 'unit_price' => '3000000.00', 'amount' => '3000000.00'],
+            ['service_id' => $this->electricityService->id, 'meter_reading_id' => $marchReading->id, 'item_type' => InvoiceItem::ITEM_TYPE_ELECTRIC, 'description' => 'Điện (150.00 → 190.00)', 'quantity' => '40.00', 'unit_price' => '4000.00', 'amount' => '160000.00'],
+            ['item_type' => InvoiceItem::ITEM_TYPE_OLD_DEBT, 'description' => 'Nợ cũ các kỳ trước', 'quantity' => '1.00', 'unit_price' => '3200000.00', 'amount' => '3200000.00'],
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/invoices/{$februaryInvoice->id}", [
+                'reason' => 'Nhập sai chỉ số điện tháng 02',
+                'due_date' => '2026-03-10',
+                'meter_readings' => [[
+                    'meter_reading_id' => $februaryReading->id,
+                    'current_reading' => '170.00',
+                    'reading_date' => '2026-02-28',
+                ]],
+            ]);
+
+        $response->assertOk();
+
+        $this->assertDatabaseHas('meter_readings', ['id' => $februaryReading->id, 'current_reading' => '170.00', 'consumption' => '70.00']);
+        $this->assertDatabaseHas('meter_readings', ['id' => $marchReading->id, 'previous_reading' => '170.00', 'consumption' => '20.00']);
+        $this->assertDatabaseHas('invoice_items', ['invoice_id' => $februaryInvoice->id, 'meter_reading_id' => $februaryReading->id, 'quantity' => '70.00', 'amount' => '280000.00']);
+        $this->assertDatabaseHas('invoice_items', ['invoice_id' => $marchInvoice->id, 'item_type' => InvoiceItem::ITEM_TYPE_OLD_DEBT, 'amount' => '3280000.00']);
+        $this->assertDatabaseHas('invoices', ['id' => $februaryInvoice->id, 'total_amount' => '3280000.00', 'remaining_amount' => '3280000.00', 'revision' => 2, 'reissue_reason' => 'Nhập sai chỉ số điện tháng 02']);
+        $this->assertDatabaseHas('invoices', ['id' => $marchInvoice->id, 'revision' => 2, 'previous_debt_amount' => '3280000.00']);
+        $this->assertDatabaseHas('notifications', ['tenant_id' => $this->tenant->id, 'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE, 'title' => 'Hóa đơn đã được cập nhật và phát hành lại']);
+        Event::assertDispatched(\App\Events\InvoiceReissued::class, 2);
+    }
+
+    public function test_admin_can_reissue_overdue_invoice_with_future_due_date_to_unpaid(): void
+    {
+        Event::fake();
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-REISSUE-DUE-DATE',
+            'room_id' => $this->room->id,
+            'start_date' => now()->subMonths(2)->toDateString(),
+            'end_date' => now()->addMonths(6)->toDateString(),
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => now()->subMonths(2)->toDateString(),
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $invoice = Invoice::create([
+            'invoice_code' => 'INV-REISSUE-DUE-0001',
+            'contract_id' => $contract->id,
+            'room_id' => $this->room->id,
+            'billing_month' => (int) now()->subMonth()->format('m'),
+            'billing_year' => (int) now()->subMonth()->format('Y'),
+            'period_start' => now()->subMonth()->startOfMonth()->toDateString(),
+            'period_end' => now()->subMonth()->endOfMonth()->toDateString(),
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '3000000.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '3000000.00',
+            'due_date' => now()->subDays(3)->toDateString(),
+            'status' => Invoice::STATUS_OVERDUE,
+            'issued_at' => now()->subMonth(),
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $invoice->items()->create([
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'description' => 'Tiền phòng',
+            'quantity' => '1.00',
+            'unit_price' => '3000000.00',
+            'amount' => '3000000.00',
+        ]);
+
+        $newDueDate = now()->addDays(7)->toDateString();
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/invoices/{$invoice->id}", [
+                'reason' => 'Gia hạn hạn thanh toán do phát hành lại hóa đơn',
+                'due_date' => $newDueDate,
+            ]);
+
+        $response->assertOk();
+
+        $invoice->refresh();
+
+        $this->assertSame($newDueDate, $invoice->due_date->toDateString());
+        $this->assertSame(Invoice::STATUS_UNPAID, (int) $invoice->status);
+        $this->assertSame(2, (int) $invoice->revision);
+    }
 }

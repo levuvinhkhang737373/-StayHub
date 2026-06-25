@@ -32,6 +32,8 @@ class InvoiceResource extends JsonResource
             'status_label' => Invoice::STATUS_LABELS[$this->status] ?? null,
             'payment_qr_url' => $this->paymentQrUrl(),
             'issued_at' => optional($this->issued_at)->toDateTimeString(),
+            'revision' => $this->revision ?? 1,
+            'reissued_at' => optional($this->reissued_at)->toDateTimeString(),
             'created_at' => optional($this->created_at)->toDateTimeString(),
         ];
     }

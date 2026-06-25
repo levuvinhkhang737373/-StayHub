@@ -4,12 +4,13 @@ set -e
 SOURCE_APP_DIR=${SOURCE_APP_DIR:-/var/www/html/BE_StayHub}
 RUNTIME_APP_DIR=${RUNTIME_APP_DIR:-/var/www/current-backend}
 IMAGE_FALLBACK_DIR=${IMAGE_FALLBACK_DIR:-/opt/stayhub-backend}
+ALLOW_IMAGE_FALLBACK=${ALLOW_IMAGE_FALLBACK:-false}
 APP_DIR="$SOURCE_APP_DIR"
 APP_USER="${APP_USER:-${DOCKER_USER:-khang}}"
 COMPOSER_LOCK_HASH_FILE=vendor/.composer-lock.sha256
 COMPOSER_INSTALL_LOCK_DIR=storage/framework/composer-install.lock
 
-export APP_USER APP_DIR SOURCE_APP_DIR RUNTIME_APP_DIR IMAGE_FALLBACK_DIR
+export APP_USER APP_DIR SOURCE_APP_DIR RUNTIME_APP_DIR IMAGE_FALLBACK_DIR ALLOW_IMAGE_FALLBACK
 mkdir -p "$SOURCE_APP_DIR" "$(dirname "$RUNTIME_APP_DIR")"
 cd "$SOURCE_APP_DIR"
 
@@ -54,14 +55,15 @@ wait_for_project_mount() {
         count=$((count + 1))
     done
 
-    if has_laravel_source "$IMAGE_FALLBACK_DIR"; then
+    if [ "$ALLOW_IMAGE_FALLBACK" = "true" ] && has_laravel_source "$IMAGE_FALLBACK_DIR"; then
         echo "Bind mount backend chưa đủ file Laravel; dùng source fallback trong image để container vẫn healthy."
         activate_app_dir "$IMAGE_FALLBACK_DIR"
         return 0
     fi
 
-    echo "Backend source vẫn chưa đầy đủ file Laravel cần thiết và image fallback không tồn tại."
-    echo "Kiểm tra bind mount ./BE_StayHub -> $SOURCE_APP_DIR hoặc rebuild image backend."
+    echo "Backend source chưa mount đủ file Laravel sau khi chờ."
+    echo "Container sẽ thoát để Docker restart và mount lại ./BE_StayHub -> $SOURCE_APP_DIR."
+    echo "Nếu thật sự muốn chạy bằng source fallback trong image, đặt ALLOW_IMAGE_FALLBACK=true."
     ls -la "$SOURCE_APP_DIR" 2>/dev/null || true
     exit 1
 }

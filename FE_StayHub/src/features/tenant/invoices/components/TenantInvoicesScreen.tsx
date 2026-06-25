@@ -196,10 +196,37 @@ export function TenantInvoicesScreen() {
       setTimeout(() => setSuccessMessage(null), 5000)
     })
 
+    channel.listen('.InvoiceReissued', (event: any) => {
+      console.log('Realtime WS: Hóa đơn được phát hành lại', event)
+      loadInvoices()
+      setSuccessMessage(`Hóa đơn ${event.invoice?.invoice_code} đã được cập nhật. Mã QR thanh toán mới đã sẵn sàng!`)
+
+      if (detailInvoice && detailInvoice.id === event.invoice?.id) {
+        fetchTenantInvoiceDetail(detailInvoice.id)
+          .then((response) => {
+            if (response.status && response.result) {
+              setDetailInvoice(response.result)
+            }
+          })
+          .catch(() => undefined)
+
+        if (isProofOpen) {
+          setIsProofOpen(false)
+          setProofFile(null)
+          setProofError('Hóa đơn vừa được cập nhật. Vui lòng kiểm tra số tiền và mã QR mới trước khi thanh toán.')
+        }
+      }
+
+      setTimeout(() => setSuccessMessage(null), 6000)
+    })
+
     return () => {
+      channel.stopListening('.InvoicePaid')
+      channel.stopListening('.InvoiceIssued')
+      channel.stopListening('.InvoiceReissued')
       echo.disconnect()
     }
-  }, [tenant?.id, detailInvoice?.id, loadInvoices])
+  }, [tenant?.id, detailInvoice?.id, isProofOpen, loadInvoices])
 
   // 4. View Detail
   const handleViewDetail = async (invoiceId: number) => {

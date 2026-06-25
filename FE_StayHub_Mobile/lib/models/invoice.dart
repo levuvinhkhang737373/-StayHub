@@ -17,6 +17,8 @@ class Invoice {
   final String? issuedAt;
   final int? createdBy;
   final String? paymentQrUrl;
+  final int revision;
+  final String? reissuedAt;
   final List<InvoiceItem>? items;
 
   Invoice({
@@ -38,6 +40,8 @@ class Invoice {
     this.issuedAt,
     this.createdBy,
     this.paymentQrUrl,
+    this.revision = 1,
+    this.reissuedAt,
     this.items,
   });
 
@@ -47,7 +51,7 @@ class Invoice {
       invoiceCode: json['invoice_code'] as String? ?? '',
       contractId: json['contract_id'] as int? ?? 0,
       roomId: json['room_id'] as int? ?? 0,
-      roomNumber: json['room_number'] as String? ?? '',
+      roomNumber: json['room_number'] as String? ?? (json['room'] is Map ? ((json['room'] as Map)['room_number']?.toString() ?? '') : ''),
       billingMonth: json['billing_month'] as int? ?? 1,
       billingYear: json['billing_year'] as int? ?? 2026,
       periodStart: json['period_start'] as String? ?? '',
@@ -61,6 +65,8 @@ class Invoice {
       issuedAt: json['issued_at'] as String?,
       createdBy: json['created_by'] as int?,
       paymentQrUrl: json['payment_qr_url'] as String?,
+      revision: json['revision'] as int? ?? 1,
+      reissuedAt: json['reissued_at'] as String?,
       items: json['items'] != null
           ? (json['items'] as List).map((i) => InvoiceItem.fromJson(i as Map<String, dynamic>)).toList()
           : null,
@@ -87,6 +93,8 @@ class Invoice {
       'issued_at': issuedAt,
       'created_by': createdBy,
       'payment_qr_url': paymentQrUrl,
+      'revision': revision,
+      'reissued_at': reissuedAt,
       'items': items?.map((i) => i.toJson()).toList(),
     };
   }

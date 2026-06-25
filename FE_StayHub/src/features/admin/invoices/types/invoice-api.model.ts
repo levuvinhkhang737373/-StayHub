@@ -102,8 +102,13 @@ export interface AdminInvoiceResource {
   status: number
   status_label?: string | null
   issued_at?: string | null
+  revision?: number | null
+  reissued_at?: string | null
+  reissue_reason?: string | null
   created_by?: number | null
+  updated_by?: number | null
   creator_name?: string | null
+  updater_name?: string | null
   payment_qr_url?: string | null
   room?: AdminInvoiceRoomSummary | null
   tenants?: AdminInvoiceTenantSummary[]
@@ -154,8 +159,17 @@ export interface AdminInvoiceGeneratePayload {
 }
 
 export interface AdminInvoiceUpdatePayload {
+  reason: string
   due_date?: string | null
+  meter_readings?: AdminInvoiceMeterReadingUpdatePayload[]
   adjustments?: AdminInvoiceAdjustmentPayload[]
+}
+
+export interface AdminInvoiceMeterReadingUpdatePayload {
+  meter_reading_id: number
+  current_reading: string
+  reading_date?: string | null
+  note?: string | null
 }
 
 export interface AdminInvoicePaymentPayload {

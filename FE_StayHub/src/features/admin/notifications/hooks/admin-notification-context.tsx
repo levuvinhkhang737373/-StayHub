@@ -236,6 +236,14 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
+    channel.listen('.InvoiceReissued', (event: any) => {
+      console.log('WS: Received InvoiceReissued', event)
+      const invoice = event.invoice
+      if (invoice) {
+        window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: invoice }))
+      }
+    })
+
     channel.listen('.NotificationSent', (event: any) => {
       console.log('WS: Received NotificationSent', event)
       const notification = event.notification
@@ -306,6 +314,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       channel.stopListening('.MaintenanceFeedbackCreated')
       channel.stopListening('.ContractDepositPaid')
       channel.stopListening('.InvoicePaid')
+      channel.stopListening('.InvoiceReissued')
       channel.stopListening('.NotificationSent')
       buildingChannels.forEach((bc) => {
         bc.channel.stopListening('.ContractExpired')

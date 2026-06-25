@@ -220,6 +220,30 @@ class WebSocketService extends ChangeNotifier {
       });
       subscriptions.add(adminInvoicePaidSubscription);
 
+      final adminInvoiceReissuedSubscription = channel.bind('InvoiceReissued').listen((event) {
+        debugPrint('WS Event: InvoiceReissued (Admin) -> ${event.data}');
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            Map<String, dynamic> decoded;
+            if (rawData is String) {
+              decoded = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              decoded = Map<String, dynamic>.from(rawData);
+            } else {
+              throw Exception('Unexpected data format');
+            }
+            _notificationStreamController.add({
+              'type': 'admin_invoice_reissued',
+              'data': decoded['invoice'] ?? decoded,
+            });
+          }
+        } catch (e) {
+          debugPrint('WS Error handling InvoiceReissued (Admin): $e');
+        }
+      });
+      subscriptions.add(adminInvoiceReissuedSubscription);
+
       _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
       debugPrint('WS: Subscribed to private channel $channelName successfully!');
@@ -373,6 +397,30 @@ class WebSocketService extends ChangeNotifier {
         }
       });
       subscriptions.add(invoiceIssuedSub);
+
+      final invoiceReissuedSub = channel.bind('InvoiceReissued').listen((event) {
+        debugPrint('WS Event: InvoiceReissued -> ${event.data}');
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            Map<String, dynamic> decoded;
+            if (rawData is String) {
+              decoded = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              decoded = Map<String, dynamic>.from(rawData);
+            } else {
+              throw Exception('Unexpected data format');
+            }
+            _notificationStreamController.add({
+              'type': 'invoice_reissued',
+              'data': decoded['invoice'] ?? decoded,
+            });
+          }
+        } catch (e) {
+          debugPrint('WS Error handling InvoiceReissued: $e');
+        }
+      });
+      subscriptions.add(invoiceReissuedSub);
 
       _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();

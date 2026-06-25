@@ -30,7 +30,13 @@ class UpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'reason' => ['required', 'string', 'max:500'],
             'due_date' => ['nullable', 'date'],
+            'meter_readings' => ['nullable', 'array', 'max:20'],
+            'meter_readings.*.meter_reading_id' => ['required_with:meter_readings', 'integer', 'distinct', 'exists:meter_readings,id'],
+            'meter_readings.*.current_reading' => ['required_with:meter_readings', 'numeric', 'min:0'],
+            'meter_readings.*.reading_date' => ['nullable', 'date'],
+            'meter_readings.*.note' => ['nullable', 'string', 'max:500'],
             'adjustments' => ['nullable', 'array', 'max:50'],
             'adjustments.*.item_type' => ['required_with:adjustments', 'integer', 'in:7,8,10,11'],
             'adjustments.*.description' => ['required_with:adjustments', 'string', 'max:255'],
@@ -52,6 +58,11 @@ class UpdateRequest extends FormRequest
             'image' => ':attribute phải là hình ảnh.',
             'mimes' => ':attribute chỉ hỗ trợ jpeg, png, jpg hoặc webp.',
             'regex' => ':attribute phải là số tiền hợp lệ và tối đa 2 chữ số thập phân.',
+            'reason.required' => 'Vui lòng nhập lý do phát hành lại hóa đơn.',
+            'meter_readings.*.meter_reading_id.required_with' => 'Vui lòng chọn chỉ số cần chỉnh sửa.',
+            'meter_readings.*.current_reading.required_with' => 'Vui lòng nhập chỉ số mới.',
+            'meter_readings.*.current_reading.numeric' => 'Chỉ số mới phải là số.',
+            'meter_readings.*.current_reading.min' => 'Chỉ số mới không được âm.',
             'contract_id.required' => 'Vui lòng chọn hợp đồng cần lập hóa đơn.',
             'billing_month.required' => 'Vui lòng chọn tháng lập hóa đơn.',
             'billing_year.required' => 'Vui lòng chọn năm lập hóa đơn.',

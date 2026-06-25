@@ -15,6 +15,7 @@ x-backend-environment: &backend-environment
   RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
   PROJECT_MOUNT_ATTEMPTS: ${PROJECT_MOUNT_ATTEMPTS:-60}
   PROJECT_MOUNT_DELAY: ${PROJECT_MOUNT_DELAY:-1}
+  ALLOW_IMAGE_FALLBACK: ${ALLOW_IMAGE_FALLBACK:-false}
 
 x-backend-volumes: &backend-volumes
   - type: bind

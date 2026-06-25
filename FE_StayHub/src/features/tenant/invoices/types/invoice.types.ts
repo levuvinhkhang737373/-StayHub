@@ -81,6 +81,8 @@ export interface TenantInvoiceResource {
   status: number
   status_label?: string | null
   issued_at?: string | null
+  revision?: number | null
+  reissued_at?: string | null
   payment_qr_url?: string | null
   room?: TenantInvoiceRoomSummary | null
   items?: TenantInvoiceItemResource[]
