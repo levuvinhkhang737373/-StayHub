@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
@@ -10,34 +11,28 @@ use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Room\RoomRequest;
 use App\Http\Requests\Admin\Room\TranferSingleTenantRequest;
+use App\Http\Resources\Admin\RoomTransferResultResource;
 use App\Models\Admin;
 use App\Models\AssetTemplate;
 use App\Models\Building;
 use App\Models\Contract;
-use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
-use App\Models\ContractVehicle;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
 use App\Models\MeterDevice;
-use App\Models\MeterReading;
 use App\Models\Notification;
 use App\Models\Room;
 use App\Models\RoomAsset;
 use App\Models\RoomMovement;
-use App\Models\Service;
 use App\Models\Tenant;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 class RoomController extends Controller
 {
-    private const ROOM_STATUS_ACTIVE = 1;     // TODO: xác nhận lại theo enum RoomStatus thật
-    private const CONTRACT_STATUS_ACTIVE = 1; // Khớp dữ liệu mẫu
-    private const CONTRACT_STATUS_ENDED = 2;  // Khớp dữ liệu mẫu
-
     /**
      * Display a listing of the resource.
      */
@@ -334,574 +329,297 @@ class RoomController extends Controller
 
     public function transferTenant(TranferSingleTenantRequest $request)
     {
-        DB::beginTransaction();
         try {
-            $movementDate = $request->movement_date instanceof Carbon
-                ? $request->movement_date
-                : Carbon::parse($request->movement_date);
+            $result = DB::transaction(fn (): array => $this->scheduleRoomTransfer($request->validated(), $request->user(), $request));
 
-            $tenant = Tenant::find($request->tenant_id);
-            if (!$tenant) {
-                throw ValidationException::withMessages([
-                    'tenant_id' => "Không tìm thấy khách thuê #{$request->tenant_id}.",
-                ]);
-            }
-
-            $currentContractTenant = ContractTenant::where('tenant_id', $request->tenant_id)
-                ->where('is_staying', 1)
-                ->whereNull('leave_date')
-                ->lockForUpdate()
-                ->first();
-
-            if (!$currentContractTenant) {
-                throw ValidationException::withMessages([
-                    'tenant_id' => "Khách thuê {$request->tenant_id} hiện không có hợp đồng đang ở.",
-                ]);
-            }
-
-            $oldContract = Contract::lockForUpdate()->find($currentContractTenant->contract_id);
-            if (!$oldContract) {
-                throw ValidationException::withMessages([
-                    'tenant_id' => 'Không tìm thấy hợp đồng cũ.',
-                ]);
-            }
-
-            $oldRoomId = $oldContract->room_id;
-            if ($oldRoomId == $request->to_room_id) {
-                throw ValidationException::withMessages([
-                    'to_room_id' => 'Phòng đích không được là phòng cũ.',
-                ]);
-            }
-
-            // Khoá CẢ HAI phòng cùng lúc, sắp theo id tăng dần - 2 lượt chuyển phòng ngược
-            // chiều xảy ra cùng lúc luôn xin khoá theo đúng 1 thứ tự, tránh deadlock.
-            $rooms = Room::with('building')
-                ->whereIn('id', [$oldRoomId, $request->to_room_id])
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
-
-            $oldRoom = $rooms->get($oldRoomId);
-            $toRoom = $rooms->get($request->to_room_id);
-
-            // assertCanTransfer() giờ THROW khi không hợp lệ, không còn return response bị
-            // bỏ quên như bản trước - lỗi sẽ thực sự chặn được luồng xử lý phía dưới.
-            $this->assertCanTransfer($tenant, $oldRoom, $toRoom);
-
-            $finalReadings = $this->closeOldRoomMeters($oldRoom, $movementDate, $request->closing_meter_readings ?? [], $request->actor_admin_id ?? $request->user()->id);
-            $this->generateTransferOutInvoice(
-                $oldContract,
-                $movementDate
-            );
-            $currentContractTenant->update([
-                'leave_date' => $movementDate->toDateString(),
-                'billing_end_date' => $movementDate->toDateString(),
-                'is_staying' => 0,
-            ]);
-
-            $remainingInOldContract = ContractTenant::where('contract_id', $oldContract->id)
-                ->where('is_staying', 1)
-                ->exists();
-
-            if (!$remainingInOldContract) {
-                $oldContract->update([
-                    'status' => Contract::STATUS_EXPIRED,
-                    'actual_end_date' => $movementDate
-                        ->copy()
-                        ->subDay()
-                        ->toDateString(),
-                ]);
-            }
-
-            $movementType = RoomMovement::MOVEMENT_TYPE_TRANSFER;
-
-            $destinationContract = Contract::where('room_id', $toRoom->id)
-                ->where('status', self::CONTRACT_STATUS_ACTIVE)
-                ->whereNull('actual_end_date')
-                ->lockForUpdate()
-                ->first();
-            $isNewContract = false;
-
-            if (! $destinationContract) {
-                $destinationContract = Contract::create([
-                    'contract_code' => $this->generateContractCode($toRoom),
-                    'room_id' => $toRoom->id,
-                    'start_date' => $movementDate->toDateString(),
-                    'end_date' => $oldContract->end_date, // giữ nguyên hạn hợp đồng cũ - chỉnh lại nếu nghiệp vụ của bạn khác
-                    'billing_cycle_day' => $oldContract->billing_cycle_day,
-                    'room_price' => $toRoom->base_price,
-                    'deposit_amount' => 0, // sẽ được cộng dần ở bước handleDeposit() bên dưới
-                    'status' => Contract::STATUS_PENDING_SIGN,
-                    'payment_status' => Contract::PAYMENT_STATUS_PENDING, // dữ liệu mẫu toàn bộ hợp đồng đều dùng giá trị 2, dùng tạm làm baseline
-                    'note' => $request->note,
-                    'created_by' => $request->actor_admin_id ?? $request->user()->id,
-                    'parent_contract_id' => $oldContract->id,
-                ]);
-                $isNewContract = true;
-            }
-            if ($isNewContract) {
-                $this->generateTransferInInvoice(
-                    $destinationContract,
-                    $movementDate
-                );
-            }            // --- Từ đây trở xuống PHẢI chạy cho CẢ 2 trường hợp (tạo mới lẫn ghép) ---
-            // Bản trước đặt nhầm toàn bộ khối này vào trong nhánh "else", khiến case ghép
-            // phòng (phổ biến nhất) không thêm được tenant vào hợp đồng mới, không trừ sức
-            // chứa phòng cũ, và không return response nào cả.
-            ContractTenant::create([
-                'contract_id' => $destinationContract->id,
-                'tenant_id' => $request->tenant_id,
-                'join_date' => $movementDate->toDateString(),
-                'billing_start_date' => $movementDate->toDateString(),
-                'is_staying' => true,
-                'created_by' => $request->actor_admin_id ?? $request->user()->id,
-            ]);
-
-            // Chỉ thực hiện trừ nếu số lượng người lớn hơn 0
-            if ($oldRoom->current_occupants > 0) {
-                $oldRoom->decrement('current_occupants');
-            } else {
-                // Nếu vốn dĩ đã bằng 0 thì ép hẳn về 0 (hoặc giữ nguyên) để đảm bảo không bị âm trong DB
-                $oldRoom->forceFill(['current_occupants' => 0])->save();
-            }
-
-            $toRoom->increment('current_occupants');
-            // Lưu ý: KHÔNG tự đổi rooms.status theo sức chứa - dữ liệu mẫu cho thấy status
-            // không đi theo current_occupants, nhiều khả năng là cờ bảo trì/hoạt động riêng.
-
-            $this->handleDeposit(
-                $oldContract,
-                $destinationContract,
-                (float) ($request->deposit_settlement_amount ?? 0),
-                (float) ($request->deposit_deduction_amount ?? 0),
-                (float) ($request->deposit_refund_amount ?? 0),
-                $movementDate,
-                $request->actor_admin_id ?? $request->user()->id,
-            );
-
-            $this->ensureNewRoomMeters($toRoom, $request->new_room_opening_readings ?? [], $movementDate);
-
-            // Tên field gốc "carry_vehicleIds" không khớp convention snake_case của các field
-            // khác - đổi thành carry_vehicle_ids. XÁC NHẬN LẠI tên field thật trong
-            // TranferSingleTenantRequest của bạn; ?? [] để không bao giờ truyền null vào
-            // carryOverVehicles() (type-hint array không nullable, truyền null sẽ TypeError).
-            $this->carryOverVehicles($oldContract, $destinationContract, $request->carry_vehicle_ids ?? [], $movementDate);
-
-            $roomMovement = RoomMovement::create([
-                'tenant_id' => $request->tenant_id,
-                'contract_id' => $destinationContract->id,
-                'from_room_id' => $oldRoom->id,
-                'to_room_id' => $toRoom->id,
-                'movement_type' => $movementType,
-                'movement_date' => $movementDate->toDateTimeString(),
-                'old_room_final_amount' => $request->deposit_settlement_amount ?? 0, // TODO: chỉnh lại nếu ý nghĩa cột này khác trong app của bạn
-                'transfer_fee' => $request->transfer_fee ?? 0,
-                'deposit_transfer_amount' => max(
-                    (float) ($request->deposit_settlement_amount ?? 0)
-                        - (float) ($request->deposit_deduction_amount ?? 0)
-                        - (float) ($request->deposit_refund_amount ?? 0),
-                    0
-                ),
-                'deposit_refund_amount' => $request->deposit_refund_amount ?? 0,
-                'deduction_amount' => $request->deposit_deduction_amount ?? 0,
-                'final_electric_reading' => $finalReadings['electric'],
-                'final_water_reading' => $finalReadings['water'],
-                'note' => $request->note,
-                'created_by' => $request->actor_admin_id ?? $request->user()->id,
-            ]);
-
-            $this->writeAdminLog($request->actor_admin_id ?? $request->user()->id, $oldContract, $destinationContract, $oldRoom, $toRoom, $request);
-            $this->notifyTenant($tenant, $toRoom, $movementDate);
-
-            DB::commit();
-
-            return ApiResponse::responseJson(true, 'Chuyển phòng thành công', 200, $roomMovement, 200);
+            return ApiResponse::responseJson(true, 'Lên lịch chuyển phòng thành công', 201, new RoomTransferResultResource($result), 201);
         } catch (ValidationException $e) {
-            DB::rollBack();
             $firstError = collect($e->errors())->flatten()->first() ?? $e->getMessage();
             return ApiResponse::responseJson(false, $firstError, 422, $e->errors(), 422);
         } catch (\Exception $e) {
-            DB::rollBack();
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
         }
     }
 
-    /**
-     * THROW khi không hợp lệ - không được return response ở đây. Hàm protected/private gọi
-     * từ trong transferTenant() không có khả năng tự ngắt request bằng return; chỉ throw
-     * mới dừng được luồng xử lý và bị catch đúng chỗ.
-     */
-    protected function assertCanTransfer(Tenant $tenant, Room $oldRoom, Room $toRoom): void
+    private function scheduleRoomTransfer(array $validated, Admin $admin, Request $request): array
     {
-        if ($toRoom->status !== self::ROOM_STATUS_ACTIVE) {
-            throw ValidationException::withMessages([
-                'to_room_id' => 'Phòng đích đang không ở trạng thái cho thuê được.',
-            ]);
-        }
+        $tenantIds = $this->tenantIds($validated);
+        $movementDate = Carbon::parse($validated['movement_date'])->startOfDay();
+        $activeRows = $this->activeRowsForTenants($tenantIds);
 
-        if ($toRoom->current_occupants >= $toRoom->max_occupants) {
-            throw ValidationException::withMessages([
-                'to_room_id' => 'Phòng đích đã đầy, không thể chuyển vào.',
-            ]);
-        }
+        $this->assertAllTenantsHaveSameActiveContract($tenantIds, $activeRows);
 
-        $destinationBuilding = $toRoom->relationLoaded('building')
-            ? $toRoom->building
-            : $toRoom->building()->select(['id', 'gender_policy'])->first();
+        $sourceContract = $this->sourceContract((int) $activeRows->first()->contract_id);
+        $fromRoom = $sourceContract->room;
+        $toRoom = Room::query()->with('building')->lockForUpdate()->find((int) $validated['to_room_id']);
 
-        if (! $destinationBuilding?->allowsTenantGender($tenant->gender)) {
-            throw ValidationException::withMessages([
-                'to_room_id' => 'Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.',
-            ]);
-        }
-    }
+        $this->assertScheduleIsAllowed($admin, $tenantIds, $sourceContract, $fromRoom, $toRoom);
+        $this->assertNoPendingTransfers($tenantIds);
 
-    private function closeOldRoomMeters(Room $oldRoom, Carbon $movementDate, array $closingReadings, ?int $actorAdminId): array
-    {
-        $readingsByDeviceId = collect($closingReadings)->keyBy('meter_device_id');
-        $result = ['electric' => null, 'water' => null];
-
-        $devices = MeterDevice::where('room_id', $oldRoom->id)
-            ->where('status', 1)
-            ->with('service')
-            ->get();
-
-        foreach ($devices as $device) {
-            $input = $readingsByDeviceId->get($device->id);
-            if (!$input) {
-                continue; // không có chỉ số chốt cho công tơ này (vd dịch vụ không theo chỉ số), bỏ qua
-            }
-
-            $currentReading = (float) $input['current_reading'];
-            $year = $movementDate->year;
-            $month = $movementDate->month;
-
-            $previousReading = MeterReading::where('meter_device_id', $device->id)
-                ->where(function ($q) use ($year, $month) {
-                    $q->where('billing_year', '<', $year)
-                        ->orWhere(function ($q2) use ($year, $month) {
-                            $q2->where('billing_year', $year)->where('billing_month', '<', $month);
-                        });
-                })
-                ->orderByDesc('billing_year')
-                ->orderByDesc('billing_month')
-                ->first()?->current_reading ?? $device->initial_reading;
-
-            MeterReading::updateOrCreate(
-                [
-                    'meter_device_id' => $device->id,
-                    'billing_year' => $year,
-                    'billing_month' => $month,
-                ],
-                [
-                    'previous_reading' => $previousReading,
-                    'current_reading' => $currentReading,
-                    'consumption' => max($currentReading - $previousReading, 0),
-                    'reading_date' => $movementDate->toDateString(),
-                    'status' => 3, // khớp dữ liệu mẫu: 3 = đã chốt/hoàn tất
-                    'note' => 'Chỉ số chốt sổ khi tenant chuyển phòng.',
-                    'created_by' => $actorAdminId,
-                ]
-            );
-
-
-
-            $slug = $device->service?->slug;
-            if ($slug === 'dien-sinh-hoat') {
-                $result['electric'] = $currentReading;
-            } elseif ($slug === 'nuoc-sinh-hoat') {
-                $result['water'] = $currentReading;
-            }
-        }
-
-        return $result;
-    }
-
-    private function ensureNewRoomMeters(
-        Room $toRoom,
-        array $openingReadings,
-        Carbon $movementDate
-    ): void {
-        $meteredServices = Service::where('charge_method', 1)
-            ->where('is_active', true)
-            ->get();
-
-        foreach ($meteredServices as $service) {
-
-            $exists = MeterDevice::where('room_id', $toRoom->id)
-                ->where('service_id', $service->id)
-                ->where('status', 1)
-                ->exists();
-
-            if (! $exists) {
-                throw ValidationException::withMessages([
-                    'to_room_id'
-                    => "Phòng đích chưa được cấu hình công tơ {$service->name}.",
-                ]);
-            }
-        }
-    }
-
-    private function resolveMeterType(Service $service): int
-    {
-        // TODO: chỉnh lại nếu sau này có thêm dịch vụ tính theo chỉ số khác ngoài điện/nước.
-        return match ($service->slug) {
-            'dien-sinh-hoat' => 1,
-            'nuoc-sinh-hoat' => 2,
-            default => 1,
-        };
-    }
-
-    private function carryOverVehicles(Contract $oldContract, Contract $destinationContract, array $vehicleIds, Carbon $movementDate): void
-    {
-        if (empty($vehicleIds)) {
-            return;
-        }
-
-        $oldVehicleRows = ContractVehicle::where('contract_id', $oldContract->id)
-            ->whereIn('vehicle_id', $vehicleIds)
-            ->where('is_active', true)
-            ->get();
-
-        foreach ($oldVehicleRows as $row) {
-            $row->update([
-                'ended_at' => $movementDate->toDateString(),
-                'billing_end_date' => $movementDate->toDateString(),
-                'is_active' => false,
-            ]);
-
-            ContractVehicle::create([
-                'contract_id' => $destinationContract->id,
-                'vehicle_id' => $row->vehicle_id,
-                'started_at' => $movementDate->toDateString(),
-                'billing_start_date' => $movementDate->toDateString(),
-                'monthly_fee' => $row->monthly_fee, // giữ nguyên phí cũ - chỉnh lại nếu bảng giá phòng mới khác
-                'charge_policy' => $row->charge_policy,
-                'is_active' => true,
-            ]);
-        }
-    }
-
-    private function handleDeposit(
-        Contract $oldContract,
-        Contract $destinationContract,
-        float $settlementAmount,
-        float $deductionAmount,
-        float $refundAmount,
-        Carbon $movementDate,
-        ?int $actorAdminId,
-    ): void {
-        if ($deductionAmount > 0) {
-            ContractDepositTransaction::create([
-                'contract_id' => $oldContract->id,
-                'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
-                'amount' => $deductionAmount,
-                'transaction_date' => $movementDate->toDateString(),
-                'note' => 'Trừ cọc khi chuyển phòng.',
-                'created_by' => $actorAdminId,
-            ]);
-        }
-
-        if ($refundAmount > 0) {
-            ContractDepositTransaction::create([
-                'contract_id' => $oldContract->id,
-                'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
-                'amount' => $refundAmount,
-                'transaction_date' => $movementDate->toDateString(),
-                'note' => 'Hoàn cọc khi chuyển phòng.',
-                'created_by' => $actorAdminId,
-            ]);
-        }
-
-        $transferAmount = max($settlementAmount - $deductionAmount - $refundAmount, 0);
-
-        if ($transferAmount <= 0) {
-            return;
-        }
-
-        ContractDepositTransaction::create([
-            'contract_id' => $oldContract->id,
-            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER_OUT,
-            'amount' => $transferAmount,
-            'transaction_date' => $movementDate->toDateString(),
-            'note' => "Chuyển cọc sang hợp đồng #{$destinationContract->id}.",
-            'created_by' => $actorAdminId,
-        ]);
-
-        ContractDepositTransaction::create([
-            'contract_id' => $destinationContract->id,
-            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER_IN,
-            'amount' => $transferAmount,
-            'transaction_date' => $movementDate->toDateString(),
-            'note' => "Nhận cọc chuyển từ hợp đồng #{$oldContract->id}.",
-            'created_by' => $actorAdminId,
-        ]);
-
-        // Cộng dần vào deposit_amount của hợp đồng đích - quan trọng khi nhiều tenant
-        // cùng chuyển vào 1 hợp đồng mới (mỗi tenant transfer-in 1 lần, cộng dồn lại).
-        $destinationContract->increment('deposit_amount', $transferAmount);
-    }
-
-    private function writeAdminLog(?int $actorAdminId, Contract $oldContract, Contract $destinationContract, Room $oldRoom, Room $toRoom, Request $request): void
-    {
-        if (!$actorAdminId) {
-            return;
-        }
-
-        $actorAdmin = Admin::find($actorAdminId);
-
-        if (! $actorAdmin) {
-            return;
-        }
+        $transferCode = $this->generateTransferCode($movementDate);
+        $payload = $this->scheduledPayload($validated, $tenantIds, $movementDate, $toRoom);
+        $movements = $this->createPendingMovements($transferCode, $sourceContract, $fromRoom, $toRoom, $activeRows, $payload, $admin);
+        $notifications = $this->createTransferScheduledNotifications($movements, $sourceContract, $toRoom, $admin);
 
         AdminActivityLogger::write(
-            $actorAdmin,
-            'transfer_room',
-            Contract::class,
-            $oldContract->id,
-            ['room_id' => $oldRoom->id, 'status' => self::CONTRACT_STATUS_ACTIVE],
-            $oldContract->fresh()->toArray(),
-            $request,
-        );
-
-        AdminActivityLogger::write(
-            $actorAdmin,
-            'transfer_room',
-            Contract::class,
-            $destinationContract->id,
+            $admin,
+            'schedule_room_transfer',
+            RoomMovement::class,
+            $movements->first()->id,
             null,
-            $destinationContract->fresh()->toArray(),
+            ['transfer_code' => $transferCode, 'payload' => $payload],
             $request,
         );
+
+        DB::afterCommit(fn (): mixed => $this->broadcastNotifications($notifications));
+
+        return [
+            'transfer_code' => $transferCode,
+            'movement' => $movements->first()->fresh($this->transferResultRelations()),
+            'movements' => RoomMovement::query()->where('transfer_code', $transferCode)->with($this->transferResultRelations())->get(),
+            'status' => RoomMovement::STATUS_PENDING,
+            'scheduled_payload' => $payload,
+        ];
     }
 
-    private function notifyTenant(Tenant $tenant, Room $toRoom, Carbon $movementDate): void
+    private function tenantIds(array $validated): array
     {
-        Notification::create([
-            'title' => 'Thông báo chuyển phòng',
-            'content' => "Bạn đã được chuyển sang phòng {$toRoom->room_number} kể từ ngày {$movementDate->format('d/m/Y')}.",
-            'notification_type' => 1, // TODO: map lại theo Enum NotificationType thật của bạn nếu có
-            'target_type' => 4,       // 4 = cá nhân (đi kèm tenant_id), khớp với cách dùng trong dữ liệu mẫu
+        return collect($validated['tenant_ids'] ?? [$validated['tenant_id']])
+            ->filter(fn ($tenantId): bool => filled($tenantId))
+            ->map(fn ($tenantId): int => (int) $tenantId)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function activeRowsForTenants(array $tenantIds): EloquentCollection
+    {
+        return ContractTenant::query()
+            ->whereIn('tenant_id', $tenantIds)
+            ->where('is_staying', true)
+            ->whereNull('leave_date')
+            ->with('tenant')
+            ->lockForUpdate()
+            ->get();
+    }
+
+    private function assertAllTenantsHaveSameActiveContract(array $tenantIds, EloquentCollection $activeRows): void
+    {
+        if ($activeRows->count() !== count($tenantIds)) {
+            throw ValidationException::withMessages(['tenant_ids' => 'Một hoặc nhiều khách thuê hiện không có hợp đồng đang ở.']);
+        }
+
+        if ($activeRows->pluck('contract_id')->unique()->count() !== 1) {
+            throw ValidationException::withMessages(['tenant_ids' => 'Các khách thuê cần chuyển phải thuộc cùng một hợp đồng hiện tại.']);
+        }
+    }
+
+    private function sourceContract(int $contractId): Contract
+    {
+        $contract = Contract::query()
+            ->with(['room.building', 'contractTenants.tenant', 'contractVehicles.vehicle', 'depositTransactions'])
+            ->lockForUpdate()
+            ->find($contractId);
+
+        if (! $contract || (int) $contract->status !== Contract::STATUS_ACTIVE) {
+            throw ValidationException::withMessages(['tenant_ids' => 'Không tìm thấy hợp đồng cũ đang hiệu lực.']);
+        }
+
+        return $contract;
+    }
+
+    private function assertScheduleIsAllowed(Admin $admin, array $tenantIds, Contract $sourceContract, ?Room $fromRoom, ?Room $toRoom): void
+    {
+        if (! $fromRoom || ! $toRoom) {
+            throw ValidationException::withMessages(['to_room_id' => 'Không tìm thấy phòng cũ hoặc phòng đích.']);
+        }
+
+        if ((int) $fromRoom->id === (int) $toRoom->id) {
+            throw ValidationException::withMessages(['to_room_id' => 'Phòng đích không được là phòng hiện tại.']);
+        }
+
+        if (! AdminScope::ensureBuildingAccess($admin, (int) $fromRoom->building_id) || ! AdminScope::ensureBuildingAccess($admin, (int) $toRoom->building_id)) {
+            throw ValidationException::withMessages(['to_room_id' => 'Bạn không có quyền chuyển khách thuê giữa các tòa nhà này.']);
+        }
+
+        $message = $this->destinationValidationMessage($tenantIds, $toRoom);
+        if ($message !== null) {
+            throw ValidationException::withMessages(['to_room_id' => $message]);
+        }
+
+        if ($this->hasUnpaidOldDebt($sourceContract)) {
+            throw ValidationException::withMessages(['invoice' => 'Hợp đồng/phòng cũ còn hóa đơn chưa thanh toán, vui lòng thanh toán hết nợ cũ trước khi lên lịch chuyển phòng.']);
+        }
+    }
+
+    private function destinationValidationMessage(array $tenantIds, Room $toRoom): ?string
+    {
+        if ((int) $toRoom->status !== Room::STATUS_ACTIVE) {
+            return 'Phòng đích đang không ở trạng thái cho thuê được.';
+        }
+
+        $destinationActiveContract = $this->activeDestinationContract($toRoom);
+        $currentOccupants = $destinationActiveContract ? $this->activeTenantCount($destinationActiveContract->id) : (int) $toRoom->current_occupants;
+
+        if ((int) $toRoom->max_occupants > 0 && $currentOccupants + count($tenantIds) > (int) $toRoom->max_occupants) {
+            return 'Phòng đích đã vượt sức chứa tối đa, không thể chuyển vào.';
+        }
+
+        $tenants = Tenant::query()->whereIn('id', $tenantIds)->get();
+        foreach ($tenants as $tenant) {
+            if (! $toRoom->building?->allowsTenantGender($tenant->gender)) {
+                return 'Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.';
+            }
+        }
+
+        return null;
+    }
+
+    private function assertNoPendingTransfers(array $tenantIds): void
+    {
+        $hasPendingTransfer = RoomMovement::query()
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->whereIn('tenant_id', $tenantIds)
+            ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED])
+            ->exists();
+
+        if ($hasPendingTransfer) {
+            throw ValidationException::withMessages(['tenant_ids' => 'Một hoặc nhiều khách thuê đã có lịch chuyển phòng chưa hoàn tất.']);
+        }
+    }
+
+    private function hasUnpaidOldDebt(Contract $contract): bool
+    {
+        return Invoice::query()
+            ->where('contract_id', $contract->id)
+            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE])
+            ->exists();
+    }
+
+    private function scheduledPayload(array $validated, array $tenantIds, Carbon $movementDate, Room $toRoom): array
+    {
+        return [
+            'tenant_ids' => $tenantIds,
+            'to_room_id' => (int) $toRoom->id,
+            'movement_date' => $movementDate->toDateString(),
+            'deposit_deduction_amount' => DecimalMoney::normalize($this->deductionAmount($validated)),
+            'transfer_fee' => DecimalMoney::normalize($validated['transfer_fee'] ?? '0'),
+            'new_deposit_amount' => DecimalMoney::normalize($validated['new_deposit_amount'] ?? $toRoom->base_price),
+            'note' => $validated['note'] ?? null,
+            'deduction_items' => $validated['deduction_items'] ?? [],
+        ];
+    }
+
+    private function deductionAmount(array $validated): string
+    {
+        if (array_key_exists('deposit_deduction_amount', $validated)) {
+            return DecimalMoney::normalize($validated['deposit_deduction_amount']);
+        }
+
+        return DecimalMoney::add(collect($validated['deduction_items'] ?? [])->pluck('amount')->all());
+    }
+
+    private function createPendingMovements(string $transferCode, Contract $sourceContract, Room $fromRoom, Room $toRoom, EloquentCollection $rows, array $payload, Admin $admin): Collection
+    {
+        return $rows->map(fn (ContractTenant $row): RoomMovement => RoomMovement::query()->create([
+            'transfer_code' => $transferCode,
+            'tenant_id' => $row->tenant_id,
+            'contract_id' => $sourceContract->id,
+            'source_contract_id' => $sourceContract->id,
+            'destination_contract_id' => null,
+            'from_room_id' => $fromRoom->id,
+            'to_room_id' => $toRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_PENDING,
+            'movement_date' => Carbon::parse($payload['movement_date'])->toDateTimeString(),
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => $payload['transfer_fee'],
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => $payload['deposit_deduction_amount'],
+            'manual_refund_amount' => '0.00',
+            'deposit_due_amount' => '0.00',
+            'extra_charge_amount' => '0.00',
+            'settlement_due_amount' => '0.00',
+            'settlement_paid_amount' => '0.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+            'settlement_payment_references' => [],
+            'note' => $payload['note'],
+            'scheduled_payload' => $payload,
+            'created_by' => $admin->id,
+        ]));
+    }
+
+    private function activeDestinationContract(Room $toRoom): ?Contract
+    {
+        return Contract::query()
+            ->with(['room.building', 'contractTenants.tenant', 'contractVehicles.vehicle', 'depositTransactions'])
+            ->where('room_id', $toRoom->id)
+            ->where('status', Contract::STATUS_ACTIVE)
+            ->lockForUpdate()
+            ->first();
+    }
+
+    private function activeTenantCount(int $contractId): int
+    {
+        return ContractTenant::query()
+            ->where('contract_id', $contractId)
+            ->where('is_staying', true)
+            ->whereNull('leave_date')
+            ->distinct('tenant_id')
+            ->count('tenant_id');
+    }
+
+    private function createTransferScheduledNotifications(Collection $movements, Contract $sourceContract, Room $toRoom, Admin $admin): Collection
+    {
+        return $movements->map(fn (RoomMovement $movement): Notification => Notification::query()->create([
+            'title' => 'Lịch chuyển phòng đã được tạo',
+            'content' => "Bạn được lên lịch chuyển từ phòng {$sourceContract->room?->room_number} sang phòng {$toRoom->room_number} vào ngày ".Carbon::parse($movement->movement_date)->format('d/m/Y').'.',
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
             'building_id' => $toRoom->building_id,
             'room_id' => $toRoom->id,
-            'tenant_id' => $tenant->id,
+            'tenant_id' => $movement->tenant_id,
             'published_at' => now(),
-            'status' => 2, // khớp dữ liệu mẫu: 2 = đã publish
-        ]);
+            'status' => Notification::STATUS_SENT,
+            'created_by' => $admin->id,
+        ]));
     }
 
-    private function generateContractCode(Room $room): string
+    private function broadcastNotifications(Collection $notifications): void
     {
-        // Đơn giản, đủ dùng cho MVP. Nếu lo va chạm khi nhiều request cùng giây,
-        // nên đổi sang 1 bộ sinh mã có kiểm tra unique hoặc dùng uuid ngắn.
-        return sprintf('HD-%s-%s', $room->slug ?? $room->room_number, now()->format('YmdHis'));
+        $notifications->each(fn (Notification $notification): mixed => event(new NotificationSent($notification)));
     }
-    private function generateTransferOutInvoice(
-        Contract $contract,
-        Carbon $movementDate
-    ): void {
 
-        $periodStart = $movementDate->copy()->startOfMonth();
-        $periodEnd = $movementDate->copy()->subDay();
+    private function generateTransferCode(Carbon $movementDate): string
+    {
+        $prefix = 'TRF-'.$movementDate->format('Y-m').'-';
+        $next = RoomMovement::query()
+            ->where('transfer_code', 'like', $prefix.'%')
+            ->lockForUpdate()
+            ->count() + 1;
 
-        if ($periodEnd->lt($periodStart)) {
-            return;
-        }
+        do {
+            $code = $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            $next++;
+        } while (RoomMovement::query()->where('transfer_code', $code)->exists());
 
-        $exists = Invoice::where('contract_id', $contract->id)
-            ->where('billing_month', $periodStart->month)
-            ->where('billing_year', $periodStart->year)
-            ->exists();
-
-        if ($exists) {
-            return;
-        }
-
-        $daysInMonth = $periodStart->daysInMonth;
-        $daysUsed = $periodStart->diffInDays($periodEnd) + 1;
-
-        $roomAmount = DecimalMoney::prorateByDays(
-            $contract->room_price,
-            $daysUsed,
-            $daysInMonth
-        );
-
-        $invoice = Invoice::create([
-            'invoice_code' => 'TRF-OLD-' . uniqid(),
-            'contract_id' => $contract->id,
-            'room_id' => $contract->room_id,
-            'billing_month' => $periodStart->month,
-            'billing_year' => $periodStart->year,
-            'period_start' => $periodStart,
-            'period_end' => $periodEnd,
-            'previous_debt_amount' => 0,
-            'total_amount' => $roomAmount,
-            'paid_amount' => 0,
-            'remaining_amount' => $roomAmount,
-            'due_date' => now()->addDays(7),
-            'status' => Invoice::STATUS_UNPAID,
-            'issued_at' => now(),
-        ]);
-
-        $invoice->items()->create([
-            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
-            'description' => 'Tiền phòng khi chuyển đi',
-            'quantity' => 1,
-            'unit_price' => $roomAmount,
-            'amount' => $roomAmount,
-        ]);
+        return $code;
     }
-    private function generateTransferInInvoice(
-        Contract $contract,
-        Carbon $movementDate
-    ): void {
 
-        $periodStart = $movementDate->copy();
-        $periodEnd = $movementDate->copy()->endOfMonth();
-
-        // Đã có hóa đơn tháng này rồi thì không tạo nữa
-        $exists = Invoice::where('contract_id', $contract->id)
-            ->where('billing_month', $periodStart->month)
-            ->where('billing_year', $periodStart->year)
-            ->exists();
-
-        if ($exists) {
-            return;
-        }
-
-        $daysInMonth = $periodStart->daysInMonth;
-        $daysUsed = $periodStart->diffInDays($periodEnd) + 1;
-
-        $roomAmount = DecimalMoney::prorateByDays(
-            $contract->room_price,
-            $daysUsed,
-            $daysInMonth
-        );
-
-        $invoice = Invoice::create([
-            'invoice_code' => 'TRF-NEW-' . uniqid(),
-            'contract_id' => $contract->id,
-            'room_id' => $contract->room_id,
-            'billing_month' => $periodStart->month,
-            'billing_year' => $periodStart->year,
-            'period_start' => $periodStart,
-            'period_end' => $periodEnd,
-            'previous_debt_amount' => 0,
-            'total_amount' => $roomAmount,
-            'paid_amount' => 0,
-            'remaining_amount' => $roomAmount,
-            'due_date' => now()->addDays(7),
-            'status' => Invoice::STATUS_UNPAID,
-            'issued_at' => now(),
-        ]);
-
-        $invoice->items()->create([
-            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
-            'description' => 'Tiền phòng khi chuyển đến',
-            'quantity' => 1,
-            'unit_price' => $roomAmount,
-            'amount' => $roomAmount,
-        ]);
+    private function transferResultRelations(): array
+    {
+        return [
+            'tenant:id,username,full_name,phone,email',
+            'contract:id,contract_code,room_id,status,payment_status',
+            'sourceContract:id,contract_code,room_id,status,payment_status',
+            'destinationContract:id,contract_code,room_id,status,payment_status',
+            'fromRoom:id,building_id,room_number,floor,status',
+            'fromRoom.building:id,name,slug,manager_admin_id,status',
+            'toRoom:id,building_id,room_number,floor,status',
+            'toRoom.building:id,name,slug,manager_admin_id,status',
+            'creator:id,username,full_name,email,role,status',
+        ];
     }
+
 }

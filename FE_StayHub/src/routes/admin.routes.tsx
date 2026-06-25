@@ -29,6 +29,7 @@ import { MeterReadingsScreen } from '../features/admin/meter-readings'
 import { TenantTransferRoomScreen } from '../features/admin/tenants/components/TenantTransferRoomScreen'
 import { ActivityLogsScreen } from '../features/admin/activity-logs'
 import { RoomMovementsScreen } from '../features/admin/room-movements'
+import { LegacyTenantTransferRoomRedirect } from './LegacyTenantTransferRoomRedirect'
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -93,8 +94,12 @@ export const adminRoutes: RouteObject[] = [
         element: <CreateTenantScreen />,
       },
       {
+        path: 'transfer-room',
+        element: <AdminRouteGuard access="all"><TenantTransferRoomScreen /></AdminRouteGuard>,
+      },
+      {
         path: 'tenants/:tenantId/transfer-room',
-        element: <TenantTransferRoomScreen />,
+        element: <LegacyTenantTransferRoomRedirect />,
       },
       {
         path: 'contracts',

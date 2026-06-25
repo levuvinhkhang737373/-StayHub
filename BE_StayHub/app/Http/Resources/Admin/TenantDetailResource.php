@@ -23,6 +23,7 @@ class TenantDetailResource extends JsonResource
             'building_id' => $currentRoom['building_id'] ?? $this->building_id,
             'building_name' => $currentRoom['building_name'] ?? ($this->relationLoaded('building') ? $this->building?->name : null),
             'current_room' => $currentRoom,
+            'current_contract' => $this->currentContractPayload(),
             'creator' => $this->whenLoaded('creator', fn () => [
                 'id' => $this->creator?->id,
                 'username' => $this->creator?->username,
@@ -79,6 +80,35 @@ class TenantDetailResource extends JsonResource
 
     private function currentContractRoom(): ?Room
     {
+        $contract = $this->currentContractModel();
+
+        return $contract?->relationLoaded('room') ? $contract->room : null;
+    }
+
+    private function currentContractPayload(): ?array
+    {
+        $contract = $this->currentContractModel();
+
+        if (! $contract) {
+            return null;
+        }
+
+        return [
+            'id' => $contract->id,
+            'contract_code' => $contract->contract_code,
+            'room_id' => $contract->room_id,
+            'start_date' => optional($contract->start_date)->toDateString(),
+            'end_date' => optional($contract->end_date)->toDateString(),
+            'room_price' => (string) $contract->room_price,
+            'deposit_amount' => (string) $contract->deposit_amount,
+            'deposit_balance' => (string) $contract->deposit_balance,
+            'payment_status' => $contract->payment_status,
+            'status' => $contract->status,
+        ];
+    }
+
+    private function currentContractModel(): ?\App\Models\Contract
+    {
         if (! $this->relationLoaded('contractTenants')) {
             return null;
         }
@@ -90,11 +120,7 @@ class TenantDetailResource extends JsonResource
 
             $contract = $contractTenant->contract;
 
-            if (! $contract?->relationLoaded('room')) {
-                continue;
-            }
-
-            return $contract->room;
+            return $contract;
         }
 
         return null;

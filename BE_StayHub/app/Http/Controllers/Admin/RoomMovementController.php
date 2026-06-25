@@ -68,6 +68,7 @@ class RoomMovementController extends Controller
         return $this->baseQuery($admin)
             ->when($keyword !== '', fn (Builder $query): Builder => $this->applyKeywordFilter($query, $keyword))
             ->when(isset($validated['movement_type']), fn (Builder $query): Builder => $query->where('movement_type', (int) $validated['movement_type']))
+            ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', (int) $validated['status']))
             ->when(isset($validated['building_id']), fn (Builder $query): Builder => $this->applyBuildingFilter($query, (int) $validated['building_id']))
             ->when(isset($validated['room_id']), fn (Builder $query): Builder => $query->where(function (Builder $roomQuery) use ($validated): void {
                 $roomQuery->where('from_room_id', (int) $validated['room_id'])
@@ -100,6 +101,7 @@ class RoomMovementController extends Controller
     {
         return $query->where(function (Builder $keywordQuery) use ($keyword): void {
             $keywordQuery->where('note', 'like', "%{$keyword}%")
+                ->orWhere('transfer_code', 'like', "%{$keyword}%")
                 ->orWhereHas('tenant', function (Builder $tenantQuery) use ($keyword): void {
                     $tenantQuery->where('full_name', 'like', "%{$keyword}%")
                         ->orWhere('username', 'like', "%{$keyword}%")
@@ -139,6 +141,8 @@ class RoomMovementController extends Controller
         return [
             'tenant:id,username,full_name,phone,email',
             'contract:id,contract_code,room_id,status,payment_status',
+            'sourceContract:id,contract_code,room_id,status,payment_status',
+            'destinationContract:id,contract_code,room_id,status,payment_status',
             'fromRoom:id,building_id,room_number,floor,status',
             'fromRoom.building:id,name,slug,manager_admin_id,status',
             'toRoom:id,building_id,room_number,floor,status',

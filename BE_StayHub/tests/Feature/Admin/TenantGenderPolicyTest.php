@@ -178,12 +178,13 @@ class TenantGenderPolicyTest extends TestCase
         $mixedRoom = $this->createRoom($mixedBuilding, 'TM101');
         $maleTenant = $this->createTenant('transfer_male', Tenant::GENDER_MALE, $sourceBuilding);
         $contract = $this->createActiveContract($sourceRoom, $maleTenant);
+        $movementDate = now('Asia/Ho_Chi_Minh')->addMonthNoOverflow()->startOfMonth()->toDateString();
 
         $this->actingAs($this->admin, 'admin')
             ->postJson('/api/v1/admin/room-transfers/tenant', [
                 'tenant_id' => $maleTenant->id,
                 'to_room_id' => $femaleRoom->id,
-                'movement_date' => '2026-06-01',
+                'movement_date' => $movementDate,
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.');
@@ -198,9 +199,9 @@ class TenantGenderPolicyTest extends TestCase
             ->postJson('/api/v1/admin/room-transfers/tenant', [
                 'tenant_id' => $maleTenant->id,
                 'to_room_id' => $mixedRoom->id,
-                'movement_date' => '2026-06-01',
+                'movement_date' => $movementDate,
             ])
-            ->assertStatus(200);
+            ->assertStatus(201);
     }
 
     private function createBuilding(string $slug, int $genderPolicy): Building

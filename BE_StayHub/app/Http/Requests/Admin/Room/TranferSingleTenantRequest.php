@@ -3,9 +3,11 @@
 namespace App\Http\Requests\Admin\Room;
 
 use App\Helpers\ApiResponse;
+use Carbon\Carbon;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 
 class TranferSingleTenantRequest extends FormRequest
 {
@@ -25,37 +27,63 @@ class TranferSingleTenantRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tenant_id' => ['required', 'integer', 'exists:tenants,id'],
+            'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
+            'tenant_ids' => ['required_without:tenant_id', 'array', 'min:1', 'max:50'],
+            'tenant_ids.*' => ['required', 'integer', 'distinct', Rule::exists('tenants', 'id')],
             'to_room_id' => ['required', 'integer', 'exists:rooms,id'],
-            'movement_date' => ['required', 'date', 'before_or_equal:today'],
+            'movement_date' => ['required', 'date_format:Y-m-d'],
             'note' => ['nullable', 'string', 'max:500'],
 
-            // Chỉ số chốt sổ phòng cũ tại ngày chuyển (theo từng meter_device_id thực tế của phòng).
-            'meter_readings' => ['nullable', 'array'],
-            'meter_readings.*.meter_device_id' => ['required', 'integer', 'exists:meter_devices,id'],
-            'meter_readings.*.current_reading' => ['required', 'numeric', 'min:0'],
-
-            // Chỉ số khởi điểm cho công tơ phòng MỚI, chỉ cần khi phòng đó chưa có công tơ.
-            // key = service_id, value = chỉ số ban đầu.
-            'new_room_opening_readings' => ['nullable', 'array'],
-            'new_room_opening_readings.*' => ['numeric', 'min:0'],
-
-            'deposit_settlement_amount' => ['nullable', 'numeric', 'min:0'],
             'deposit_deduction_amount' => ['nullable', 'numeric', 'min:0'],
-            'deposit_refund_amount' => ['nullable', 'numeric', 'min:0'],
+            'new_deposit_amount' => ['nullable', 'numeric', 'min:0'],
+            'deduction_items' => ['nullable', 'array'],
+            'deduction_items.*.name' => ['required_with:deduction_items', 'string', 'max:150'],
+            'deduction_items.*.amount' => ['required_with:deduction_items', 'numeric', 'min:0'],
+            'deduction_items.*.note' => ['nullable', 'string', 'max:255'],
             'transfer_fee' => ['nullable', 'numeric', 'min:0'],
-
-            'carry_vehicle_ids' => ['nullable', 'array'],
-            'carry_vehicle_ids.*' => ['integer', 'exists:vehicles,id'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('tenant_ids') && $this->filled('tenant_id')) {
+            $this->merge(['tenant_ids' => [(int) $this->input('tenant_id')]]);
+        }
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if (! $this->filled('movement_date')) {
+                return;
+            }
+
+            try {
+                $movementDate = Carbon::createFromFormat('Y-m-d', (string) $this->input('movement_date'))->startOfDay();
+            } catch (\Exception) {
+                return;
+            }
+
+            $expectedDate = now('Asia/Ho_Chi_Minh')->startOfDay()->addMonthNoOverflow()->startOfMonth();
+
+            if ($movementDate->toDateString() !== $expectedDate->toDateString()) {
+                $validator->errors()->add('movement_date', 'Ngày chuyển phòng chỉ được là ngày 01 của tháng kế tiếp.');
+            }
+        });
     }
     public function messages(): array
     {
         return [
             'tenant_id.required' => 'Vui lòng chọn khách thuê cần chuyển.',
+            'tenant_ids.required_without' => 'Vui lòng chọn khách thuê cần chuyển.',
+            'tenant_ids.array' => 'Danh sách khách thuê cần chuyển không hợp lệ.',
+            'tenant_ids.*.distinct' => 'Danh sách khách thuê cần chuyển không được trùng nhau.',
             'to_room_id.required' => 'Vui lòng chọn phòng đích.',
             'to_room_id.exists' => 'Phòng đích không tồn tại.',
-            'movement_date.before_or_equal' => 'Ngày chuyển không được ở tương lai.',
+            'movement_date.date_format' => 'Ngày chuyển phải đúng định dạng YYYY-MM-DD.',
+            'new_deposit_amount.min' => 'Tiền cọc yêu cầu của hợp đồng mới không được âm.',
+            'deduction_items.*.name.required_with' => 'Vui lòng nhập tên khoản khấu trừ.',
+            'deduction_items.*.amount.required_with' => 'Vui lòng nhập số tiền khấu trừ.',
         ];
     }
     protected function failedValidation(Validator $validator)

@@ -1,7 +1,7 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
 import type {
-  RoomMovementResource,
   TransferTenantPayload,
+  TransferRoomResultResource,
 } from '../types/TranferModel';
 
 /**
@@ -11,7 +11,7 @@ import type {
  * nhóm admin (hiện route mẫu chỉ có auth:sanctum, chưa có check quyền admin).
  */
 export async function transferTenantRoom(payload: TransferTenantPayload) {
-  return apiRequest<RoomMovementResource>({
+  return apiRequest<TransferRoomResultResource>({
     url: 'admin/room-transfers/tenant',
     method: 'POST',
     data: payload,

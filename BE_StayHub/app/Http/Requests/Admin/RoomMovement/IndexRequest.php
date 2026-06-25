@@ -21,6 +21,7 @@ class IndexRequest extends FormRequest
         return [
             'keyword' => ['nullable', 'string', 'max:255'],
             'movement_type' => ['nullable', 'integer', Rule::in(array_keys(RoomMovement::MOVEMENT_TYPE_LABELS))],
+            'status' => ['nullable', 'integer', Rule::in(array_keys(RoomMovement::STATUS_LABELS))],
             'building_id' => ['nullable', 'integer', Rule::exists('buildings', 'id')],
             'room_id' => ['nullable', 'integer', Rule::exists('rooms', 'id')],
             'tenant_id' => ['nullable', 'integer', Rule::exists('tenants', 'id')],
@@ -38,6 +39,7 @@ class IndexRequest extends FormRequest
             'keyword.string' => 'Từ khóa lịch sử phòng phải là chuỗi ký tự.',
             'keyword.max' => 'Từ khóa lịch sử phòng không được vượt quá 255 ký tự.',
             'movement_type.in' => 'Loại biến động phòng không hợp lệ.',
+            'status.in' => 'Trạng thái lịch chuyển phòng không hợp lệ.',
             'building_id.exists' => 'Tòa nhà lọc lịch sử không tồn tại.',
             'room_id.exists' => 'Phòng lọc lịch sử không tồn tại.',
             'tenant_id.exists' => 'Khách thuê lọc lịch sử không tồn tại.',

@@ -7,11 +7,13 @@ use App\Models\Building;
 use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
+use App\Models\Invoice;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
 use App\Models\RoomType;
 use App\Models\Tenant;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,8 +21,17 @@ class RoomMovementControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_transfer_tenant_writes_correct_room_movement_and_deposit_ledger(): void
+    protected function tearDown(): void
     {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_transfer_tenant_schedules_then_executes_single_room_transfer_with_manual_refund(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Asia/Ho_Chi_Minh'));
+
         $admin = $this->createAdmin('super_room_move', Admin::ROLE_SUPER_ADMIN);
         $building = $this->createBuilding($admin, 'Tòa chuyển phòng', 'toa-chuyen-phong');
         $roomType = $this->createRoomType($admin);
@@ -58,46 +69,74 @@ class RoomMovementControllerTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
+        $movementDate = now('Asia/Ho_Chi_Minh')->addMonthNoOverflow()->startOfMonth()->toDateString();
+
         $response = $this->actingAs($admin, 'admin')->postJson('/api/v1/admin/room-transfers/tenant', [
             'tenant_id' => $tenant->id,
             'to_room_id' => $toRoom->id,
-            'movement_date' => now()->toDateString(),
-            'deposit_settlement_amount' => 5000000,
+            'movement_date' => $movementDate,
             'deposit_deduction_amount' => 500000,
-            'deposit_refund_amount' => 1000000,
             'transfer_fee' => 100000,
             'note' => 'Chuyển sang phòng A102',
         ]);
 
-        $response->assertOk()
+        $response->assertStatus(201)
             ->assertJsonPath('status', true)
+            ->assertJsonPath('result.status', RoomMovement::STATUS_PENDING)
             ->assertJsonPath('result.movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
-            ->assertJsonPath('result.deposit_transfer_amount', '3500000.00');
+            ->assertJsonPath('result.deposit_transfer_amount', '0.00');
 
-        $destinationContractId = (int) $response->json('result.contract_id');
-        $destinationContract = Contract::findOrFail($destinationContractId);
+        $transferCode = (string) $response->json('result.transfer_code');
+        $this->assertStringStartsWith('TRF-2026-07-', $transferCode);
+
+        $movement = RoomMovement::query()->where('transfer_code', $transferCode)->firstOrFail();
+        $this->assertSame(RoomMovement::STATUS_PENDING, (int) $movement->status);
+        $this->assertSame($oldContract->id, (int) $movement->contract_id);
+        $this->assertSame($oldContract->id, (int) $movement->source_contract_id);
+        $this->assertNull($movement->destination_contract_id);
+        $this->assertDatabaseCount('contracts', 1);
+        $this->assertDatabaseMissing('contract_deposit_transactions', [
+            'contract_id' => $oldContract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER_OUT,
+        ]);
+
+        $this->artisan('room-transfers:execute-scheduled', ['--date' => $movementDate, '--code' => $transferCode])
+            ->assertExitCode(0);
+
+        $movement->refresh();
+        $destinationContract = Contract::query()->findOrFail($movement->destination_contract_id);
+
+        $this->assertSame(Contract::STATUS_PENDING_SIGN, (int) $destinationContract->status);
+        $this->assertSame(RoomMovement::STATUS_EXECUTED, (int) $movement->status);
+        $this->assertSame($destinationContract->id, (int) $movement->contract_id);
+        $this->assertSame('3500000.00', (string) $movement->deposit_transfer_amount);
+        $this->assertSame('0.00', (string) $movement->deposit_refund_amount);
+        $this->assertSame('600000.00', (string) $movement->deduction_amount);
+        $this->assertSame('900000.00', (string) $movement->manual_refund_amount);
+        $this->assertSame('0.00', (string) $movement->settlement_due_amount);
+        $this->assertSame(RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID, (int) $movement->settlement_payment_status);
 
         $this->assertDatabaseHas('room_movements', [
             'tenant_id' => $tenant->id,
-            'contract_id' => $destinationContractId,
+            'contract_id' => $destinationContract->id,
             'from_room_id' => $fromRoom->id,
             'to_room_id' => $toRoom->id,
             'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
             'deposit_transfer_amount' => '3500000.00',
-            'deposit_refund_amount' => '1000000.00',
-            'deduction_amount' => '500000.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '600000.00',
+            'manual_refund_amount' => '900000.00',
         ]);
 
         $this->assertDatabaseHas('contract_deposit_transactions', [
             'contract_id' => $oldContract->id,
             'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
-            'amount' => '500000.00',
+            'amount' => '600000.00',
         ]);
 
-        $this->assertDatabaseHas('contract_deposit_transactions', [
+        $this->assertDatabaseMissing('contract_deposit_transactions', [
             'contract_id' => $oldContract->id,
             'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
-            'amount' => '1000000.00',
         ]);
 
         $this->assertDatabaseHas('contract_deposit_transactions', [
@@ -107,15 +146,78 @@ class RoomMovementControllerTest extends TestCase
         ]);
 
         $this->assertDatabaseHas('contract_deposit_transactions', [
-            'contract_id' => $destinationContractId,
+            'contract_id' => $destinationContract->id,
             'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER_IN,
             'amount' => '3500000.00',
         ]);
 
-        $this->assertSame('0.00', $oldContract->fresh()->deposit_balance);
+        $this->assertSame('900000.00', $oldContract->fresh()->deposit_balance);
         $this->assertSame('3500000.00', $destinationContract->fresh()->deposit_balance);
         $this->assertDatabaseHas('rooms', ['id' => $fromRoom->id, 'current_occupants' => 0]);
-        $this->assertDatabaseHas('rooms', ['id' => $toRoom->id, 'current_occupants' => 1]);
+        $this->assertDatabaseHas('rooms', ['id' => $toRoom->id, 'current_occupants' => 0]);
+        $this->assertDatabaseHas('contract_tenants', [
+            'contract_id' => $destinationContract->id,
+            'tenant_id' => $tenant->id,
+            'is_staying' => true,
+        ]);
+    }
+
+    public function test_execute_scheduled_transfer_blocks_when_old_contract_has_unpaid_invoice(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Asia/Ho_Chi_Minh'));
+
+        $admin = $this->createAdmin('super_room_move_debt', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa nợ cũ', 'toa-no-cu');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'D101', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'D102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_move_debt');
+
+        $oldContract = $this->createContract($fromRoom, $admin, 'HD-DEBT-MOVE');
+        ContractTenant::create([
+            'contract_id' => $oldContract->id,
+            'tenant_id' => $tenant->id,
+            'join_date' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        $movementDate = now('Asia/Ho_Chi_Minh')->addMonthNoOverflow()->startOfMonth()->toDateString();
+
+        $response = $this->actingAs($admin, 'admin')->postJson('/api/v1/admin/room-transfers/tenant', [
+            'tenant_ids' => [$tenant->id],
+            'to_room_id' => $toRoom->id,
+            'movement_date' => $movementDate,
+        ]);
+
+        $response->assertStatus(201);
+        $transferCode = (string) $response->json('result.transfer_code');
+
+        Invoice::create([
+            'invoice_code' => 'INV-DEBT-MOVE-001',
+            'contract_id' => $oldContract->id,
+            'room_id' => $fromRoom->id,
+            'billing_month' => 6,
+            'billing_year' => 2026,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '1000000.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '1000000.00',
+            'status' => Invoice::STATUS_UNPAID,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->artisan('room-transfers:execute-scheduled', ['--date' => $movementDate, '--code' => $transferCode])
+            ->assertExitCode(0);
+
+        $movement = RoomMovement::query()->where('transfer_code', $transferCode)->firstOrFail();
+        $this->assertSame(RoomMovement::STATUS_BLOCKED, (int) $movement->status);
+        $this->assertStringContainsString('còn hóa đơn chưa thanh toán', (string) $movement->failure_reason);
+        $this->assertNull($movement->destination_contract_id);
+        $this->assertDatabaseCount('contracts', 1);
     }
 
     public function test_room_movement_index_filters_and_scopes_by_managed_building(): void
@@ -184,6 +286,49 @@ class RoomMovementControllerTest extends TestCase
             ->assertJsonPath('result.meta.total', 1)
             ->assertJsonPath('result.data.0.tenant.username', 'tenant_history_b')
             ->assertJsonPath('result.data.0.movement_type_label', 'Trả phòng');
+    }
+
+    public function test_transfer_tenant_rejects_date_that_is_not_first_day_of_next_month(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Asia/Ho_Chi_Minh'));
+
+        $admin = $this->createAdmin('super_room_date_guard', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa chặn ngày', 'toa-chan-ngay');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'M101', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'M102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_date_guard');
+
+        $oldContract = Contract::create([
+            'contract_code' => 'HD-METER-GUARD',
+            'room_id' => $fromRoom->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $admin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $oldContract->id,
+            'tenant_id' => $tenant->id,
+            'join_date' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin, 'admin')
+            ->postJson('/api/v1/admin/room-transfers/tenant', [
+                'tenant_id' => $tenant->id,
+                'to_room_id' => $toRoom->id,
+                'movement_date' => now('Asia/Ho_Chi_Minh')->toDateString(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('status', false)
+            ->assertJsonPath('message', 'Ngày chuyển phòng chỉ được là ngày 01 của tháng kế tiếp.');
     }
 
     private function createAdmin(string $username, int $role): Admin

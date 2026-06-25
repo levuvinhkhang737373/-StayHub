@@ -45,11 +45,11 @@ class Contract extends Model
         self::PAYMENT_STATUS_EXPIRED => 'Hết hạn',
     ];
 
-    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'parent_contract_id', 'renew_from_contract_id', 'tenant_signed_at', 'tenant_signature_url'];
+    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'tenant_signed_at', 'tenant_signature_url'];
 
     protected function casts(): array
     {
-        return ['start_date' => 'date', 'end_date' => 'date', 'actual_end_date' => 'date', 'billing_cycle_day' => 'integer', 'room_price' => 'decimal:2', 'deposit_amount' => 'decimal:2', 'status' => 'integer', 'payment_status' => 'integer', 'contract_files' => 'array', 'parent_contract_id' => 'integer', 'renew_from_contract_id' => 'integer', 'tenant_signed_at' => 'datetime'];
+        return ['start_date' => 'date', 'end_date' => 'date', 'actual_end_date' => 'date', 'billing_cycle_day' => 'integer', 'room_price' => 'decimal:2', 'deposit_amount' => 'decimal:2', 'status' => 'integer', 'payment_status' => 'integer', 'contract_files' => 'array', 'representative_tenant_id' => 'integer', 'parent_contract_id' => 'integer', 'renew_from_contract_id' => 'integer', 'tenant_signed_at' => 'datetime'];
     }
 
     protected static function booted()
@@ -135,6 +135,11 @@ class Contract extends Model
         return $this->belongsTo(Admin::class, 'created_by');
     }
 
+    public function representativeTenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class, 'representative_tenant_id');
+    }
+
     public function contractTenants(): HasMany
     {
         return $this->hasMany(ContractTenant::class);
@@ -148,6 +153,16 @@ class Contract extends Model
     public function roomMovements(): HasMany
     {
         return $this->hasMany(RoomMovement::class);
+    }
+
+    public function sourceRoomMovements(): HasMany
+    {
+        return $this->hasMany(RoomMovement::class, 'source_contract_id');
+    }
+
+    public function destinationRoomMovements(): HasMany
+    {
+        return $this->hasMany(RoomMovement::class, 'destination_contract_id');
     }
 
     public function contractVehicles(): HasMany

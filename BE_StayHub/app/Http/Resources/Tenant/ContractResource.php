@@ -3,8 +3,10 @@
 namespace App\Http\Resources\Tenant;
 
 use App\Helpers\ImageHelper;
+use App\Helpers\DecimalMoney;
 use App\Helpers\VietQRHelper;
 use App\Models\Contract;
+use App\Models\RoomMovement;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,29 +27,18 @@ class ContractResource extends JsonResource
             'billing_cycle_day' => $this->billing_cycle_day,
             'room_price' => $this->room_price === null ? null : (string) $this->room_price,
             'deposit_amount' => $this->deposit_amount === null ? null : (string) $this->deposit_amount,
+            'deposit_due_amount' => $this->depositDueAmount(),
             'status' => $this->status,
             'status_label' => Contract::STATUS_LABELS[$this->status] ?? null,
             'payment_status' => $this->payment_status,
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,
             'is_deposit_paid' => $this->is_deposit_paid,
             'deposit_balance' => (string) $this->deposit_balance,
-            'deposit_qr_url' => ($this->is_deposit_paid || $this->status === Contract::STATUS_PENDING_SIGN) ? null : VietQRHelper::generateLink(
-                null,
-                null,
-                null,
-                (string) $this->deposit_amount,
-                $this->contract_code
-            ),
+            'deposit_qr_url' => $this->depositQrUrl(),
+            'transfer_settlement' => $this->transferSettlementPayload(),
             'contract_files' => $this->contractFiles(),
-            'representative_tenant' => $this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()
-                ? [
-                    'id' => $this->contractTenants->first()->tenant?->id,
-                    'full_name' => $this->contractTenants->first()->tenant?->full_name,
-                    'phone' => $this->contractTenants->first()->tenant?->phone,
-                    'email' => $this->contractTenants->first()->tenant?->email,
-                    'identity_number' => $this->contractTenants->first()->tenant?->identity_number,
-                ]
-                : null,
+            'representative_tenant_id' => $this->representative_tenant_id,
+            'representative_tenant' => $this->representativeTenantPayload(),
             'tenant_name' => $this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()
                 ? ($this->contractTenants->first()->tenant?->full_name ?? '')
                 : null,
@@ -69,6 +60,91 @@ class ContractResource extends JsonResource
             ])
             ->values()
             ->all();
+    }
+
+    private function representativeTenantPayload(): ?array
+    {
+        if ($this->relationLoaded('representativeTenant') && $this->representativeTenant) {
+            return [
+                'id' => $this->representativeTenant->id,
+                'full_name' => $this->representativeTenant->full_name,
+                'phone' => $this->representativeTenant->phone,
+                'email' => $this->representativeTenant->email,
+                'identity_number' => $this->representativeTenant->identity_number,
+            ];
+        }
+
+        if ($this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()) {
+            $tenant = $this->contractTenants->first()->tenant;
+
+            return $tenant ? [
+                'id' => $tenant->id,
+                'full_name' => $tenant->full_name,
+                'phone' => $tenant->phone,
+                'email' => $tenant->email,
+                'identity_number' => $tenant->identity_number,
+            ] : null;
+        }
+
+        return null;
+    }
+
+    private function depositDueAmount(): string
+    {
+        return DecimalMoney::maxZero(DecimalMoney::subtract($this->deposit_amount ?? '0', $this->deposit_balance ?? '0'));
+    }
+
+    private function depositQrUrl(): ?string
+    {
+        if ((int) $this->status === Contract::STATUS_PENDING_SIGN) {
+            return null;
+        }
+
+        $transferMovement = $this->unpaidTransferMovement();
+        if ($transferMovement) {
+            $remainingAmount = DecimalMoney::maxZero(DecimalMoney::subtract($transferMovement->settlement_due_amount, $transferMovement->settlement_paid_amount));
+
+            return DecimalMoney::isPositive($remainingAmount)
+                ? VietQRHelper::generateLink(null, null, null, $remainingAmount, $transferMovement->transfer_code)
+                : null;
+        }
+
+        $depositDueAmount = $this->depositDueAmount();
+
+        return DecimalMoney::isPositive($depositDueAmount)
+            ? VietQRHelper::generateLink(null, null, null, $depositDueAmount, $this->contract_code)
+            : null;
+    }
+
+    private function transferSettlementPayload(): ?array
+    {
+        $movement = $this->unpaidTransferMovement();
+
+        if (! $movement) {
+            return null;
+        }
+
+        return [
+            'transfer_code' => $movement->transfer_code,
+            'settlement_due_amount' => (string) $movement->settlement_due_amount,
+            'settlement_paid_amount' => (string) $movement->settlement_paid_amount,
+            'settlement_remaining_amount' => DecimalMoney::maxZero(DecimalMoney::subtract($movement->settlement_due_amount, $movement->settlement_paid_amount)),
+        ];
+    }
+
+    private function unpaidTransferMovement(): ?RoomMovement
+    {
+        if (! $this->id || (int) $this->status === Contract::STATUS_PENDING_SIGN) {
+            return null;
+        }
+
+        return RoomMovement::query()
+            ->where('destination_contract_id', $this->id)
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->where('status', RoomMovement::STATUS_EXECUTED)
+            ->whereColumn('settlement_paid_amount', '<', 'settlement_due_amount')
+            ->orderByDesc('id')
+            ->first();
     }
 
 }

@@ -586,9 +586,10 @@ class TenantController extends Controller
             'creator:id,username,full_name,email,phone,role,status',
             'building:id,name,slug,status',
             'contractTenants' => fn (HasMany $query): HasMany => $this->currentContractTenantQuery($query),
-            'contractTenants.contract:id,room_id,status,start_date,end_date',
+            'contractTenants.contract:id,contract_code,room_id,status,start_date,end_date,room_price,deposit_amount,payment_status',
             'contractTenants.contract.room:id,building_id,room_number,slug,status',
             'contractTenants.contract.room.building:id,name,slug,status',
+            'contractTenants.contract.depositTransactions:id,contract_id,transaction_type,amount',
         ];
     }
 

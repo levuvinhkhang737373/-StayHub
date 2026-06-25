@@ -31,6 +31,19 @@ export interface AdminTenantCurrentRoomResource {
   building_name?: string | null
 }
 
+export interface AdminTenantCurrentContractResource {
+  id: number
+  contract_code?: string | null
+  room_id?: number | null
+  start_date?: string | null
+  end_date?: string | null
+  room_price?: string | null
+  deposit_amount?: string | null
+  deposit_balance?: string | null
+  payment_status?: number | null
+  status?: number | null
+}
+
 export interface AdminTenantResource {
   id: number
   created_by?: number | null
@@ -39,6 +52,7 @@ export interface AdminTenantResource {
   building_id?: number | null
   building_name?: string | null
   current_room?: AdminTenantCurrentRoomResource | null
+  current_contract?: AdminTenantCurrentContractResource | null
   creator?: AdminTenantCreatorResource | null
   username: string
   full_name: string

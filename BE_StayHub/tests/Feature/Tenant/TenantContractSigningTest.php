@@ -6,8 +6,11 @@ use App\Models\Admin;
 use App\Models\Building;
 use App\Models\Contract;
 use App\Models\ContractTenant;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\Region;
 use App\Models\Room;
+use App\Models\RoomMovement;
 use App\Models\RoomType;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -150,6 +153,7 @@ class TenantContractSigningTest extends TestCase
         // Verify contract was updated
         $this->contract->refresh();
         $this->assertEquals(Contract::STATUS_ACTIVE, $this->contract->status);
+        $this->assertEquals($this->tenant->id, $this->contract->representative_tenant_id);
         $this->assertNotNull($this->contract->tenant_signed_at);
         $this->assertNotEquals('signatures/placeholder.png', $this->contract->tenant_signature_url);
         $this->assertFileExists(public_path($this->contract->tenant_signature_url));
@@ -175,6 +179,109 @@ class TenantContractSigningTest extends TestCase
             'room_id' => $this->room->id,
             'tenant_id' => $this->tenant->id,
         ]);
+    }
+
+    public function test_tenant_signing_transfer_contract_issues_prorated_new_room_invoice(): void
+    {
+        $oldRoom = Room::create([
+            'building_id' => $this->building->id,
+            'room_type_id' => $this->room->room_type_id,
+            'room_number' => '100',
+            'slug' => '100-transfer-old',
+            'floor' => 1,
+            'base_price' => '3000000.00',
+            'max_occupants' => 5,
+            'current_occupants' => 0,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $oldContract = Contract::create([
+            'contract_code' => 'HD-TRANSFER-OLD',
+            'room_id' => $oldRoom->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'actual_end_date' => '2026-06-15',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_LIQUIDATED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->contract->forceFill([
+            'contract_code' => 'HD-TRANSFER-NEW',
+            'start_date' => '2026-06-16',
+            'end_date' => '2026-12-31',
+            'room_price' => '3600000.00',
+            'parent_contract_id' => $oldContract->id,
+        ])->save();
+
+        ContractTenant::query()
+            ->where('contract_id', $this->contract->id)
+            ->where('tenant_id', $this->tenant->id)
+            ->update([
+                'join_date' => '2026-06-16',
+                'billing_start_date' => '2026-06-16',
+            ]);
+
+        RoomMovement::create([
+            'tenant_id' => $this->tenant->id,
+            'contract_id' => $this->contract->id,
+            'from_room_id' => $oldRoom->id,
+            'to_room_id' => $this->room->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'movement_date' => '2026-06-16 00:00:00',
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => '0.00',
+            'deposit_transfer_amount' => '3000000.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '0.00',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $signatureFile = UploadedFile::fake()->image('transfer-signature.png', 100, 100);
+
+        $response = $this->actingAs($this->tenant, 'tenant')
+            ->postJson("/api/v1/tenant/contracts/{$this->contract->id}/sign", [
+                'full_name' => 'Tenant Transfer Signed',
+                'identity_number' => '987654321012',
+                'identity_type' => 1,
+                'identity_date' => '2022-03-15',
+                'identity_place' => 'Cuc Canh sat QLHC',
+                'permanent_address' => '456 Alternate St, Hanoi',
+                'signature_file' => $signatureFile,
+            ]);
+
+        $response->assertStatus(200);
+
+        $invoice = Invoice::query()->where('contract_id', $this->contract->id)->first();
+
+        $this->assertNotNull($invoice);
+        $this->assertSame(6, $invoice->billing_month);
+        $this->assertSame(2026, $invoice->billing_year);
+        $this->assertSame('2026-06-16', $invoice->period_start->toDateString());
+        $this->assertSame('2026-06-30', $invoice->period_end->toDateString());
+        $this->assertSame('1800000.00', (string) $invoice->total_amount);
+        $this->assertSame(Invoice::STATUS_UNPAID, (int) $invoice->status);
+
+        $this->assertDatabaseHas('invoice_items', [
+            'invoice_id' => $invoice->id,
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'unit_price' => '3600000.00',
+            'amount' => '1800000.00',
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'title' => 'Hóa đơn phòng mới đã được phát hành',
+            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'room_id' => $this->room->id,
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        $this->contract->refresh();
+        $this->assertEquals($this->tenant->id, $this->contract->representative_tenant_id);
+        @unlink(public_path($this->contract->tenant_signature_url));
     }
 
     public function test_tenant_cannot_sign_contract_if_not_draft()
