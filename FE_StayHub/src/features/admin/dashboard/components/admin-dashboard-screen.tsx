@@ -97,7 +97,7 @@ function EmptyState({ title = 'Chưa có dữ liệu', description = 'Dữ liệ
 
 function ChartCard({ title, description, action, children }: { title: string; description: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 p-5 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md sm:p-6">
+    <section className="min-w-0 rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 p-5 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md sm:p-6">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-black tracking-tight text-[#24170d] sm:text-xl">{title}</h2>
@@ -209,8 +209,8 @@ function RevenueComboChart({ data }: { data: DashboardRevenuePoint[] }) {
   const negativeGradientId = `finance-${activeMetric}-negative`
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
-      <div>
+    <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
+      <div className="min-w-0">
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-black text-[#6f6254]">
           {(Object.keys(metricOptions) as Array<'revenue' | 'expenses' | 'profit'>).map((type) => {
             const option = metricOptions[type]
@@ -338,8 +338,8 @@ function ExpenseChart({ chart }: { chart: DashboardExpenseChart }) {
   const barWidth = Math.max(14, Math.min(34, slotWidth * 0.38))
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
-      <div className="overflow-x-auto">
+    <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
+      <div className="min-w-0 overflow-x-auto">
         <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[720px] rounded-[1.5rem] bg-[#fff7e8]/55">
           <defs>
             <linearGradient id="expenseSingleGradient" x1="0" y1="0" x2="0" y2="1">
@@ -535,7 +535,7 @@ function InvoiceDonutChart({ data }: { data: DashboardInvoiceStatusItem[] }) {
         <text x="110" y="104" textAnchor="middle" className="fill-[#24170d] text-3xl font-black">{formatNumber(total)}</text>
         <text x="110" y="128" textAnchor="middle" className="fill-[#8b5e34] text-xs font-bold">hóa đơn</text>
       </svg>
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         {data.map((item, index) => (
           <div key={item.status} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-2xl border border-[#3d2a18]/8 bg-[#fff7e8]/72 px-4 py-3">
             <span className="flex min-w-0 items-center gap-2 text-sm font-black leading-5 text-[#24170d]">
@@ -602,12 +602,16 @@ function UtilityUsageBarChart({ data }: { data: UtilityReadingHistoryItem[] }) {
     },
   }
   const activeOption = utilityOptions[activeUtility]
-  const monthPoints = data.map((item, index) => ({
-    item,
-    index,
-    value: typeof item[activeOption.key] === 'number' ? item[activeOption.key] : 0,
-    hasValue: typeof item[activeOption.key] === 'number',
-  }))
+  const monthPoints = data.map((item, index) => {
+    const rawVal = item[activeOption.key]
+    const val = typeof rawVal === 'number' ? rawVal : 0
+    return {
+      item,
+      index,
+      value: val,
+      hasValue: typeof rawVal === 'number',
+    }
+  })
   const validValues = monthPoints.filter((point) => point.hasValue).map((point) => point.value)
 
   if (!data.length) {
@@ -727,12 +731,12 @@ function DashboardSkeleton() {
   return (
     <section className="space-y-6">
       <div className="h-44 animate-pulse rounded-[2rem] bg-[#3d2a18]/10" />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className="h-44 animate-pulse rounded-[1.75rem] bg-[#3d2a18]/10" />
         ))}
       </div>
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <div className="h-96 animate-pulse rounded-[2rem] bg-[#3d2a18]/10" />
         <div className="h-96 animate-pulse rounded-[2rem] bg-[#3d2a18]/10" />
       </div>
@@ -845,14 +849,14 @@ export function AdminDashboardScreen() {
     <section className="space-y-6 text-[#24170d]">
       <div className="relative overflow-hidden rounded-[2.25rem] border border-[#3d2a18]/10 bg-[#24170d] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/18 sm:p-7">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,#4a2f17_0%,#372719_50%,#123f32_100%)]" />
-        <div className="relative grid gap-6 xl:grid-cols-[max-content_minmax(0,1fr)] xl:items-start">
+        <div className="relative grid gap-6 lg:grid-cols-[max-content_minmax(0,1fr)] lg:items-start">
           <div className="max-w-3xl space-y-3 pt-1 xl:w-48">
             <p className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/12 px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] text-[#f3c56b]">
               <Gauge className="h-3.5 w-3.5" /> Dashboard
             </p>
           </div>
-          <div className="rounded-[1.75rem] border border-[#fff4df]/12 bg-[#fff4df]/10 p-4 backdrop-blur-md xl:justify-self-stretch">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(360px,1.65fr)_minmax(150px,0.65fr)_minmax(170px,0.8fr)_minmax(170px,0.8fr)]">
+          <div className="rounded-[1.75rem] border border-[#fff4df]/12 bg-[#fff4df]/10 p-4 backdrop-blur-md lg:justify-self-stretch">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(240px,1.65fr)_minmax(100px,0.65fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)]">
               <div>
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#f3c56b]">Phạm vi tòa nhà</label>
                 <AdminSelect
@@ -918,13 +922,13 @@ export function AdminDashboardScreen() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {kpiCards.map((card) => (
           <MetricCard key={card.key} metric={card.metric} icon={card.icon} tone={card.tone} helper={card.helper} />
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+      <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
         <ChartCard title="Tài chính theo kỳ lọc" description="Bấm từng chỉ số để xem riêng doanh thu, chi phí hoặc lợi nhuận.">
           <RevenueComboChart data={overview.revenue_chart} />
         </ChartCard>
@@ -937,7 +941,7 @@ export function AdminDashboardScreen() {
         <ExpenseChart chart={overview.expense_chart} />
       </ChartCard>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard title="Trạng thái hóa đơn" description="Tình hình thu tiền và công nợ.">
           <InvoiceDonutChart data={overview.invoice_status_chart} />
         </ChartCard>

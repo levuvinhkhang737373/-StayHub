@@ -844,7 +844,7 @@ export function MeterReadingsScreen() {
             <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
-            <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
                 <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
@@ -1098,7 +1098,7 @@ export function MeterReadingsScreen() {
                               onClick={() => openReadingModal(room)}
                               disabled={room.meters.length === 0 || isPastMonth}
                               className={cn(
-                                'inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
+                                'inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3 text-[11px] font-black whitespace-nowrap transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
                                 (isChotElec && isChotWater)
                                   ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15'
                                   : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] shadow-sm shadow-[#24170d]/10'
@@ -1123,7 +1123,7 @@ export function MeterReadingsScreen() {
                               }}
                               disabled={!room.contract_id || isGeneratingSingle === room.contract_id || (elec && !isChotElec) || (water && !isChotWater)}
                               title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : 'Tạo hóa đơn'}
-                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5 mt-1 sm:mt-0 sm:ml-2"
+                              className="inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3 text-[11px] font-black whitespace-nowrap transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5"
                             >
                               {isGeneratingSingle === room.contract_id && room.contract_id ? (
                                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />

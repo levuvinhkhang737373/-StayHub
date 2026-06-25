@@ -248,7 +248,7 @@ export function RoomMovementsScreen() {
           <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(243,197,107,0.28),transparent_30%),radial-gradient(circle_at_86%_4%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
-            <div className="relative grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-end">
+            <div className="relative grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
               <div>
                 <Link to="/admin/tenants" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Khách thuê & hợp đồng
@@ -263,7 +263,7 @@ export function RoomMovementsScreen() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <MetricCard label="Tổng ghi nhận" value={totalMovements} icon={<ReceiptText className="h-4 w-4" />} />
                 <MetricCard label="Chuyển phòng" value={transferCount} icon={<ArrowRightLeft className="h-4 w-4" />} />
                 <MetricCard label="Chờ xử lý" value={pendingCount} icon={<Clock3 className="h-4 w-4" />} />
@@ -274,7 +274,7 @@ export function RoomMovementsScreen() {
         </section>
 
         <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur lg:p-5">
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-[1.25fr_0.82fr_0.82fr_0.9fr_0.9fr_0.8fr_0.8fr_auto]">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:grid-cols-[1.25fr_0.82fr_0.82fr_0.9fr_0.9fr_0.8fr_0.8fr_auto]">
             <label className="relative block">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
               <input value={keyword} onChange={(event) => updateFilter(setKeyword, event.target.value)} placeholder="Tìm khách, phòng, hợp đồng, transfer code..." className={cn(inputClass, 'pl-11')} />

@@ -316,7 +316,7 @@ export function InvoicesScreen() {
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
         <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
-          <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                 <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
@@ -334,7 +334,7 @@ export function InvoicesScreen() {
             </button>
           </div>
 
-          <div className="relative mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="relative mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard label="Tổng hóa đơn" value={metrics.total} tone="neutral" />
             <MetricCard label="Còn phải thu/trang" value={metrics.unpaid} tone="amber" />
             <MetricCard label="Đã thanh toán/trang" value={metrics.paid} tone="emerald" />
@@ -350,7 +350,7 @@ export function InvoicesScreen() {
 
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
         <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-          <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(8rem,10rem)_minmax(6rem,8rem)]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(10rem,1.25fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(80px,1fr)_minmax(70px,1fr)]">
             <div className="relative min-w-0">
               <SearchIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
               <input

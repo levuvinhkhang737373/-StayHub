@@ -536,7 +536,7 @@ export function CreateContractScreen() {
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
         <div className="relative p-5 text-[#fff4df] lg:p-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
-          <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <button
                 type="button"
@@ -582,7 +582,7 @@ export function CreateContractScreen() {
       )}
       {isLoading && <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải thông tin hợp đồng...</div>}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-5">
           <FormSection title="Thông tin hợp đồng" icon={<FileText className="h-5 w-5" />}>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -783,7 +783,7 @@ export function CreateContractScreen() {
           </FormSection>
         </div>
 
-        <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           <FormSection title="File & ghi chú" icon={<FileText className="h-5 w-5" />}>
             <Field label="File hợp đồng" error={errors.contract_files}>
               <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-[#3d2a18]/15 bg-white/55 px-4 py-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/15">

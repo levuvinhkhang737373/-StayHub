@@ -410,21 +410,21 @@ export function FacilitiesScreen() {
                     <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
                         <div className="relative p-4 text-[#fff4df] sm:p-5">
                             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
-                            <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                            <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                 <div className="min-w-0">
                                     <div className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
                                         <span>StayHub</span>
                                     </div>
                                     <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-3xl lg:text-4xl">Khu vực và tòa nhà</h1>
                                 </div>
-                                <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end xl:w-auto">
+                                <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end lg:w-auto">
                                     {isSuperAdmin && (
-                                        <button type="button" onClick={openCreateRegionModal} className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 px-4 text-sm font-black text-[#fff4df] shadow-xl shadow-black/20 transition-all hover:bg-[#f8e8c8]/15 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98] sm:w-auto xl:min-w-40 cursor-pointer">
+                                        <button type="button" onClick={openCreateRegionModal} className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 px-4 text-sm font-black text-[#fff4df] shadow-xl shadow-black/20 transition-all hover:bg-[#f8e8c8]/15 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98] sm:w-auto lg:min-w-40 cursor-pointer">
                                             <Plus className="h-4 w-4 shrink-0 text-[#f3c56b] stroke-[2.8]" />
                                             <span>Thêm khu vực</span>
                                         </button>
                                     )}
-                                    <Link to="/admin/facilities/buildings/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:w-auto xl:min-w-40">
+                                    <Link to="/admin/facilities/buildings/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:w-auto lg:min-w-40">
                                         <Building2 className="h-4 w-4 shrink-0 stroke-[2.8]" />
                                         <span>Thêm tòa nhà</span>
                                     </Link>
@@ -440,7 +440,7 @@ export function FacilitiesScreen() {
                         </div>
                     </div>
 
-                    <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6 2xl:grid-cols-[330px_minmax(0,1fr)]">
+                    <div className="grid min-w-0 grid-cols-1 gap-4 lg:gap-6 2xl:grid-cols-[330px_minmax(0,1fr)]">
                         <aside className="min-w-0 space-y-4">
                             <Panel title="Khu vực" subtitle="" icon={<MapPin className="h-5 w-5" />}>
                                 <div className="relative mb-3">
@@ -459,7 +459,7 @@ export function FacilitiesScreen() {
 
                         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
                             <div className="border-b border-[#3d2a18]/10 bg-[#fff7e8]/72 p-4 sm:p-5">
-                                <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                                <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                     <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-2xl bg-[#efe2cf]/55 p-1.5">
                                         {([
                                             ["all", "Tất cả"],
@@ -480,7 +480,7 @@ export function FacilitiesScreen() {
                                         ))}
                                     </div>
 
-                                    <div className="relative w-full xl:w-80 2xl:w-[380px]">
+                                    <div className="relative w-full lg:w-80 2xl:w-[380px]">
                                         <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
                                         <input
                                             type="text"

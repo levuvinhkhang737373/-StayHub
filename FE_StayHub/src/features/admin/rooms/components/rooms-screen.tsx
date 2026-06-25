@@ -328,7 +328,7 @@ export function RoomsScreen() {
       
       {/* Table Section */}
       <div className="overflow-x-auto rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
-        <table className="min-w-190 w-full text-left">
+        <table className="w-full min-w-[1000px] text-left">
           <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
             <tr>
               <th className="px-5 py-4">Số Phòng</th>
