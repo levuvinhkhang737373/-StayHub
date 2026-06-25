@@ -147,6 +147,7 @@ export interface AdminContractResource {
   billing_cycle_day?: number | null
   room_price?: string | null
   deposit_amount?: string | null
+  deposit_due_amount?: string | null
   status: number
   status_label?: string | null
   payment_status?: number
@@ -154,6 +155,12 @@ export interface AdminContractResource {
   is_deposit_paid?: boolean
   deposit_balance?: string | null
   deposit_qr_url?: string | null
+  transfer_settlement?: {
+    transfer_code?: string | null
+    settlement_due_amount?: string | null
+    settlement_paid_amount?: string | null
+    settlement_remaining_amount?: string | null
+  } | null
   note?: string | null
   contract_files?: AdminContractFileResource[]
   tenant_signed_at?: string | null
@@ -178,6 +185,14 @@ export interface AdminContractResource {
   room_movements_count?: number
   parent_contract_id?: number | null
   renew_from_contract_id?: number | null
+  representative_tenant_id?: number | null
+  representative_tenant?: {
+    id: number
+    full_name?: string | null
+    phone?: string | null
+    email?: string | null
+    identity_number?: string | null
+  } | null
   created_by?: number | null
   creator_name?: string | null
   created_at?: string | null

@@ -20,6 +20,18 @@ class _ContractsScreenState extends State<ContractsScreen> {
     });
   }
 
+  String _nextMonthStartDateString() {
+    final now = DateTime.now();
+    final next = DateTime(now.year, now.month + 1, 1);
+    final month = next.month.toString().padLeft(2, '0');
+    final day = next.day.toString().padLeft(2, '0');
+    return '${next.year}-$month-$day';
+  }
+
+  double _parseMoney(String value) {
+    return double.tryParse(value.trim().replaceAll(',', '')) ?? 0.0;
+  }
+
   void _showAddContractDialog() {
     final formKey = GlobalKey<FormState>();
     final codeController = TextEditingController();
@@ -203,55 +215,164 @@ class _ContractsScreenState extends State<ContractsScreen> {
     );
   }
 
-  void _showChangeRoomDialog(int contractId) {
+  void _showChangeRoomDialog(Contract contract) {
+    final formKey = GlobalKey<FormState>();
     final roomController = TextEditingController();
-    final priceController = TextEditingController();
-    showDialog(
+    final movementDateController = TextEditingController(text: _nextMonthStartDateString());
+    final deductionController = TextEditingController(text: '0');
+    final feeController = TextEditingController(text: '0');
+    final depositController = TextEditingController();
+    final noteController = TextEditingController();
+
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Chuyển phòng khách thuê'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: roomController,
-                decoration: const InputDecoration(labelText: 'Số phòng mới', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Giá thuê mới', border: OutlineInputBorder()),
-              ),
-            ],
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
-            TextButton(
-              onPressed: () async {
-                if (roomController.text.isNotEmpty && priceController.text.isNotEmpty) {
-                  final success = await context.read<ContractController>().changeRoom(
-                        contractId,
-                        roomController.text.trim(),
-                        double.parse(priceController.text),
-                      );
-                  if (success && mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Chuyển phòng thành công!'), backgroundColor: Colors.green),
-                    );
-                  } else if (mounted) {
-                    final errMsg = context.read<ContractController>().errorMessage ?? 'Chuyển phòng thất bại';
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
-                    );
-                  }
-                }
-              },
-              child: const Text('CHUYỂN PHÒNG', style: TextStyle(color: Color(0xFF1C1917), fontWeight: FontWeight.bold)),
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1C1917),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Lên lịch chuyển phòng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1C1917))),
+                            Text('HĐ ${contract.contractCode} • Phòng ${contract.roomNumber}', style: const TextStyle(fontSize: 12, color: Color(0xFF78716C), fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: const Text(
+                      'Mobile sẽ lên lịch chuyển toàn bộ khách đang ở trong hợp đồng này. Nếu cần chọn từng người/đại diện, vui lòng dùng web admin để thao tác chi tiết hơn.',
+                      style: TextStyle(fontSize: 12.5, color: Color(0xFF92400E), height: 1.45, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: roomController,
+                    decoration: const InputDecoration(labelText: 'Số phòng mới', border: OutlineInputBorder()),
+                    validator: (value) => value == null || value.trim().isEmpty ? 'Vui lòng nhập số phòng mới' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: movementDateController,
+                    readOnly: true,
+                    decoration: const InputDecoration(labelText: 'Ngày chuyển cố định', border: OutlineInputBorder(), helperText: 'Chỉ cho chuyển vào ngày 01 của tháng kế tiếp'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: deductionController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Khấu trừ hư hao', border: OutlineInputBorder()),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: feeController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Phí chuyển', border: OutlineInputBorder()),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: depositController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Cọc phòng mới (tuỳ chọn)', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: noteController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Ghi chú', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                          child: const Text('HỦY'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (!(formKey.currentState?.validate() ?? false)) return;
+
+                            final success = await context.read<ContractController>().scheduleRoomTransfer(
+                                  contractId: contract.id,
+                                  newRoomNumber: roomController.text.trim(),
+                                  movementDate: movementDateController.text,
+                                  depositDeductionAmount: _parseMoney(deductionController.text),
+                                  transferFee: _parseMoney(feeController.text),
+                                  newDepositAmount: depositController.text.trim().isEmpty ? null : _parseMoney(depositController.text),
+                                  note: noteController.text,
+                                );
+
+                            if (success && mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Đã lên lịch chuyển phòng.'), backgroundColor: Colors.green),
+                              );
+                            } else if (mounted) {
+                              final errMsg = context.read<ContractController>().errorMessage ?? 'Lên lịch chuyển phòng thất bại';
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1C1917), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+                          child: const Text('LÊN LỊCH', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         );
       },
     );
@@ -333,13 +454,13 @@ class _ContractsScreenState extends State<ContractsScreen> {
                                     // Change Room Button
                                     Expanded(
                                       child: OutlinedButton(
-                                        onPressed: () => _showChangeRoomDialog(contract.id),
+                                        onPressed: () => _showChangeRoomDialog(contract),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor: const Color(0xFF1C1917),
                                           side: const BorderSide(color: Color(0xFF1C1917)),
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                         ),
-                                        child: const Text('Chuyển phòng', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        child: const Text('Lên lịch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                       ),
                                     ),
                                     const SizedBox(width: 8),

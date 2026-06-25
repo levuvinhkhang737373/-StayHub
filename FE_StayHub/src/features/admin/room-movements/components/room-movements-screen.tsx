@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, DoorOpen, Eye, FilterX, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -14,6 +14,10 @@ import type { AdminRoomMovementPaginationMeta, AdminRoomMovementResource } from 
 
 const MOVEMENT_TRANSFER = 2
 const MOVEMENT_CHECKOUT = 1
+const MOVEMENT_STATUS_PENDING = 1
+const MOVEMENT_STATUS_EXECUTED = 2
+const MOVEMENT_STATUS_BLOCKED = 3
+const MOVEMENT_STATUS_CANCELLED = 4
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 
@@ -21,6 +25,14 @@ const movementTypeOptions = [
   { value: '', label: 'Tất cả biến động', tone: 'default' as const },
   { value: MOVEMENT_TRANSFER, label: 'Chuyển phòng', tone: 'success' as const },
   { value: MOVEMENT_CHECKOUT, label: 'Trả phòng', tone: 'warning' as const },
+]
+
+const movementStatusOptions = [
+  { value: '', label: 'Tất cả trạng thái', tone: 'default' as const },
+  { value: MOVEMENT_STATUS_PENDING, label: 'Chờ xử lý', tone: 'warning' as const },
+  { value: MOVEMENT_STATUS_EXECUTED, label: 'Đã chuyển', tone: 'success' as const },
+  { value: MOVEMENT_STATUS_BLOCKED, label: 'Đang bị chặn', tone: 'danger' as const },
+  { value: MOVEMENT_STATUS_CANCELLED, label: 'Đã hủy', tone: 'default' as const },
 ]
 
 const perPageOptions = [
@@ -37,9 +49,11 @@ export function RoomMovementsScreen() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tenantIdFilter = searchParams.get('tenant_id') || ''
   const contractIdFilter = searchParams.get('contract_id') || ''
-  const deepLinkFilterKey = `${tenantIdFilter}:${contractIdFilter}`
-  const [keyword, setKeyword] = useState('')
+  const keywordFilter = searchParams.get('keyword') || ''
+  const deepLinkFilterKey = `${tenantIdFilter}:${contractIdFilter}:${keywordFilter}`
+  const [keyword, setKeyword] = useState(keywordFilter)
   const [movementType, setMovementType] = useState<string | number>('')
+  const [movementStatus, setMovementStatus] = useState<string | number>('')
   const [buildingId, setBuildingId] = useState<string | number>('')
   const [roomId, setRoomId] = useState<string | number>('')
   const [dateFrom, setDateFrom] = useState('')
@@ -71,6 +85,7 @@ export function RoomMovementsScreen() {
       const response = await fetchAdminRoomMovements({
         keyword: keyword.trim() || undefined,
         movement_type: movementType ? Number(movementType) : undefined,
+        status: movementStatus ? Number(movementStatus) : undefined,
         building_id: buildingId ? Number(buildingId) : undefined,
         room_id: roomId ? Number(roomId) : undefined,
         tenant_id: tenantIdFilter ? Number(tenantIdFilter) : undefined,
@@ -94,7 +109,11 @@ export function RoomMovementsScreen() {
     } finally {
       setIsLoading(false)
     }
-  }, [buildingId, contractIdFilter, currentPage, dateFrom, dateTo, keyword, movementType, perPage, roomId, setCurrentPage, tenantIdFilter])
+  }, [buildingId, contractIdFilter, currentPage, dateFrom, dateTo, keyword, movementStatus, movementType, perPage, roomId, setCurrentPage, tenantIdFilter])
+
+  useEffect(() => {
+    queueMicrotask(() => setKeyword(keywordFilter))
+  }, [keywordFilter])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -164,9 +183,10 @@ export function RoomMovementsScreen() {
       .sort((left, right) => left - right)
   }, [safeCurrentPage, totalPages])
   const transferCount = useMemo(() => movements.filter((movement) => Number(movement.movement_type) === MOVEMENT_TRANSFER).length, [movements])
-  const checkoutCount = useMemo(() => movements.filter((movement) => Number(movement.movement_type) === MOVEMENT_CHECKOUT).length, [movements])
-  const hasDeepLinkFilter = Boolean(tenantIdFilter || contractIdFilter)
-  const hasActiveFilters = Boolean(keyword || movementType || buildingId || roomId || dateFrom || dateTo || hasDeepLinkFilter)
+  const pendingCount = useMemo(() => movements.filter((movement) => Number(movement.status) === MOVEMENT_STATUS_PENDING).length, [movements])
+  const blockedCount = useMemo(() => movements.filter((movement) => Number(movement.status) === MOVEMENT_STATUS_BLOCKED).length, [movements])
+  const hasDeepLinkFilter = Boolean(tenantIdFilter || contractIdFilter || keywordFilter)
+  const hasActiveFilters = Boolean(keyword || movementType || movementStatus || buildingId || roomId || dateFrom || dateTo || hasDeepLinkFilter)
 
   function updateFilter(setter: (value: string) => void, value: string) {
     setter(value)
@@ -181,6 +201,7 @@ export function RoomMovementsScreen() {
   function clearFilters() {
     setKeyword('')
     setMovementType('')
+    setMovementStatus('')
     setBuildingId('')
     setRoomId('')
     setDateFrom('')
@@ -242,22 +263,24 @@ export function RoomMovementsScreen() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Tổng ghi nhận" value={totalMovements} icon={<ReceiptText className="h-4 w-4" />} />
                 <MetricCard label="Chuyển phòng" value={transferCount} icon={<ArrowRightLeft className="h-4 w-4" />} />
-                <MetricCard label="Trả phòng" value={checkoutCount} icon={<DoorOpen className="h-4 w-4" />} />
+                <MetricCard label="Chờ xử lý" value={pendingCount} icon={<Clock3 className="h-4 w-4" />} />
+                <MetricCard label="Bị chặn" value={blockedCount} icon={<AlertTriangle className="h-4 w-4" />} />
               </div>
             </div>
           </div>
         </section>
 
         <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur lg:p-5">
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-[1.35fr_0.85fr_0.95fr_0.95fr_0.85fr_0.85fr_auto]">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-[1.25fr_0.82fr_0.82fr_0.9fr_0.9fr_0.8fr_0.8fr_auto]">
             <label className="relative block">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
-              <input value={keyword} onChange={(event) => updateFilter(setKeyword, event.target.value)} placeholder="Tìm khách, phòng, hợp đồng, ghi chú..." className={cn(inputClass, 'pl-11')} />
+              <input value={keyword} onChange={(event) => updateFilter(setKeyword, event.target.value)} placeholder="Tìm khách, phòng, hợp đồng, transfer code..." className={cn(inputClass, 'pl-11')} />
             </label>
             <AdminSelect value={movementType} options={movementTypeOptions} onChange={(value) => updateSelectFilter(setMovementType, value)} />
+            <AdminSelect value={movementStatus} options={movementStatusOptions} onChange={(value) => updateSelectFilter(setMovementStatus, value)} />
             <AdminSelect value={buildingId} options={buildingOptions} onChange={(value) => { updateSelectFilter(setBuildingId, value); setRoomId('') }} disabled={isOptionsLoading} />
             <AdminSelect value={roomId} options={roomOptions} onChange={(value) => updateSelectFilter(setRoomId, value)} disabled={isOptionsLoading} />
             <AdminDateInput value={dateFrom} onChange={(value) => updateFilter(setDateFrom, value)} placeholder="Từ ngày" className={inputClass} />
@@ -271,6 +294,7 @@ export function RoomMovementsScreen() {
             <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-[#0f5f59]">
               {tenantIdFilter && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Đang lọc khách thuê #{tenantIdFilter}</span>}
               {contractIdFilter && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Đang lọc hợp đồng #{contractIdFilter}</span>}
+              {keywordFilter && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Mã/từ khóa: {keywordFilter}</span>}
             </div>
           )}
         </section>
@@ -279,22 +303,28 @@ export function RoomMovementsScreen() {
           {errorMessage && <div className="m-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1280px] border-separate border-spacing-0 text-left">
+            <table className="w-full min-w-[1480px] border-separate border-spacing-0 text-left">
               <colgroup>
                 <col className="w-[170px]" />
-                <col className="w-[155px]" />
-                <col className="w-[515px]" />
+                <col className="w-[150px]" />
+                <col className="w-[165px]" />
+                <col className="w-[390px]" />
                 <col className="w-[120px]" />
-                <col className="w-[125px]" />
+                <col className="w-[130px]" />
+                <col className="w-[160px]" />
+                <col className="w-[130px]" />
                 <col className="w-[150px]" />
                 <col className="w-[80px]" />
               </colgroup>
               <thead className="bg-[#efe2cf]/45 text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/75">
                 <tr>
                   <th scope="col" className={cn(tableHeadCellClass, 'pl-5')}>Thời điểm</th>
+                  <th scope="col" className={tableHeadCellClass}>Mã lịch</th>
                   <th scope="col" className={tableHeadCellClass}>Khách thuê</th>
                   <th scope="col" className={tableHeadCellClass}>Luồng phòng</th>
                   <th scope="col" className={tableHeadCellClass}>Loại</th>
+                  <th scope="col" className={tableHeadCellClass}>Trạng thái</th>
+                  <th scope="col" className={tableHeadCellClass}>Settlement</th>
                   <th scope="col" className={tableHeadCellClass}>Hợp đồng</th>
                   <th scope="col" className={tableHeadCellClass}>Người xử lý</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'pr-5 text-right')}>Chi tiết</th>
@@ -303,7 +333,7 @@ export function RoomMovementsScreen() {
               <tbody className="divide-y divide-[#3d2a18]/10">
                 {isLoading && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-16 text-center text-sm font-black text-[#8b5e34]">
+                    <td colSpan={10} className="px-5 py-16 text-center text-sm font-black text-[#8b5e34]">
                       <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải lịch sử phòng và cọc...</span>
                     </td>
                   </tr>
@@ -317,6 +347,9 @@ export function RoomMovementsScreen() {
                         <span className="whitespace-nowrap tabular-nums">{formatDateTime(movement.movement_date)}</span>
                       </div>
                     </td>
+                    <td className={cn(tableBodyCellClass, 'text-[12px] font-black text-[#24170d]')}>
+                      <span className="inline-flex whitespace-nowrap rounded-xl border border-[#0f766e]/15 bg-[#0f766e]/8 px-3 py-1 text-[11px] font-black leading-4 text-[#0f5f59]">{movement.transfer_code || '—'}</span>
+                    </td>
                     <td className={tableBodyCellClass}>
                       <p className="truncate text-[13px] font-black leading-5 text-[#24170d]" title={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}>{movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}</p>
                       <p className="mt-1 truncate text-[11px] font-bold text-[#6f6254]" title={movement.tenant?.phone || movement.tenant?.email || '—'}>{movement.tenant?.phone || movement.tenant?.email || '—'}</p>
@@ -325,6 +358,8 @@ export function RoomMovementsScreen() {
                       <RoomFlow movement={movement} />
                     </td>
                     <td className={tableBodyCellClass}><MovementBadge movement={movement} /></td>
+                    <td className={tableBodyCellClass}><StatusBadge movement={movement} /></td>
+                    <td className={tableBodyCellClass}><SettlementBadge movement={movement} /></td>
                     <td className={cn(tableBodyCellClass, 'text-[12px] font-black text-[#24170d]')}>
                       <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')}</span>
                     </td>
@@ -339,7 +374,7 @@ export function RoomMovementsScreen() {
 
                 {!isLoading && movements.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-20 text-center">
+                    <td colSpan={10} className="px-5 py-20 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-[#fffaf1]/70 px-6 py-8">
                         <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><History className="h-9 w-9" /></div>
                         <p className="text-lg font-black tracking-tight text-[#24170d]">Chưa có lịch sử phù hợp</p>
@@ -411,6 +446,41 @@ function MovementBadge({ movement }: { movement: AdminRoomMovementResource }) {
   )
 }
 
+function StatusBadge({ movement }: { movement: AdminRoomMovementResource }) {
+  const status = Number(movement.status)
+  const className = status === MOVEMENT_STATUS_EXECUTED
+    ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]'
+    : status === MOVEMENT_STATUS_BLOCKED
+      ? 'border-rose-200 bg-rose-50 text-rose-700'
+      : status === MOVEMENT_STATUS_CANCELLED
+        ? 'border-[#3d2a18]/10 bg-[#efe2cf]/70 text-[#6f6254]'
+        : 'border-[#f3c56b]/35 bg-[#f3c56b]/18 text-[#8a4f18]'
+
+  return (
+    <span className={cn('inline-flex items-center whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-black leading-none', className)}>
+      {movement.status_label || 'Chờ xử lý'}
+    </span>
+  )
+}
+
+function SettlementBadge({ movement }: { movement: AdminRoomMovementResource }) {
+  const dueAmount = Number(movement.settlement_due_amount ?? 0)
+  const remainingAmount = Number(movement.settlement_remaining_amount ?? 0)
+
+  if (!Number.isFinite(dueAmount) || dueAmount <= 0) {
+    return <span className="text-[12px] font-black text-[#6f6254]">Không phát sinh</span>
+  }
+
+  const isPaid = remainingAmount <= 0
+
+  return (
+    <div className="space-y-1 leading-none">
+      <p className={cn('text-[12px] font-black tabular-nums', isPaid ? 'text-[#0f5f59]' : 'text-[#8a4f18]')}>{formatCurrency(remainingAmount)}</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#6f6254]">{movement.settlement_payment_status_label || (isPaid ? 'Đã thanh toán' : 'Chờ QR')}</p>
+    </div>
+  )
+}
+
 function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
   return (
     <div className="inline-flex min-w-max items-center gap-2 whitespace-nowrap text-[12px] font-black leading-none text-[#24170d]">
@@ -422,6 +492,8 @@ function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
 }
 
 function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement: AdminRoomMovementResource; isLoading: boolean; errorMessage: string | null; onClose: () => void }) {
+  const hasMeterReadings = Boolean(movement.final_electric_reading || movement.final_water_reading)
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
       <button type="button" aria-label="Đóng chi tiết lịch sử" onClick={onClose} className="absolute inset-0 bg-[#120b06]/75 backdrop-blur-sm" />
@@ -431,7 +503,10 @@ function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement:
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Chi tiết ledger</p>
               <h2 id="room-movement-detail-title" className="mt-2 text-2xl font-black tracking-tight">{movement.tenant?.full_name || movement.tenant?.username || `Khách #${movement.tenant_id}`}</h2>
-              <p className="mt-1 text-sm font-semibold text-[#f8e8c8]/78">{formatDateTime(movement.movement_date)} · {movement.movement_type_label || 'Biến động phòng'}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-[#f8e8c8]/78">
+                <span>{formatDateTime(movement.movement_date)} · {movement.movement_type_label || 'Biến động phòng'}</span>
+                {movement.transfer_code && <span className="rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/10 px-3 py-1 text-xs font-black text-[#f3c56b]">{movement.transfer_code}</span>}
+              </div>
             </div>
             <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết lịch sử">
               <X className="h-5 w-5" />
@@ -444,33 +519,79 @@ function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement:
           {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
           <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Lịch chuyển</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <DetailTile label="Mã chuyển" value={movement.transfer_code || '—'} />
+              <DetailTile label="Trạng thái" value={<StatusBadge movement={movement} />} />
+              <DetailTile label="Ngày chuyển" value={formatDateTime(movement.movement_date)} />
+              <DetailTile label="Đã execute lúc" value={formatDateTime(movement.executed_at)} />
+              <DetailTile label="Người xử lý" value={movement.creator_name || '—'} />
+              <DetailTile label="Thanh toán settlement" value={movement.settlement_payment_status_label || '—'} />
+            </div>
+          </section>
+
+          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Luồng phòng</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <DetailTile label="Phòng cũ" value={roomLabel(movement.from_room, '—')} />
               <DetailTile label="Phòng mới" value={roomLabel(movement.to_room, 'Trả phòng')} />
-              <DetailTile label="Hợp đồng" value={movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')} />
-              <DetailTile label="Người xử lý" value={movement.creator_name || '—'} />
+              <DetailTile label="Hợp đồng ghi nhận" value={movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')} />
+              <DetailTile label="Hợp đồng nguồn" value={movement.source_contract?.contract_code || (movement.source_contract_id ? `#${movement.source_contract_id}` : '—')} />
+              <DetailTile label="Hợp đồng đích" value={movement.destination_contract?.contract_code || (movement.destination_contract_id ? `#${movement.destination_contract_id}` : '—')} />
+              <DetailTile label="Loại biến động" value={movement.movement_type_label || '—'} />
             </div>
           </section>
 
           <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cọc & phí</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cọc & settlement</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <MoneyTile label="Cọc bàn giao" value={movement.old_room_final_amount} tone="neutral" />
               <MoneyTile label="Cọc chuyển sang" value={movement.deposit_transfer_amount} tone="success" />
-              <MoneyTile label="Hoàn cọc" value={movement.deposit_refund_amount} tone="warning" />
-              <MoneyTile label="Khấu trừ" value={movement.deduction_amount} tone="danger" />
+              <MoneyTile label="Hoàn cọc cũ" value={movement.deposit_refund_amount} tone="warning" />
+              <MoneyTile label="Hoàn thủ công" value={movement.manual_refund_amount} tone="warning" />
+              <MoneyTile label="Khấu trừ hư hao" value={movement.deduction_amount} tone="danger" />
               <MoneyTile label="Phí chuyển phòng" value={movement.transfer_fee} tone="neutral" />
+              <MoneyTile label="Cọc còn thiếu" value={movement.deposit_due_amount} tone="danger" />
+              <MoneyTile label="Phí thu thêm" value={movement.extra_charge_amount} tone="danger" />
+              <MoneyTile label="Settlement phải thu" value={movement.settlement_due_amount} tone="warning" />
+              <MoneyTile label="Đã thanh toán" value={movement.settlement_paid_amount} tone="success" />
+              <MoneyTile label="Còn lại" value={movement.settlement_remaining_amount} tone="warning" />
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <DetailTile label="Trạng thái QR" value={movement.settlement_payment_status_label || '—'} />
+              <DetailTile
+                label="QR settlement"
+                value={movement.settlement_qr_url ? <a href={movement.settlement_qr_url} target="_blank" rel="noreferrer" className="text-[#0f5f59] underline decoration-[#0f766e]/30 underline-offset-4">Mở mã QR</a> : '—'}
+              />
             </div>
           </section>
 
-          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Chỉ số chốt</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <DetailTile label="Điện" value={movement.final_electric_reading || '—'} />
-              <DetailTile label="Nước" value={movement.final_water_reading || '—'} />
-            </div>
-          </section>
+          {movement.failure_reason && (
+            <section className="rounded-[1.5rem] border border-rose-200 bg-rose-50 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-700/70">Lý do bị chặn / lỗi</p>
+              <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-rose-700">{movement.failure_reason}</p>
+            </section>
+          )}
+
+          {movement.scheduled_payload && (
+            <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Payload đã lên lịch</p>
+              <pre className="mt-3 max-h-72 overflow-auto rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-4 text-xs font-bold leading-5 text-[#3d2a18]">
+                {JSON.stringify(movement.scheduled_payload, null, 2)}
+              </pre>
+            </section>
+          )}
+
+          {hasMeterReadings && (
+            <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Chỉ số chốt</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <DetailTile label="Điện" value={movement.final_electric_reading || '—'} />
+                <DetailTile label="Nước" value={movement.final_water_reading || '—'} />
+              </div>
+            </section>
+          )}
 
           {movement.note && (
             <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
