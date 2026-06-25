@@ -8,7 +8,9 @@ use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\Region;
 use App\Models\Room;
+use App\Models\RoomMovement;
 use App\Models\RoomType;
+use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
@@ -201,6 +203,80 @@ class SePayWebhookControllerTest extends TestCase
                 'status' => true,
                 'message' => 'Giao dịch đã được xử lý.'
             ]);
+    }
+
+    public function test_sepay_webhook_processes_transfer_extra_charge_without_collecting_destination_deposit(): void
+    {
+        Config::set('services.sepay.webhook_token', 'test-token-123');
+
+        $room = $this->contract->room()->with('building')->firstOrFail();
+        $tenant = Tenant::create([
+            'username' => 'transfer_extra_tenant',
+            'full_name' => 'Transfer Extra Tenant',
+            'email' => 'transfer-extra-tenant@stayhub.local',
+            'phone' => '0912222333',
+            'password' => bcrypt('password'),
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '123123123123',
+            'date_of_birth' => '2000-01-01',
+            'building_id' => $room->building_id,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomMovement::create([
+            'transfer_code' => 'TRF-2026-07-0001',
+            'tenant_id' => $tenant->id,
+            'contract_id' => $this->contract->id,
+            'source_contract_id' => $this->contract->id,
+            'destination_contract_id' => $this->contract->id,
+            'from_room_id' => $room->id,
+            'to_room_id' => $room->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_EXECUTED,
+            'movement_date' => '2026-07-01 00:00:00',
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => '0.00',
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '0.00',
+            'deposit_due_amount' => '0.00',
+            'extra_charge_amount' => '500000.00',
+            'settlement_due_amount' => '500000.00',
+            'settlement_paid_amount' => '0.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+            'settlement_payment_references' => [],
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->postJson('/api/v1/sepay-webhook', [
+            'id' => 100001,
+            'gateway' => 'MBBank',
+            'amount' => 500000,
+            'transferType' => 'in',
+            'content' => 'Thanh toan TRF-2026-07-0001',
+            'code' => 'FT-TRF-EXTRA-001',
+        ], [
+            'Authorization' => 'Apikey test-token-123'
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => true,
+                'message' => 'Xử lý thanh toán chuyển phòng thành công.'
+            ]);
+
+        $this->assertDatabaseMissing('contract_deposit_transactions', [
+            'contract_id' => $this->contract->id,
+            'transaction_reference' => 'FT-TRF-EXTRA-001',
+        ]);
+
+        $this->assertDatabaseHas('room_movements', [
+            'transfer_code' => 'TRF-2026-07-0001',
+            'settlement_paid_amount' => '500000.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+        ]);
     }
 
     public function test_sepay_webhook_bypasses_test_delivery(): void

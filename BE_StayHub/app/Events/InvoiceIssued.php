@@ -16,16 +16,18 @@ class InvoiceIssued implements ShouldBroadcast
     public array $invoice;
     private array $tenantIds;
 
-    public function __construct(Invoice $invoice)
+    public function __construct(Invoice $invoice, ?array $tenantIds = null)
     {
         $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
 
-        $this->tenantIds = $invoice->contract?->contractTenants
-            ?->where('is_staying', true)
-            ->pluck('tenant_id')
-            ->unique()
-            ->values()
-            ->all() ?? [];
+        $this->tenantIds = $tenantIds !== null
+            ? collect($tenantIds)->map(fn ($tenantId): int => (int) $tenantId)->unique()->values()->all()
+            : ($invoice->contract?->contractTenants
+                ?->where('is_staying', true)
+                ->pluck('tenant_id')
+                ->unique()
+                ->values()
+                ->all() ?? []);
 
         $this->invoice = [
             'id' => $invoice->id,

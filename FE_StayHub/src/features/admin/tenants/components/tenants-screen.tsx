@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
-import { Building2, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, Search, Trash2, UserRound, X, ArrowLeft,ArrowRightLeft } from 'lucide-react'
+import { Building2, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, Search, Trash2, UserRound, X, ArrowLeft } from 'lucide-react'
 import { formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -122,7 +122,7 @@ export function TenantsScreen() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentPage, keyword, perPage, selectedGender, selectedIdentityType, selectedStatus])
+  }, [currentPage, defaultBuildingId, keyword, perPage, selectedGender, selectedIdentityType, selectedStatus])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -155,9 +155,6 @@ export function TenantsScreen() {
   const editTenant = (tenant: AdminTenantResource) => {
     navigate(`/admin/tenants/${tenant.id}/edit`)
   }
- const transferTenantRoom = (tenant: AdminTenantResource) => {
-  navigate(`/admin/tenants/${tenant.id}/transfer-room`)
-}
   const viewTenant = async (tenant: AdminTenantResource) => {
     setDetailTenant(tenant)
     setIsDetailOpen(true)
@@ -317,7 +314,7 @@ export function TenantsScreen() {
                       <th className="px-5 py-4">Tòa nhà</th>
                       <th className="whitespace-nowrap px-5 py-4">Phòng</th>
                       <th className="px-5 py-4 text-center">Phương tiện</th>
-                      <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[232px] text-center">Thao tác</div></div></th>
+                      <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[184px] text-center">Thao tác</div></div></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -371,15 +368,6 @@ export function TenantsScreen() {
                               <button type="button" onClick={() => editTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa" aria-label={`Chỉnh sửa khách thuê ${tenant.username}`}><Edit3 className="h-5 w-5" /></button>
                               <button type="button" disabled={statusChangingId === tenant.id} onClick={() => void toggleTenantStatus(tenant)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45', renting ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100')} title={renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'} aria-label={`${renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'} khách thuê ${tenant.username}`}><Power className="h-5 w-5" /></button>
                               <button type="button" disabled={deletingId === tenant.id} onClick={() => void removeTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title="Xóa" aria-label={`Xóa khách thuê ${tenant.username}`}><Trash2 className="h-5 w-5" /></button>
-                              <button
-                                type="button"
-                                onClick={() => transferTenantRoom(tenant)}
-                                disabled={!renting}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f5f59]/25 hover:bg-[#0f5f59]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f5f59]/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
-                                title="Chuyển phòng"
-                                aria-label={`Chuyển phòng cho khách thuê ${tenant.username}`}>
-                                <ArrowRightLeft className="h-5 w-5" />
-                              </button>
                             </div>
                           </td>
                           
@@ -544,11 +532,6 @@ function TenantAvatar({ tenant }: { tenant: AdminTenantResource }) {
   const [loadedAvatarUrl, setLoadedAvatarUrl] = useState<string | null>(null)
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null)
   const [isZoomed, setIsZoomed] = useState(false)
-
-  useEffect(() => {
-    setLoadedAvatarUrl(null)
-    setFailedAvatarUrl(null)
-  }, [avatarUrl])
 
   useEffect(() => {
     if (!isZoomed) return

@@ -17,3 +17,7 @@ Schedule::command('invoices:send-debt-reminders')
     ->monthlyOn(7, '07:00')
     ->timezone('Asia/Ho_Chi_Minh')
     ->withoutOverlapping();
+Schedule::command('room-transfers:execute-scheduled')
+    ->monthlyOn(1, '00:10')
+    ->timezone('Asia/Ho_Chi_Minh')
+    ->withoutOverlapping();

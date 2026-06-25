@@ -2,18 +2,27 @@
 
 namespace App\Http\Controllers\Tenant;
 
+use App\Events\InvoiceIssued;
+use App\Events\NotificationSent;
 use App\Helpers\ApiResponse;
+use App\Helpers\DecimalMoney;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\Tenant\ContractResource;
 use App\Http\Requests\Tenant\SignContractRequest;
+use App\Http\Resources\Tenant\ContractResource;
+use App\Models\Admin;
 use App\Models\Contract;
 use App\Models\ContractTenant;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\Notification;
 use App\Models\Room;
+use App\Models\RoomMovement;
+use App\Models\Tenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class ContractController extends Controller
 {
@@ -34,6 +43,7 @@ class ContractController extends Controller
                 ->with([
                     'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                     'room.building:id,name,slug,manager_admin_id,status,address',
+                    'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
                 ])
@@ -70,6 +80,7 @@ class ContractController extends Controller
                 ->with([
                     'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                     'room.building:id,name,slug,manager_admin_id,status,address',
+                    'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
                 ])
@@ -144,6 +155,7 @@ class ContractController extends Controller
                 // 3. Update the contract status, signature path, and signed_at timestamp
                 $contract->update([
                     'status' => Contract::STATUS_ACTIVE,
+                    'representative_tenant_id' => $contract->representative_tenant_id ?: $tenant->id,
                     'tenant_signed_at' => now(),
                     'tenant_signature_url' => $path,
                 ]);
@@ -158,6 +170,8 @@ class ContractController extends Controller
                     ->count('tenant_id');
 
                 Room::query()->whereKey($roomId)->update(['current_occupants' => $occupants]);
+
+                $this->issueTransferContractInvoiceIfNeeded($contract, $tenant);
             });
 
             // 5. Create and broadcast database notification for building admins
@@ -188,13 +202,140 @@ class ContractController extends Controller
             $contract->load([
                 'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                 'room.building:id,name,slug,manager_admin_id,status,address',
+                'representativeTenant:id,full_name,phone,email',
                 'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                 'contractTenants.tenant:id,full_name,phone,email,identity_number',
             ]);
 
             return ApiResponse::responseJson(true, 'Ký hợp đồng thành công', 200, new ContractResource($contract), 200);
+        } catch (ValidationException $e) {
+            $firstError = collect($e->errors())->flatten()->first() ?? $e->getMessage();
+            return ApiResponse::responseJson(false, $firstError, 422, $e->errors(), 422);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
+    }
+
+    private function issueTransferContractInvoiceIfNeeded(Contract $contract, Tenant $tenant): ?Invoice
+    {
+        if (! $contract->parent_contract_id || ! $contract->start_date) {
+            return null;
+        }
+
+        $isTransferContract = RoomMovement::query()
+            ->where('contract_id', $contract->id)
+            ->where('tenant_id', $tenant->id)
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->exists();
+
+        if (! $isTransferContract) {
+            return null;
+        }
+
+        $admin = Admin::query()->find($contract->created_by);
+        if (! $admin) {
+            throw ValidationException::withMessages([
+                'contract' => 'Không tìm thấy admin tạo hợp đồng chuyển phòng để phát hành hóa đơn.',
+            ]);
+        }
+
+        $periodStart = $contract->start_date->copy()->startOfDay();
+        $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
+        $contractEndDate = $contract->actual_end_date ?: $contract->end_date;
+
+        if ($contractEndDate && $contractEndDate->copy()->startOfDay()->lessThan($periodEnd)) {
+            $periodEnd = $contractEndDate->copy()->startOfDay();
+        }
+
+        if ($periodStart->greaterThan($periodEnd)) {
+            return null;
+        }
+
+        $existingInvoice = Invoice::query()
+            ->where('contract_id', $contract->id)
+            ->where('billing_year', $periodStart->year)
+            ->where('billing_month', $periodStart->month)
+            ->lockForUpdate()
+            ->first();
+
+        if ($existingInvoice) {
+            return $existingInvoice;
+        }
+
+        $actualDays = $periodStart->diffInDays($periodEnd) + 1;
+        $totalDays = $periodStart->daysInMonth;
+        $roomAmount = DecimalMoney::prorateByDays($contract->room_price, $actualDays, $totalDays);
+        $status = DecimalMoney::isPositive($roomAmount) ? Invoice::STATUS_UNPAID : Invoice::STATUS_PAID;
+
+        $invoice = Invoice::query()->create([
+            'invoice_code' => $this->makeTransferInvoiceCode($periodStart),
+            'contract_id' => $contract->id,
+            'room_id' => $contract->room_id,
+            'billing_month' => $periodStart->month,
+            'billing_year' => $periodStart->year,
+            'period_start' => $periodStart->toDateString(),
+            'period_end' => $periodEnd->toDateString(),
+            'previous_debt_amount' => '0.00',
+            'total_amount' => $roomAmount,
+            'paid_amount' => '0.00',
+            'remaining_amount' => $roomAmount,
+            'due_date' => now()->addDays(7)->toDateString(),
+            'status' => $status,
+            'issued_at' => now(),
+            'created_by' => $admin->id,
+        ]);
+
+        $invoice->items()->create([
+            'service_id' => null,
+            'meter_reading_id' => null,
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'description' => 'Tiền phòng mới sau chuyển phòng từ '.$periodStart->format('d/m/Y').' đến '.$periodEnd->format('d/m/Y'),
+            'quantity' => (string) $actualDays,
+            'unit_price' => DecimalMoney::normalize($contract->room_price),
+            'amount' => $roomAmount,
+        ]);
+
+        $notification = $this->createTransferInvoiceNotification($invoice, $admin, $tenant);
+
+        DB::afterCommit(function () use ($invoice, $tenant, $notification): void {
+            event(new InvoiceIssued($invoice->fresh(['room.building', 'contract.contractTenants.tenant']), [$tenant->id]));
+            event(new NotificationSent($notification));
+        });
+
+        return $invoice->fresh(['room.building', 'contract.contractTenants.tenant']);
+    }
+
+    private function createTransferInvoiceNotification(Invoice $invoice, Admin $admin, Tenant $tenant): Notification
+    {
+        $invoice->loadMissing('room.building');
+
+        return Notification::query()->create([
+            'title' => 'Hóa đơn phòng mới đã được phát hành',
+            'content' => 'Hóa đơn phòng mới sau khi ký hợp đồng chuyển phòng đã được phát hành. Vui lòng mở mục Hóa đơn để xem chi tiết và chuyển khoản.',
+            'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
+            'building_id' => $invoice->room?->building_id,
+            'room_id' => $invoice->room_id,
+            'tenant_id' => $tenant->id,
+            'published_at' => now(),
+            'status' => Notification::STATUS_SENT,
+            'created_by' => $admin->id,
+        ]);
+    }
+
+    private function makeTransferInvoiceCode(\Carbon\Carbon $periodStart): string
+    {
+        $prefix = 'TRF-NEW-'.$periodStart->format('Y-m').'-';
+        $next = Invoice::query()
+            ->where('invoice_code', 'like', $prefix.'%')
+            ->lockForUpdate()
+            ->count() + 1;
+
+        do {
+            $code = $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            $next++;
+        } while (Invoice::query()->where('invoice_code', $code)->exists());
+
+        return $code;
     }
 }

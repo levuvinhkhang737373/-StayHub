@@ -12,6 +12,7 @@ use App\Models\ContractDepositTransaction;
 use App\Models\Invoice;
 use App\Models\Notification;
 use App\Models\Payment;
+use App\Models\RoomMovement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -74,6 +75,11 @@ class SePayWebhookController extends Controller
                 if ($invoice) {
                     return $this->processInvoicePayment($invoice, $amount, $transactionReference, $content);
                 }
+            }
+
+            $transferCode = $this->extractTransferCode($content);
+            if ($transferCode) {
+                return $this->processTransferSettlementPayment($transferCode, $amount, $transactionReference, $content);
             }
 
             $contract = null;
@@ -367,10 +373,131 @@ class SePayWebhookController extends Controller
         return null;
     }
 
+    private function extractTransferCode(string $content): ?string
+    {
+        if (preg_match('/(TRF-[A-Za-z0-9_\-\.]+)/i', $content, $matches)) {
+            return strtoupper($matches[1]);
+        }
+
+        $cleanContent = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $content));
+        $pendingTransfers = RoomMovement::query()
+            ->select(['transfer_code'])
+            ->whereNotNull('transfer_code')
+            ->whereIn('settlement_payment_status', [
+                RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+                RoomMovement::SETTLEMENT_PAYMENT_STATUS_PARTIAL,
+            ])
+            ->orderByDesc('id')
+            ->take(300)
+            ->get()
+            ->pluck('transfer_code')
+            ->unique();
+
+        foreach ($pendingTransfers as $transferCode) {
+            $cleanCode = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $transferCode));
+            if ($cleanCode !== '' && str_contains($cleanContent, $cleanCode)) {
+                return (string) $transferCode;
+            }
+        }
+
+        return null;
+    }
+
     private function transactionReferenceExists(string $transactionReference): bool
     {
         return Payment::query()->where('transaction_reference', $transactionReference)->exists()
             || ContractDepositTransaction::query()->where('transaction_reference', $transactionReference)->exists();
+    }
+
+    private function processTransferSettlementPayment(string $transferCode, string $amount, string $transactionReference, string $content): JsonResponse
+    {
+        $lock = Cache::lock('sepay-transfer-payment:' . sha1($transactionReference), 10);
+
+        if (! $lock->get()) {
+            return ApiResponse::responseJson(false, 'Giao dịch đang được xử lý, vui lòng thử lại sau.', 409, null, 409);
+        }
+
+        try {
+            $response = DB::transaction(function () use ($transferCode, $amount, $transactionReference, $content): JsonResponse {
+                $movements = RoomMovement::query()
+                    ->where('transfer_code', $transferCode)
+                    ->where('status', RoomMovement::STATUS_EXECUTED)
+                    ->lockForUpdate()
+                    ->get();
+
+                if ($movements->isEmpty()) {
+                    return ApiResponse::responseJson(false, 'Không tìm thấy lịch chuyển phòng cần thanh toán.', 404, null, 404);
+                }
+
+                $firstMovement = $movements->first();
+                $references = collect($firstMovement->settlement_payment_references ?? []);
+                if ($references->contains(fn (array $reference): bool => ($reference['reference'] ?? null) === $transactionReference)) {
+                    return ApiResponse::responseJson(true, 'Giao dịch chuyển phòng đã được xử lý.', 0, ['status' => 'ignored'], 200);
+                }
+
+                $remainingAmount = DecimalMoney::maxZero(DecimalMoney::subtract($firstMovement->settlement_due_amount, $firstMovement->settlement_paid_amount));
+                if (! DecimalMoney::isPositive($remainingAmount)) {
+                    return ApiResponse::responseJson(true, 'Khoản chuyển phòng đã được thanh toán đủ.', 0, ['status' => 'ignored'], 200);
+                }
+
+                $appliedAmount = DecimalMoney::min($amount, $remainingAmount);
+                $destinationContract = $firstMovement->destination_contract_id
+                    ? Contract::query()->lockForUpdate()->find($firstMovement->destination_contract_id)
+                    : null;
+                $depositPaidByTransfer = DecimalMoney::add($references->pluck('deposit_amount')->all());
+                $depositRemainingForTransfer = DecimalMoney::maxZero(DecimalMoney::subtract($firstMovement->deposit_due_amount, $depositPaidByTransfer));
+                $depositAmount = $destinationContract
+                    ? DecimalMoney::min($appliedAmount, $depositRemainingForTransfer)
+                    : '0.00';
+
+                if ($destinationContract && DecimalMoney::isPositive($depositAmount)) {
+                    $destinationContract->depositTransactions()->create([
+                        'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+                        'amount' => $depositAmount,
+                        'transaction_date' => now()->toDateString(),
+                        'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+                        'transaction_reference' => $transactionReference,
+                        'note' => 'Hệ thống tự động ghi nhận cọc chuyển phòng qua SePay. Nội dung gốc: '.$content,
+                        'created_by' => null,
+                    ]);
+                }
+
+                $extraAmount = DecimalMoney::maxZero(DecimalMoney::subtract($appliedAmount, $depositAmount));
+                $paidAmount = DecimalMoney::add([$firstMovement->settlement_paid_amount, $appliedAmount]);
+                $paymentStatus = DecimalMoney::compare($paidAmount, $firstMovement->settlement_due_amount) >= 0
+                    ? RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID
+                    : RoomMovement::SETTLEMENT_PAYMENT_STATUS_PARTIAL;
+
+                $newReference = [
+                    'reference' => $transactionReference,
+                    'amount' => $appliedAmount,
+                    'deposit_amount' => $depositAmount,
+                    'extra_amount' => $extraAmount,
+                    'paid_at' => now()->toDateTimeString(),
+                ];
+
+                $updatedReferences = $references->push($newReference)->values()->all();
+                $movements->each(fn (RoomMovement $movement): bool => $movement->forceFill([
+                    'settlement_paid_amount' => $paidAmount,
+                    'settlement_payment_status' => $paymentStatus,
+                    'settlement_payment_references' => $updatedReferences,
+                ])->save());
+
+                $notifications = $this->createTransferSettlementPaidNotifications($movements->fresh(['tenant', 'toRoom.building']), $appliedAmount, $paymentStatus);
+
+                DB::afterCommit(function () use ($notifications): void {
+                    $this->broadcastNotifications($notifications);
+                });
+
+                Log::info("SePay Webhook: Successfully processed transfer settlement {$transferCode}, amount: {$appliedAmount}");
+
+                return ApiResponse::responseJson(true, 'Xử lý thanh toán chuyển phòng thành công.', 0, null, 200);
+            });
+        } finally {
+            optional($lock)->release();
+        }
+
+        return $response;
     }
 
     private function applyConfirmedPayment(Invoice $invoice, string $amount): void
@@ -417,6 +544,45 @@ class SePayWebhookController extends Controller
             'target_type' => Notification::TARGET_TYPE_ADMIN,
             'building_id' => $invoice->room?->building_id,
             'room_id' => $invoice->room_id,
+            'tenant_id' => null,
+            'published_at' => now(),
+            'status' => Notification::STATUS_SENT,
+            'created_by' => null,
+        ]);
+
+        return $tenantNotifications->push($adminNotification)->values();
+    }
+
+    private function createTransferSettlementPaidNotifications(Collection $movements, string $amount, int $paymentStatus): Collection
+    {
+        $amountText = number_format(DecimalMoney::toIntegerAmount($amount), 0, ',', '.') . ' VND';
+        $statusLabel = RoomMovement::SETTLEMENT_PAYMENT_STATUS_LABELS[$paymentStatus] ?? 'Đã cập nhật';
+        $firstMovement = $movements->first();
+        $room = $firstMovement?->toRoom;
+        $building = $room?->building;
+
+        $tenantNotifications = $movements
+            ->unique('tenant_id')
+            ->map(fn (RoomMovement $movement): Notification => Notification::query()->create([
+                'title' => 'Thanh toán chuyển phòng thành công',
+                'content' => "Hệ thống đã ghi nhận {$amountText} cho mã chuyển phòng {$movement->transfer_code}. Trạng thái: {$statusLabel}.",
+                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                'target_type' => Notification::TARGET_TYPE_TENANT,
+                'building_id' => $movement->toRoom?->building_id,
+                'room_id' => $movement->to_room_id,
+                'tenant_id' => $movement->tenant_id,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => null,
+            ]));
+
+        $adminNotification = Notification::query()->create([
+            'title' => 'Thanh toán chuyển phòng',
+            'content' => 'Mã chuyển phòng '.($firstMovement?->transfer_code ?? 'không rõ').' tại phòng '.($room?->room_number ?? 'chưa rõ').' - tòa nhà '.($building?->name ?? 'chưa rõ')." đã ghi nhận {$amountText}. Trạng thái: {$statusLabel}.",
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_ADMIN,
+            'building_id' => $room?->building_id,
+            'room_id' => $room?->id,
             'tenant_id' => null,
             'published_at' => now(),
             'status' => Notification::STATUS_SENT,

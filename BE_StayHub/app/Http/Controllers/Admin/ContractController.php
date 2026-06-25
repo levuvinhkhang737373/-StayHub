@@ -1626,7 +1626,7 @@ class ContractController extends Controller
 
     private function detailColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url'];
     }
 
     private function listRelations(): array
@@ -1635,6 +1635,7 @@ class ContractController extends Controller
             'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
             'room.building:id,name,slug,manager_admin_id,status,gender_policy',
             'creator:id,username,full_name,email,role,status',
+            'representativeTenant:id,full_name,phone,email',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
             'contractTenants.tenant:id,full_name,phone,email,identity_number',
         ];
@@ -1647,6 +1648,7 @@ class ContractController extends Controller
             'room.building:id,name,slug,manager_admin_id,status,address,gender_policy',
             'room.roomType:id,name,slug,status',
             'creator:id,username,full_name,email,phone,role,status',
+            'representativeTenant:id,full_name,phone,email',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying', 'created_by', 'created_at', 'updated_at'])->orderBy('join_date')->orderBy('id'),
             'contractTenants.tenant:id,full_name,phone,email,identity_number,identity_date,identity_place,permanent_address,status,building_id',
             'contractVehicles' => fn ($query) => $query->select(['id', 'contract_id', 'vehicle_id', 'started_at', 'ended_at', 'billing_start_date', 'billing_end_date', 'monthly_fee', 'charge_policy', 'is_active', 'created_at', 'updated_at'])->orderByDesc('is_active')->orderBy('started_at')->orderBy('id'),
