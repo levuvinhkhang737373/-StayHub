@@ -1,10 +1,5 @@
 import type { AdminInvoiceResource } from '../../invoices/types/invoice-api.model'
 
-export interface MeterReadingInput {
-  meter_device_id: number
-  current_reading: number
-}
-
 export interface TransferDeductionItemInput {
   name: string
   amount: number
@@ -12,23 +7,15 @@ export interface TransferDeductionItemInput {
 }
 
 export interface TransferTenantPayload {
-  tenant_id: number
+  tenant_id?: number
+  tenant_ids?: number[]
   to_room_id: number
   movement_date: string // 'YYYY-MM-DD'
   note?: string
-  meter_readings?: MeterReadingInput[]
-  // key = service_id, value = chỉ số khởi điểm - chỉ cần khi phòng đích chưa có công tơ
-  new_room_opening_readings?: Record<number, number>
-  deposit_settlement_amount?: number
   deposit_deduction_amount?: number
-  deposit_refund_amount?: number
-  refund_payment_method?: number
   new_deposit_amount?: number
-  additional_deposit_amount?: number
-  additional_deposit_payment_method?: number
   deduction_items?: TransferDeductionItemInput[]
   transfer_fee?: number
-  carry_vehicle_ids?: number[]
 }
 
 export interface TransferRoomContractSummary {
@@ -56,29 +43,58 @@ export interface TransferRoomDepositSummary {
   new_required_amount?: string | null
   new_balance?: string | null
   new_due_amount?: string | null
+  manual_refund_amount?: string | null
+  deposit_due_amount?: string | null
+  extra_charge_amount?: string | null
+  settlement_due_amount?: string | null
 }
 
 export interface TransferRoomResultResource {
+  transfer_code?: string | null
   movement: RoomMovementResource
+  movements?: RoomMovementResource[]
   old_invoice?: AdminInvoiceResource | null
   new_contract?: TransferRoomContractSummary | null
   deposit?: TransferRoomDepositSummary | null
+  scheduled_payload?: Record<string, unknown> | null
+  status?: number | null
+  status_label?: string | null
 }
 
 export interface RoomMovementResource {
   id: number
+  transfer_code?: string | null
   tenant_id: number
-  contract_id: number
-  from_room_id: number
-  to_room_id: number
+  contract_id?: number | null
+  source_contract_id?: number | null
+  destination_contract_id?: number | null
+  from_room_id?: number | null
+  to_room_id?: number | null
   movement_type: number
+  movement_type_label?: string | null
+  status?: number | null
+  status_label?: string | null
   movement_date: string
-  final_electric_reading?: number | null
-  final_water_reading?: number | null
-  deposit_transfer_amount?: number | null
-  deduction_amount?: number | null
-  deposit_refund_amount?: number | null
-  transfer_fee?: number | null
+  old_room_final_amount?: string | number | null
+  final_electric_reading?: string | number | null
+  final_water_reading?: string | number | null
+  deposit_transfer_amount?: string | number | null
+  deduction_amount?: string | number | null
+  deposit_refund_amount?: string | number | null
+  transfer_fee?: string | number | null
+  manual_refund_amount?: string | number | null
+  deposit_due_amount?: string | number | null
+  extra_charge_amount?: string | number | null
+  settlement_due_amount?: string | number | null
+  settlement_paid_amount?: string | number | null
+  settlement_remaining_amount?: string | number | null
+  settlement_payment_status?: number | null
+  settlement_payment_status_label?: string | null
+  settlement_payment_references?: unknown[] | Record<string, unknown> | null
+  settlement_qr_url?: string | null
+  scheduled_payload?: Record<string, unknown> | null
+  executed_at?: string | null
+  failure_reason?: string | null
   note?: string | null
   created_at?: string
 }

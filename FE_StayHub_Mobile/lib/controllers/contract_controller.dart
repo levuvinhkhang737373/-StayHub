@@ -402,8 +402,16 @@ class ContractController extends ChangeNotifier {
     return false;
   }
 
-  /// Change room (Chuyển phòng)
-  Future<bool> changeRoom(int id, String newRoomNumber, double newRentalPrice) async {
+  /// Schedule room transfer (only first day of next month, backend validates date)
+  Future<bool> scheduleRoomTransfer({
+    required int contractId,
+    required String newRoomNumber,
+    required String movementDate,
+    double depositDeductionAmount = 0,
+    double transferFee = 0,
+    double? newDepositAmount,
+    String? note,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -414,7 +422,12 @@ class ContractController extends ChangeNotifier {
       // 1. Fetch room list to find the room_id matching newRoomNumber
       final roomResponse = await _apiService.get<List<dynamic>>(
         '/admin/rooms',
-        fromJsonT: (json) => json as List<dynamic>,
+        queryParameters: {'per_page': 1000},
+        fromJsonT: (json) {
+          if (json is List<dynamic>) return json;
+          if (json is Map<String, dynamic> && json['data'] is List<dynamic>) return json['data'] as List<dynamic>;
+          return <dynamic>[];
+        },
       );
 
       int? roomId;
@@ -434,14 +447,56 @@ class ContractController extends ChangeNotifier {
         return false;
       }
 
-      // 2. Put to admin/contracts/{id}
+      final responseDetail = await _apiService.get<Map<String, dynamic>>(
+        '/admin/contracts/$contractId',
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (!responseDetail.status || responseDetail.result == null) {
+        _errorMessage = responseDetail.message.isNotEmpty ? responseDetail.message : 'Không thể tải hợp đồng cũ để lấy danh sách khách thuê.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      final contractData = responseDetail.result!;
+      final tenantsList = contractData['contract_tenants'] as List<dynamic>? ?? [];
+      final tenantIds = <int>{};
+
+      for (final row in tenantsList) {
+        if (row is! Map<String, dynamic>) continue;
+        if (row['is_staying'] == false) continue;
+
+        final tenantId = row['tenant_id'] as int?;
+        if (tenantId != null && tenantId > 0) {
+          tenantIds.add(tenantId);
+        }
+      }
+
+      final representativeTenantId = contractData['representative_tenant_id'] as int? ?? contractData['tenant_id'] as int?;
+      if (tenantIds.isEmpty && representativeTenantId != null && representativeTenantId > 0) {
+        tenantIds.add(representativeTenantId);
+      }
+
+      if (tenantIds.isEmpty) {
+        _errorMessage = 'Không tìm thấy khách thuê đang ở trong hợp đồng cũ để lên lịch chuyển phòng.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
       final payload = {
-        'room_id': roomId,
-        'room_price': newRentalPrice.toStringAsFixed(2),
+        'tenant_ids': tenantIds.toList(),
+        'to_room_id': roomId,
+        'movement_date': movementDate,
+        'deposit_deduction_amount': depositDeductionAmount.toStringAsFixed(2),
+        'transfer_fee': transferFee.toStringAsFixed(2),
+        if (newDepositAmount != null) 'new_deposit_amount': newDepositAmount.toStringAsFixed(2),
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       };
 
-      final response = await _apiService.put<Map<String, dynamic>>(
-        '/admin/contracts/$id',
+      final response = await _apiService.post<Map<String, dynamic>>(
+        '/admin/room-transfers/tenant',
         data: payload,
         fromJsonT: (json) => json as Map<String, dynamic>,
       );

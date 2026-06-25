@@ -1,6 +1,40 @@
 import 'tenant.dart';
 import 'room.dart';
 
+double _toDouble(dynamic value) => double.tryParse(value?.toString() ?? '0') ?? 0.0;
+
+class TransferSettlement {
+  final String transferCode;
+  final double settlementDueAmount;
+  final double settlementPaidAmount;
+  final double settlementRemainingAmount;
+
+  const TransferSettlement({
+    required this.transferCode,
+    required this.settlementDueAmount,
+    required this.settlementPaidAmount,
+    required this.settlementRemainingAmount,
+  });
+
+  factory TransferSettlement.fromJson(Map<String, dynamic> json) {
+    return TransferSettlement(
+      transferCode: json['transfer_code'] as String? ?? '',
+      settlementDueAmount: _toDouble(json['settlement_due_amount']),
+      settlementPaidAmount: _toDouble(json['settlement_paid_amount']),
+      settlementRemainingAmount: _toDouble(json['settlement_remaining_amount']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'transfer_code': transferCode,
+      'settlement_due_amount': settlementDueAmount,
+      'settlement_paid_amount': settlementPaidAmount,
+      'settlement_remaining_amount': settlementRemainingAmount,
+    };
+  }
+}
+
 class Contract {
   // Status constants matching backend:
   static const int STATUS_DRAFT = 0;
@@ -21,6 +55,7 @@ class Contract {
   final int billingCycleDay;
   final double roomPrice;
   final double depositAmount;
+  final double depositDueAmount;
   final int status; // 1: Active, 2: Expired, 3: Liquidated, 4: Cancelled, 0: Draft/Pending
   final List<String>? contractFiles;
   final String? note;
@@ -37,6 +72,7 @@ class Contract {
   final int? paymentStatus;
   final String? paymentStatusLabel;
   final String? depositQrUrl;
+  final TransferSettlement? transferSettlement;
 
   Contract({
     required this.id,
@@ -51,6 +87,7 @@ class Contract {
     required this.billingCycleDay,
     required this.roomPrice,
     required this.depositAmount,
+    this.depositDueAmount = 0.0,
     required this.status,
     this.contractFiles,
     this.note,
@@ -65,11 +102,17 @@ class Contract {
     this.paymentStatus,
     this.paymentStatusLabel,
     this.depositQrUrl,
+    this.transferSettlement,
   });
 
   // Alias fields for backward compatibility
   int get tenantId => representativeTenantId;
   double get rentalPrice => roomPrice;
+  bool get hasTransferSettlementDue => transferSettlement != null && transferSettlement!.settlementRemainingAmount > 0;
+  double get paymentDueAmount => hasTransferSettlementDue ? transferSettlement!.settlementRemainingAmount : depositDueAmount;
+  String get paymentReferenceCode => hasTransferSettlementDue && transferSettlement!.transferCode.isNotEmpty
+      ? transferSettlement!.transferCode
+      : 'COC $contractCode';
 
   factory Contract.fromJson(Map<String, dynamic> json) {
     // Deserialize contract files if present (handling Map list from API)
@@ -86,6 +129,12 @@ class Contract {
           .toList();
     }
 
+    final depositAmountValue = _toDouble(json['deposit_amount']);
+    final isDepositPaidValue = json['is_deposit_paid'] == true || json['is_deposit_paid'] == 1;
+    final transferSettlement = json['transfer_settlement'] is Map<String, dynamic>
+        ? TransferSettlement.fromJson(json['transfer_settlement'] as Map<String, dynamic>)
+        : null;
+
     return Contract(
       id: json['id'] as int,
       contractCode: json['contract_code'] as String? ?? '',
@@ -98,9 +147,12 @@ class Contract {
       actualEndDate: json['actual_end_date'] as String?,
       billingCycleDay: json['billing_cycle_day'] as int? ?? 1,
       roomPrice: json['room_price'] != null
-          ? (double.tryParse(json['room_price'].toString()) ?? 0.0)
-          : (json['rental_price'] != null ? (double.tryParse(json['rental_price'].toString()) ?? 0.0) : 0.0),
-      depositAmount: json['deposit_amount'] != null ? (double.tryParse(json['deposit_amount'].toString()) ?? 0.0) : 0.0,
+          ? _toDouble(json['room_price'])
+          : (json['rental_price'] != null ? _toDouble(json['rental_price']) : 0.0),
+      depositAmount: depositAmountValue,
+      depositDueAmount: json['deposit_due_amount'] != null
+          ? _toDouble(json['deposit_due_amount'])
+          : (isDepositPaidValue ? 0.0 : depositAmountValue),
       status: json['status'] as int? ?? STATUS_DRAFT,
       contractFiles: files,
       note: json['note'] as String?,
@@ -113,10 +165,11 @@ class Contract {
       room: json['room'] != null ? Room.fromJson(json['room'] as Map<String, dynamic>) : null,
       tenantSignedAt: json['tenant_signed_at'] as String?,
       tenantSignatureUrl: json['tenant_signature_url'] as String?,
-      isDepositPaid: json['is_deposit_paid'] == true || json['is_deposit_paid'] == 1,
+      isDepositPaid: isDepositPaidValue,
       paymentStatus: json['payment_status'] as int?,
       paymentStatusLabel: json['payment_status_label'] as String?,
       depositQrUrl: json['deposit_qr_url'] as String?,
+      transferSettlement: transferSettlement,
     );
   }
 
@@ -136,6 +189,7 @@ class Contract {
       'room_price': roomPrice,
       'rental_price': roomPrice,
       'deposit_amount': depositAmount,
+      'deposit_due_amount': depositDueAmount,
       'status': status,
       'contract_files': contractFiles,
       'note': note,
@@ -150,6 +204,7 @@ class Contract {
       'payment_status': paymentStatus,
       'payment_status_label': paymentStatusLabel,
       'deposit_qr_url': depositQrUrl,
+      'transfer_settlement': transferSettlement?.toJson(),
     };
   }
 

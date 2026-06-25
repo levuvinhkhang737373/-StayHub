@@ -1,6 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRightLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, DoorOpen, FileSignature, Loader2, Plus, ReceiptText, Search, Trash2, UserRound, Users, WalletCards } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  CalendarDays,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  FileSignature,
+  Loader2,
+  Plus,
+  ReceiptText,
+  Search,
+  ShieldAlert,
+  UserRound,
+  Users,
+  WalletCards,
+} from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect, type AdminSelectOption } from '../../shared/components/AdminSelect'
@@ -10,86 +28,47 @@ import { transferTenantRoom } from '../services/TranferRoom'
 import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
 import type { AdminPaginationMeta, AdminPaginator, AdminTenantResource } from '../types/tenant-api.model'
 import type { AdminRoomResource, BuildingResource } from '../../rooms/types/rooms.model'
-import type { TransferDeductionItemInput, TransferRoomResultResource, TransferTenantPayload } from '../types/TranferModel'
-import type { AdminMeterDeviceResource } from '../../meters/types/meter-api.model'
-import { fetchAdminMeterDevices } from '../../meters/services/meters.service'
-import type { AdminVehicleOptionResource } from '../../contracts/types/contract-api.model'
-import { fetchAdminContractVehicles } from '../../contracts/services/contracts.service'
+import type { AdminContractResource } from '../../contracts/types/contract-api.model'
+import type { TransferRoomResultResource, TransferTenantPayload } from '../types/TranferModel'
+import { fetchAdminContractDetail } from '../../contracts/services/contracts.service'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 
 const ROOM_STATUS_ACTIVE = 1
 const STATUS_RENTING = 1
 const TENANT_PICKER_PAGE_SIZE = 10
-const PAYMENT_METHOD_CASH = 1
-const PAYMENT_METHOD_BANK_TRANSFER = 2
-
-const tenantPickerPerPageOptions = [
-  { value: 5, label: '5 dòng', tone: 'default' as const },
-  { value: 10, label: '10 dòng', tone: 'default' as const },
-  { value: 20, label: '20 dòng', tone: 'default' as const },
-  { value: 50, label: '50 dòng', tone: 'default' as const },
-]
-
-const paymentMethodOptions = [
-  { value: String(PAYMENT_METHOD_BANK_TRANSFER), label: 'Chuyển khoản', tone: 'success' as const },
-  { value: String(PAYMENT_METHOD_CASH), label: 'Tiền mặt', tone: 'warning' as const },
-]
 
 const inputClass =
-  'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
+  'w-full rounded-2xl border border-[#372515]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#2b1b10] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#d9a441] focus:ring-4 focus:ring-[#d9a441]/18'
 
-interface MeterReadingRow {
-  meterDeviceId: string
-  currentReading: string
+interface TenantCardState {
+  tenantId: number
+  fullName: string
+  phone?: string | null
+  email?: string | null
+  gender?: number | null
+  isStaying?: boolean | null
 }
 
-interface DeductionRow {
-  id: string
-  name: string
-  amount: string
-  note: string
-}
-
-type AdminTenantsResult = AdminPaginator<AdminTenantResource> | AdminTenantResource[]
-type AdminTenantsResponse = Omit<Awaited<ReturnType<typeof fetchAdminTenants>>, 'result'> & {
-  result?: AdminTenantsResult | null
-  data?: AdminTenantsResult | null
-}
-
-function normalizeAdminTenantsResponse(response: Awaited<ReturnType<typeof fetchAdminTenants>>) {
-  const envelope = response as AdminTenantsResponse
-  const result = envelope.result ?? envelope.data
-
-  if (!result) {
-    return { data: [] as AdminTenantResource[], meta: null as AdminPaginationMeta | null }
-  }
-
-  if (Array.isArray(result)) {
-    return { data: result, meta: null }
-  }
-
-  const maybePaginated = result as AdminPaginator<AdminTenantResource> & {
-    pagination?: AdminPaginationMeta | null
-    result?: AdminTenantsResult | null
-  }
-
-  if (Array.isArray(maybePaginated.data)) {
-    return { data: maybePaginated.data, meta: maybePaginated.meta || maybePaginated.pagination || null }
-  }
-
-  const nested = maybePaginated.data as unknown
-  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-    const nestedPaginated = nested as AdminPaginator<AdminTenantResource> & { pagination?: AdminPaginationMeta | null }
-    if (Array.isArray(nestedPaginated.data)) {
-      return { data: nestedPaginated.data, meta: nestedPaginated.meta || nestedPaginated.pagination || null }
-    }
-  }
-
-  if (Array.isArray(maybePaginated.result)) {
-    return { data: maybePaginated.result, meta: null }
-  }
-
-  return { data: [], meta: maybePaginated.meta || maybePaginated.pagination || null }
+interface TenantPickerProps {
+  keyword: string
+  buildingFilter: string
+  buildingOptions: AdminSelectOption[]
+  isBuildingFilterDisabled: boolean
+  tenants: AdminTenantResource[]
+  isLoading: boolean
+  errorMessage: string | null
+  currentPage: number
+  totalPages: number
+  totalTenants: number
+  paginationStart: number
+  paginationEnd: number
+  visiblePages: number[]
+  perPage: number
+  onKeywordChange: (value: string) => void
+  onBuildingChange: (value: string) => void
+  onPageChange: (page: number) => void
+  onPerPageChange: (value: string | number) => void
+  onSelectTenant: (tenant: AdminTenantResource) => void
 }
 
 export function TenantTransferRoomScreen() {
@@ -98,12 +77,13 @@ export function TenantTransferRoomScreen() {
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin.role)
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
+
   const selectedTenantIdParam = searchParams.get('tenantId') || searchParams.get('tenant_id') || ''
   const parsedTenantId = Number(selectedTenantIdParam)
   const hasSelectedTenant = Number.isFinite(parsedTenantId) && parsedTenantId > 0
 
   const [tenantKeyword, setTenantKeyword] = useState('')
-  const [tenantBuildingFilter, setTenantBuildingFilter] = useState<string>('')
+  const [tenantBuildingFilter, setTenantBuildingFilter] = useState('')
   const [tenantOptions, setTenantOptions] = useState<AdminTenantResource[]>([])
   const [tenantOptionsMeta, setTenantOptionsMeta] = useState<AdminPaginationMeta | null>(null)
   const [tenantCurrentPage, setTenantCurrentPage] = useState(1)
@@ -111,42 +91,62 @@ export function TenantTransferRoomScreen() {
   const [isTenantOptionsLoading, setIsTenantOptionsLoading] = useState(false)
   const [tenantOptionsError, setTenantOptionsError] = useState<string | null>(null)
 
-  const [step, setStep] = useState<1 | 2>(1)
-
   const [tenant, setTenant] = useState<AdminTenantResource | null>(null)
+  const [currentContract, setCurrentContract] = useState<AdminContractResource | null>(null)
   const [isTenantLoading, setIsTenantLoading] = useState(false)
+  const [isContractLoading, setIsContractLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const [buildings, setBuildings] = useState<BuildingResource[]>([])
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string>('')
+  const [selectedBuildingId, setSelectedBuildingId] = useState('')
   const [rooms, setRooms] = useState<AdminRoomResource[]>([])
   const [isRoomsLoading, setIsRoomsLoading] = useState(false)
   const [roomKeyword, setRoomKeyword] = useState('')
   const [selectedRoom, setSelectedRoom] = useState<AdminRoomResource | null>(null)
 
-  const [movementDate, setMovementDate] = useState(todayDateString())
-  const [note, setNote] = useState('')
-  const [depositRefundAmount, setDepositRefundAmount] = useState('')
-  const [refundPaymentMethod, setRefundPaymentMethod] = useState(String(PAYMENT_METHOD_BANK_TRANSFER))
+  const [selectedTenantIds, setSelectedTenantIds] = useState<number[]>(hasSelectedTenant ? [parsedTenantId] : [])
+  const [depositDeductionAmount, setDepositDeductionAmount] = useState('0')
+  const [transferFee, setTransferFee] = useState('0')
   const [newDepositAmount, setNewDepositAmount] = useState('')
-  const [additionalDepositAmount, setAdditionalDepositAmount] = useState('')
-  const [additionalDepositPaymentMethod, setAdditionalDepositPaymentMethod] = useState(String(PAYMENT_METHOD_BANK_TRANSFER))
-  const [deductionRows, setDeductionRows] = useState<DeductionRow[]>([])
-  const [transferFee, setTransferFee] = useState('')
-  const [meterReadingRows, setMeterReadingRows] = useState<MeterReadingRow[]>([])
-  const [meterDevices, setMeterDevices] = useState<AdminMeterDeviceResource[]>([])
-  const [carryVehicleIds, setCarryVehicleIds] = useState<number[]>([])
-  const [vehicles, setVehicles] = useState<AdminVehicleOptionResource[]>([])
+  const [note, setNote] = useState('')
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [transferResult, setTransferResult] = useState<TransferRoomResultResource | null>(null)
 
-  const currentRoomId = tenant?.current_room?.room_id ?? tenant?.room_id ?? null
-  const currentBuildingId = tenant?.current_room?.building_id ?? tenant?.building_id ?? null
-  const currentRoomNumber = tenant?.current_room?.room_number ?? tenant?.room_number ?? null
-  const currentBuildingName = tenant?.current_room?.building_name ?? tenant?.building_name ?? null
+  const currentRoomId = tenant?.current_room?.room_id ?? tenant?.room_id ?? currentContract?.room_id ?? null
+  const currentRoomNumber = tenant?.current_room?.room_number ?? tenant?.room_number ?? currentContract?.room_number ?? null
+  const currentBuildingName = tenant?.current_room?.building_name ?? tenant?.building_name ?? currentContract?.building_name ?? null
+  const currentContractCode = currentContract?.contract_code ?? tenant?.current_contract?.contract_code ?? null
+
+  useEffect(() => {
+    if (isSuperAdmin || !managedBuildingId) return
+
+    queueMicrotask(() => {
+      setTenantBuildingFilter((current) => current || String(managedBuildingId))
+      setSelectedBuildingId((current) => current || String(managedBuildingId))
+    })
+  }, [isSuperAdmin, managedBuildingId])
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      if (!hasSelectedTenant) {
+        setTenant(null)
+        setCurrentContract(null)
+        setSelectedRoom(null)
+        setSelectedTenantIds([])
+        setTransferResult(null)
+        setLoadError(null)
+        setSubmitError(null)
+        setFieldErrors({})
+        return
+      }
+
+      setSelectedTenantIds([parsedTenantId])
+      setTransferResult(null)
+    })
+  }, [hasSelectedTenant, parsedTenantId])
 
   useEffect(() => {
     if (hasSelectedTenant) return
@@ -182,10 +182,11 @@ export function TenantTransferRoomScreen() {
           if (!isMounted) return
           setTenantOptions([])
           setTenantOptionsMeta(null)
-          setTenantOptionsError(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê đang ở.'))
+          setTenantOptionsError(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê.'))
         })
         .finally(() => {
-          if (isMounted) setIsTenantOptionsLoading(false)
+          if (!isMounted) return
+          setIsTenantOptionsLoading(false)
         })
     }, 250)
 
@@ -193,30 +194,60 @@ export function TenantTransferRoomScreen() {
       isMounted = false
       window.clearTimeout(timer)
     }
-  }, [hasSelectedTenant, isSuperAdmin, managedBuildingId, tenantBuildingFilter, tenantCurrentPage, tenantKeyword, tenantPerPage])
+  }, [hasSelectedTenant, managedBuildingId, tenantBuildingFilter, tenantKeyword, tenantCurrentPage, tenantPerPage, isSuperAdmin])
 
   useEffect(() => {
     if (!hasSelectedTenant) return
 
     let isMounted = true
+
     queueMicrotask(() => {
       if (!isMounted) return
       setIsTenantLoading(true)
       setLoadError(null)
+      setTenant(null)
+      setCurrentContract(null)
+      setSelectedRoom(null)
+      setSubmitError(null)
+      setFieldErrors({})
     })
 
     fetchAdminTenantDetail(parsedTenantId)
       .then((response) => {
         if (!isMounted) return
-        setTenant(unwrap<AdminTenantResource>(response) ?? null)
+
+        const tenantResult = response.result ?? null
+        setTenant(tenantResult)
+
+        const currentContractId = tenantResult?.current_contract?.id
+        if (!currentContractId) {
+          setLoadError('Khách thuê này chưa có hợp đồng đang hiệu lực để chuyển phòng.')
+          return
+        }
+
+        setIsContractLoading(true)
+        return fetchAdminContractDetail(currentContractId)
+          .then((contractResponse) => {
+            if (!isMounted) return
+            setCurrentContract(contractResponse.result ?? null)
+            setSelectedTenantIds((current) => (current.length > 0 ? current : [parsedTenantId]))
+          })
+          .catch((error) => {
+            if (!isMounted) return
+            setLoadError(getVisibleErrorMessage(error, 'Không thể tải chi tiết hợp đồng hiện tại.'))
+          })
+          .finally(() => {
+            if (!isMounted) return
+            setIsContractLoading(false)
+          })
       })
       .catch((error) => {
         if (!isMounted) return
-        setTenant(null)
         setLoadError(getVisibleErrorMessage(error, 'Không thể tải thông tin khách thuê.'))
       })
       .finally(() => {
-        if (isMounted) setIsTenantLoading(false)
+        if (!isMounted) return
+        setIsTenantLoading(false)
       })
 
     return () => {
@@ -225,36 +256,34 @@ export function TenantTransferRoomScreen() {
   }, [hasSelectedTenant, parsedTenantId])
 
   useEffect(() => {
-    queueMicrotask(() => {
-      setStep(1)
-      setSelectedRoom(null)
-      setRoomKeyword('')
-      setMovementDate(todayDateString())
-      setNote('')
-      setDepositRefundAmount('')
-      setRefundPaymentMethod(String(PAYMENT_METHOD_BANK_TRANSFER))
-      setNewDepositAmount('')
-      setAdditionalDepositAmount('')
-      setAdditionalDepositPaymentMethod(String(PAYMENT_METHOD_BANK_TRANSFER))
-      setDeductionRows([])
-      setTransferFee('')
-      setCarryVehicleIds([])
-      setSubmitError(null)
-      setFieldErrors({})
-      setTransferResult(null)
-    })
-  }, [parsedTenantId])
-
-  useEffect(() => {
     let isMounted = true
 
+    queueMicrotask(() => {
+      if (!isMounted) return
+      setIsRoomsLoading(true)
+    })
     fetchBuilding()
       .then((response) => {
         if (!isMounted) return
         setBuildings(normalizeBuildingResponse(response))
       })
       .catch(() => {
-        if (isMounted) setBuildings([])
+        if (!isMounted) return
+        setBuildings([])
+      })
+
+    fetchAdminRooms({ status: ROOM_STATUS_ACTIVE, per_page: 1000 })
+      .then((response) => {
+        if (!isMounted) return
+        setRooms(response.result || [])
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setRooms([])
+      })
+      .finally(() => {
+        if (!isMounted) return
+        setIsRoomsLoading(false)
       })
 
     return () => {
@@ -262,296 +291,206 @@ export function TenantTransferRoomScreen() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!hasSelectedTenant) {
-      return
+  const contractTenants = useMemo(() => {
+    const rows = currentContract?.contract_tenants ?? []
+
+    return rows
+      .filter((row) => row.is_staying !== false)
+      .map((row): TenantCardState => ({
+        tenantId: row.tenant_id,
+        fullName: row.tenant?.full_name?.trim() || `Khách thuê #${row.tenant_id}`,
+        phone: row.tenant?.phone ?? null,
+        email: row.tenant?.email ?? null,
+        gender: row.tenant?.gender ?? null,
+        isStaying: row.is_staying,
+      }))
+  }, [currentContract])
+
+  const selectedTenantCards = useMemo(() => {
+    if (contractTenants.length > 0) {
+      return contractTenants.filter((tenantCard) => selectedTenantIds.includes(tenantCard.tenantId))
     }
 
-    queueMicrotask(() => {
-      setSelectedBuildingId(currentBuildingId ? String(currentBuildingId) : '')
-    })
-  }, [currentBuildingId, hasSelectedTenant])
+    if (!tenant) return []
+
+    return [
+      {
+        tenantId: tenant.id,
+        fullName: tenant.full_name || tenant.username || `Khách thuê #${tenant.id}`,
+        phone: tenant.phone,
+        email: tenant.email,
+        gender: tenant.gender,
+        isStaying: true,
+      },
+    ]
+  }, [contractTenants, selectedTenantIds, tenant])
+
+  const selectedTenantsInfo = useMemo(() => {
+    if (selectedTenantCards.length > 0) return selectedTenantCards
+
+    return selectedTenantIds.length > 0
+      ? selectedTenantIds.map((tenantId) => ({
+          tenantId,
+          fullName: `Khách thuê #${tenantId}`,
+          gender: tenant?.gender ?? null,
+          isStaying: true,
+        }))
+      : []
+  }, [selectedTenantCards, selectedTenantIds, tenant?.gender])
+
+  const oldDepositBalance = moneyNumber(currentContract?.deposit_balance ?? tenant?.current_contract?.deposit_balance)
+  const damageAmount = moneyNumber(depositDeductionAmount)
+  const transferFeeAmount = moneyNumber(transferFee)
+  const availableAfterCosts = Math.max(0, oldDepositBalance - damageAmount - transferFeeAmount)
+  const extraChargeAmount = Math.max(0, damageAmount + transferFeeAmount - oldDepositBalance)
+  const destinationRoomHasContract = Boolean(selectedRoom && selectedRoom.current_occupants > 0)
+  const requiredNewDeposit = !selectedRoom || destinationRoomHasContract ? 0 : moneyNumber(newDepositAmount || selectedRoom.base_price)
+  const depositAppliedToNewRoom = !selectedRoom || destinationRoomHasContract ? 0 : Math.min(availableAfterCosts, requiredNewDeposit)
+  const manualRefundAmount = !selectedRoom
+    ? 0
+    : destinationRoomHasContract
+      ? availableAfterCosts
+      : Math.max(availableAfterCosts - requiredNewDeposit, 0)
+  const depositDueAmount = !selectedRoom || destinationRoomHasContract
+    ? 0
+    : Math.max(requiredNewDeposit - availableAfterCosts, 0)
+  const settlementDueAmount = selectedRoom ? depositDueAmount + extraChargeAmount : 0
+  const effectiveMovementDate = nextMonthStartDateString()
+  const destinationRoomCapacity = selectedRoom ? Math.max(0, (selectedRoom.max_occupants || 0) - (selectedRoom.current_occupants || 0)) : 0
+
+  const tenantBuildingOptions = useMemo(
+    () => buildBuildingOptions(mergeBuildingResources(buildings, tenantsToBuildingResources(tenantOptions), roomsToBuildingResources(rooms)), 'Tất cả tòa nhà'),
+    [buildings, rooms, tenantOptions],
+  )
+
+  const destinationBuildingOptions = useMemo(
+    () => buildBuildingOptions(mergeBuildingResources(buildings, roomsToBuildingResources(rooms)), 'Tất cả tòa nhà'),
+    [buildings, rooms],
+  )
+
+  const roomCandidates = useMemo(() => {
+    const keyword = roomKeyword.trim().toLowerCase()
+
+    return rooms
+      .filter((room) => room.status === ROOM_STATUS_ACTIVE)
+      .filter((room) => !currentRoomId || room.id !== currentRoomId)
+      .filter((room) => !selectedBuildingId || Number(room.building_id) === Number(selectedBuildingId))
+      .filter((room) => !keyword || [room.room_number, room.slug, room.building_name, room.building?.name, room.floor?.toString()].some((value) => String(value ?? '').toLowerCase().includes(keyword)))
+      .filter((room) => {
+        if (selectedTenantIds.length === 0) return true
+        if ((room.max_occupants || 0) > 0 && room.current_occupants + selectedTenantIds.length > room.max_occupants) return false
+
+        return selectedTenantsInfo.every((tenantInfo) => tenantInfo.gender == null || buildingAllowsTenantGender(room.building?.gender_policy ?? null, tenantInfo.gender))
+      })
+      .sort((left, right) => {
+        const leftGap = Math.max(0, (left.max_occupants || 0) - (left.current_occupants || 0))
+        const rightGap = Math.max(0, (right.max_occupants || 0) - (right.current_occupants || 0))
+        if (leftGap !== rightGap) return rightGap - leftGap
+        return String(left.room_number || '').localeCompare(String(right.room_number || ''), 'vi')
+      })
+  }, [currentRoomId, roomKeyword, rooms, selectedBuildingId, selectedTenantIds.length, selectedTenantsInfo])
 
   useEffect(() => {
     if (!selectedRoom) return
 
-    queueMicrotask(() => setNewDepositAmount(String(selectedRoom.base_price ?? '')))
-  }, [selectedRoom])
-
-  useEffect(() => {
-    if (!hasSelectedTenant) return
-
-    let isMounted = true
-    queueMicrotask(() => {
-      if (isMounted) setIsRoomsLoading(true)
-    })
-
-    fetchAdminRooms({
-      building_id: selectedBuildingId ? Number(selectedBuildingId) : undefined,
-      per_page: 100,
-    })
-      .then((response) => {
-        if (!isMounted) return
-        setRooms(unwrap<AdminRoomResource[]>(response) ?? [])
-      })
-      .catch(() => {
-        if (isMounted) setRooms([])
-      })
-      .finally(() => {
-        if (isMounted) setIsRoomsLoading(false)
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [hasSelectedTenant, selectedBuildingId])
-
-  useEffect(() => {
-    if (!currentRoomId) {
+    const stillVisible = roomCandidates.some((room) => room.id === selectedRoom.id)
+    if (!stillVisible) {
       queueMicrotask(() => {
-        setMeterDevices([])
-        setMeterReadingRows([])
+        setSelectedRoom(null)
+        setNewDepositAmount('')
       })
-      return
     }
-
-    let isMounted = true
-
-    fetchAdminMeterDevices({
-      room_id: currentRoomId,
-      status: 1,
-      per_page: 100,
-    })
-      .then((response) => {
-        if (!isMounted) return
-        const devices = unwrap(response).data ?? []
-        setMeterDevices(devices)
-        setMeterReadingRows(
-          devices.map((meter) => ({
-            meterDeviceId: String(meter.id),
-            currentReading: '',
-          })),
-        )
-      })
-      .catch(() => {
-        if (!isMounted) return
-        setMeterDevices([])
-        setMeterReadingRows([])
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [currentRoomId])
-
-  useEffect(() => {
-    if (!hasSelectedTenant) return
-
-    queueMicrotask(() => {
-      setSelectedRoom(null)
-      setStep(1)
-    })
-  }, [selectedBuildingId, hasSelectedTenant])
-
-  useEffect(() => {
-    if (!hasSelectedTenant) return
-
-    let isMounted = true
-
-    fetchAdminContractVehicles({
-      tenant_id: parsedTenantId,
-      is_active: true,
-      per_page: 100,
-    })
-      .then((response) => {
-        if (!isMounted) return
-        setVehicles(unwrap(response).data ?? [])
-      })
-      .catch(() => {
-        if (isMounted) setVehicles([])
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [hasSelectedTenant, parsedTenantId])
-
-  const sessionManagedBuildings = useMemo(
-    () => (session?.admin.managed_buildings ?? []).map((building) => ({
-      id: Number(building.id),
-      name: building.name,
-      gender_policy: building.gender_policy ?? null,
-    })),
-    [session?.admin.managed_buildings],
-  )
-
-  const tenantOptionBuildings = useMemo(
-    () => tenantsToBuildingResources(tenantOptions),
-    [tenantOptions],
-  )
-
-  const roomOptionBuildings = useMemo(
-    () => roomsToBuildingResources(rooms),
-    [rooms],
-  )
-
-  const buildingSources = useMemo(
-    () => mergeBuildingResources(buildings, sessionManagedBuildings, tenantOptionBuildings, roomOptionBuildings),
-    [buildings, roomOptionBuildings, sessionManagedBuildings, tenantOptionBuildings],
-  )
-
-  const availableRooms = useMemo(() => {
-    const keyword = roomKeyword.trim().toLowerCase()
-    return rooms.filter((room) => {
-      if (room.id === currentRoomId) return false
-      if (room.status !== ROOM_STATUS_ACTIVE) return false
-      if (room.current_occupants > 0) return false
-      const roomBuildingPolicy = room.building?.gender_policy ?? buildingSources.find((building) => building.id === room.building_id)?.gender_policy
-      if (!buildingAllowsTenantGender(roomBuildingPolicy, tenant?.gender)) return false
-      if (keyword && !(room.room_number ?? '').toLowerCase().includes(keyword)) return false
-      return true
-    })
-  }, [rooms, currentRoomId, roomKeyword, buildingSources, tenant?.gender])
-
-  const scopedBuildings = useMemo(() => {
-    if (isSuperAdmin) return buildingSources
-
-    const managedIds = new Set((session?.admin.managed_buildings ?? []).map((building) => Number(building.id)))
-    return buildingSources.filter((building) => managedIds.size === 0 || managedIds.has(Number(building.id)))
-  }, [buildingSources, isSuperAdmin, session?.admin.managed_buildings])
-
-  const tenantBuildingOptions = useMemo(
-    () => buildBuildingOptions(scopedBuildings, isSuperAdmin ? 'Tất cả tòa nhà' : undefined),
-    [isSuperAdmin, scopedBuildings],
-  )
-
-  const destinationBuildingOptions = useMemo(
-    () => buildBuildingOptions(scopedBuildings, isSuperAdmin ? 'Tất cả tòa nhà' : undefined),
-    [isSuperAdmin, scopedBuildings],
-  )
-
-  const hasTenantNextPageFallback = !tenantOptionsMeta && tenantOptions.length >= tenantPerPage
-  const tenantTotalPages = Math.max(1, tenantOptionsMeta?.last_page ?? (hasTenantNextPageFallback ? tenantCurrentPage + 1 : tenantCurrentPage))
-  const safeTenantCurrentPage = Math.min(tenantCurrentPage, tenantTotalPages)
-  const totalTenantOptions = tenantOptionsMeta?.total ?? (safeTenantCurrentPage - 1) * tenantPerPage + tenantOptions.length
-  const tenantPaginationStart = tenantOptionsMeta?.from ?? (tenantOptions.length === 0 ? 0 : (safeTenantCurrentPage - 1) * tenantPerPage + 1)
-  const tenantPaginationEnd = tenantOptionsMeta?.to ?? (tenantOptions.length === 0 ? 0 : (safeTenantCurrentPage - 1) * tenantPerPage + tenantOptions.length)
-  const visibleTenantPages = useMemo(() => {
-    const pages = new Set<number>([1, tenantTotalPages, safeTenantCurrentPage - 1, safeTenantCurrentPage, safeTenantCurrentPage + 1])
-    return Array.from(pages)
-      .filter((page) => page >= 1 && page <= tenantTotalPages)
-      .sort((a, b) => a - b)
-  }, [safeTenantCurrentPage, tenantTotalPages])
-
-  function changeTenantPickerKeyword(value: string) {
-    setTenantKeyword(value)
-    setTenantCurrentPage(1)
-  }
-
-  function changeTenantPickerBuilding(value: string | number) {
-    setTenantBuildingFilter(String(value))
-    setTenantCurrentPage(1)
-  }
-
-  function changeTenantPickerPage(page: number) {
-    setTenantCurrentPage(Math.min(Math.max(1, page), tenantTotalPages))
-  }
-
-  function changeTenantPickerPerPage(value: string | number) {
-    setTenantPerPage(Number(value))
-    setTenantCurrentPage(1)
-  }
+  }, [roomCandidates, selectedRoom])
 
   function selectTenantForTransfer(nextTenant: AdminTenantResource) {
     navigate(`/admin/transfer-room?tenantId=${nextTenant.id}`)
   }
 
   function changeTenant() {
+    setTransferResult(null)
     navigate('/admin/transfer-room')
+  }
+
+  function toggleTenantSelection(tenantId: number) {
+    setSelectedTenantIds((current) => {
+      if (current.includes(tenantId)) {
+        if (current.length === 1) return current
+        return current.filter((value) => value !== tenantId)
+      }
+
+      return [...current, tenantId]
+    })
+  }
+
+  function selectAllContractTenants() {
+    if (contractTenants.length === 0) return
+    setSelectedTenantIds(contractTenants.map((row) => row.tenantId))
+  }
+
+  function clearOtherContractTenants() {
+    if (!hasSelectedTenant) return
+    setSelectedTenantIds([parsedTenantId])
   }
 
   function pickRoom(room: AdminRoomResource) {
     setSelectedRoom(room)
-    setNewDepositAmount(String(room.base_price ?? ''))
-    setStep(2)
-    setSubmitError(null)
     setFieldErrors({})
-    setTransferResult(null)
+    setSubmitError(null)
+    if (room.current_occupants > 0) {
+      setNewDepositAmount('0')
+    } else {
+      setNewDepositAmount(String(Math.max(0, Number(room.base_price ?? 0))))
+    }
   }
 
-  function backToStep1() {
-    setStep(1)
+  function updateFilter(setter: (value: string) => void, value: string) {
+    setter(value)
+    setTenantCurrentPage(1)
   }
 
-  function updateMeterReadingRow(index: number, key: keyof MeterReadingRow, value: string) {
-    setMeterReadingRows((rows) => rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)))
+  function updateSelectFilter(setter: (value: string) => void, value: string) {
+    setter(value)
+    setTenantCurrentPage(1)
   }
 
-  function toggleVehicle(vehicleId: number, checked: boolean) {
-    setCarryVehicleIds((current) => (checked ? [...current, vehicleId] : current.filter((id) => id !== vehicleId)))
+  function changePage(page: number) {
+    setTenantCurrentPage(page)
   }
 
-  function addDeductionRow() {
-    setDeductionRows((rows) => [...rows, { id: crypto.randomUUID(), name: '', amount: '', note: '' }])
+  function changePerPage(nextValue: string | number) {
+    setTenantPerPage(Number(nextValue))
+    setTenantCurrentPage(1)
   }
 
-  function updateDeductionRow(rowId: string, key: keyof Omit<DeductionRow, 'id'>, value: string) {
-    setDeductionRows((rows) => rows.map((row) => (row.id === rowId ? { ...row, [key]: value } : row)))
-  }
+  const safeTenantCurrentPage = Math.max(1, Math.min(tenantCurrentPage, tenantOptionsMeta?.last_page ?? tenantCurrentPage))
+  const tenantTotalPages = Math.max(1, tenantOptionsMeta?.last_page ?? (tenantOptions.length >= tenantPerPage ? tenantCurrentPage + 1 : tenantCurrentPage))
+  const tenantPaginationStart = tenantOptionsMeta?.from ?? (tenantOptions.length === 0 ? 0 : (safeTenantCurrentPage - 1) * tenantPerPage + 1)
+  const tenantPaginationEnd = tenantOptionsMeta?.to ?? (tenantOptions.length === 0 ? 0 : (safeTenantCurrentPage - 1) * tenantPerPage + tenantOptions.length)
+  const totalTenantOptions = tenantOptionsMeta?.total ?? (safeTenantCurrentPage - 1) * tenantPerPage + tenantOptions.length
+  const visibleTenantPages = useMemo(() => {
+    const pages = new Set<number>([1, tenantTotalPages, safeTenantCurrentPage - 1, safeTenantCurrentPage, safeTenantCurrentPage + 1])
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= tenantTotalPages)
+      .sort((left, right) => left - right)
+  }, [safeTenantCurrentPage, tenantTotalPages])
 
-  function removeDeductionRow(rowId: string) {
-    setDeductionRows((rows) => rows.filter((row) => row.id !== rowId))
-  }
-
-  const oldDepositBalance = moneyNumber(tenant?.current_contract?.deposit_balance)
-  const deductionTotal = deductionRows.reduce((total, row) => total + moneyNumber(row.amount), 0)
-  const requestedRefundAmount = moneyNumber(depositRefundAmount)
-  const cappedDeductionAmount = Math.min(deductionTotal, oldDepositBalance)
-  const remainingAfterDeduction = Math.max(oldDepositBalance - cappedDeductionAmount, 0)
-  const cappedRefundAmount = Math.min(requestedRefundAmount, remainingAfterDeduction)
-  const estimatedTransferAmount = Math.max(remainingAfterDeduction - cappedRefundAmount, 0)
-  const extraChargeAmount = Math.max(deductionTotal - oldDepositBalance, 0)
-  const requiredNewDepositAmount = moneyNumber(newDepositAmount)
-  const collectedAdditionalDeposit = moneyNumber(additionalDepositAmount)
-  const estimatedNewDepositBalance = estimatedTransferAmount + collectedAdditionalDeposit
-  const estimatedNewDepositDue = Math.max(requiredNewDepositAmount - estimatedNewDepositBalance, 0)
-  const isDepositOverLimit = estimatedNewDepositBalance > requiredNewDepositAmount
+  const hasSelectedTenantError = loadError || !tenant
+  const canSubmit = Boolean(selectedRoom && selectedTenantIds.length > 0 && !isSubmitting && !isContractLoading)
 
   async function handleSubmit() {
-    if (!selectedRoom || !hasSelectedTenant) return
+    if (!selectedRoom || selectedTenantIds.length === 0) return
 
     setSubmitError(null)
     setFieldErrors({})
 
-    const deductionItems: TransferDeductionItemInput[] = deductionRows
-      .map((row) => ({
-        name: row.name.trim(),
-        amount: moneyNumber(row.amount),
-        note: row.note.trim() || undefined,
-      }))
-      .filter((item) => item.name !== '' && item.amount > 0)
-
-    const meterReadings = meterReadingRows
-      .filter((row) => row.meterDeviceId && row.currentReading)
-      .map((row) => ({
-        meter_device_id: Number(row.meterDeviceId),
-        current_reading: Number(row.currentReading),
-      }))
-
     const payload: TransferTenantPayload = {
-      tenant_id: parsedTenantId,
+      tenant_ids: selectedTenantIds,
       to_room_id: selectedRoom.id,
-      movement_date: movementDate,
-      note: note || undefined,
-      meter_readings: meterReadings.length ? meterReadings : undefined,
-      deposit_refund_amount: depositRefundAmount ? Number(depositRefundAmount) : undefined,
-      refund_payment_method: Number(refundPaymentMethod),
-      new_deposit_amount: newDepositAmount ? Number(newDepositAmount) : undefined,
-      additional_deposit_amount: additionalDepositAmount ? Number(additionalDepositAmount) : undefined,
-      additional_deposit_payment_method: Number(additionalDepositPaymentMethod),
-      deduction_items: deductionItems.length ? deductionItems : undefined,
-      transfer_fee: transferFee ? Number(transferFee) : undefined,
-      carry_vehicle_ids: carryVehicleIds.length ? carryVehicleIds : undefined,
+      movement_date: effectiveMovementDate,
+      note: note.trim() || undefined,
+      deposit_deduction_amount: damageAmount,
+      transfer_fee: transferFeeAmount,
+      new_deposit_amount: destinationRoomHasContract ? 0 : requiredNewDeposit,
     }
 
     try {
@@ -562,9 +501,9 @@ export function TenantTransferRoomScreen() {
       if (error instanceof ApiError) {
         const errors = error.validationErrors
         if (errors) setFieldErrors(errors)
-        setSubmitError(error.message || 'Chuyển phòng thất bại.')
+        setSubmitError(error.message || 'Lên lịch chuyển phòng thất bại.')
       } else {
-        setSubmitError('Chuyển phòng thất bại.')
+        setSubmitError('Lên lịch chuyển phòng thất bại.')
       }
     } finally {
       setIsSubmitting(false)
@@ -588,24 +527,27 @@ export function TenantTransferRoomScreen() {
         paginationEnd={tenantPaginationEnd}
         visiblePages={visibleTenantPages}
         perPage={tenantPerPage}
-        onKeywordChange={changeTenantPickerKeyword}
-        onBuildingChange={changeTenantPickerBuilding}
-        onPageChange={changeTenantPickerPage}
-        onPerPageChange={changeTenantPickerPerPage}
+        onKeywordChange={(value) => updateFilter(setTenantKeyword, value)}
+        onBuildingChange={(value) => updateSelectFilter(setTenantBuildingFilter, value)}
+        onPageChange={changePage}
+        onPerPageChange={changePerPage}
         onSelectTenant={selectTenantForTransfer}
       />
     )
   }
 
-  if (isTenantLoading) {
+  if (isTenantLoading || isContractLoading) {
     return (
-      <div className="flex h-64 items-center justify-center text-[#8b5e34]">
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <div className="flex min-h-[50vh] items-center justify-center rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34] shadow-xl shadow-[#6b3f1d]/10">
+        <div className="flex items-center gap-3 rounded-full border border-[#d9a441]/20 bg-white px-4 py-3 text-sm font-black text-[#2b1b10]">
+          <Loader2 className="h-4 w-4 animate-spin text-[#a65f16]" />
+          <span>Đang tải hồ sơ chuyển phòng...</span>
+        </div>
       </div>
     )
   }
 
-  if (loadError || !tenant) {
+  if (hasSelectedTenantError) {
     return (
       <section className="space-y-4 text-[#24170d]">
         <div className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700">
@@ -622,384 +564,503 @@ export function TenantTransferRoomScreen() {
     return (
       <TransferResultPanel
         tenant={tenant}
+        contract={currentContract}
         result={transferResult}
+        selectedTenantCards={selectedTenantCards}
+        selectedRoom={selectedRoom}
+        manualRefundAmount={manualRefundAmount}
+        settlementDueAmount={settlementDueAmount}
+        extraChargeAmount={extraChargeAmount}
+        depositDueAmount={depositDueAmount}
         onNewTransfer={changeTenant}
-        onViewMovement={() => navigate(`/admin/room-movements?tenant_id=${parsedTenantId}`)}
-        onViewInvoice={(invoiceId) => navigate(`/admin/invoices?id=${invoiceId}`)}
+        onViewMovement={(transferCode) => navigate(`/admin/room-movements?keyword=${encodeURIComponent(transferCode)}`)}
       />
     )
   }
 
   return (
-    <section className="space-y-5 text-[#24170d] sm:space-y-6">
-      <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-        <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
-          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <Link to="/admin/room-movements" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                <ArrowLeft className="h-3.5 w-3.5" /> Về lịch sử phòng & cọc
+    <section className="space-y-6 text-[#24170d] sm:space-y-8">
+      <section className="overflow-hidden rounded-[2.15rem] border border-[#372515]/10 bg-[#1f150f] shadow-2xl shadow-[#6b3f1d]/18">
+        <div className="relative overflow-hidden p-5 text-[#fff4df] sm:p-6 lg:p-7">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(217,164,65,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.28),transparent_34%),linear-gradient(135deg,#1f150f_0%,#3b2918_50%,#0f3f3b_100%)]" />
+          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-[#d9a441]/45 to-transparent" />
+          <div className="relative grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
+            <div className="space-y-4">
+              <Link to="/admin/room-movements" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#d9a441] transition hover:text-[#f6cd73]">
+                <ArrowLeft className="h-3.5 w-3.5" /> Lịch sử phòng & cọc
               </Link>
-              <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl">Chuyển phòng</h1>
-              <p className="mt-2 text-sm font-bold text-[#f8e8c8]/80">
-                {tenant.full_name || tenant.username} · đang ở {currentRoomNumber ? `phòng ${currentRoomNumber}` : 'chưa rõ phòng'}
-                {currentBuildingName ? ` · ${currentBuildingName}` : ''}
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#d9a441]/35 bg-[#d9a441]/15 text-[#d9a441] shadow-xl shadow-black/15">
+                  <ArrowRightLeft className="h-6 w-6" />
+                </span>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Luồng chuyển phòng đầu tháng</p>
+                  <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Lên lịch chuyển phòng</h1>
+                </div>
+              </div>
+              <p className="max-w-2xl text-sm font-semibold leading-6 text-[#f8e8c8]/78">
+                {tenant?.full_name || tenant?.username || `Khách thuê #${tenant?.id ?? parsedTenantId}`} ·
+                {' '}
+                chuyển từ {currentRoomNumber ? `phòng ${currentRoomNumber}` : 'phòng hiện tại'}
+                {currentBuildingName ? ` · ${currentBuildingName}` : ''}.
+                {' '}
+                Mọi chuyển phòng chỉ được chốt vào ngày 01 của tháng kế tiếp.
               </p>
             </div>
-            <button type="button" onClick={changeTenant} className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#f3c56b]/25 bg-[#fff4df]/10 px-4 text-xs font-black uppercase tracking-[0.16em] text-[#f3c56b] transition hover:bg-[#f3c56b]/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#f3c56b]/20">
-              Đổi khách thuê
-            </button>
+
+            <div className="grid gap-3 sm:grid-cols-3 xl:justify-self-end">
+              <MetricCard label="Khách chuyển" value={selectedTenantIds.length} icon={<Users className="h-4 w-4" />} />
+              <MetricCard label="Cọc còn lại" value={oldDepositBalance} currency icon={<WalletCards className="h-4 w-4" />} />
+              <MetricCard label="Ngày chốt" value={1} suffix="/tháng" icon={<CalendarDays className="h-4 w-4" />} />
+            </div>
           </div>
         </div>
       </section>
 
-      <div className="flex items-center gap-3 text-xs font-black text-[#8b5e34]">
-        <StepBadge index={1} label="Chọn phòng đích" active={step === 1} done={step === 2} />
-        <ChevronRight className="h-4 w-4" />
-        <StepBadge index={2} label="Thông tin chuyển phòng" active={step === 2} done={false} />
-      </div>
-
-      {step === 1 && (
-        <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 sm:p-5">
-          <div className="grid gap-3 sm:grid-cols-[minmax(16rem,1fr)_minmax(10rem,14rem)]">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-              <input
-                type="text"
-                value={roomKeyword}
-                onChange={(event) => setRoomKeyword(event.target.value)}
-                placeholder="Tìm theo số phòng..."
-                className={`${inputClass} pl-11`}
-              />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-6">
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Bước 1</p>
+                <h2 className="mt-1 text-xl font-black tracking-[-0.04em] sm:text-2xl">Chọn khách thuê tham gia chuyển phòng</h2>
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[#6f6254]">
+                  Có thể chuyển một người, người đại diện hoặc toàn bộ khách trong cùng hợp đồng. Chỉ những người đang ở lại hợp đồng cũ mới được chọn.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={selectAllContractTenants} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#372515]/10 bg-white px-4 text-xs font-black uppercase tracking-[0.16em] text-[#2b1b10] transition hover:border-[#0f766e]/20 hover:bg-[#0f766e]/8">
+                  <CheckCircle2 className="h-4 w-4 text-[#0f5f59]" /> Chọn tất cả
+                </button>
+                <button type="button" onClick={clearOtherContractTenants} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#372515]/10 bg-white px-4 text-xs font-black uppercase tracking-[0.16em] text-[#2b1b10] transition hover:border-[#d97706]/20 hover:bg-[#d97706]/8">
+                  <ShieldAlert className="h-4 w-4 text-[#a65f16]" /> Giữ người đang chọn
+                </button>
+              </div>
             </div>
-            <AdminSelect
-              value={selectedBuildingId}
-              options={destinationBuildingOptions}
-              onChange={(value) => setSelectedBuildingId(String(value))}
-              disabled={!isSuperAdmin && destinationBuildingOptions.length <= 1}
-            />
-          </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {isRoomsLoading &&
-              Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-28 animate-pulse rounded-2xl bg-stone-100" />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {contractTenants.length > 0 ? contractTenants.map((contractTenant) => {
+                const checked = selectedTenantIds.includes(contractTenant.tenantId)
+
+                return (
+                  <button
+                    key={contractTenant.tenantId}
+                    type="button"
+                    onClick={() => toggleTenantSelection(contractTenant.tenantId)}
+                    className={cn(
+                      'group rounded-[1.4rem] border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#d9a441]/15',
+                      checked
+                        ? 'border-[#0f766e]/20 bg-[#0f766e]/8 shadow-lg shadow-[#0f766e]/6'
+                        : 'border-[#372515]/10 bg-white/70 hover:border-[#d9a441]/25 hover:bg-white',
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border text-sm font-black', checked ? 'border-[#0f766e]/20 bg-[#0f766e]/12 text-[#0f5f59]' : 'border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34]')}>
+                          <UserRound className="h-4 w-4" />
+                        </span>
+                        <div className="space-y-1">
+                          <p className="text-sm font-black text-[#24170d]">{contractTenant.fullName}</p>
+                          <p className="text-xs font-semibold text-[#6f6254]">{contractTenant.phone || contractTenant.email || `Khách thuê #${contractTenant.tenantId}`}</p>
+                        </div>
+                      </div>
+                      <span className={cn('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]', checked ? 'bg-[#0f766e]/12 text-[#0f5f59]' : 'bg-[#efe2cf]/75 text-[#8b5e34]')}>
+                        {checked ? 'Đã chọn' : 'Chọn'}
+                      </span>
+                    </div>
+                  </button>
+                )
+              }) : (
+                <div className="rounded-[1.4rem] border border-dashed border-[#372515]/12 bg-white/70 px-5 py-6 text-sm font-semibold text-[#6f6254]">
+                  Hợp đồng này chưa có danh sách khách thuê chi tiết. Hệ thống sẽ chuyển theo khách thuê hiện tại.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 rounded-[1.4rem] border border-dashed border-[#372515]/12 bg-white/60 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cách chốt</p>
+                  <p className="mt-1 text-sm font-semibold text-[#6f6254]">
+                    Ngày chuyển sẽ cố định là <span className="font-black text-[#24170d]">{effectiveMovementDate}</span>. Hệ thống chỉ ghi nhận lịch chờ và chạy execute vào ngày 01.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#0f766e]/20 bg-[#0f766e]/8 px-3 py-1.5 text-xs font-black text-[#0f5f59]">
+                  <Clock3 className="h-3.5 w-3.5" /> Chờ ký & chờ thực thi
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Bước 2</p>
+                <h2 className="mt-1 text-xl font-black tracking-[-0.04em] sm:text-2xl">Chọn phòng đích</h2>
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[#6f6254]">
+                  Phòng trống sẽ tạo hợp đồng pending-sign. Phòng đang có người ở sẽ ghép vào hợp đồng active nếu còn sức chứa.
+                </p>
+              </div>
+              <div className="grid w-full gap-3 sm:max-w-xl sm:grid-cols-[minmax(0,1fr)_minmax(12rem,14rem)]">
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
+                  <input
+                    type="text"
+                    value={roomKeyword}
+                    onChange={(event) => setRoomKeyword(event.target.value)}
+                    placeholder="Tìm số phòng, mã phòng..."
+                    className={cn(inputClass, 'pl-11')}
+                  />
+                </label>
+                <AdminSelect
+                  value={selectedBuildingId}
+                  options={destinationBuildingOptions}
+                  onChange={(value) => setSelectedBuildingId(String(value))}
+                  disabled={!isSuperAdmin && destinationBuildingOptions.length <= 1}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+              {isRoomsLoading && Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="h-32 animate-pulse rounded-[1.4rem] bg-stone-100" />
               ))}
 
-            {!isRoomsLoading && availableRooms.length === 0 && (
-              <div className="col-span-full rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-10 text-center text-sm font-bold text-[#6f6254]">
-                Không có phòng trống hoàn toàn phù hợp để tạo hợp đồng mới chờ ký.
-              </div>
-            )}
+              {!isRoomsLoading && roomCandidates.length === 0 && (
+                <div className="col-span-full rounded-[1.4rem] border border-dashed border-[#372515]/12 bg-white/65 px-6 py-10 text-center text-sm font-semibold text-[#6f6254]">
+                  Không có phòng phù hợp với số lượng khách, giới tính hoặc sức chứa hiện tại.
+                </div>
+              )}
 
-            {!isRoomsLoading &&
-              availableRooms.map((room) => {
+              {!isRoomsLoading && roomCandidates.map((room) => {
+                const checked = selectedRoom?.id === room.id
+                const isOccupied = room.current_occupants > 0
+                const remainingCapacity = Math.max(0, (room.max_occupants || 0) - (room.current_occupants || 0))
+
                 return (
                   <button
                     key={room.id}
                     type="button"
                     onClick={() => pickRoom(room)}
-                    className="flex flex-col items-start gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#0f766e]/30 hover:shadow-lg"
+                    className={cn(
+                      'group rounded-[1.5rem] border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#d9a441]/15',
+                      checked
+                        ? 'border-[#0f766e]/25 bg-[#0f766e]/8 shadow-lg shadow-[#0f766e]/8'
+                        : 'border-[#372515]/10 bg-white/75 hover:border-[#d9a441]/25 hover:bg-white',
+                    )}
                   >
-                    <div className="flex w-full items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 text-sm font-black text-[#24170d]">
-                        <DoorOpen className="h-4 w-4 text-[#a65f16]" /> Phòng {room.room_number}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-2.5 py-1 text-[10px] font-black text-[#6f6254]">
-                        <Users className="h-3 w-3" /> {room.current_occupants}/{room.max_occupants}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">
+                          {isOccupied ? 'Ghép vào hợp đồng active' : 'Tạo hợp đồng pending-sign'}
+                        </p>
+                        <h3 className="mt-1 text-lg font-black tracking-[-0.03em] text-[#24170d]">Phòng {room.room_number}</h3>
+                        <p className="mt-1 text-sm font-semibold text-[#6f6254]">
+                          {room.building?.name || room.building_name || `Tòa nhà #${room.building_id}`}
+                        </p>
+                      </div>
+                      <span className={cn('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em]', checked ? 'bg-[#0f766e]/12 text-[#0f5f59]' : 'bg-[#efe2cf]/75 text-[#8b5e34]')}>
+                        {checked ? 'Đang chọn' : 'Chọn'}
                       </span>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0f5f59]">
-                      <Building2 className="h-3.5 w-3.5" /> {room.building?.name || room.building_name}
-                    </span>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Sức chứa</p>
+                        <p className="mt-1 text-base font-black text-[#24170d]">{room.current_occupants}/{room.max_occupants || '∞'}</p>
+                      </div>
+                      <div className="rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Còn trống</p>
+                        <p className="mt-1 text-base font-black text-[#24170d]">{remainingCapacity}</p>
+                      </div>
+                      <div className="col-span-2 rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Cọc yêu cầu</p>
+                        <p className="mt-1 text-base font-black tabular-nums text-[#0f5f59]">{formatCurrency(room.base_price)}</p>
+                      </div>
+                    </div>
                   </button>
                 )
               })}
-          </div>
-        </section>
-      )}
-
-      {step === 2 && selectedRoom && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/8 px-4 py-3">
-            <p className="text-sm font-black text-[#0f5f59]">
-              Phòng đích: {selectedRoom.room_number} · {selectedRoom.building?.name || selectedRoom.building_name}
-            </p>
-            <button type="button" onClick={backToStep1} className="text-xs font-black text-[#0f5f59] underline underline-offset-2">
-              Đổi phòng khác
-            </button>
-          </div>
-
-          {submitError && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700">{submitError}</div>
-          )}
-
-          <FormSection title="Thông tin chung">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Ngày chuyển" error={fieldErrors.movement_date}>
-                <input type="date" value={movementDate} onChange={(e) => setMovementDate(e.target.value)} className={inputClass} max={todayDateString()} />
-              </Field>
-              <Field label="Ghi chú" error={fieldErrors.note}>
-                <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Lý do chuyển phòng..." className={inputClass} />
-              </Field>
             </div>
-          </FormSection>
+          </section>
 
-          <FormSection title="Quyết toán cọc" hint="Cọc cũ, khoản khấu trừ, tiền hoàn và cọc chuyển sang hợp đồng mới đều được ghi vào ledger. Hợp đồng mới sẽ ở trạng thái chờ ký.">
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-              <LedgerTile label="Số dư cọc cũ" value={formatCurrency(oldDepositBalance)} tone="neutral" />
-              <LedgerTile label="Khấu trừ vật dụng" value={formatCurrency(cappedDeductionAmount)} tone="danger" />
-              <LedgerTile label="Hoàn cọc" value={formatCurrency(cappedRefundAmount)} tone="neutral" />
-              <LedgerTile label="Chuyển sang hợp đồng mới" value={formatCurrency(estimatedTransferAmount)} tone="success" />
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#372515]/10 bg-white/80 text-[#8b5e34]"><FileSignature className="h-5 w-5" /></span>
+              <div>
+                <h2 className="text-xl font-black tracking-[-0.04em] sm:text-2xl">Điều chỉnh cọc và phí</h2>
+                <p className="mt-1 text-sm font-semibold text-[#6f6254]">Nhập số khấu trừ hư hao, phí chuyển phòng và cọc phòng mới nếu có.</p>
+              </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Tiền cọc yêu cầu phòng mới" error={fieldErrors.new_deposit_amount}>
-                <input type="number" min={0} value={newDepositAmount} onChange={(e) => setNewDepositAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </Field>
-              <Field label="Tiền thu thêm cho cọc mới" error={fieldErrors.additional_deposit_amount}>
-                <input type="number" min={0} value={additionalDepositAmount} onChange={(e) => setAdditionalDepositAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </Field>
-              <Field label="Phương thức thu thêm" error={fieldErrors.additional_deposit_payment_method}>
-                <AdminSelect value={additionalDepositPaymentMethod} options={paymentMethodOptions} onChange={(value) => setAdditionalDepositPaymentMethod(String(value))} />
-              </Field>
-              <Field label="Hoàn cọc" error={fieldErrors.deposit_refund_amount}>
-                <input type="number" min={0} value={depositRefundAmount} onChange={(e) => setDepositRefundAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </Field>
-              <Field label="Phương thức hoàn cọc" error={fieldErrors.refund_payment_method}>
-                <AdminSelect value={refundPaymentMethod} options={paymentMethodOptions} onChange={(value) => setRefundPaymentMethod(String(value))} />
+            <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <Field label="Khấu trừ hư hao / đồ dùng" error={fieldErrors.deposit_deduction_amount}>
+                <input
+                  type="number"
+                  min={0}
+                  value={depositDeductionAmount}
+                  onChange={(event) => setDepositDeductionAmount(event.target.value)}
+                  placeholder="0"
+                  className={inputClass}
+                />
               </Field>
               <Field label="Phí chuyển phòng" error={fieldErrors.transfer_fee}>
-                <input type="number" min={0} value={transferFee} onChange={(e) => setTransferFee(e.target.value)} placeholder="0" className={inputClass} />
+                <input
+                  type="number"
+                  min={0}
+                  value={transferFee}
+                  onChange={(event) => setTransferFee(event.target.value)}
+                  placeholder="0"
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Cọc yêu cầu phòng đích" error={fieldErrors.new_deposit_amount}>
+                <input
+                  type="number"
+                  min={0}
+                  value={newDepositAmount}
+                  onChange={(event) => setNewDepositAmount(event.target.value)}
+                  placeholder="0"
+                  className={inputClass}
+                  disabled={destinationRoomHasContract}
+                />
               </Field>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/55 p-4 lg:grid-cols-3">
-              <LedgerTile label="Cọc yêu cầu" value={formatCurrency(requiredNewDepositAmount)} tone="neutral" compact />
-              <LedgerTile label="Cọc đã chuyển + thu thêm" value={formatCurrency(estimatedNewDepositBalance)} tone="success" compact />
-              <LedgerTile label="Còn thiếu" value={formatCurrency(estimatedNewDepositDue)} tone="warning" compact />
+            <div className="mt-5 rounded-[1.6rem] border border-dashed border-[#372515]/12 bg-white/65 p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <LedgerTile label="Cọc gốc" value={oldDepositBalance} tone="neutral" />
+                <LedgerTile label="Khấu trừ + phí" value={damageAmount + transferFeeAmount} tone="danger" />
+                <LedgerTile label="Khả dụng sau khấu trừ" value={availableAfterCosts} tone="success" />
+                <LedgerTile label="Hoàn tay / cần thu" value={destinationRoomHasContract ? manualRefundAmount : depositDueAmount + extraChargeAmount} tone="warning" />
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <SummaryStat label="Cọc chuyển sang phòng mới" value={depositAppliedToNewRoom} tone="success" />
+                <SummaryStat label="Còn thiếu phải thu QR" value={settlementDueAmount} tone="warning" />
+                <SummaryStat label="Hoàn cọc thủ công" value={manualRefundAmount} tone="neutral" />
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[#0f766e]/15 bg-[#0f766e]/8 px-4 py-3 text-sm font-semibold leading-6 text-[#0f5f59]">
+                Nếu phòng đích đã có người ở, hệ thống không đổi cọc phòng mới. Nếu cọc còn dư sẽ để admin tự tạo phiếu chi; nếu thiếu sẽ sinh QR theo <span className="font-black">transfer_code</span> sau khi execute.
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#372515]/10 bg-white/80 text-[#8b5e34]"><ReceiptText className="h-5 w-5" /></span>
+              <div>
+                <h2 className="text-xl font-black tracking-[-0.04em] sm:text-2xl">Ghi chú & lịch chốt</h2>
+                <p className="mt-1 text-sm font-semibold text-[#6f6254]">Hệ thống chỉ nhận chuyển phòng vào đúng ngày 01 của tháng kế tiếp.</p>
+              </div>
             </div>
 
-            {isDepositOverLimit && (
-              <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700">
-                Cọc chuyển sang và cọc thu thêm đang vượt cọc yêu cầu của phòng mới. Vui lòng giảm cọc thu thêm hoặc hoàn thêm tiền.
+            <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_18rem]">
+              <Field label="Ngày chuyển" error={fieldErrors.movement_date}>
+                <input
+                  type="date"
+                  value={effectiveMovementDate}
+                  readOnly
+                  disabled
+                  className={cn(inputClass, 'cursor-not-allowed bg-[#f4eadc]')}
+                />
+              </Field>
+              <div className="rounded-2xl border border-dashed border-[#372515]/12 bg-white/65 px-4 py-3 text-sm font-semibold leading-6 text-[#6f6254]">
+                <p className="font-black text-[#24170d]">Lịch thực thi</p>
+                <p className="mt-2">Command backend sẽ chạy tự động vào ngày 01 lúc 00:10. Nếu còn hóa đơn nợ cũ, chuyển phòng sẽ bị chặn cho đến khi thanh toán xong.</p>
+              </div>
+            </div>
+
+            <Field label="Ghi chú" error={fieldErrors.note}>
+              <textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Nhập ghi chú vận hành, lý do chuyển hoặc phân bổ nội bộ..."
+                rows={4}
+                className={cn(inputClass, 'resize-none')}
+              />
+            </Field>
+
+            {submitError && (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700">
+                {submitError}
               </div>
             )}
-          </FormSection>
 
-          <FormSection title="Khấu trừ vật dụng / hư hỏng" hint="Mỗi dòng là một khoản khấu trừ riêng để ledger rõ ràng khi thanh lý cọc.">
-            <div className="space-y-3">
-              {deductionRows.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/55 px-4 py-3 text-xs font-bold text-[#6f6254]">
-                  Chưa có khoản khấu trừ nào.
-                </p>
-              ) : (
-                deductionRows.map((row) => (
-                  <div key={row.id} className="grid gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 lg:grid-cols-[1.2fr_0.7fr_1fr_auto]">
-                    <input
-                      type="text"
-                      value={row.name}
-                      onChange={(event) => updateDeductionRow(row.id, 'name', event.target.value)}
-                      placeholder="Tên vật dụng / khoản khấu trừ"
-                      className={inputClass}
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      value={row.amount}
-                      onChange={(event) => updateDeductionRow(row.id, 'amount', event.target.value)}
-                      placeholder="0"
-                      className={inputClass}
-                    />
-                    <input
-                      type="text"
-                      value={row.note}
-                      onChange={(event) => updateDeductionRow(row.id, 'note', event.target.value)}
-                      placeholder="Ghi chú"
-                      className={inputClass}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeDeductionRow(row.id)}
-                      className="inline-flex h-12 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-700 transition hover:bg-rose-100"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" /> Xóa
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <p className="text-xs font-bold text-[#8b5e34]/70">
-                Tổng khấu trừ hiện tại: {formatCurrency(deductionTotal)}
-                {extraChargeAmount > 0 ? ` · Phần vượt cọc cũ: ${formatCurrency(extraChargeAmount)}` : ''}
+            <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <p className="text-xs font-semibold leading-6 text-[#6f6254]">
+                {selectedRoom
+                  ? `${destinationRoomHasContract ? 'Phòng đích đang có hợp đồng active.' : 'Phòng đích trống, sẽ tạo hợp đồng chờ ký.'} ${destinationRoomCapacity > 0 ? `Còn ${destinationRoomCapacity} chỗ trống.` : ''}`
+                  : 'Chọn phòng đích để hệ thống tính lại cọc và settlement.'}
               </p>
               <button
                 type="button"
-                onClick={addDeductionRow}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#3d2a18]/12 bg-[#fffaf1] px-4 text-sm font-black text-[#3d2a18] transition hover:bg-[#f3c56b]/10"
+                onClick={() => void handleSubmit()}
+                disabled={!canSubmit}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#d9a441]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3b2918] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Plus className="h-4 w-4" /> Thêm khoản khấu trừ
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+                {isSubmitting ? 'Đang lên lịch...' : 'Lên lịch chuyển phòng'}
               </button>
             </div>
-          </FormSection>
+          </section>
+        </div>
 
-          <FormSection
-            title="Chỉ số điện/nước chốt sổ phòng cũ"
-            hint="Admin tự đọc chỉ số trên đồng hồ rồi nhập chỉ số tương ứng. Để trống nếu không cần chốt sổ điện/nước cho lần chuyển này."
-          >
-            {meterReadingRows.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/55 px-4 py-3 text-xs font-bold text-[#6f6254]">Phòng hiện tại chưa có đồng hồ đang hoạt động.</p>
-            ) : (
-              meterReadingRows.map((row, index) => {
-                const meter = meterDevices.find((m) => String(m.id) === row.meterDeviceId)
-                const label = meter ? `${meter.service_name} (${meter.meter_code ?? ''})` : ''
-                return (
-                  <div key={row.meterDeviceId} className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr]">
-                    <input className={inputClass} value={label} disabled />
-                    <input type="number" placeholder="Chỉ số hiện tại" value={row.currentReading} onChange={(e) => updateMeterReadingRow(index, 'currentReading', e.target.value)} className={inputClass} />
-                  </div>
-                )
-              })
-            )}
-          </FormSection>
+        <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#1f150f] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/16">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Tóm tắt chuyển phòng</p>
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">{selectedRoom ? `Phòng ${selectedRoom.room_number}` : 'Chưa chọn phòng đích'}</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-[#f8e8c8]/78">
+              {selectedRoom
+                ? `${selectedRoom.building?.name || selectedRoom.building_name || `Tòa nhà #${selectedRoom.building_id}`} · ${selectedRoom.current_occupants > 0 ? 'Ghép vào hợp đồng hiện tại' : 'Tạo hợp đồng mới chờ ký'}`
+                : 'Chọn một phòng trong danh sách để tính settlement chính xác.'}
+            </p>
 
-          <FormSection title="Phương tiện mang theo" hint="Chọn các phương tiện sẽ được chuyển sang phòng mới.">
-            {vehicles.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/55 px-4 py-3 text-xs font-bold text-[#6f6254]">Khách thuê này chưa có phương tiện đang hoạt động.</p>
-            ) : (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {vehicles.map((vehicle) => (
-                  <label key={vehicle.id} className="flex items-center gap-3 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-black text-[#3d2a18]">
-                    <input
-                      type="checkbox"
-                      checked={carryVehicleIds.includes(vehicle.id)}
-                      onChange={(event) => toggleVehicle(vehicle.id, event.target.checked)}
-                      className="h-4 w-4 rounded border-[#8b5e34]/30 text-[#0f5f59] focus:ring-[#0f766e]/20"
-                    />
-                    <span>{vehicle.license_plate} ({vehicle.vehicle_type_label})</span>
-                  </label>
-                ))}
+            <div className="mt-5 grid gap-3">
+              <SummaryLine label="Khách được chuyển" value={`${selectedTenantIds.length} người`} />
+              <SummaryLine label="Ngày thực thi" value={effectiveMovementDate} />
+              <SummaryLine label="Cọc khả dụng" value={formatCurrency(availableAfterCosts)} accent />
+              <SummaryLine label="Cọc cho phòng mới" value={formatCurrency(depositAppliedToNewRoom)} accent />
+              <SummaryLine label="Hoàn cọc thủ công" value={formatCurrency(manualRefundAmount)} />
+              <SummaryLine label="Thu QR còn thiếu" value={formatCurrency(settlementDueAmount)} />
+            </div>
+
+            <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-white/6 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Trạng thái phòng đích</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusPill tone={selectedRoom ? (destinationRoomHasContract ? 'success' : 'warning') : 'neutral'}>
+                  {selectedRoom ? (destinationRoomHasContract ? 'Đã có hợp đồng active' : 'Phòng trống') : 'Chưa chọn phòng'}
+                </StatusPill>
+                {selectedRoom && (
+                  <StatusPill tone="neutral">{selectedRoom.current_occupants}/{selectedRoom.max_occupants || '∞'} chỗ</StatusPill>
+                )}
               </div>
-            )}
-          </FormSection>
+            </div>
 
-          <div className="flex items-center justify-end gap-3 pb-2">
-            <button type="button" onClick={backToStep1} className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#3d2a18]/15 bg-[#fffaf1] px-5 text-sm font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/10">
-              Quay lại
-            </button>
-            <button
-              type="button"
-              disabled={isSubmitting || isDepositOverLimit}
-              onClick={() => void handleSubmit()}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-6 text-sm font-black text-[#fff4df] shadow-lg transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Xác nhận chuyển phòng
-            </button>
-          </div>
-        </section>
-      )}
+            <div className="mt-5 rounded-[1.5rem] border border-[#d9a441]/20 bg-[#d9a441]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
+              Nếu admin muốn hoàn cọc, hãy tạo phiếu chi thủ công sau khi hệ thống trả `manual_refund_amount`. Hệ thống không tự sinh expense hoàn tiền.
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Hợp đồng hiện tại</p>
+            <div className="mt-3 space-y-3">
+              <DetailRow label="Mã hợp đồng" value={currentContractCode || '—'} />
+              <DetailRow label="Phòng hiện tại" value={currentRoomNumber ? `Phòng ${currentRoomNumber}` : '—'} />
+              <DetailRow label="Tòa nhà" value={currentBuildingName || '—'} />
+              <DetailRow label="Đại diện" value={currentContract?.representative_tenant?.full_name || tenant?.full_name || '—'} />
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Khách trong hợp đồng</p>
+            <div className="mt-3 space-y-2">
+              {selectedTenantCards.length > 0 ? selectedTenantCards.map((card) => (
+                <div key={card.tenantId} className="rounded-2xl border border-[#372515]/10 bg-white/75 px-4 py-3">
+                  <p className="text-sm font-black text-[#24170d]">{card.fullName}</p>
+                  <p className="mt-1 text-xs font-semibold text-[#6f6254]">{card.phone || card.email || `Tenant #${card.tenantId}`}</p>
+                </div>
+              )) : (
+                <div className="rounded-2xl border border-dashed border-[#372515]/12 bg-white/75 px-4 py-3 text-sm font-semibold text-[#6f6254]">Chưa có khách nào được chọn.</div>
+              )}
+            </div>
+          </section>
+        </aside>
+      </div>
     </section>
   )
 }
 
-interface TenantPickerProps {
-  keyword: string
-  buildingFilter: string
-  buildingOptions: AdminSelectOption[]
-  isBuildingFilterDisabled: boolean
-  tenants: AdminTenantResource[]
-  isLoading: boolean
-  errorMessage: string | null
-  currentPage: number
-  totalPages: number
-  totalTenants: number
-  paginationStart: number
-  paginationEnd: number
-  visiblePages: number[]
-  perPage: number
-  onKeywordChange: (value: string) => void
-  onBuildingChange: (value: string | number) => void
-  onPageChange: (page: number) => void
-  onPerPageChange: (value: string | number) => void
-  onSelectTenant: (tenant: AdminTenantResource) => void
-}
-
 function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilterDisabled, tenants, isLoading, errorMessage, currentPage, totalPages, totalTenants, paginationStart, paginationEnd, visiblePages, perPage, onKeywordChange, onBuildingChange, onPageChange, onPerPageChange, onSelectTenant }: TenantPickerProps) {
   return (
-    <section className="space-y-5 text-[#24170d] sm:space-y-6">
-      <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-        <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(243,197,107,0.3),transparent_32%),radial-gradient(circle_at_85%_4%,rgba(15,118,110,0.28),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
-          <div className="relative max-w-3xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/25 bg-[#fff4df]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#f3c56b]">
-              <ArrowRightLeft className="h-3.5 w-3.5" /> Chuyển phòng
-            </span>
-            <p className="mt-2 text-sm font-bold leading-6 text-[#f8e8c8]/80">
-              Chọn khách thuê đang ở phòng hiện tại, sau đó chọn phòng đích và chốt thông tin chuyển phòng.
-            </p>
+    <section className="space-y-6 text-[#24170d] sm:space-y-8">
+      <section className="overflow-hidden rounded-[2.15rem] border border-[#372515]/10 bg-[#1f150f] shadow-2xl shadow-[#6b3f1d]/18">
+        <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(217,164,65,0.28),transparent_30%),radial-gradient(circle_at_86%_6%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#1f150f_0%,#3b2918_52%,#0f3f3b_100%)]" />
+          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <Link to="/admin/room-movements" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#d9a441] transition hover:text-[#f6cd73]">
+                <ArrowLeft className="h-3.5 w-3.5" /> Lịch sử phòng & cọc
+              </Link>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#d9a441]/35 bg-[#d9a441]/15 text-[#d9a441] shadow-xl shadow-black/15">
+                  <Users className="h-6 w-6" />
+                </span>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Chọn khách thuê</p>
+                  <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Bắt đầu lịch chuyển phòng</h1>
+                </div>
+              </div>
+              <p className="max-w-2xl text-sm font-semibold leading-6 text-[#f8e8c8]/78">
+                Tìm đúng khách thuê đang ở hợp đồng cần chuyển. Sau khi chọn, hệ thống sẽ mở màn lên lịch với ngày chốt cố định và settlement đầy đủ.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[28rem] xl:grid-cols-2">
+              <MetricCard label="Tổng khách" value={totalTenants} icon={<Users className="h-4 w-4" />} />
+              <MetricCard label="Trang hiện tại" value={currentPage} suffix={`/${totalPages}`} icon={<ReceiptText className="h-4 w-4" />} />
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(12rem,18rem)]">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-            <input
-              type="text"
-              value={keyword}
-              onChange={(event) => onKeywordChange(event.target.value)}
-              placeholder="Tìm khách thuê theo tên, username, SĐT..."
-              className={`${inputClass} pl-11`}
-            />
-          </div>
-          <AdminSelect
-            value={buildingFilter}
-            options={buildingOptions}
-            onChange={onBuildingChange}
-            disabled={isBuildingFilterDisabled}
-            placeholder="Lọc theo tòa nhà"
-          />
+      <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur lg:p-5">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_16rem]">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
+            <input value={keyword} onChange={(event) => onKeywordChange(event.target.value)} placeholder="Tìm theo tên, số điện thoại, email, mã hợp đồng..." className={cn(inputClass, 'pl-11')} />
+          </label>
+          <AdminSelect value={buildingFilter} options={buildingOptions} onChange={(value) => onBuildingChange(String(value))} disabled={isBuildingFilterDisabled} />
         </div>
 
-        {errorMessage && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700">{errorMessage}</div>}
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black text-[#0f5f59]">
+          {keyword && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Từ khóa: {keyword}</span>}
+          {buildingFilter && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Tòa nhà #{buildingFilter}</span>}
+        </div>
+      </section>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {isLoading &&
-            Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-28 animate-pulse rounded-2xl bg-stone-100" />
-            ))}
+      <section className="rounded-[2rem] border border-[#372515]/10 bg-white/82 p-4 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur sm:p-5">
+        {errorMessage && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
-          {!isLoading && tenants.length === 0 && (
-            <div className="col-span-full rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-10 text-center text-sm font-bold text-[#6f6254]">
-              Không tìm thấy khách thuê đang ở phù hợp.
-            </div>
-          )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {isLoading && Array.from({ length: 9 }).map((_, index) => (
+            <div key={index} className="h-28 animate-pulse rounded-[1.4rem] bg-stone-100" />
+          ))}
 
           {!isLoading && tenants.map((tenant) => (
             <button
               key={tenant.id}
               type="button"
               onClick={() => onSelectTenant(tenant)}
-              className="group flex items-start gap-3 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#0f766e]/30 hover:bg-[#fff8eb] hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#0f766e]/12"
+              className="group rounded-[1.4rem] border border-[#372515]/10 bg-[#fffaf1] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#d9a441]/30 hover:bg-white hover:shadow-lg hover:shadow-[#6b3f1d]/8 focus:outline-none focus:ring-4 focus:ring-[#d9a441]/15"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/70 text-[#8b5e34] transition group-hover:text-[#0f5f59]">
-                <UserRound className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-black text-[#24170d]">{tenant.full_name || tenant.username}</span>
-                <span className="mt-1 block truncate text-xs font-bold text-[#8b5e34]/75">{tenant.phone || tenant.email || tenant.username}</span>
-                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#0f766e]/15 bg-[#0f766e]/8 px-3 py-1 text-[11px] font-black text-[#0f5f59]">
-                  <DoorOpen className="h-3.5 w-3.5" /> {getTenantRoomText(tenant)}
-                </span>
-              </span>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#372515]/10 bg-white text-[#8b5e34]"><UserRound className="h-5 w-5" /></span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-black text-[#24170d]">{tenant.full_name || tenant.username}</p>
+                    <p className="text-xs font-semibold text-[#6f6254]">{tenant.phone || tenant.email || `Tenant #${tenant.id}`}</p>
+                  </div>
+                </div>
+                <span className="inline-flex rounded-full bg-[#efe2cf]/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#8b5e34]">Chọn</span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <DetailRow label="Phòng hiện tại" value={getTenantRoomText(tenant)} compact />
+                <DetailRow label="Hợp đồng" value={tenant.current_contract?.contract_code || '—'} compact />
+              </div>
             </button>
           ))}
+
+          {!isLoading && tenants.length === 0 && (
+            <div className="col-span-full rounded-[1.4rem] border border-dashed border-[#372515]/12 bg-[#fffaf1]/70 px-6 py-10 text-center text-sm font-semibold text-[#6f6254]">
+              Không tìm thấy khách thuê đang ở phù hợp với bộ lọc.
+            </div>
+          )}
         </div>
 
-        <div className="mt-5 flex flex-col gap-3 border-t border-[#3d2a18]/10 pt-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mt-5 flex flex-col gap-3 border-t border-[#372515]/10 bg-[#fff8eb]/85 px-1 pt-4 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-xs font-black text-[#6f6254]">
             Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalTenants}</span> khách thuê
           </p>
@@ -1008,7 +1069,7 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
               <AdminSelect value={perPage} options={tenantPickerPerPageOptions} onChange={onPerPageChange} menuPlacement="top" />
             </div>
             <div className="flex items-center justify-end gap-1.5">
-              <button type="button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
+              <button type="button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#d9a441]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               {visiblePages.map((page, index) => {
@@ -1018,13 +1079,13 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
                 return (
                   <div key={page} className="flex items-center gap-1.5">
                     {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
-                    <button type="button" onClick={() => onPageChange(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === currentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')} aria-current={page === currentPage ? 'page' : undefined}>
+                    <button type="button" onClick={() => onPageChange(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === currentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#d9a441]/15')} aria-current={page === currentPage ? 'page' : undefined}>
                       {page}
                     </button>
                   </div>
                 )
               })}
-              <button type="button" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
+              <button type="button" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#d9a441]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -1035,152 +1096,224 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
   )
 }
 
-function StepBadge({ index, label, active, done }: { index: number; label: string; active: boolean; done: boolean }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-2 rounded-full border px-3 py-1.5',
-        active && 'border-[#24170d] bg-[#24170d] text-[#fff4df]',
-        done && !active && 'border-[#0f766e]/30 bg-[#0f766e]/10 text-[#0f5f59]',
-        !active && !done && 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34]',
-      )}
-    >
-      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">{index}</span>
-      {label}
-    </span>
-  )
-}
-
-function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">{title}</p>
-      {hint && <p className="mb-3 mt-1 text-xs font-semibold text-[#8b5e34]/70">{hint}</p>}
-      <div className={hint ? '' : 'mt-3'}>{children}</div>
-    </section>
-  )
-}
-
-function Field({ label, error, children }: { label: string; error?: string[]; children: React.ReactNode }) {
-  return (
-    <label className="block text-xs font-black text-[#8b5e34]/70">
-      {label}
-      <div className="mt-1.5">{children}</div>
-      {error?.length ? <p className="mt-1 text-[11px] font-bold text-rose-600">{error[0]}</p> : null}
-    </label>
-  )
-}
-
-function LedgerTile({ label, value, tone = 'neutral', compact = false }: { label: string; value: string; tone?: 'neutral' | 'success' | 'danger' | 'warning'; compact?: boolean }) {
-  const toneClasses = {
-    neutral: 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#24170d]',
-    success: 'border-[#0f766e]/20 bg-[#0f766e]/8 text-[#0f5f59]',
-    danger: 'border-rose-200 bg-rose-50 text-rose-700',
-    warning: 'border-[#f3c56b]/35 bg-[#f3c56b]/12 text-[#8a4f18]',
-  }
+function TransferResultPanel({ tenant, contract, result, selectedTenantCards, selectedRoom, manualRefundAmount, settlementDueAmount, extraChargeAmount, depositDueAmount, onNewTransfer, onViewMovement }: { tenant: AdminTenantResource; contract: AdminContractResource | null; result: TransferRoomResultResource; selectedTenantCards: TenantCardState[]; selectedRoom: AdminRoomResource | null; manualRefundAmount: number; settlementDueAmount: number; extraChargeAmount: number; depositDueAmount: number; onNewTransfer: () => void; onViewMovement: (transferCode: string) => void }) {
+  const transferCode = result.transfer_code || result.movement.transfer_code || result.movements?.[0]?.transfer_code || ''
+  const scheduledDate = result.movement.movement_date || String(result.scheduled_payload?.movement_date ?? '—')
+  const movementStatus = result.status_label || result.movement.status_label || 'Chờ xử lý'
+  const movementCount = result.movements?.length || 1
 
   return (
-    <div className={cn('rounded-2xl border px-4 py-3', toneClasses[tone], compact && 'py-2.5')}>
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{label}</p>
-      <p className={cn('mt-1 font-black tabular-nums', compact ? 'text-base' : 'text-xl')}>{value}</p>
-    </div>
-  )
-}
-
-function TransferResultPanel({ tenant, result, onNewTransfer, onViewMovement, onViewInvoice }: { tenant: AdminTenantResource; result: TransferRoomResultResource; onNewTransfer: () => void; onViewMovement: () => void; onViewInvoice: (invoiceId: number) => void }) {
-  const oldInvoice = result.old_invoice
-  const newContract = result.new_contract
-  const deposit = result.deposit
-
-  return (
-    <section className="space-y-5 text-[#24170d] sm:space-y-6">
-      <section className="overflow-hidden rounded-[2rem] border border-[#0f766e]/20 bg-[#0f3f3b] shadow-2xl shadow-[#0f766e]/18">
-        <div className="relative p-5 text-[#f0fdfa] lg:p-6">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_86%_10%,rgba(45,212,191,0.24),transparent_34%),linear-gradient(135deg,#0f3f3b_0%,#123f35_48%,#24170d_100%)]" />
-          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <section className="space-y-6 text-[#24170d] sm:space-y-8">
+      <section className="overflow-hidden rounded-[2.15rem] border border-[#372515]/10 bg-[#1f150f] shadow-2xl shadow-[#6b3f1d]/18">
+        <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(217,164,65,0.28),transparent_30%),radial-gradient(circle_at_86%_6%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#1f150f_0%,#3b2918_52%,#0f3f3b_100%)]" />
+          <div className="relative grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/25 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Chuyển phòng thành công
-              </span>
-              <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-white sm:text-4xl">Đã tạo hợp đồng mới chờ tenant ký</h1>
-              <p className="mt-2 text-sm font-bold text-emerald-50/82">
-                {tenant.full_name || tenant.username} đã được chuyển sang hợp đồng mới. Hóa đơn chốt phòng cũ đã phát realtime cho tenant nếu có phát sinh.
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Đã lên lịch chuyển phòng</p>
+              <h1 className="mt-2 text-3xl font-black tracking-[-0.055em] sm:text-4xl">{transferCode || 'TRF-...'}</h1>
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#f8e8c8]/78">
+                {tenant.full_name || tenant.username} đã được gắn lịch chuyển phòng. Mã chuyển này sẽ được dùng cho QR settlement và lịch sử room movement.
               </p>
             </div>
-            <button type="button" onClick={onNewTransfer} className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 text-xs font-black uppercase tracking-[0.16em] text-white transition hover:bg-white/15">
-              Chuyển tenant khác
-            </button>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[24rem] xl:grid-cols-2">
+              <MetricCard label="Trạng thái" value={0} textValue={movementStatus} icon={<CheckCircle2 className="h-4 w-4" />} />
+              <MetricCard label="Dòng movement" value={movementCount} icon={<ReceiptText className="h-4 w-4" />} />
+            </div>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <ResultCard icon={<ReceiptText className="h-5 w-5" />} title="Hóa đơn chốt phòng cũ">
-          {oldInvoice ? (
-            <>
-              <p className="text-lg font-black text-[#24170d]">{oldInvoice.invoice_code}</p>
-              <p className="mt-1 text-sm font-bold text-[#8b5e34]">Tổng tiền: {formatCurrency(moneyNumber(oldInvoice.total_amount))}</p>
-              <p className="text-xs font-semibold text-[#8b5e34]/70">Kỳ: {oldInvoice.period_start} → {oldInvoice.period_end}</p>
-              {oldInvoice.id ? (
-                <button type="button" onClick={() => onViewInvoice(Number(oldInvoice.id))} className="mt-4 inline-flex h-10 items-center justify-center rounded-2xl bg-[#24170d] px-4 text-xs font-black text-[#fff4df] transition hover:bg-[#3d2a18]">
-                  Xem hóa đơn
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-6">
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 sm:p-5 lg:p-6">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <ResultCard icon={<ArrowRightLeft className="h-4 w-4" />} title="Luồng chuyển">
+                <div className="space-y-2 text-sm font-semibold leading-6 text-[#6f6254]">
+                  <p>Ngày chuyển: <span className="font-black text-[#24170d]">{scheduledDate}</span></p>
+                  <p>Phòng đích: <span className="font-black text-[#24170d]">{selectedRoom ? `Phòng ${selectedRoom.room_number}` : '—'}</span></p>
+                  <p>Hợp đồng mới: <span className="font-black text-[#24170d]">{selectedRoom?.current_occupants ? 'Ghép active contract' : 'Pending-sign'}</span></p>
+                </div>
+              </ResultCard>
+
+              <ResultCard icon={<WalletCards className="h-4 w-4" />} title="Settlement">
+                <div className="space-y-2 text-sm font-semibold leading-6 text-[#6f6254]">
+                  <p>Hoàn tay: <span className="font-black text-[#24170d]">{formatCurrency(manualRefundAmount)}</span></p>
+                  <p>Còn thiếu QR: <span className="font-black text-[#24170d]">{formatCurrency(settlementDueAmount)}</span></p>
+                  <p>Thiếu do cọc: <span className="font-black text-[#24170d]">{formatCurrency(depositDueAmount)}</span></p>
+                  <p>Thiếu do khấu trừ vượt: <span className="font-black text-[#24170d]">{formatCurrency(extraChargeAmount)}</span></p>
+                </div>
+              </ResultCard>
+
+              <ResultCard icon={<Users className="h-4 w-4" />} title="Khách chuyển">
+                <div className="space-y-2 text-sm font-semibold leading-6 text-[#6f6254]">
+                  {selectedTenantCards.map((card) => (
+                    <p key={card.tenantId} className="truncate font-black text-[#24170d]">{card.fullName}</p>
+                  ))}
+                </div>
+              </ResultCard>
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 sm:p-5 lg:p-6">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#372515]/10 bg-white/80 text-[#8b5e34]"><ReceiptText className="h-5 w-5" /></span>
+              <div>
+                <h2 className="text-xl font-black tracking-[-0.04em] sm:text-2xl">Chi tiết lịch đã tạo</h2>
+                <p className="mt-1 text-sm font-semibold text-[#6f6254]">Mã chuyển phòng được dùng cho lịch sử, QR settlement và broadcast realtime.</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <DetailRow label="Mã chuyển" value={transferCode || '—'} />
+              <DetailRow label="Trạng thái" value={movementStatus} />
+              <DetailRow label="Ngày chuyển" value={scheduledDate} />
+              <DetailRow label="Hợp đồng cũ" value={contract?.contract_code || tenant.current_contract?.contract_code || '—'} />
+              <DetailRow label="Phòng đích" value={selectedRoom ? `Phòng ${selectedRoom.room_number}` : '—'} />
+              <DetailRow label="Số khách" value={`${selectedTenantCards.length} người`} />
+            </div>
+          </section>
+        </div>
+
+        <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#1f150f] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/16">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Thanh toán thủ công</p>
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">Admin tự xử lý phiếu chi</h3>
+            <div className="mt-4 space-y-3">
+              <SummaryLine label="Mã chuyển" value={transferCode || '—'} />
+              <SummaryLine label="Hoàn tay" value={formatCurrency(manualRefundAmount)} accent />
+              <SummaryLine label="Settlement QR" value={formatCurrency(settlementDueAmount)} accent />
+            </div>
+            <div className="mt-5 rounded-[1.5rem] border border-[#d9a441]/20 bg-[#d9a441]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
+              Không có phiếu chi auto. Admin tự tạo phiếu chi cho phần hoàn cọc nếu cần.
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Hành động</p>
+            <div className="mt-4 space-y-3">
+              <button type="button" onClick={onNewTransfer} className="inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#d9a441]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3b2918]">
+                <Plus className="h-4 w-4" /> Lên lịch mới
+              </button>
+              {transferCode && (
+                <button type="button" onClick={() => onViewMovement(transferCode)} className="inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#372515]/10 bg-white px-5 text-sm font-black uppercase tracking-[0.16em] text-[#24170d] transition hover:border-[#0f766e]/20 hover:bg-[#0f766e]/8 hover:text-[#0f5f59]">
+                  <ArrowRightLeft className="h-4 w-4" /> Xem lịch sử
                 </button>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-sm font-bold text-[#8b5e34]">Không phát sinh hóa đơn phòng cũ trong kỳ này.</p>
-          )}
-        </ResultCard>
-
-        <ResultCard icon={<FileSignature className="h-5 w-5" />} title="Hợp đồng phòng mới">
-          <p className="text-lg font-black text-[#24170d]">{newContract?.contract_code || 'Đang cập nhật'}</p>
-          <p className="mt-1 text-sm font-bold text-[#0f5f59]">{newContract?.status_label || 'Chờ ký'}</p>
-          <p className="text-xs font-semibold text-[#8b5e34]/70">Phòng {newContract?.room_number || 'chưa rõ'} · bắt đầu {newContract?.start_date || 'chưa rõ'}</p>
-          <p className="mt-3 text-sm font-bold text-[#8b5e34]">Giá phòng mới: {formatCurrency(moneyNumber(newContract?.room_price))}</p>
-          <p className="mt-2 text-xs font-semibold leading-5 text-[#8b5e34]/70">Sau khi tenant ký, hóa đơn tháng của phòng mới sẽ tính từ ngày bắt đầu đến cuối tháng theo luồng hóa đơn hiện có.</p>
-        </ResultCard>
-
-        <ResultCard icon={<WalletCards className="h-5 w-5" />} title="Cọc hợp đồng mới">
-          <div className="space-y-2">
-            <MiniMoneyRow label="Cọc yêu cầu" value={deposit?.new_required_amount} />
-            <MiniMoneyRow label="Đã chuyển/thu" value={deposit?.new_balance} />
-            <MiniMoneyRow label="Còn thiếu" value={deposit?.new_due_amount} highlight />
-          </div>
-        </ResultCard>
-      </div>
-
-      <div className="flex flex-wrap justify-end gap-3">
-        <button type="button" onClick={onViewMovement} className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#3d2a18]/12 bg-[#fffaf1] px-5 text-sm font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/10">
-          Xem lịch sử phòng & cọc
-        </button>
-        <Link to="/admin/contracts" className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#24170d] px-5 text-sm font-black text-[#fff4df] transition hover:bg-[#3d2a18]">
-          Mở danh sách hợp đồng
-        </Link>
+              )}
+            </div>
+          </section>
+        </aside>
       </div>
     </section>
   )
 }
 
-function ResultCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function MetricCard({ label, value, icon, currency = false, suffix, textValue }: { label: string; value: number; icon: ReactNode; currency?: boolean; suffix?: string; textValue?: string }) {
   return (
-    <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8">
-      <div className="mb-3 flex items-center gap-2 text-[#8b5e34]">
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/70">{icon}</span>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em]">{title}</p>
+    <div className="rounded-3xl border border-[#f8e8c8]/12 bg-[#f8e8c8]/10 px-4 py-3 text-[#fff4df] backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10">
+      <div className="flex items-center justify-between gap-3 text-[#d9a441]">
+        {icon}
+        <span className="text-[10px] font-black uppercase tracking-[0.18em] opacity-75">{label}</span>
       </div>
-      {children}
-    </section>
-  )
-}
-
-function MiniMoneyRow({ label, value, highlight = false }: { label: string; value?: string | number | null; highlight?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-sm">
-      <span className="font-bold text-[#8b5e34]">{label}</span>
-      <span className={cn('font-black tabular-nums text-[#24170d]', highlight && 'text-[#0f5f59]')}>{formatCurrency(moneyNumber(value))}</span>
+      <p className="mt-2 text-3xl font-black tracking-tight tabular-nums">
+        {textValue ?? (currency ? formatCurrency(value) : value)}
+        {suffix ? <span className="ml-2 text-sm font-black uppercase tracking-[0.16em] text-[#f8e8c8]/72">{suffix}</span> : null}
+      </p>
     </div>
   )
 }
+
+function SummaryLine({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/6 px-4 py-3 text-sm">
+      <span className="font-semibold text-[#f8e8c8]/72">{label}</span>
+      <span className={cn('font-black tabular-nums text-right', accent ? 'text-[#d9a441]' : 'text-[#fff4df]')}>{value}</span>
+    </div>
+  )
+}
+
+function ResultCard({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-[1.6rem] border border-[#372515]/10 bg-white/70 p-4 shadow-sm">
+      <div className="flex items-center gap-3 text-[#8b5e34]">
+        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-[#372515]/10 bg-[#fffaf1]">{icon}</span>
+        <p className="text-[10px] font-black uppercase tracking-[0.18em]">{title}</p>
+      </div>
+      <div className="mt-3">{children}</div>
+    </section>
+  )
+}
+
+function StatusPill({ tone, children }: { tone: 'neutral' | 'warning' | 'success'; children: ReactNode }) {
+  const className = {
+    neutral: 'border-[#372515]/10 bg-white/10 text-[#fff4df]',
+    warning: 'border-[#d9a441]/20 bg-[#d9a441]/12 text-[#f6cd73]',
+    success: 'border-[#0f766e]/20 bg-[#0f766e]/12 text-[#9be4db]',
+  }[tone]
+
+  return <span className={cn('inline-flex rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em]', className)}>{children}</span>
+}
+
+function SummaryStat({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'warning' | 'success' }) {
+  const toneClass = {
+    neutral: 'text-[#24170d]',
+    warning: 'text-[#8a4f18]',
+    success: 'text-[#0f5f59]',
+  }[tone]
+
+  return (
+    <div className="rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3 shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
+      <p className={cn('mt-1 text-lg font-black tabular-nums', toneClass)}>{formatCurrency(value)}</p>
+    </div>
+  )
+}
+
+function LedgerTile({ label, value, tone = 'neutral' }: { label: string; value: number; tone?: 'neutral' | 'success' | 'danger' | 'warning' }) {
+  const toneClass = {
+    neutral: 'text-[#24170d]',
+    success: 'text-[#0f5f59]',
+    danger: 'text-rose-700',
+    warning: 'text-[#8a4f18]',
+  }[tone]
+
+  return (
+    <div className="rounded-2xl border border-[#372515]/10 bg-white/80 p-3 shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
+      <p className={cn('mt-1 text-lg font-black tabular-nums', toneClass)}>{formatCurrency(value)}</p>
+    </div>
+  )
+}
+
+function DetailRow({ label, value, compact = false }: { label: string; value?: string | null; compact?: boolean }) {
+  return (
+    <div className={cn('rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3', compact ? 'shadow-none' : 'shadow-sm')}>
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
+      <p className="mt-1 break-words text-sm font-black text-[#24170d]">{value || '—'}</p>
+    </div>
+  )
+}
+
+function Field({ label, error, children }: { label: string; error?: string[]; children: ReactNode }) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-xs font-black uppercase tracking-[0.18em] text-[#8b5e34]/65">{label}</span>
+      {children}
+      {error?.length ? <span className="block text-xs font-semibold text-rose-700">{error[0]}</span> : null}
+    </label>
+  )
+}
+
+function tenantPickerPerPageOptionsFactory(): AdminSelectOption[] {
+  return [
+    { value: 5, label: '5 dòng', tone: 'default' as const },
+    { value: 10, label: '10 dòng', tone: 'default' as const },
+    { value: 20, label: '20 dòng', tone: 'default' as const },
+    { value: 50, label: '50 dòng', tone: 'default' as const },
+  ]
+}
+
+const tenantPickerPerPageOptions = tenantPickerPerPageOptionsFactory()
 
 function mergeBuildingResources(...groups: Array<Array<Partial<BuildingResource> | null | undefined>>): BuildingResource[] {
   const byId = new Map<number, BuildingResource>()
@@ -1246,6 +1379,31 @@ function normalizeBuildingResponse(response: unknown): BuildingResource[] {
   return []
 }
 
+function normalizeAdminTenantsResponse(response: Awaited<ReturnType<typeof fetchAdminTenants>>) {
+  const envelope = response as { result?: unknown; data?: unknown }
+  const result = envelope.result ?? envelope.data
+
+  if (!result) {
+    return { data: [] as AdminTenantResource[], meta: null as AdminPaginationMeta | null }
+  }
+
+  if (Array.isArray(result)) {
+    return { data: result as AdminTenantResource[], meta: null }
+  }
+
+  const maybePaginated = result as AdminPaginator<AdminTenantResource> & { pagination?: AdminPaginationMeta | null; result?: AdminTenantResource[] | null }
+
+  if (Array.isArray(maybePaginated.data)) {
+    return { data: maybePaginated.data, meta: maybePaginated.meta || maybePaginated.pagination || null }
+  }
+
+  if (Array.isArray(maybePaginated.result)) {
+    return { data: maybePaginated.result, meta: null }
+  }
+
+  return { data: [], meta: maybePaginated.meta || maybePaginated.pagination || null }
+}
+
 function moneyNumber(value: string | number | null | undefined): number {
   const amount = Number(value ?? 0)
   return Number.isFinite(amount) ? Math.max(amount, 0) : 0
@@ -1259,30 +1417,20 @@ function formatCurrency(value: number): string {
   }).format(Math.round(value))
 }
 
+function nextMonthStartDateString(reference = new Date()) {
+  const next = new Date(reference.getFullYear(), reference.getMonth() + 1, 1)
+  const year = next.getFullYear()
+  const month = String(next.getMonth() + 1).padStart(2, '0')
+  const day = String(next.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function getTenantRoomText(tenant: AdminTenantResource) {
   const roomNumber = tenant.current_room?.room_number ?? tenant.room_number
   const buildingName = tenant.current_room?.building_name ?? tenant.building_name
 
   if (!roomNumber) return 'Chưa rõ phòng hiện tại'
   return `Phòng ${roomNumber}${buildingName ? ` · ${buildingName}` : ''}`
-}
-
-function todayDateString() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-/**
- * apiRequest() trong api-client.ts đã tự bóc lớp axios (return response.data) trước khi trả
- * ra ngoài, nên response ở đây CHÍNH LÀ ApiEnvelope<T> thật - field chứa dữ liệu là `result`
- * (xác nhận qua getValidationErrors() trong api-client.ts, đọc payload?.result). Field `data`
- * không tồn tại trong envelope thật - đây từng là suy đoán sai của mình, đã bỏ fallback đó.
- */
-function unwrap<T>(response: { result: T }): T {
-  return response.result
 }
 
 function getVisibleErrorMessage(error: unknown, fallback: string) {

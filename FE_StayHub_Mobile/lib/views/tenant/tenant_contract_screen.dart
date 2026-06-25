@@ -565,6 +565,7 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       orElse: () => widget.contract,
     );
     final tenant = widget.tenant;
+    final hasPaymentDue = contract.status == Contract.STATUS_ACTIVE && contract.paymentDueAmount > 0;
 
     final isProfileIncomplete = tenant == null ||
         tenant.identityNumber.isEmpty ||
@@ -739,8 +740,8 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     ),
                     const SizedBox(height: 16),
                   ],
-                  // VietQR Deposit Payment Panel (displayed if not paid and contract is active/signed)
-                  if (!contract.isDepositPaid && contract.status == Contract.STATUS_ACTIVE) ...[
+                  // VietQR Payment Panel: deposit due or room-transfer settlement due.
+                  if (hasPaymentDue) ...[
                     _buildPaymentPanel(contract, contractController),
                     const SizedBox(height: 8),
                   ],
@@ -801,6 +802,14 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
   }
 
   Widget _buildPaymentPanel(Contract contract, ContractController controller) {
+    final isTransferSettlement = contract.hasTransferSettlementDue;
+    final paymentTitle = isTransferSettlement ? 'Thanh toán khoản chuyển phòng (VietQR)' : 'Thanh toán đặt cọc (VietQR)';
+    final paymentDescription = isTransferSettlement
+        ? 'Khoản chuyển phòng còn thiếu sẽ dùng mã chuyển phòng TRF-* làm nội dung. Vui lòng quét mã hoặc chuyển khoản đúng thông tin bên dưới:'
+        : 'Để kích hoạt hợp đồng, vui lòng quét mã VietQR bên dưới hoặc thực hiện chuyển khoản với thông tin:';
+    final paymentAmount = contract.paymentDueAmount;
+    final paymentReference = contract.paymentReferenceCode;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
@@ -820,13 +829,13 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            children: const [
-              Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFD97706), size: 24),
-              SizedBox(width: 10),
+            children: [
+              const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFD97706), size: 24),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Thanh toán đặt cọc (VietQR)',
-                  style: TextStyle(
+                  paymentTitle,
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF92400E),
@@ -836,9 +845,9 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
             ],
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Để kích hoạt hợp đồng, vui lòng quét mã VietQR bên dưới hoặc thực hiện chuyển khoản với thông tin:',
-            style: TextStyle(
+          Text(
+            paymentDescription,
+            style: const TextStyle(
               fontSize: 13,
               color: Color(0xFFB45309),
               height: 1.4,
@@ -857,16 +866,23 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
               children: [
                 _buildPaymentDetailRow(
                   'Số tiền:',
-                  _formatCurrency(contract.depositAmount),
+                  _formatCurrency(paymentAmount),
                   isBold: true,
                   valueColor: const Color(0xFFDC2626),
                 ),
                 const Divider(height: 20, color: Color(0xFFFEF3C7)),
                 _buildPaymentDetailRowWithCopy(
                   'Nội dung chuyển khoản:',
-                  'COC ${contract.contractCode}',
+                  paymentReference,
                   context,
                 ),
+                if (isTransferSettlement) ...[
+                  const Divider(height: 20, color: Color(0xFFFEF3C7)),
+                  _buildPaymentDetailRow(
+                    'Mã hợp đồng:',
+                    contract.contractCode,
+                  ),
+                ],
               ],
             ),
           ),
@@ -1160,6 +1176,8 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
 
   Widget _buildFinancialCard(Contract contract) {
     final depositPaid = contract.isDepositPaid;
+    final hasDepositDue = contract.depositDueAmount > 0;
+    final transferSettlement = contract.transferSettlement;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1197,6 +1215,31 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                 valueColor: const Color(0xFF1C1917),
                 isBold: true,
               ),
+              if (hasDepositDue) ...[
+                const Divider(height: 20, color: Color(0xFFF1F0EA)),
+                _buildInfoRow(
+                  'Cọc còn thiếu:',
+                  _formatCurrency(contract.depositDueAmount),
+                  valueColor: const Color(0xFFDC2626),
+                  isBold: true,
+                ),
+              ],
+              if (transferSettlement != null) ...[
+                const Divider(height: 20, color: Color(0xFFF1F0EA)),
+                _buildInfoRow(
+                  'Mã chuyển phòng:',
+                  transferSettlement.transferCode.isNotEmpty ? transferSettlement.transferCode : '—',
+                  valueColor: const Color(0xFF92400E),
+                  isBold: true,
+                ),
+                const Divider(height: 20, color: Color(0xFFF1F0EA)),
+                _buildInfoRow(
+                  'Còn thiếu chuyển phòng:',
+                  _formatCurrency(transferSettlement.settlementRemainingAmount),
+                  valueColor: transferSettlement.settlementRemainingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                  isBold: true,
+                ),
+              ],
               const Divider(height: 20, color: Color(0xFFF1F0EA)),
               _buildInfoRow(
                 'Trạng thái cọc:',
