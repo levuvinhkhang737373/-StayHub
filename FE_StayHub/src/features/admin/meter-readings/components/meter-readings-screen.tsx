@@ -982,7 +982,7 @@ export function MeterReadingsScreen() {
                   <th className="px-5 py-4">Chỉ số Điện (kWh)</th>
                   <th className="px-5 py-4">Chỉ số Nước (m³)</th>
                   <th className="px-5 py-4"><div className="flex justify-center"><div className="w-[180px] text-center">Tổng thành tiền</div></div></th>
-                  <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[185px] text-center">Thao tác</div></div></th>
+                  <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[210px] text-center">Thao tác</div></div></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -1092,13 +1092,13 @@ export function MeterReadingsScreen() {
                       {/* Actions Column */}
                       <td className="px-5 py-4">
                         <div className="flex justify-end">
-                          <div className="w-[185px] flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                          <div className="w-[210px] flex flex-col sm:flex-row items-center justify-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => openReadingModal(room)}
                               disabled={room.meters.length === 0 || isPastMonth}
                               className={cn(
-                                'inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
+                                'inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black whitespace-nowrap transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed',
                                 (isChotElec && isChotWater)
                                   ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15'
                                   : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] shadow-sm shadow-[#24170d]/10'
@@ -1123,7 +1123,7 @@ export function MeterReadingsScreen() {
                               }}
                               disabled={!room.contract_id || isGeneratingSingle === room.contract_id || (elec && !isChotElec) || (water && !isChotWater)}
                               title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : 'Tạo hóa đơn'}
-                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5 mt-1 sm:mt-0 sm:ml-2"
+                              className="inline-flex h-9 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black whitespace-nowrap transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm shadow-emerald-900/5 mt-1 sm:mt-0 sm:ml-2"
                             >
                               {isGeneratingSingle === room.contract_id && room.contract_id ? (
                                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />

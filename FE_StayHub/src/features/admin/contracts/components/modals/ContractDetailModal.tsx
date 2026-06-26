@@ -85,10 +85,9 @@ export function ContractDetailModal({
   }
 
   const handleExportPDF = () => {
-    const repTenant = contract.contract_tenants?.[0]?.tenant
+    const tenantsList = (contract.contract_tenants || []).filter((ct) => ct.is_staying !== false)
+    const repTenant = tenantsList[0]?.tenant
     const landlord = contract.landlord_info
-    
-    const tenantsList = contract.contract_tenants || []
     let tenantsHtml = ''
     if (tenantsList.length === 0) {
       tenantsHtml = `

@@ -18,6 +18,8 @@ export function validateContractForm(form: ContractFormValues, roomMaxOccupants?
   const contractCode = form.contract_code.trim()
   const roomPrice = form.room_price.trim()
   const depositAmount = form.deposit_amount.trim()
+  const cleanRoomPrice = roomPrice.replace(/\./g, '')
+  const cleanDepositAmount = depositAmount.replace(/\./g, '')
 
   if (contractCode) {
     if (contractCode.length > 100) {
@@ -60,15 +62,15 @@ export function validateContractForm(form: ContractFormValues, roomMaxOccupants?
 
   if (!roomPrice) {
     errors.room_price = 'Vui lòng nhập giá phòng.'
-  } else if (!MONEY_REGEX.test(roomPrice)) {
+  } else if (!MONEY_REGEX.test(cleanRoomPrice)) {
     errors.room_price = 'Giá phòng phải là số tiền không âm và tối đa 2 chữ số thập phân.'
   }
 
   if (!depositAmount) {
     errors.deposit_amount = 'Vui lòng nhập tiền cọc.'
-  } else if (!MONEY_REGEX.test(depositAmount)) {
+  } else if (!MONEY_REGEX.test(cleanDepositAmount)) {
     errors.deposit_amount = 'Tiền cọc phải là số tiền không âm và tối đa 2 chữ số thập phân.'
-  } else if (Number(depositAmount) <= 0) {
+  } else if (Number(cleanDepositAmount) <= 0) {
     errors.deposit_amount = 'Tiền cọc trong hợp đồng phải lớn hơn 0.'
   }
 
@@ -177,7 +179,8 @@ function validateVehicles(form: ContractFormValues, errors: ContractFormErrors) 
       return
     }
 
-    if (Number(vehicle.charge_policy) !== 3 && (!vehicle.monthly_fee.trim() || !MONEY_REGEX.test(vehicle.monthly_fee.trim()))) {
+    const cleanMonthlyFee = vehicle.monthly_fee.trim().replace(/\./g, '')
+    if (Number(vehicle.charge_policy) !== 3 && (!vehicle.monthly_fee.trim() || !MONEY_REGEX.test(cleanMonthlyFee))) {
       errors[`vehicles.${index}`] = 'Phí gửi xe phải là số tiền không âm và tối đa 2 chữ số thập phân.'
       return
     }

@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
-import { formatCurrency, formatDate } from '../../../../shared/lib/utils/format'
+import { formatCurrency, formatDate, parseMoneyInput } from '../../../../shared/lib/utils/format'
 import { canManageContractsRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -110,7 +110,7 @@ export function ContractsScreen() {
   const [isTerminating, setIsTerminating] = useState(false)
   const [terminateForm, setTerminateForm] = useState<TerminateContractForm>({
     actual_end_date: todayStr,
-    deduction_amount: '0.00',
+    deduction_amount: '0',
     payment_method: 2,
     note: '',
   })
@@ -318,7 +318,7 @@ export function ContractsScreen() {
     setTerminatingContract(contract)
     setTerminateForm({
       actual_end_date: contract.actual_end_date || todayStr,
-      deduction_amount: '0.00',
+      deduction_amount: '0',
       payment_method: 2,
       note: '',
     })
@@ -352,7 +352,7 @@ export function ContractsScreen() {
 
       const response = await terminateAdminContract(terminatingContract.id, {
         actual_end_date: terminateForm.actual_end_date,
-        deduction_amount: terminateForm.deduction_amount || '0.00',
+        deduction_amount: parseMoneyInput(terminateForm.deduction_amount) || '0',
         payment_method: Number(terminateForm.payment_method),
         note: terminateForm.note.trim() || undefined,
       })
@@ -517,8 +517,8 @@ export function ContractsScreen() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] text-left">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left">
               <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
                   <th className="px-5 py-4">Hợp đồng</th>

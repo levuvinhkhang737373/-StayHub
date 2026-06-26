@@ -16,6 +16,7 @@ import { InvoicesScreen } from '../features/admin/invoices'
 import { ExpensesScreen } from '../features/admin/expenses'
 import { CreateTenantScreen } from '../features/admin/tenants/components/create-tenant-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
+import { FinancialsScreen } from '../features/admin/financials/components/financials-screen'
 import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
 import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
 import { AdminLayout } from '../layouts/admin/AdminLayout'
@@ -147,7 +148,7 @@ export const adminRoutes: RouteObject[] = [
       },
       {
         path: 'financials',
-        element: <AdminPlaceholderScreen title="Báo cáo Lợi nhuận" description="Tổng hợp doanh thu, chi phí và lợi nhuận theo khu vực hoặc tòa nhà." />,
+        element: <FinancialsScreen />,
       },
       {
         path: 'vehicles',

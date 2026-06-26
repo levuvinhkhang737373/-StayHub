@@ -255,4 +255,78 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
     return false;
   }
+
+  /// Yêu cầu gửi mã OTP quên mật khẩu của Tenant
+  Future<bool> sendForgotPasswordOtp(String email) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.post<dynamic>(
+        '/tenant/forgot-password',
+        data: {'email': email},
+        fromJsonT: (json) => json,
+      );
+
+      if (response.status) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi gửi mã OTP: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Đặt lại mật khẩu mới cho Tenant bằng OTP
+  Future<bool> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.post<dynamic>(
+        '/tenant/reset-password',
+        data: {
+          'email': email,
+          'otp': otp,
+          'password': newPassword,
+          'password_confirmation': confirmPassword,
+        },
+        fromJsonT: (json) => json,
+      );
+
+      if (response.status) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi đặt lại mật khẩu: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
 }

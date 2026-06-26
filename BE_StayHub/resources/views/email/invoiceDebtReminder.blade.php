@@ -48,9 +48,7 @@
                                 </tr>
                             </table>
 
-                            <div style="margin:26px 0;text-align:center;">
-                                <a href="{{ $invoiceUrl }}" style="display:inline-block;background:#f3c56b;color:#24170d;text-decoration:none;font-size:15px;font-weight:900;padding:14px 24px;border-radius:16px;">Xem hóa đơn và thanh toán</a>
-                            </div>
+
 
                             @if ($paymentQrUrl)
                                 <div style="margin:0 0 24px;padding:18px;background:#ffffff;border:1px solid #eadcc8;border-radius:18px;text-align:center;">

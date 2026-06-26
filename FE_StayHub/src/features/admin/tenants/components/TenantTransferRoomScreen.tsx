@@ -1405,8 +1405,16 @@ function normalizeAdminTenantsResponse(response: Awaited<ReturnType<typeof fetch
 }
 
 function moneyNumber(value: string | number | null | undefined): number {
-  const amount = Number(value ?? 0)
-  return Number.isFinite(amount) ? Math.max(amount, 0) : 0
+  if (value === null || value === undefined) return 0
+  if (typeof value === 'number') return value
+
+  const valStr = String(value).trim()
+  if (/^\d+\.\d{1,2}$/.test(valStr)) {
+    return Math.max(Math.round(Number(valStr)), 0)
+  }
+
+  const parsed = Number(valStr.replace(/\./g, '').replace(/,/g, '').trim() || '0')
+  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0
 }
 
 function formatCurrency(value: number): string {

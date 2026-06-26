@@ -323,7 +323,34 @@ class _LoginScreenState extends State<LoginScreen> {
                               validator: (val) =>
                                   val == null || val.isEmpty ? 'Vui lòng nhập mật khẩu' : null,
                             ),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 12),
+
+                            if (!_isLoggingAsAdmin) ...[
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.pushNamed(context, '/forgot-password');
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: const Size(50, 30),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'Quên mật khẩu?',
+                                    style: TextStyle(
+                                      color: Color(0xFF8B5E34),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ] else ...[
+                              const SizedBox(height: 24),
+                            ],
 
                             // Login Button
                             ElevatedButton(

@@ -30,11 +30,11 @@ export function AdminSidebar() {
   }
 
   return (
-    <aside className="sticky top-0 z-40 hidden h-screen w-60 shrink-0 overflow-hidden border-r border-[#3d2a18]/10 bg-[#fffaf1]/90 text-[#24170d] shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur-xl xl:flex xl:flex-col">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-60 shrink-0 overflow-hidden border-r border-[#3d2a18]/10 bg-[#fffaf1]/92 text-[#24170d] shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur-xl xl:flex xl:flex-col">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_8%,rgba(243,197,107,0.38),transparent_28%),radial-gradient(circle_at_110%_18%,rgba(15,118,110,0.14),transparent_30%),linear-gradient(180deg,rgba(255,250,241,0.95),rgba(244,239,230,0.88))]" />
 
 
-      <div className="relative p-4">
+      <div className="relative shrink-0 p-4">
         <div className="flex items-center gap-3 rounded-[1.7rem] border border-[#3d2a18]/10 bg-white/45 p-3 shadow-lg shadow-[#6b3f1d]/8 backdrop-blur-md">
           <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fffaf1] shadow-lg shadow-[#24170d]/25 ring-1 ring-[#3d2a18]/10">
             <img src="/images/stayhub.png" alt="StayHub" className="h-full w-full object-cover" />
@@ -47,7 +47,7 @@ export function AdminSidebar() {
 
       <AdminNavList items={visibleItems} variant="sidebar" />
 
-      <div className="relative mt-auto p-4">
+      <div className="relative mt-auto shrink-0 p-4">
         <button
           type="button"
           onClick={() => setIsAccountModalOpen(true)}

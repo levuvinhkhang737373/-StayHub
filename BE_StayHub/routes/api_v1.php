@@ -22,11 +22,13 @@ use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TenantController;
+use App\Http\Controllers\Admin\FinancialReportController;
 use App\Http\Controllers\Admin\VehicleController;
 use App\Http\Controllers\Tenant\AuthController as TenantAuthController;
 use App\Http\Controllers\Tenant\InvoiceController as TenantInvoiceController;
 use App\Http\Controllers\Tenant\MaintenanceRequestController as TenantMaintenanceController;
 use App\Http\Controllers\Tenant\NotificationController as TenantNotificationController;
+use App\Http\Controllers\Tenant\ForgotPasswordController;
 use App\Http\Controllers\Webhook\SePayWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -136,6 +138,9 @@ Route::prefix('admin')->group(function (): void {
         Route::get('room-movements/{roomMovement}', [RoomMovementController::class, 'show']);
         Route::post('room-transfers/tenant', [RoomController::class, 'transferTenant']);
 
+        // ==========================Financials==============================
+        Route::get('financials/report', [FinancialReportController::class, 'index']);
+
         // ==========================Dashboard===============================
         Route::get('dashboard/overview', [DashboardController::class, 'overview']);
         Route::get('dashboard/utility-price-history', [DashboardController::class, 'utilityPriceHistory']);
@@ -145,6 +150,8 @@ Route::prefix('admin')->group(function (): void {
 // =========================Tenant API Group=========================
 Route::prefix('tenant')->group(function (): void {
     Route::post('/login', [TenantAuthController::class, 'login']);
+    Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetCodeEmail']);
+    Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword']);
 
     Route::middleware(['auth.tenant'])->group(function (): void {
         Route::get('/me', [TenantAuthController::class, 'me']);

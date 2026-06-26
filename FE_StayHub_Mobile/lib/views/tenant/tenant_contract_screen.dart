@@ -65,67 +65,125 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
     final contractController = context.watch<ContractController>();
     final contracts = contractController.contracts;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F6F0),
-      appBar: AppBar(
-        title: const Text('Hợp đồng của tôi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: const Color(0xFF1C1917),
-      ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: GridPainter())),
-          if (contractController.isLoading && contracts.isEmpty)
-            const Center(child: CircularProgressIndicator(color: Color(0xFF1C1917)))
-          else if (contracts.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (contractController.errorMessage != null) ...[
-                      _buildErrorDisplay(contractController),
-                      const SizedBox(height: 24),
-                    ],
-                    const Icon(Icons.description_outlined, color: Colors.grey, size: 64),
-                    const SizedBox(height: 16),
-                    Text(
-                      contractController.errorMessage != null
-                          ? 'Đã xảy ra lỗi khi tải thông tin.'
-                          : 'Không tìm thấy thông tin hợp đồng.',
-                      style: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton.icon(
-                      onPressed: () => contractController.fetchContracts('tenant'),
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Thử lại'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1C1917),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
+    final activeContracts = contracts.where((c) => (c.status == Contract.STATUS_ACTIVE && c.isStaying != false) || c.status == Contract.STATUS_DRAFT).toList();
+    final inactiveContracts = contracts.where((c) => (c.status == Contract.STATUS_ACTIVE && c.isStaying == false) || c.status == Contract.STATUS_EXPIRED || c.status == Contract.STATUS_LIQUIDATED || c.status == Contract.STATUS_CANCELLED).toList();
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F6F0),
+        appBar: AppBar(
+          title: const Text('Hợp đồng của tôi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+          backgroundColor: const Color(0xFF1C1917),
+          elevation: 0,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(60),
+            child: Container(
+              margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TabBar(
+                indicator: BoxDecoration(
+                  color: const Color(0xFFEAB308),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-              ),
-            )
-          else
-            RefreshIndicator(
-              color: const Color(0xFF1C1917),
-              onRefresh: () => contractController.fetchContracts('tenant'),
-              child: ListView.builder(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                itemCount: contracts.length,
-                itemBuilder: (context, index) {
-                  final c = contracts[index];
-                  return _buildContractCard(c, tenant, context);
-                },
+                labelColor: const Color(0xFF1C1917),
+                unselectedLabelColor: Colors.white.withOpacity(0.65),
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(text: 'Còn hiệu lực / Chờ ký'),
+                  Tab(text: 'Hết hạn / Thanh lý'),
+                ],
               ),
             ),
-        ],
+          ),
+        ),
+        body: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: GridPainter())),
+            if (contractController.isLoading && contracts.isEmpty)
+              const Center(child: CircularProgressIndicator(color: Color(0xFF1C1917)))
+            else if (contracts.isEmpty && contractController.errorMessage != null)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildErrorDisplay(contractController),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () => contractController.fetchContracts('tenant'),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Thử lại'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1C1917),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              TabBarView(
+                children: [
+                  _buildContractList(activeContracts, tenant, context, contractController),
+                  _buildContractList(inactiveContracts, tenant, context, contractController),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContractList(List<Contract> filteredContracts, Tenant? tenant, BuildContext context, ContractController contractController) {
+    if (filteredContracts.isEmpty) {
+      return RefreshIndicator(
+        color: const Color(0xFF1C1917),
+        onRefresh: () => contractController.fetchContracts('tenant'),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.6,
+            alignment: Alignment.center,
+            child: const Center(
+              child: Text(
+                'Không tìm thấy thông tin hợp đồng.',
+                style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return RefreshIndicator(
+      color: const Color(0xFF1C1917),
+      onRefresh: () => contractController.fetchContracts('tenant'),
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        itemCount: filteredContracts.length,
+        itemBuilder: (context, index) {
+          final c = filteredContracts[index];
+          return _buildContractCard(c, tenant, context);
+        },
       ),
     );
   }
@@ -564,7 +622,8 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       (c) => c.id == widget.contract.id,
       orElse: () => widget.contract,
     );
-    final tenant = widget.tenant;
+    final authController = context.watch<AuthController>();
+    final tenant = authController.currentTenant ?? widget.tenant;
     final hasPaymentDue = contract.status == Contract.STATUS_ACTIVE && contract.paymentDueAmount > 0;
 
     final isProfileIncomplete = tenant == null ||

@@ -20,6 +20,7 @@ import {
     type BuildingSettingFormRow,
 } from "../validations/building.validation";
 import { ImageViewerModal } from "../../../../shared/components/ImageViewerModal";
+import { formatMoneyInput } from "../../../../shared/lib/utils/format";
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
     if (!result) return [];
@@ -501,7 +502,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                         {form.service_prices.map((item, index) => {
                             const service = services.find((s) => s.id === Number(item.service_id));
                             const isRequired = isRequiredService(service);
-                            return <RowShell key={item.id || `service-${item.service_id}-${index}`} title={service?.name || item.service_name || `Bảng giá ${index + 1}`} disabledRemove={isRequired} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" type="number" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", value)} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div><div><ReadOnlyField label="Hiệu lực từ" value={formatDateForDisplay(item.effective_from || getTodayIsoDate())} /><p className="mt-2 px-1 text-[11px] font-semibold text-gray-400"></p></div></RowShell>;
+                            return <RowShell key={item.id || `service-${item.service_id}-${index}`} title={service?.name || item.service_name || `Bảng giá ${index + 1}`} disabledRemove={isRequired} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", formatMoneyInput(value))} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div><div><ReadOnlyField label="Hiệu lực từ" value={formatDateForDisplay(item.effective_from || getTodayIsoDate())} /><p className="mt-2 px-1 text-[11px] font-semibold text-gray-400"></p></div></RowShell>;
                         })}
                     </ConfigCard>
 
@@ -687,7 +688,7 @@ function mergeOptionsById<T extends { id: number }>(catalog: T[], selectedOption
 function SelectionBlock({ title, emptyText, children }: { title: string; emptyText: string; children: ReactNode }) {
     const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children);
 
-    return <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50/70 p-4"><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">{title}</p><div className="max-h-60 space-y-2 overflow-y-auto pr-1">{hasChildren ? children : <p className="text-xs font-bold text-gray-400">{emptyText}</p>}</div></div>;
+    return <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50/70 p-4"><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">{title}</p><div className="max-h-60 space-y-2 overflow-y-auto py-1 pr-1">{hasChildren ? children : <p className="text-xs font-bold text-gray-400">{emptyText}</p>}</div></div>;
 }
 
 function CheckboxOption({ checked, title, description, disabled, onChange }: { checked: boolean; title: string; description?: string; disabled?: boolean; onChange: () => void }) {

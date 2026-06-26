@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
-import { Building2, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, Search, Trash2, UserRound, X, ArrowLeft } from 'lucide-react'
+import { Building2, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, Search, Trash2, UserRound, X, ArrowLeft, ArrowRightLeft } from 'lucide-react'
 import { formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -155,6 +155,10 @@ export function TenantsScreen() {
   const editTenant = (tenant: AdminTenantResource) => {
     navigate(`/admin/tenants/${tenant.id}/edit`)
   }
+
+  const transferTenantRoom = (tenant: AdminTenantResource) => {
+    navigate(`/admin/transfer-room?tenantId=${tenant.id}`)
+  }
   const viewTenant = async (tenant: AdminTenantResource) => {
     setDetailTenant(tenant)
     setIsDetailOpen(true)
@@ -258,7 +262,7 @@ export function TenantsScreen() {
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
               <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
-              <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div className="relative flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
                   <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                     <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
@@ -266,12 +270,12 @@ export function TenantsScreen() {
 
                   <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý khách thuê</h1>
                 </div>
-                <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
+                <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:mb-1 shrink-0">
                   <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm khách thuê
                 </button>
               </div>
 
-              <div className="relative mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="relative mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <MetricCard label="Tổng khách thuê" value={totalTenants} tone="neutral" />
                 <MetricCard label="Đang thuê/trang" value={rentingTenants} tone="emerald" />
                 <MetricCard label="Ngừng thuê/trang" value={stoppedTenants} tone="amber" />
@@ -289,8 +293,8 @@ export function TenantsScreen() {
           <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
             <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
               <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-                <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)]">
-                  <div className="relative min-w-0">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(18rem,1fr)_minmax(10rem,12rem)_minmax(10rem,12rem)_minmax(10rem,12rem)]">
+                  <div className="relative min-w-0 sm:col-span-2 lg:col-span-1 xl:col-span-1">
                     <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
                     <input type="text" value={keyword} onChange={(event) => { setKeyword(event.target.value); setCurrentPage(1) }} placeholder="Tìm tên, username, email, SĐT hoặc số giấy tờ..." className={`${inputClass} pl-11 pr-28`} />
                     <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 disabled:cursor-not-allowed disabled:opacity-45">
@@ -303,8 +307,9 @@ export function TenantsScreen() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1160px] text-left">
+              {/* Desktop View Table */}
+              <div className="hidden lg:block w-full max-w-full overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left">
                   <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                     <tr>
                       <th className="px-5 py-4">Khách thuê</th>
@@ -370,7 +375,6 @@ export function TenantsScreen() {
                               <button type="button" disabled={deletingId === tenant.id} onClick={() => void removeTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title="Xóa" aria-label={`Xóa khách thuê ${tenant.username}`}><Trash2 className="h-5 w-5" /></button>
                             </div>
                           </td>
-                          
                         </tr>
                       )
                     })}
@@ -395,6 +399,79 @@ export function TenantsScreen() {
                 </table>
               </div>
 
+              {/* Mobile/Tablet Card View */}
+              <div className="block lg:hidden divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
+                {isLoading && Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="p-4">
+                    <div className="h-32 animate-pulse rounded-2xl bg-stone-100" />
+                  </div>
+                ))}
+
+                {!isLoading && tenants.map((tenant) => {
+                  const renting = isTenantRenting(tenant)
+
+                  return (
+                    <div key={tenant.id} className="p-4 space-y-3 transition hover:bg-[#f3c56b]/10">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <TenantAvatar tenant={tenant} />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black tracking-tight text-[#24170d]">{tenant.full_name || tenant.username}</p>
+                            <p className="text-xs font-bold text-[#8b5e34]/70">@{tenant.username}</p>
+                          </div>
+                        </div>
+                        <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-black shadow-sm', renting ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-rose-200 bg-rose-50 text-rose-700')}>
+                          {tenant.status_label || (renting ? 'Đang thuê' : 'Ngừng thuê')}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="space-y-1 font-bold text-[#6f6254]">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/60">Liên hệ</p>
+                          <p className="flex items-center gap-1.5 truncate"><Mail className="h-3.5 w-3.5 shrink-0 text-[#a65f16]" /> {tenant.email || '—'}</p>
+                          <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 shrink-0 text-[#0f766e]" /> {tenant.phone || '—'}</p>
+                        </div>
+                        <div className="space-y-1 font-bold text-[#6f6254]">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/60">Giấy tờ</p>
+                          <p className="flex items-center gap-1.5 truncate"><IdCard className="h-3.5 w-3.5 shrink-0" /> {tenant.identity_type_label || getIdentityTypeLabel(tenant.identity_type)}</p>
+                          <p className="pl-5 truncate text-[#8b5e34]/75">{tenant.identity_number || '—'}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs border-t border-[#3d2a18]/6 pt-2">
+                        <div className="space-y-1 font-black text-[#6f6254]">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/60">Phòng ở</p>
+                          <div className="flex items-center gap-2 text-[#0f5f59]"><Building2 className="h-3.5 w-3.5 shrink-0" /> {getTenantBuildingName(tenant)}</div>
+                          <div className="flex items-center gap-2 text-[#8a4f18]"><DoorOpen className="h-3.5 w-3.5 shrink-0" /> {getTenantRoomNumber(tenant)}</div>
+                        </div>
+                        <div className="space-y-1 font-bold text-[#6f6254]">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/60">Phương tiện</p>
+                          <div className="pt-0.5"><CountBadge value={tenant.vehicles_count ?? 0} /></div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 border-t border-[#3d2a18]/6 pt-2">
+                        <button type="button" onClick={() => void viewTenant(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59]" title="Xem chi tiết"><Eye className="h-4.5 w-4.5" /></button>
+                        <button type="button" onClick={() => editTenant(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d]" title="Chỉnh sửa"><Edit3 className="h-4.5 w-4.5" /></button>
+                        <button type="button" disabled={statusChangingId === tenant.id} onClick={() => void toggleTenantStatus(tenant)} className={cn('inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45', renting ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100')} title={renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'}><Power className="h-4.5 w-4.5" /></button>
+                        <button type="button" disabled={deletingId === tenant.id} onClick={() => void removeTenant(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600" title="Xóa"><Trash2 className="h-4.5 w-4.5" /></button>
+                        <button type="button" onClick={() => transferTenantRoom(tenant)} disabled={!renting} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f5f59]/25 hover:bg-[#0f5f59]/10 hover:text-[#0f5f59] disabled:cursor-not-allowed disabled:opacity-45" title="Chuyển phòng"><ArrowRightLeft className="h-4.5 w-4.5" /></button>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {!isLoading && tenants.length === 0 && (
+                  <div className="mx-auto flex max-w-sm flex-col items-center px-6 py-12 text-center">
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]">
+                      <UserRound className="h-7 w-7" />
+                    </div>
+                    <p className="text-base font-black text-[#24170d]">Không tìm thấy khách thuê</p>
+                    <p className="mt-1 text-xs font-semibold text-[#6f6254]">Thử xóa bộ lọc hoặc đổi từ khóa tìm kiếm.</p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                 <p className="text-xs font-black text-[#6f6254]">
                   Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalTenants}</span> khách thuê
@@ -403,7 +480,7 @@ export function TenantsScreen() {
                   <div className="w-full sm:w-36">
                     <AdminSelect value={perPage} options={perPageOptions} onChange={changePerPage} menuPlacement="top" />
                   </div>
-                  <div className="flex items-center justify-end gap-1.5">
+                  <div className="flex items-center justify-center sm:justify-end gap-1.5">
                     <button type="button" disabled={safeCurrentPage <= 1} onClick={() => changePage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
                       <ChevronLeft className="h-4 w-4" />
                     </button>

@@ -28,6 +28,7 @@ import type {
   ContractVehicleFormRow,
 } from '../types/contract-api.model'
 import { validateContractForm } from '../validations/contract.validation'
+import { formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 
 import {
   STATUS_PENDING_SIGN,
@@ -198,7 +199,7 @@ export function CreateContractScreen() {
           endDateCalc.setDate(endDateCalc.getDate() - 1)
           nextEndDate = endDateCalc.toISOString().split('T')[0]
         }
-        const formValues = contractToForm(contract)
+        const formValues = contractToForm(contract, isRenewMode)
         setForm({
           ...formValues,
           contract_code: '',
@@ -226,13 +227,16 @@ export function CreateContractScreen() {
           deposit_transactions: [],
         })
       } else {
-        setForm(contractToForm(contract))
+        setForm(contractToForm(contract, isRenewMode))
       }
 
       const currentTenants = (contract.contract_tenants || []).map((ct) => ct.tenant).filter(Boolean) as AdminTenantResource[]
       setCurrentContractTenants(currentTenants)
-      const currentVehicles = (contract.contract_vehicles || [])
-        .filter((cv) => cv.is_active !== false)
+      const contractVehicles = contract.contract_vehicles || []
+      const filteredVehicles = isRenewMode
+        ? contractVehicles.filter((cv) => !cv.ended_at || cv.ended_at === contract.end_date || cv.ended_at === contract.actual_end_date)
+        : contractVehicles.filter((cv) => cv.is_active !== false)
+      const currentVehicles = filteredVehicles
         .map((cv) => cv.vehicle)
         .filter(Boolean) as AdminVehicleOptionResource[]
       setCurrentContractVehicles(currentVehicles)
@@ -298,7 +302,7 @@ export function CreateContractScreen() {
               ended_at: '',
               billing_start_date: startDate || current.start_date,
               billing_end_date: '',
-              monthly_fee: '0.00',
+              monthly_fee: '0',
               charge_policy: CHARGE_MONTHLY,
               is_active: true,
             }))
@@ -344,6 +348,18 @@ export function CreateContractScreen() {
         next.room_id = ''
         next.tenants = [{ ...defaultTenantRow, join_date: current.start_date, billing_start_date: current.start_date }]
         next.vehicles = []
+      }
+      if (key === 'room_id') {
+        const roomIdStr = String(value)
+        const selectedRoom = rooms.find((room) => String(room.id) === roomIdStr)
+        if (selectedRoom && selectedRoom.base_price !== undefined && selectedRoom.base_price !== null) {
+          const formattedPrice = formatMoneyInput(String(Math.round(Number(selectedRoom.base_price))))
+          next.room_price = formattedPrice
+          next.deposit_amount = formattedPrice
+        } else {
+          next.room_price = ''
+          next.deposit_amount = '0'
+        }
       }
       if (key === 'start_date' && typeof value === 'string') {
         next.vehicles = current.vehicles.map((v) => ({
@@ -408,7 +424,7 @@ export function CreateContractScreen() {
           endDateCalc.setDate(endDateCalc.getDate() - 1)
           nextEndDate = endDateCalc.toISOString().split('T')[0]
         }
-        const formValues = contractToForm(editingContract)
+        const formValues = contractToForm(editingContract, isRenewMode)
         setForm({
           ...formValues,
           contract_code: '',
@@ -436,7 +452,7 @@ export function CreateContractScreen() {
           deposit_transactions: [],
         })
       } else {
-        setForm(contractToForm(editingContract))
+        setForm(contractToForm(editingContract, isRenewMode))
       }
       return
     }
@@ -647,16 +663,16 @@ export function CreateContractScreen() {
                 <input
                   className={cn(inputClass, errors.room_price && inputErrorClass)}
                   value={form.room_price}
-                  onChange={(event) => updateForm('room_price', event.target.value)}
-                  placeholder="3500000.00"
+                  onChange={(event) => updateForm('room_price', formatMoneyInput(event.target.value))}
+                  placeholder="3.500.000"
                 />
               </Field>
               <Field label="Tiền cọc" required error={errors.deposit_amount}>
                 <input
                   className={cn(inputClass, errors.deposit_amount && inputErrorClass)}
                   value={form.deposit_amount}
-                  onChange={(event) => updateForm('deposit_amount', event.target.value)}
-                  placeholder="3500000.00"
+                  onChange={(event) => updateForm('deposit_amount', formatMoneyInput(event.target.value))}
+                  placeholder="3.500.000"
                 />
               </Field>
               {!isEditMode && !isRenewMode && Number(form.deposit_amount) > 0 && (
@@ -743,7 +759,7 @@ export function CreateContractScreen() {
                         ended_at: '',
                         billing_start_date: form.start_date,
                         billing_end_date: '',
-                        monthly_fee: '0.00',
+                        monthly_fee: '0',
                         charge_policy: CHARGE_MONTHLY,
                         is_active: true,
                       },
@@ -841,7 +857,7 @@ export function CreateContractScreen() {
               setIsConfirmingDeposit(true)
               await createAdminContractDepositTransaction(qrModalContract.id, {
                 transaction_type: 1, // COLLECT
-                amount: qrModalContract.deposit_amount || '0.00',
+                amount: qrModalContract.deposit_amount || '0',
                 transaction_date: new Date().toISOString().slice(0, 10),
                 payment_method: 2, // BANK_TRANSFER / QR
                 note: 'Xác nhận thu cọc chuyển khoản QR tại chỗ khi ký hợp đồng',
@@ -878,7 +894,7 @@ export function CreateContractScreen() {
                   ended_at: '',
                   billing_start_date: current.start_date,
                   billing_end_date: '',
-                  monthly_fee: '0.00',
+                  monthly_fee: '0',
                   charge_policy: CHARGE_MONTHLY,
                   is_active: true,
                 },

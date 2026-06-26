@@ -40,12 +40,12 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4efe6] bg-[radial-gradient(circle_at_20%_8%,rgba(243,197,107,0.22),transparent_30%),radial-gradient(circle_at_88%_14%,rgba(15,118,110,0.1),transparent_32%),linear-gradient(120deg,#fdf8ef_0%,#f4efe6_52%,#efe2cf_100%)]">
-      <div className="flex min-h-screen min-w-0">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#f4efe6] bg-[radial-gradient(circle_at_20%_8%,rgba(243,197,107,0.22),transparent_30%),radial-gradient(circle_at_88%_14%,rgba(15,118,110,0.1),transparent_32%),linear-gradient(120deg,#fdf8ef_0%,#f4efe6_52%,#efe2cf_100%)]">
+      <div className="flex min-h-screen w-full max-w-full min-w-0">
         <AdminSidebar />
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <div className="flex min-h-screen w-full max-w-full min-w-0 flex-1 flex-col xl:pl-60">
           <AdminHeader />
-          <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
+          <main className="w-full max-w-full min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
             <Outlet />
           </main>
           <AdminFooter />

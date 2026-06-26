@@ -209,7 +209,7 @@ function RevenueComboChart({ data }: { data: DashboardRevenuePoint[] }) {
   const negativeGradientId = `finance-${activeMetric}-negative`
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
       <div>
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-black text-[#6f6254]">
           {(Object.keys(metricOptions) as Array<'revenue' | 'expenses' | 'profit'>).map((type) => {
@@ -338,7 +338,7 @@ function ExpenseChart({ chart }: { chart: DashboardExpenseChart }) {
   const barWidth = Math.max(14, Math.min(34, slotWidth * 0.38))
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[720px] rounded-[1.5rem] bg-[#fff7e8]/55">
           <defs>
@@ -510,7 +510,7 @@ function InvoiceDonutChart({ data }: { data: DashboardInvoiceStatusItem[] }) {
   }, { offset: 0, segments: [] }).segments
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[220px_1fr] lg:items-center">
+    <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
       <svg viewBox="0 0 220 220" className="mx-auto h-56 w-56">
         <circle cx="110" cy="110" r={radius} fill="none" stroke="#3d2a18" strokeOpacity="0.08" strokeWidth="28" />
         {donutSegments.map(({ item, index, length, offset }) => {
@@ -924,7 +924,7 @@ export function AdminDashboardScreen() {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)]">
         <ChartCard title="Tài chính theo kỳ lọc" description="Bấm từng chỉ số để xem riêng doanh thu, chi phí hoặc lợi nhuận.">
           <RevenueComboChart data={overview.revenue_chart} />
         </ChartCard>
