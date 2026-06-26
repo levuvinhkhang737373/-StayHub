@@ -1,4 +1,5 @@
 import type { AdminBuildingDetailResource, AdminBuildingPayload, AdminBuildingServicePriceResource, AdminRegionResource } from "../types/facility-api.model";
+import { formatMoneyInput, parseMoneyInput } from "../../../../shared/lib/utils/format";
 import type { BuildingImage } from "../types/building.model";
 import type { BuildingFormValues } from "../validations/building.validation";
 
@@ -67,7 +68,7 @@ export function mapBuildingDetailToForm(
             id: item.id,
             service_id: String(item.service_id || ""),
             service_name: item.service_name || item.service?.name || "",
-            price: item.price === null || item.price === undefined ? "0" : String(item.price),
+            price: item.price === null || item.price === undefined ? "0" : formatMoneyInput(String(item.price)),
             effective_from: item.effective_from || "",
             effective_to: item.effective_to || "",
             status: Number(item.status || 1),
@@ -122,7 +123,7 @@ export function buildBuildingPayload({
         service_prices: form.service_prices.map((item) => ({
             id: item.id,
             service_id: Number(item.service_id),
-            price: item.price.trim() || "0",
+            price: parseMoneyInput(item.price.trim()) || "0",
             effective_from: parseVietnameseDate(item.effective_from) || getTodayIsoDate(),
             effective_to: parseVietnameseDate(item.effective_to) || undefined,
             status: Number(item.status),

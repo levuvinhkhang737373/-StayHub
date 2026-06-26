@@ -3,6 +3,20 @@ export function formatMoneyText(value: string | number | null | undefined): stri
   return String(numValue).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
+export function formatMoneyInput(value: string): string {
+  let cleanValue = value
+  if (/^\d+\.\d{1,2}$/.test(value)) {
+    cleanValue = String(Math.round(Number(value)))
+  }
+  cleanValue = cleanValue.replace(/\D/g, '')
+  if (!cleanValue) return ''
+  return cleanValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+export function parseMoneyInput(value: string): string {
+  return value.replace(/\./g, '')
+}
+
 export function formatCurrency(value: string | number | null | undefined): string {
   return `${formatMoneyText(value)} VNĐ`
 }

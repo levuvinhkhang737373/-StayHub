@@ -15,6 +15,8 @@ import 'services/websocket_service.dart';
 import 'controllers/meter_reading_controller.dart';
 
 import 'views/auth/login_screen.dart';
+import 'views/auth/forgot_password_screen.dart';
+import 'views/auth/reset_password_screen.dart';
 import 'views/dashboard/dashboard_screen.dart';
 import 'views/facilities/facilities_screen.dart';
 import 'views/services/services_screen.dart';
@@ -129,6 +131,11 @@ class MyApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/login': (_) => const LoginScreen(),
+        '/forgot-password': (_) => const ForgotPasswordScreen(),
+        '/reset-password': (context) {
+          final email = ModalRoute.of(context)!.settings.arguments as String;
+          return ResetPasswordScreen(email: email);
+        },
         '/dashboard': (_) => const DashboardScreen(),
         '/facilities': (_) => const FacilitiesScreen(),
         '/services': (_) => const ServicesScreen(),

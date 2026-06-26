@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { AssetResource, BuildingResource, RoomTypeResource } from '../types/rooms.model';
 import { useNavigate } from 'react-router-dom';
 import { AdminSelect } from '../../shared/components/AdminSelect';
+import { formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format';
 
 interface LocalFormState {
   building_id: string;
@@ -74,7 +75,9 @@ export function CreateRoomScreen() {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'status' ? Number(value) : value
+      [name]: name === 'status' 
+        ? Number(value) 
+        : (name === 'base_price' ? formatMoneyInput(value) : value)
     }));
   };
 
@@ -121,7 +124,7 @@ export function CreateRoomScreen() {
     data.append('room_number', formData.room_number);
     data.append('floor', formData.floor);
     data.append('area_m2', formData.area_m2);
-    data.append('base_price', formData.base_price);
+    data.append('base_price', parseMoneyInput(formData.base_price));
     data.append('max_occupants', formData.max_occupants);
     data.append('status', String(formData.status));
     data.append('description', formData.description);
@@ -275,9 +278,9 @@ export function CreateRoomScreen() {
                 <label className={labelClass}>Giá phòng cơ bản</label>
                 <div className="relative font-bold text-[#3d2a18]">
                   <input 
-                    type="number" name="base_price" value={formData.base_price} onChange={handleInputChange} required
+                    type="text" name="base_price" value={formData.base_price} onChange={handleInputChange} required
                     className={inputClass} 
-                    placeholder="3500000" 
+                    placeholder="3.500.000" 
                   />
                   <span className="absolute top-1/2 right-4 -translate-y-1/2 text-xs font-black text-[#8b5e34]">VNĐ</span>
                 </div>

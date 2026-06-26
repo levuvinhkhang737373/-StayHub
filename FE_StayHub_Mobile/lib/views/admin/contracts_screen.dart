@@ -383,131 +383,187 @@ class _ContractsScreenState extends State<ContractsScreen> {
     final contractController = context.watch<ContractController>();
     final contracts = contractController.contracts;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F6F0),
-      appBar: AppBar(
-        title: const Text('Quản lý Hợp đồng', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: const Color(0xFF1C1917),
-      ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: GridPainter())),
-          contracts.isEmpty
-              ? const Center(child: Text('Không có hợp đồng nào.', style: TextStyle(color: Colors.grey)))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: contracts.length,
-                  itemBuilder: (context, index) {
-                    final contract = contracts[index];
-                    return Card(
-                      color: Colors.white,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: const BorderSide(color: Color(0xFFE4E2D7)),
-                      ),
-                      elevation: 0,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Code & Status Badge Row
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  contract.contractCode,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
-                                ),
-                                _buildStatusBadge(contract),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
+    final activeContracts = contracts.where((c) => c.status == Contract.STATUS_ACTIVE || c.status == Contract.STATUS_DRAFT).toList();
+    final inactiveContracts = contracts.where((c) => c.status == Contract.STATUS_EXPIRED || c.status == Contract.STATUS_LIQUIDATED || c.status == Contract.STATUS_CANCELLED).toList();
 
-                            // Details
-                            _buildInfoRow('Khách thuê:', contract.tenantName),
-                            _buildInfoRow('Phòng:', 'Phòng ${contract.roomNumber}'),
-                            _buildInfoRow('Thời hạn:', '${contract.startDate} -> ${contract.endDate}'),
-                            _buildInfoRow('Giá thuê:', '${contract.rentalPrice.toStringAsFixed(0)}đ / tháng'),
-                            _buildInfoRow('Đặt cọc:', '${contract.depositAmount.toStringAsFixed(0)}đ'),
-                            
-                            // Actions strip
-                            if (contract.status == Contract.STATUS_ACTIVE || contract.status == Contract.STATUS_EXPIRED) ...[
-                              const Divider(height: 24, color: Color(0xFFE4E2D7)),
-                              Row(
-                                children: [
-                                  if (contract.status == Contract.STATUS_EXPIRED)
-                                    // Extend Button
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () => _showExtendDialog(contract.id),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: const Color(0xFFEAB308),
-                                          side: const BorderSide(color: Color(0xFFEAB308)),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                        ),
-                                        child: const Text('Gia hạn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                      ),
-                                    ),
-                                  if (contract.status == Contract.STATUS_ACTIVE) ...[
-                                    // Change Room Button
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () => _showChangeRoomDialog(contract),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: const Color(0xFF1C1917),
-                                          side: const BorderSide(color: Color(0xFF1C1917)),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                        ),
-                                        child: const Text('Lên lịch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-
-                                    // Terminate Button
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        onPressed: () async {
-                                          final success = await contractController.terminateContract(contract.id);
-                                          if (success && mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Hợp đồng đã chấm dứt'), backgroundColor: Colors.redAccent),
-                                            );
-                                          } else if (mounted) {
-                                            final errMsg = contractController.errorMessage ?? 'Chấm dứt hợp đồng thất bại';
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
-                                            );
-                                          }
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.redAccent,
-                                          foregroundColor: Colors.white,
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                        ),
-                                        child: const Text('Kết thúc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              )
-                            ]
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F6F0),
+        appBar: AppBar(
+          title: const Text('Quản lý Hợp đồng', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+          backgroundColor: const Color(0xFF1C1917),
+          elevation: 0,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(60),
+            child: Container(
+              margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TabBar(
+                indicator: BoxDecoration(
+                  color: const Color(0xFFEAB308),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-        ],
+                labelColor: const Color(0xFF1C1917),
+                unselectedLabelColor: Colors.white.withOpacity(0.65),
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(text: 'Còn hiệu lực / Chờ ký'),
+                  Tab(text: 'Hết hạn / Thanh lý'),
+                ],
+              ),
+            ),
+          ),
+        ),
+        body: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: GridPainter())),
+            TabBarView(
+              children: [
+                _buildContractList(activeContracts, contractController),
+                _buildContractList(inactiveContracts, contractController),
+              ],
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _showAddContractDialog,
+          backgroundColor: const Color(0xFF1C1917),
+          foregroundColor: const Color(0xFFEAB308),
+          child: const Icon(Icons.add),
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddContractDialog,
-        backgroundColor: const Color(0xFF1C1917),
-        foregroundColor: const Color(0xFFEAB308),
-        child: const Icon(Icons.add),
-      ),
+    );
+  }
+
+  Widget _buildContractList(List<Contract> filteredContracts, ContractController contractController) {
+    if (filteredContracts.isEmpty) {
+      return const Center(
+        child: Text(
+          'Không có hợp đồng nào.',
+          style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: filteredContracts.length,
+      itemBuilder: (context, index) {
+        final contract = filteredContracts[index];
+        return Card(
+          color: Colors.white,
+          margin: const EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFE4E2D7)),
+          ),
+          elevation: 0,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Code & Status Badge Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      contract.contractCode,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
+                    ),
+                    _buildStatusBadge(contract),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Details
+                _buildInfoRow('Khách thuê:', contract.tenantName),
+                _buildInfoRow('Phòng:', 'Phòng ${contract.roomNumber}'),
+                _buildInfoRow('Thời hạn:', '${contract.startDate} -> ${contract.endDate}'),
+                _buildInfoRow('Giá thuê:', '${contract.rentalPrice.toStringAsFixed(0)}đ / tháng'),
+                _buildInfoRow('Đặt cọc:', '${contract.depositAmount.toStringAsFixed(0)}đ'),
+                
+                // Actions strip
+                if (contract.status == Contract.STATUS_ACTIVE || contract.status == Contract.STATUS_EXPIRED) ...[
+                  const Divider(height: 24, color: Color(0xFFE4E2D7)),
+                  Row(
+                    children: [
+                      if (contract.status == Contract.STATUS_EXPIRED)
+                        // Extend Button
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _showExtendDialog(contract.id),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFEAB308),
+                              side: const BorderSide(color: Color(0xFFEAB308)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Gia hạn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      if (contract.status == Contract.STATUS_ACTIVE) ...[
+                        // Change Room Button
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _showChangeRoomDialog(contract),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1C1917),
+                              side: const BorderSide(color: Color(0xFF1C1917)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Lên lịch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Terminate Button
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final success = await contractController.terminateContract(contract.id);
+                              if (success && mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Hợp đồng đã chấm dứt'), backgroundColor: Colors.redAccent),
+                                );
+                              } else if (mounted) {
+                                final errMsg = contractController.errorMessage ?? 'Chấm dứt hợp đồng thất bại';
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Kết thúc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                ]
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

@@ -48,6 +48,28 @@ class AppConfig {
       useTunnel = false;
       return;
     }
+
+    // 1. Try to connect to local server first
+    try {
+      final dio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(milliseconds: 1500),
+          receiveTimeout: const Duration(milliseconds: 1500),
+        ),
+      );
+      final response = await dio.get('$localOrigin/up');
+      if (response.statusCode == 200) {
+        useTunnel = false;
+        debugPrint(
+          'StayHub Config: Local API is active ($localOrigin). Forcing local API.',
+        );
+        return;
+      }
+    } catch (_) {
+      // Local server is not reachable, proceed to check tunnel
+    }
+
+    // 2. Fallback to check Cloudflare Tunnel
     try {
       final dio = Dio(
         BaseOptions(
@@ -74,4 +96,5 @@ class AppConfig {
       );
     }
   }
+
 }

@@ -1,9 +1,18 @@
 @import "tailwindcss";
 
 html,
-body,
+body {
+  min-height: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 #root {
   min-height: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 body {

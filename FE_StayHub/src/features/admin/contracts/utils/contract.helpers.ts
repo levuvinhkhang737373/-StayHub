@@ -1,4 +1,5 @@
 import { ApiError } from '../../../../shared/lib/api/api-client'
+import { formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 import type {
   AdminContractPayload,
   AdminContractResource,
@@ -42,7 +43,7 @@ export const defaultForm: ContractFormValues = {
   actual_end_date: '',
   billing_cycle_day: '1',
   room_price: '',
-  deposit_amount: '0.00',
+  deposit_amount: '0',
   status: STATUS_PENDING_SIGN,
   contract_files: [],
   delete_contract_files: [],
@@ -116,7 +117,7 @@ export function toDate(value: string) {
   return new Date(year, month - 1, day)
 }
 
-export function contractToForm(contract: AdminContractResource): ContractFormValues {
+export function contractToForm(contract: AdminContractResource, isRenew = false): ContractFormValues {
   const tenants = (contract.contract_tenants || []).map((tenant) => ({
     tenant_id: String(tenant.tenant_id),
     join_date: tenant.join_date || '',
@@ -126,6 +127,11 @@ export function contractToForm(contract: AdminContractResource): ContractFormVal
     is_staying: tenant.is_staying !== false,
   }))
 
+  const contractVehicles = contract.contract_vehicles || []
+  const filteredVehicles = isRenew
+    ? contractVehicles.filter((vehicle) => !vehicle.ended_at || vehicle.ended_at === contract.end_date || vehicle.ended_at === contract.actual_end_date)
+    : contractVehicles.filter((vehicle) => vehicle.is_active !== false)
+
   return {
     contract_code: contract.contract_code || '',
     building_id: String(contract.room?.building_id || contract.building_id || ''),
@@ -134,8 +140,8 @@ export function contractToForm(contract: AdminContractResource): ContractFormVal
     end_date: contract.end_date || '',
     actual_end_date: contract.actual_end_date || '',
     billing_cycle_day: contract.billing_cycle_day ? String(contract.billing_cycle_day) : '1',
-    room_price: contract.room_price || '',
-    deposit_amount: contract.deposit_amount || '0.00',
+    room_price: formatMoneyInput(contract.room_price || ''),
+    deposit_amount: formatMoneyInput(contract.deposit_amount || '0'),
     status: Number(contract.status || STATUS_ACTIVE),
     contract_files: [],
     delete_contract_files: [],
@@ -143,13 +149,13 @@ export function contractToForm(contract: AdminContractResource): ContractFormVal
     parent_contract_id: contract.parent_contract_id ? String(contract.parent_contract_id) : '',
     renew_from_contract_id: contract.renew_from_contract_id ? String(contract.renew_from_contract_id) : '',
     tenants: tenants.length > 0 ? tenants : [{ ...defaultTenantRow }],
-    vehicles: (contract.contract_vehicles || []).filter((vehicle) => vehicle.is_active !== false).map((vehicle) => ({
+    vehicles: filteredVehicles.map((vehicle) => ({
       vehicle_id: String(vehicle.vehicle_id),
       started_at: vehicle.started_at || '',
       ended_at: vehicle.ended_at || '',
       billing_start_date: vehicle.billing_start_date || '',
       billing_end_date: vehicle.billing_end_date || '',
-      monthly_fee: vehicle.monthly_fee || '0.00',
+      monthly_fee: formatMoneyInput(vehicle.monthly_fee || '0'),
       charge_policy: Number(vehicle.charge_policy || CHARGE_MONTHLY),
       is_active: vehicle.is_active !== false,
     })),
@@ -167,8 +173,8 @@ export function buildPayload(form: ContractFormValues, includeStatus: boolean, i
     start_date: form.start_date,
     end_date: form.end_date,
     billing_cycle_day: Number(form.billing_cycle_day),
-    room_price: form.room_price.trim(),
-    deposit_amount: form.deposit_amount.trim(),
+    room_price: parseMoneyInput(form.room_price.trim()),
+    deposit_amount: parseMoneyInput(form.deposit_amount.trim()),
     contract_files: form.contract_files,
     delete_contract_files: form.delete_contract_files,
     note: form.note.trim() || null,
@@ -186,7 +192,7 @@ export function buildPayload(form: ContractFormValues, includeStatus: boolean, i
       ended_at: vehicle.ended_at || null,
       billing_start_date: vehicle.billing_start_date || vehicle.started_at,
       billing_end_date: vehicle.billing_end_date || vehicle.ended_at || null,
-      monthly_fee: Number(vehicle.charge_policy) === CHARGE_FREE ? '0.00' : vehicle.monthly_fee.trim(),
+      monthly_fee: Number(vehicle.charge_policy) === CHARGE_FREE ? '0' : parseMoneyInput(vehicle.monthly_fee.trim()),
       charge_policy: Number(vehicle.charge_policy),
       is_active: vehicle.is_active,
     })),

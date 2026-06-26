@@ -4,6 +4,7 @@ import { AdminDateInput } from '../../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../../shared/components/AdminSelect'
 import type { ContractTenantFormRow, ContractVehicleFormRow } from '../../types/contract-api.model'
+import { formatMoneyInput } from '../../../../../shared/lib/utils/format'
 import { CHARGE_FREE, chargePolicyOptions } from '../../utils/contract.helpers'
 import { FieldError } from '../ui/ui-elements'
 
@@ -150,13 +151,13 @@ export function VehicleRow({
         <AdminSelect
           value={row.charge_policy}
           options={chargePolicyOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
-          onChange={(value: string | number) => onChange({ charge_policy: Number(value), monthly_fee: Number(value) === CHARGE_FREE ? '0.00' : row.monthly_fee })}
+          onChange={(value: string | number) => onChange({ charge_policy: Number(value), monthly_fee: Number(value) === CHARGE_FREE ? '0' : row.monthly_fee })}
         />
         <input
           className={cn(inputClass, error && inputErrorClass)}
           value={row.monthly_fee}
           disabled={Number(row.charge_policy) === CHARGE_FREE}
-          onChange={(event) => onChange({ monthly_fee: event.target.value })}
+          onChange={(event) => onChange({ monthly_fee: formatMoneyInput(event.target.value) })}
           placeholder="Phí gửi xe"
         />
         {isEditMode && !isRenewMode && (

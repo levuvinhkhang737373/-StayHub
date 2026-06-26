@@ -73,6 +73,7 @@ class Contract {
   final String? paymentStatusLabel;
   final String? depositQrUrl;
   final TransferSettlement? transferSettlement;
+  final bool? isStaying;
 
   Contract({
     required this.id,
@@ -103,6 +104,7 @@ class Contract {
     this.paymentStatusLabel,
     this.depositQrUrl,
     this.transferSettlement,
+    this.isStaying = true,
   });
 
   // Alias fields for backward compatibility
@@ -170,6 +172,7 @@ class Contract {
       paymentStatusLabel: json['payment_status_label'] as String?,
       depositQrUrl: json['deposit_qr_url'] as String?,
       transferSettlement: transferSettlement,
+      isStaying: json['is_staying'] != false,
     );
   }
 
@@ -205,10 +208,14 @@ class Contract {
       'payment_status_label': paymentStatusLabel,
       'deposit_qr_url': depositQrUrl,
       'transfer_settlement': transferSettlement?.toJson(),
+      'is_staying': isStaying,
     };
   }
 
   String get statusLabel {
+    if (status == STATUS_ACTIVE && isStaying == false) {
+      return 'Đã thanh lý';
+    }
     switch (status) {
       case STATUS_DRAFT:
         return 'Chờ ký';

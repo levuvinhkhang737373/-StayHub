@@ -48,7 +48,7 @@ export const AdminNavList = memo(function AdminNavList({ items, variant, onNavig
 
   return (
     <nav className={cn('relative flex-1 space-y-8 overflow-y-auto', variant === 'sidebar' ? 'custom-scrollbar px-3' : 'px-4 pb-4')} aria-label="Điều hướng quản trị">
-      <div className="sticky top-0 z-20 -mx-1 bg-gradient-to-b from-[#fffaf1]/96 via-[#fffaf1]/82 to-[#fffaf1]/0 px-1 pb-3 pt-1 backdrop-blur-sm">
+      <div className="pb-3 pt-1">
         <label htmlFor={searchInputId} className="sr-only">
           Tìm kiếm chức năng quản trị
         </label>

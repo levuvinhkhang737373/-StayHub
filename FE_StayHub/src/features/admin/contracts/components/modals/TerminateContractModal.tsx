@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { AlertTriangle, BadgeCheck, Banknote, Calculator, ClipboardCheck, ReceiptText, X } from 'lucide-react'
 import { AdminDateInput } from '../../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../../shared/lib/utils/cn'
-import { formatCurrency, formatDate } from '../../../../../shared/lib/utils/format'
+import { formatCurrency, formatDate, formatMoneyInput } from '../../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../../shared/components/AdminSelect'
 import type { AdminContractResource } from '../../types/contract-api.model'
 import { toDate } from '../../utils/contract.helpers'
@@ -20,9 +20,17 @@ export type TerminateContractForm = {
   note: string
 }
 
-function moneyNumber(value: string | number | null | undefined) {
-  const parsed = Number(String(value ?? '0').replace(/,/g, '').trim() || '0')
-  return Number.isFinite(parsed) ? parsed : 0
+function moneyNumber(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0
+  if (typeof value === 'number') return value
+
+  const valStr = String(value).trim()
+  if (/^\d+\.\d{1,2}$/.test(valStr)) {
+    return Math.max(Math.round(Number(valStr)), 0)
+  }
+
+  const parsed = Number(valStr.replace(/\./g, '').replace(/,/g, '').trim() || '0')
+  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0
 }
 
 function moneyString(value: number) {
@@ -92,8 +100,8 @@ export function TerminateContractModal({
                 <input
                   value={form.deduction_amount}
                   inputMode="decimal"
-                  onChange={(event) => onChange({ ...form, deduction_amount: event.target.value })}
-                  placeholder="0.00"
+                  onChange={(event) => onChange({ ...form, deduction_amount: formatMoneyInput(event.target.value) })}
+                  placeholder="0"
                   className={cn(inputClass, 'pl-11 tabular-nums', isOverDeducted && inputErrorClass)}
                 />
               </div>

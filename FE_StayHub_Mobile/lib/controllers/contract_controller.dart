@@ -592,5 +592,7 @@ class InvoiceContract extends Contract {
     super.contractFiles,
     super.note,
     super.createdBy,
+    super.isDepositPaid = true,
+    super.isStaying = true,
   });
 }

@@ -55,10 +55,22 @@ class DashboardController extends Controller
             $isSystemWide = AdminScope::isSuperAdmin($admin) && $selectedBuildingId === null;
 
             $monthRange = $this->monthRange($year, $monthFrom, $monthTo);
-            $currentStart = Carbon::create($year, $monthTo)->startOfMonth();
-            $currentEnd = $currentStart->copy()->endOfMonth();
-            $previousStart = $currentStart->copy()->subMonthNoOverflow()->startOfMonth();
-            $previousEnd = $previousStart->copy()->endOfMonth();
+
+            if ($monthFrom === $monthTo) {
+                $currentStart = Carbon::create($year, $monthTo)->startOfMonth();
+                $currentEnd = $currentStart->copy()->endOfMonth();
+                $previousStart = $currentStart->copy()->subMonthNoOverflow()->startOfMonth();
+                $previousEnd = $previousStart->copy()->endOfMonth();
+                $revenueLabel = 'Doanh thu tháng đang xem';
+                $profitLabel = 'Lợi nhuận tháng đang xem';
+            } else {
+                $currentStart = Carbon::create($year, $monthFrom)->startOfMonth();
+                $currentEnd = Carbon::create($year, $monthTo)->endOfMonth();
+                $previousStart = Carbon::create($year - 1, $monthFrom)->startOfMonth();
+                $previousEnd = Carbon::create($year - 1, $monthTo)->endOfMonth();
+                $revenueLabel = 'Doanh thu kỳ đang xem';
+                $profitLabel = 'Lợi nhuận kỳ đang xem';
+            }
 
             $currentFinancial = $this->financialTotals($buildingIds, $currentStart, $currentEnd, $isSystemWide);
             $previousFinancial = $this->financialTotals($buildingIds, $previousStart, $previousEnd, $isSystemWide);

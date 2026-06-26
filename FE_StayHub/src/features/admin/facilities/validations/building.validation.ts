@@ -44,7 +44,8 @@ function isValidDateValue(value: string) {
 }
 
 function isValidMoneyValue(value: string) {
-    return /^\d+(\.\d{1,2})?$/.test(value.trim());
+    const cleanValue = value.replace(/\./g, "");
+    return /^\d+(\.\d{1,2})?$/.test(cleanValue.trim());
 }
 
 export type BuildingFormValues = {

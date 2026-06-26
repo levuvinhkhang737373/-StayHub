@@ -116,7 +116,7 @@ export function AdminHeader() {
               className="relative flex h-dvh w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden border-r border-[#3d2a18]/10 bg-[#fffaf1] text-[#24170d] shadow-2xl shadow-[#24170d]/35 outline-none"
             >
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_4%,rgba(243,197,107,0.42),transparent_30%),radial-gradient(circle_at_100%_18%,rgba(15,118,110,0.14),transparent_32%),linear-gradient(180deg,rgba(255,250,241,0.96),rgba(244,239,230,0.92))]" />
-              <div className="relative flex items-center justify-between gap-3 p-4">
+              <div className="relative flex shrink-0 items-center justify-between gap-3 p-4">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 overflow-hidden rounded-2xl bg-[#fffaf1] shadow-lg shadow-[#24170d]/20 ring-1 ring-[#3d2a18]/10">
                     <img src="/images/stayhub.png" alt="StayHub" className="h-full w-full object-cover" />
@@ -138,7 +138,7 @@ export function AdminHeader() {
 
               <AdminNavList items={visibleItems} variant="drawer" onNavigate={closeDrawer} />
 
-              <div className="relative mt-auto border-t border-[#3d2a18]/10 p-4">
+              <div className="relative mt-auto shrink-0 border-t border-[#3d2a18]/10 p-4">
                 <button
                   type="button"
                   onClick={() => {

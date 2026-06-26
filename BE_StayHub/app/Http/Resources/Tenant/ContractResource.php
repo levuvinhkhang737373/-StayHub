@@ -14,6 +14,19 @@ class ContractResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $isStaying = true;
+        $tenant = $request->user('tenant');
+        if ($tenant) {
+            $ct = $this->relationLoaded('contractTenants')
+                ? $this->contractTenants->firstWhere('tenant_id', $tenant->id)
+                : \App\Models\ContractTenant::where('contract_id', $this->id)->where('tenant_id', $tenant->id)->first();
+            if ($ct) {
+                $isStaying = (bool) $ct->is_staying;
+            }
+        }
+
+
+
         return [
             'id' => $this->id,
             'contract_code' => $this->contract_code,
@@ -30,6 +43,7 @@ class ContractResource extends JsonResource
             'deposit_due_amount' => $this->depositDueAmount(),
             'status' => $this->status,
             'status_label' => Contract::STATUS_LABELS[$this->status] ?? null,
+            'is_staying' => $isStaying,
             'payment_status' => $this->payment_status,
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,
             'is_deposit_paid' => $this->is_deposit_paid,
