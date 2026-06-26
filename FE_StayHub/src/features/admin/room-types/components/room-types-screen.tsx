@@ -279,7 +279,7 @@ export function RoomTypesScreen() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="min-w-190 w-full text-left">
+              <table className="w-full min-w-[800px] text-left">
                 <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
                     <th className="px-4 py-4">Loại phòng</th>

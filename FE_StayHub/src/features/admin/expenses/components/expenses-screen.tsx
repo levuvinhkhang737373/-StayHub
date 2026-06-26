@@ -423,14 +423,14 @@ export function ExpensesScreen() {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(243,197,107,0.30),transparent_31%),radial-gradient(circle_at_78%_10%,rgba(15,118,110,0.30),transparent_34%),linear-gradient(135deg,#24170d_0%,#4a2b14_48%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
 
-            <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
                 <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
                 </Link>
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Phiếu chi</h1>
               </div>
-              <button type="button" onClick={openCreateForm} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start whitespace-nowrap rounded-xl bg-[#f3c56b] px-5 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] xl:self-center">
+              <button type="button" onClick={openCreateForm} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start whitespace-nowrap rounded-xl bg-[#f3c56b] px-5 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] lg:self-center">
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Lập phiếu chi
               </button>
             </div>
@@ -452,7 +452,7 @@ export function ExpensesScreen() {
 
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
           <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-            <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1.15fr)_repeat(4,minmax(10rem,0.75fr))]">
+            <div className="grid gap-3 lg:grid-cols-[minmax(12rem,1.15fr)_repeat(4,minmax(100px,0.75fr))]">
               <div className="relative min-w-0">
                 <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
                 <input type="text" value={keyword} onChange={(event) => { setKeyword(event.target.value); setCurrentPage(1) }} placeholder="Tìm mã, tiêu đề, ghi chú, tòa/phòng..." className={`${inputClass} pl-11 pr-28`} />
@@ -465,7 +465,7 @@ export function ExpensesScreen() {
               <AdminSelect value={selectedCategoryId} options={categoryOptions} onChange={(value) => { setSelectedCategoryId(String(value)); setCurrentPage(1) }} />
               <AdminSelect value={selectedStatus} options={expenseStatusOptions} onChange={(value) => { setSelectedStatus(String(value)); setCurrentPage(1) }} />
             </div>
-            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(10rem,14rem)_minmax(10rem,14rem)_minmax(10rem,14rem)_minmax(10rem,14rem)_1fr]">
+            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(100px,14rem)_minmax(100px,14rem)_minmax(100px,14rem)_minmax(100px,14rem)_1fr]">
               <AdminSelect value={selectedPaymentMethod} options={paymentMethodOptions} onChange={(value) => { setSelectedPaymentMethod(String(value)); setCurrentPage(1) }} />
               <AdminDateInput value={expenseDateExact} onChange={(value) => { setExpenseDateExact(value); setCurrentPage(1) }} placeholder="Ngày cụ thể" className={inputClass} />
               <AdminDateInput mode="month" value={expenseMonthFrom} onChange={(value) => { setExpenseMonthFrom(value); setCurrentPage(1) }} placeholder="Từ tháng/năm" className={inputClass} />

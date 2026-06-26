@@ -238,7 +238,7 @@ export function VehiclesScreen() {
         building_id: bId,
         tenant_id: String(editingVehicle.tenant_id),
         vehicle_type: editingVehicle.vehicle_type,
-        license_plate: editingVehicle.license_plate,
+        license_plate: editingVehicle.license_plate || '',
         brand: editingVehicle.brand || '',
         color: editingVehicle.color || '',
         is_active: editingVehicle.is_active,
@@ -259,7 +259,7 @@ export function VehiclesScreen() {
       building_id: bId,
       tenant_id: String(vehicle.tenant_id),
       vehicle_type: vehicle.vehicle_type,
-      license_plate: vehicle.license_plate,
+      license_plate: vehicle.license_plate || '',
       brand: vehicle.brand || '',
       color: vehicle.color || '',
       is_active: vehicle.is_active,
@@ -385,7 +385,7 @@ export function VehiclesScreen() {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
-            <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
                 <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
                   <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
@@ -398,7 +398,7 @@ export function VehiclesScreen() {
               </button>
             </div>
 
-            <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               <MetricCard label="Tổng phương tiện" value={metrics.total} tone="neutral" />
               <MetricCard label="Xe máy" value={metrics.motorbikes} tone="amber" />
               <MetricCard label="Xe đạp" value={metrics.bicycles} tone="emerald" />

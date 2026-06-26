@@ -428,7 +428,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
 
             {errorMessage && <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600">{errorMessage}</div>}
 
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
                 <div className="space-y-6">
                     <section className={cardClass}>
                         <CardHeader icon={Building2} title="Thông tin tòa nhà" description="Thông tin nhận diện, khu vực, quản lý và trạng thái vận hành." />
