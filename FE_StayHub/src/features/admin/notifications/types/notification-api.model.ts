@@ -12,6 +12,7 @@ export interface AdminNotificationResource {
   room_number?: string | null
   tenant_id: number | null
   tenant_name?: string | null
+  target_admin_id?: number | null
   published_at: string | null
   status: number
   status_label?: string | null

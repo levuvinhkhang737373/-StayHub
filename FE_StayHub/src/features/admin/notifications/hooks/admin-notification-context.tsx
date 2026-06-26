@@ -13,7 +13,7 @@ export interface ReceivedNotification {
   link?: string
   read: boolean
   createdAt: string
-  type: 'maintenance' | 'system' | 'invoice'
+  type: 'maintenance' | 'system' | 'invoice' | 'chat'
 }
 
 interface AdminNotificationContextValue {
@@ -71,11 +71,13 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
             const notifId = String(item.id)
             const localItem = localNotifs.find((ln) => ln.id === notifId)
             
-            let notifType: 'maintenance' | 'system' | 'invoice' = 'system'
+            let notifType: ReceivedNotification['type'] = 'system'
             if (item.notification_type === 1) {
               notifType = 'maintenance'
             } else if (item.notification_type === 2) {
               notifType = 'invoice'
+            } else if (item.notification_type === 6) {
+              notifType = 'chat'
             }
 
             const scMatch = (item.content || '').match(/(SC-\d{6})/i)
@@ -87,6 +89,8 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
             } else if (item.notification_type === 2) {
               link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+            } else if (item.notification_type === 6) {
+              link = '/admin/chat'
             } else {
               link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
             }
@@ -266,6 +270,8 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
             } else if (notification.notification_type === 2) {
               link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+            } else if (notification.notification_type === 6) {
+              link = '/admin/chat'
             } else {
               link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
             }
@@ -274,7 +280,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               title: notification.title,
               description: notification.content,
               link,
-              type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : 'system',
+              type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : notification.notification_type === 6 ? 'chat' : 'system',
             })
           }
 
@@ -306,6 +312,20 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       return { id: b.id, channel: bCh }
     })
 
+    const adminChatChannel = echo.private(`chat.admin.${adminId}`)
+    adminChatChannel.listen('.NotificationSent', (event: any) => {
+      const notification = event.notification
+      if (!notification || Number(notification.notification_type) !== 6) return
+
+      window.dispatchEvent(new CustomEvent('notification-refresh', { detail: notification }))
+      addNotification({
+        title: notification.title || 'Tin nhắn mới',
+        description: notification.content || 'Bạn có tin nhắn chat mới.',
+        link: '/admin/chat',
+        type: 'chat',
+      })
+    })
+
     return () => {
       channel.stopListening('.MaintenanceRequestCreated')
       channel.stopListening('.MaintenanceRequestAssigned')
@@ -319,6 +339,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       buildingChannels.forEach((bc) => {
         bc.channel.stopListening('.ContractExpired')
       })
+      adminChatChannel.stopListening('.NotificationSent')
     }
   }, [adminId, echo, session, addNotification])
 
@@ -409,7 +430,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
                 }}
               >
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f766e]">
-                  {toast.type === 'maintenance' ? 'Yêu cầu sửa chữa' : 'Thông báo'}
+                  {toast.type === 'maintenance' ? 'Yêu cầu sửa chữa' : toast.type === 'invoice' ? 'Hóa đơn' : toast.type === 'chat' ? 'Tin nhắn mới' : 'Thông báo'}
                 </p>
                 <h4 className="mt-1 text-sm font-black text-[#24170d]">{toast.title}</h4>
                 <p className="mt-0.5 text-xs text-[#6f6254] font-semibold leading-relaxed">{toast.description}</p>

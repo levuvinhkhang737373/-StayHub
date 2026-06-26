@@ -17,7 +17,6 @@ import { ExpensesScreen } from '../features/admin/expenses'
 import { CreateTenantScreen } from '../features/admin/tenants/components/create-tenant-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { FinancialsScreen } from '../features/admin/financials/components/financials-screen'
-import { AdminPlaceholderScreen } from '../features/admin/shared/components/admin-placeholder-screen'
 import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
 import { AdminLayout } from '../layouts/admin/AdminLayout'
 import { RoomsScreen } from '../features/admin/rooms/components/rooms-screen'
@@ -30,6 +29,7 @@ import { MeterReadingsScreen } from '../features/admin/meter-readings'
 import { TenantTransferRoomScreen } from '../features/admin/tenants/components/TenantTransferRoomScreen'
 import { ActivityLogsScreen } from '../features/admin/activity-logs'
 import { RoomMovementsScreen } from '../features/admin/room-movements'
+import { AdminChatScreen } from '../features/admin/chat'
 import { LegacyTenantTransferRoomRedirect } from './LegacyTenantTransferRoomRedirect'
 
 export const adminRoutes: RouteObject[] = [
@@ -161,6 +161,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'notifications',
         element: <NotificationsScreen />,
+      },
+      {
+        path: 'chat',
+        element: <AdminRouteGuard access="all"><AdminChatScreen /></AdminRouteGuard>,
       },
       {
         path: 'system-users',

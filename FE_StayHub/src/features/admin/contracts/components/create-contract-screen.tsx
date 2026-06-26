@@ -28,7 +28,7 @@ import type {
   ContractVehicleFormRow,
 } from '../types/contract-api.model'
 import { validateContractForm } from '../validations/contract.validation'
-import { formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
+import { formatMoneyInput } from '../../../../shared/lib/utils/format'
 
 import {
   STATUS_PENDING_SIGN,

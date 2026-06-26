@@ -15,7 +15,19 @@ function resolveApiUrl(): string {
 
 const apiUrl = formatApiBaseUrl(resolveApiUrl())
 
+function resolveReverbPort(): number {
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return window.location.port ? Number(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80)
+  }
+
+  return Number(import.meta.env.VITE_REVERB_PORT ?? 8009)
+}
+
 export const appConfig = {
   apiUrl,
   apiOrigin: new URL(apiUrl).origin,
+  reverbKey: import.meta.env.VITE_REVERB_APP_KEY ?? 'rhtxfafogu4wbww3eufp',
+  reverbHost: import.meta.env.VITE_REVERB_HOST ?? window.location.hostname,
+  reverbPort: resolveReverbPort(),
+  reverbScheme: window.location.protocol === 'https:' ? 'https' : 'http',
 }
