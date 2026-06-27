@@ -48,8 +48,8 @@ export function CreateRoomScreen() {
     max_occupants: '',
     status: 1,
     description: '',
-    electric_reading: '',
-    water_reading: '',
+    electric_reading: '0',
+    water_reading: '0',
   });
 
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssetItem[]>([]);

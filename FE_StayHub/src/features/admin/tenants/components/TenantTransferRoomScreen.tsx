@@ -32,6 +32,7 @@ import type { AdminContractResource } from '../../contracts/types/contract-api.m
 import type { TransferRoomResultResource, TransferTenantPayload } from '../types/TranferModel'
 import { fetchAdminContractDetail } from '../../contracts/services/contracts.service'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
+import { formatMoneyInput } from '../../../../shared/lib/utils/format'
 
 const ROOM_STATUS_ACTIVE = 1
 const STATUS_RENTING = 1
@@ -439,7 +440,7 @@ export function TenantTransferRoomScreen() {
     if (room.current_occupants > 0) {
       setNewDepositAmount('0')
     } else {
-      setNewDepositAmount(String(Math.max(0, Number(room.base_price ?? 0))))
+      setNewDepositAmount(formatMoneyInput(String(Math.max(0, Number(room.base_price ?? 0)))))
     }
   }
 
@@ -796,30 +797,27 @@ export function TenantTransferRoomScreen() {
             <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
               <Field label="Khấu trừ hư hao / đồ dùng" error={fieldErrors.deposit_deduction_amount}>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
                   value={depositDeductionAmount}
-                  onChange={(event) => setDepositDeductionAmount(event.target.value)}
+                  onChange={(event) => setDepositDeductionAmount(formatMoneyInput(event.target.value))}
                   placeholder="0"
                   className={inputClass}
                 />
               </Field>
               <Field label="Phí chuyển phòng" error={fieldErrors.transfer_fee}>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
                   value={transferFee}
-                  onChange={(event) => setTransferFee(event.target.value)}
+                  onChange={(event) => setTransferFee(formatMoneyInput(event.target.value))}
                   placeholder="0"
                   className={inputClass}
                 />
               </Field>
               <Field label="Cọc yêu cầu phòng đích" error={fieldErrors.new_deposit_amount}>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
                   value={newDepositAmount}
-                  onChange={(event) => setNewDepositAmount(event.target.value)}
+                  onChange={(event) => setNewDepositAmount(formatMoneyInput(event.target.value))}
                   placeholder="0"
                   className={inputClass}
                   disabled={destinationRoomHasContract}

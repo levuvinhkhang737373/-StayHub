@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../config/currency_formatter.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../models/invoice.dart';
 import '../../services/websocket_service.dart';
@@ -160,7 +162,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                                         children: [
                                           const Text('Tổng tiền:', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1C1917))),
                                           Text(
-                                            '${invoice.totalAmount.toStringAsFixed(0)}đ',
+                                            formatMoney(invoice.totalAmount),
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1C1917)),
                                           ),
                                         ],
@@ -340,7 +342,7 @@ class _AdjustmentDraft {
       itemType: item.itemType,
       description: item.description,
       quantity: item.quantity.toStringAsFixed(2),
-      unitPrice: item.unitPrice.abs().toStringAsFixed(2),
+      unitPrice: formatMoney(item.unitPrice.abs()).replaceAll('đ', '').trim(),
     );
   }
 
@@ -356,7 +358,7 @@ class _AdjustmentDraft {
 
   Map<String, dynamic> toPayload() {
     final quantityText = quantityController.text.trim();
-    final unitPriceText = unitPriceController.text.trim();
+    final unitPriceText = unitPriceController.text.trim().replaceAll('.', '');
     final quantityValue = double.tryParse(quantityText);
     final unitPriceValue = double.tryParse(unitPriceText);
 
@@ -370,7 +372,7 @@ class _AdjustmentDraft {
 
   double signedAmount() {
     final quantity = double.tryParse(quantityController.text.trim())?.abs() ?? 1;
-    final unitPrice = double.tryParse(unitPriceController.text.trim())?.abs() ?? 0;
+    final unitPrice = parseMoney(unitPriceController.text).abs();
     final amount = quantity * unitPrice;
     return itemType == _itemTypeDiscount || itemType == _itemTypeAdjustDecrease ? -amount : amount;
   }
@@ -651,6 +653,7 @@ class _ReissueInvoiceSheetState extends State<_ReissueInvoiceSheet> {
                             child: TextField(
                               controller: adjustment.unitPriceController,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [CurrencyInputFormatter()],
                               onChanged: (_) => setState(() {}),
                               decoration: _inputDecoration('Đơn giá', '0'),
                             ),
@@ -665,7 +668,7 @@ class _ReissueInvoiceSheetState extends State<_ReissueInvoiceSheet> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: const Color(0xFF0F766E).withOpacity(0.08), borderRadius: BorderRadius.circular(14)),
               child: Text(
-                'Tổng điều chỉnh: ${adjustmentTotal >= 0 ? '+' : '-'}${adjustmentTotal.abs().toStringAsFixed(0)}đ',
+                'Tổng điều chỉnh: ${adjustmentTotal >= 0 ? '+' : '-'}${formatMoney(adjustmentTotal.abs())}',
                 style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F766E)),
               ),
             ),

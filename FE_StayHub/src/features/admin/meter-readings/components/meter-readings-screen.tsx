@@ -15,6 +15,7 @@ import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { ImageViewerModal } from '../../../../shared/components/ImageViewerModal'
 import { useAdminSession, isBuildingManagerRole } from '../../auth/hooks/use-admin-session'
+import { formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 const inputErrorClass = 'border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100'
@@ -546,16 +547,16 @@ export function MeterReadingsScreen() {
   }
 
   const handleOpenPriceModal = () => {
-    setInputElectricPrice(String(rates.electric))
-    setInputWaterPrice(String(rates.water))
+    setInputElectricPrice(formatMoneyInput(String(rates.electric)))
+    setInputWaterPrice(formatMoneyInput(String(rates.water)))
     setPriceFormErrors({})
     setIsPriceModalOpen(true)
   }
 
   const handleSavePrices = async () => {
     const errors: { electric?: string; water?: string } = {}
-    const elecVal = Number(inputElectricPrice)
-    const waterVal = Number(inputWaterPrice)
+    const elecVal = Number(parseMoneyInput(inputElectricPrice))
+    const waterVal = Number(parseMoneyInput(inputWaterPrice))
 
     if (inputElectricPrice.trim() === '' || isNaN(elecVal) || elecVal < 0) {
       errors.electric = 'Đơn giá điện không hợp lệ.'
@@ -1308,14 +1309,12 @@ export function MeterReadingsScreen() {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold text-sm"><Zap className="h-4 w-4 text-[#a65f16]" /></span>
                   <input
-                    type="number"
-                    min={0}
-                    step="any"
+                    type="text"
                     placeholder="Nhập đơn giá điện"
                     className={cn(inputClass, 'pl-11', priceFormErrors.electric && inputErrorClass)}
                     value={inputElectricPrice}
                     onChange={(e) => {
-                      setInputElectricPrice(e.target.value)
+                      setInputElectricPrice(formatMoneyInput(e.target.value))
                       setPriceFormErrors(prev => ({ ...prev, electric: undefined }))
                     }}
                   />
@@ -1329,14 +1328,12 @@ export function MeterReadingsScreen() {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold text-sm"><Droplet className="h-4 w-4 text-cyan-600" /></span>
                   <input
-                    type="number"
-                    min={0}
-                    step="any"
+                    type="text"
                     placeholder="Nhập đơn giá nước"
                     className={cn(inputClass, 'pl-11', priceFormErrors.water && inputErrorClass)}
                     value={inputWaterPrice}
                     onChange={(e) => {
-                      setInputWaterPrice(e.target.value)
+                      setInputWaterPrice(formatMoneyInput(e.target.value))
                       setPriceFormErrors(prev => ({ ...prev, water: undefined }))
                     }}
                   />
