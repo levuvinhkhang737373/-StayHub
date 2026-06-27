@@ -11,6 +11,7 @@ import 'controllers/invoice_controller.dart';
 import 'controllers/maintenance_controller.dart';
 import 'controllers/contract_controller.dart';
 import 'controllers/notification_controller.dart';
+import 'controllers/chat_controller.dart';
 import 'services/websocket_service.dart';
 import 'controllers/meter_reading_controller.dart';
 
@@ -28,11 +29,13 @@ import 'views/admin/invoices_screen.dart';
 import 'views/admin/maintenance_screen.dart';
 import 'views/admin/contracts_screen.dart';
 import 'views/admin/chat_screen.dart';
+import 'views/admin/admin_realtime_chat_screen.dart' as admin_chat;
 
 import 'views/tenant/tenant_dashboard_screen.dart';
 import 'views/tenant/tenant_invoices_screen.dart';
 import 'views/tenant/tenant_maintenance_screen.dart';
 import 'views/tenant/tenant_chat_screen.dart';
+import 'views/tenant/tenant_realtime_chat_screen.dart' as tenant_chat;
 import 'views/tenant/tenant_contract_screen.dart';
 import 'views/tenant/tenant_utility_screen.dart';
 
@@ -52,6 +55,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => MaintenanceController()),
         ChangeNotifierProvider(create: (_) => ContractController()),
         ChangeNotifierProvider(create: (_) => NotificationController()),
+        ChangeNotifierProvider(create: (_) => ChatController()),
         ChangeNotifierProvider(create: (_) => WebSocketService()),
         ChangeNotifierProvider(create: (_) => MeterReadingController()),
       ],
@@ -148,11 +152,13 @@ class MyApp extends StatelessWidget {
         '/admin/maintenance': (_) => const MaintenanceScreen(),
         '/admin/contracts': (_) => const ContractsScreen(),
         '/admin/notifications': (_) => const AdminNotificationScreen(),
+        '/admin/chat': (_) => const admin_chat.AdminChatScreen(),
         // Tenant Operations
         '/tenant-dashboard': (_) => const TenantDashboardScreen(),
         '/tenant/invoices': (_) => const TenantInvoicesScreen(),
         '/tenant/maintenance': (_) => const TenantMaintenanceScreen(),
         '/tenant/notifications': (_) => const TenantNotificationScreen(),
+        '/tenant/chat': (_) => const tenant_chat.TenantChatScreen(),
         '/tenant/contract': (_) => const TenantContractScreen(),
         '/tenant/utility': (_) => const TenantUtilityScreen(),
       },

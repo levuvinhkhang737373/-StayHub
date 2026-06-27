@@ -9,7 +9,7 @@ import type {
 export interface AdminChatConversationFilters {
   keyword?: string
   building_id?: number
-  unread?: boolean
+  unread?: boolean | number
   page?: number
   per_page?: number
 }

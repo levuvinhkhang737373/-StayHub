@@ -151,4 +151,9 @@ class Building extends Model
     {
         return $this->hasMany(Setting::class);
     }
+
+    public function chatConversations(): HasMany
+    {
+        return $this->hasMany(ChatConversation::class);
+    }
 }

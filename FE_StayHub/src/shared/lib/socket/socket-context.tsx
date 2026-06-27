@@ -6,7 +6,7 @@ import { useAdminSession } from '../../../features/admin/auth/hooks/use-admin-se
 import { appConfig } from '../../config/app-config'
 
 if (typeof window !== 'undefined') {
-  ;(window as any).Pusher = Pusher
+  ; (window as any).Pusher = Pusher
 }
 
 interface SocketContextValue {
@@ -26,7 +26,7 @@ function createEchoInstance() {
     wsPort: appConfig.reverbPort,
     wssPort: appConfig.reverbPort,
     forceTLS: isTLS,
-    enabledTransports: isTLS ? ['wss'] : ['ws'],
+    enabledTransports: ['ws', 'wss'],
     authorizer: (channel: any) => {
       return {
         authorize: (socketId: string, callback: any) => {
@@ -49,13 +49,13 @@ function createEchoInstance() {
               },
             }
           )
-          .then((response) => {
-            callback(false, response.data)
-          })
-          .catch((error) => {
-            console.error('WS Auth failed:', error)
-            callback(true, error)
-          })
+            .then((response) => {
+              callback(false, response.data)
+            })
+            .catch((error) => {
+              console.error('WS Auth failed:', error)
+              callback(true, error)
+            })
         },
       }
     },

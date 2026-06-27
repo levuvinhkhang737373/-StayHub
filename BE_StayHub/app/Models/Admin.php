@@ -178,4 +178,14 @@ class Admin extends Authenticatable
     {
         return $this->hasMany(AdminLog::class);
     }
+
+    public function chatConversations(): HasMany
+    {
+        return $this->hasMany(ChatConversation::class, 'manager_admin_id');
+    }
+
+    public function chatMessages(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(ChatMessage::class, 'sender');
+    }
 }

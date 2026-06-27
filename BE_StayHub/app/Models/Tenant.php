@@ -176,4 +176,14 @@ class Tenant extends Authenticatable
     {
         return $this->belongsToMany(Notification::class, 'notification_reads')->withPivot('read_at');
     }
+
+    public function chatConversations(): HasMany
+    {
+        return $this->hasMany(ChatConversation::class);
+    }
+
+    public function chatMessages(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(ChatMessage::class, 'sender');
+    }
 }

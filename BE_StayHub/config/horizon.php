@@ -97,6 +97,7 @@ return [
     */
 
     'waits' => [
+        'redis:chat' => 10,
         'redis:high' => 30,
         'redis:default' => 60,
     ],
@@ -198,6 +199,22 @@ return [
     */
 
     'defaults' => [
+        'chat-supervisor' => [
+            'connection' => 'redis',
+            'queue' => ['chat'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 2,
+            'minProcesses' => 1,
+            'maxTime' => 3600,
+            'maxJobs' => 1000,
+            'memory' => 128,
+            'tries' => 3,
+            'timeout' => 30,
+            'balanceMaxShift' => 1,
+            'balanceCooldown' => 1,
+            'nice' => 0,
+        ],
         'supervisor-1' => [
             'connection' => 'redis',
             'queue' => ['high', 'default'],
@@ -215,6 +232,12 @@ return [
 
     'environments' => [
         'production' => [
+            'chat-supervisor' => [
+                'maxProcesses' => 8,
+                'minProcesses' => 2,
+                'balanceMaxShift' => 2,
+                'balanceCooldown' => 1,
+            ],
             'supervisor-1' => [
                 'maxProcesses' => 10,
                 'minProcesses' => 2,
@@ -224,6 +247,12 @@ return [
         ],
 
         'local' => [
+            'chat-supervisor' => [
+                'maxProcesses' => 6,
+                'minProcesses' => 2,
+                'balanceMaxShift' => 2,
+                'balanceCooldown' => 1,
+            ],
             'supervisor-1' => [
                 'maxProcesses' => 10,
                 'minProcesses' => 2,

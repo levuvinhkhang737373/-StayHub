@@ -24,6 +24,7 @@ class NotificationResource extends JsonResource
             'room_number' => $this->whenLoaded('room', fn () => $this->room?->room_number),
             'tenant_id' => $this->tenant_id,
             'tenant_name' => $this->whenLoaded('tenant', fn () => $this->tenant?->full_name),
+            'target_admin_id' => $this->target_admin_id,
             'published_at' => optional($this->published_at)->toDateTimeString(),
             'status' => $this->status,
             'status_label' => Notification::STATUS_LABELS[$this->status] ?? 'Nháp',

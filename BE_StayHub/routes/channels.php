@@ -20,3 +20,29 @@ Broadcast::channel('admin-building.{buildingId}', function ($user, $buildingId) 
 Broadcast::channel('tenant.{id}', function ($user, $id) {
     return $user instanceof \App\Models\Tenant && (int) $user->id === (int) $id;
 }, ['guards' => ['tenant']]);
+
+Broadcast::channel('chat.conversation.{conversationId}', function ($user, $conversationId) {
+    $conversation = \App\Models\ChatConversation::query()->find((int) $conversationId);
+
+    if (! $conversation) {
+        return false;
+    }
+
+    if ($user instanceof \App\Models\Tenant) {
+        return (int) $conversation->tenant_id === (int) $user->id;
+    }
+
+    if ($user instanceof \App\Models\Admin) {
+        return (int) $conversation->manager_admin_id === (int) $user->id;
+    }
+
+    return false;
+}, ['guards' => ['admin', 'tenant']]);
+
+Broadcast::channel('chat.admin.{adminId}', function ($user, $adminId) {
+    return $user instanceof \App\Models\Admin && (int) $user->id === (int) $adminId;
+}, ['guards' => ['admin']]);
+
+Broadcast::channel('chat.tenant.{tenantId}', function ($user, $tenantId) {
+    return $user instanceof \App\Models\Tenant && (int) $user->id === (int) $tenantId;
+}, ['guards' => ['tenant']]);

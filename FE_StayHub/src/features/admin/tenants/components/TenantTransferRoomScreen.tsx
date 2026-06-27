@@ -330,11 +330,11 @@ export function TenantTransferRoomScreen() {
 
     return selectedTenantIds.length > 0
       ? selectedTenantIds.map((tenantId) => ({
-          tenantId,
-          fullName: `Khách thuê #${tenantId}`,
-          gender: tenant?.gender ?? null,
-          isStaying: true,
-        }))
+        tenantId,
+        fullName: `Khách thuê #${tenantId}`,
+        gender: tenant?.gender ?? null,
+        isStaying: true,
+      }))
       : []
   }, [selectedTenantCards, selectedTenantIds, tenant?.gender])
 
@@ -992,9 +992,7 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
                   <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Bắt đầu lịch chuyển phòng</h1>
                 </div>
               </div>
-              <p className="max-w-2xl text-sm font-semibold leading-6 text-[#f8e8c8]/78">
-                Tìm đúng khách thuê đang ở hợp đồng cần chuyển. Sau khi chọn, hệ thống sẽ mở màn lên lịch với ngày chốt cố định và settlement đầy đủ.
-              </p>
+
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[28rem] xl:grid-cols-2">
@@ -1016,7 +1014,11 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black text-[#0f5f59]">
           {keyword && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Từ khóa: {keyword}</span>}
-          {buildingFilter && <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">Tòa nhà #{buildingFilter}</span>}
+          {buildingFilter && (
+            <span className="rounded-full border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 py-1">
+              Tòa nhà: {buildingOptions.find((option) => String(option.value) === String(buildingFilter))?.label || `#${buildingFilter}`}
+            </span>
+          )}
         </div>
       </section>
 

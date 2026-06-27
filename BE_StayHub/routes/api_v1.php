@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AssetTemplateController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
 use App\Http\Controllers\Admin\BulkGenerateInvoiceController;
+use App\Http\Controllers\Admin\ChatController as AdminChatController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ContractController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\FinancialReportController;
 use App\Http\Controllers\Admin\VehicleController;
 use App\Http\Controllers\Tenant\AuthController as TenantAuthController;
+use App\Http\Controllers\Tenant\ChatController as TenantChatController;
 use App\Http\Controllers\Tenant\InvoiceController as TenantInvoiceController;
 use App\Http\Controllers\Tenant\MaintenanceRequestController as TenantMaintenanceController;
 use App\Http\Controllers\Tenant\NotificationController as TenantNotificationController;
@@ -114,6 +116,12 @@ Route::prefix('admin')->group(function (): void {
         // =========================Notifications===========================
         Route::apiResource('notifications', AdminNotificationController::class);
 
+        // =========================Chat====================================
+        Route::get('chat/conversations', [AdminChatController::class, 'index']);
+        Route::get('chat/conversations/{conversation}/messages', [AdminChatController::class, 'messages']);
+        Route::post('chat/conversations/{conversation}/messages', [AdminChatController::class, 'sendMessage'])->middleware('throttle:chat-send');
+        Route::patch('chat/conversations/{conversation}/read', [AdminChatController::class, 'markAsRead']);
+
         // =========================Contracts================================
         Route::get('contracts/available-rooms', [ContractController::class, 'availableRooms']);
         Route::patch('contracts/{contract}/status', [ContractController::class, 'updateStatus']);
@@ -168,6 +176,12 @@ Route::prefix('tenant')->group(function (): void {
         Route::get('notifications', [TenantNotificationController::class, 'index']);
         Route::post('notifications/read-all', [TenantNotificationController::class, 'readAll']);
         Route::post('notifications/{id}/read', [TenantNotificationController::class, 'read']);
+
+        // =========================Chat===============================
+        Route::get('chat/conversation', [TenantChatController::class, 'conversation']);
+        Route::get('chat/messages', [TenantChatController::class, 'messages']);
+        Route::post('chat/messages', [TenantChatController::class, 'sendMessage'])->middleware('throttle:chat-send');
+        Route::patch('chat/read', [TenantChatController::class, 'markAsRead']);
 
         // =========================Contract============================
         Route::get('contract', [App\Http\Controllers\Tenant\ContractController::class, 'show']);

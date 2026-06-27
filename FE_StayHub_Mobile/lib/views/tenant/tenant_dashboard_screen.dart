@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../controllers/maintenance_controller.dart';
 import '../../controllers/notification_controller.dart';
+import '../../controllers/chat_controller.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import '../settings/settings_screen.dart';
@@ -19,6 +21,7 @@ class TenantDashboardScreen extends StatefulWidget {
 
 class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
   int _currentIndex = 0;
+  StreamSubscription? _chatNotificationSubscription;
 
   @override
   void initState() {
@@ -40,8 +43,57 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
             context.read<InvoiceController>().fetchInvoices(isAdmin: false);
           }
         });
+        context.read<WebSocketService>().subscribeToTenantChat(
+          tenantId,
+          onMessage: (payload) {
+            if (!mounted) return;
+            context.read<ChatController>().handleRealtimeMessage(payload);
+          },
+          onRead: (payload) {
+            if (!mounted) return;
+            context.read<ChatController>().handleRealtimeRead(payload);
+          },
+        );
+        _chatNotificationSubscription ??= context.read<WebSocketService>().notificationsStream.listen((event) {
+          if (!mounted || event['type'] != 'chat_message_sent') return;
+
+          final data = event['data'] as Map<String, dynamic>?;
+          final message = data?['message'] as Map<String, dynamic>?;
+          if (message == null || message['sender_role'] != 2) return;
+
+          context.read<NotificationController>().fetchNotifications(isAdmin: false);
+          final body = message['body']?.toString() ?? 'Bạn có tin nhắn mới từ quản lý.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Quản lý: $body',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+              duration: const Duration(seconds: 5),
+              backgroundColor: const Color(0xFF0F766E),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        });
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _chatNotificationSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -257,6 +309,13 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
                             ),
                           );
                         },
+                      ),
+                      _buildMenuShortcutCard(
+                        title: 'Chat quản lý',
+                        subtitle: 'Hỗ trợ realtime',
+                        icon: Icons.chat_bubble_rounded,
+                        color: Colors.green,
+                        onTap: () => Navigator.pushNamed(context, '/tenant/chat'),
                       ),
                     ],
                   ),

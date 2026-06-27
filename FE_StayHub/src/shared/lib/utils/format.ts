@@ -21,9 +21,23 @@ export function formatCurrency(value: string | number | null | undefined): strin
   return `${formatMoneyText(value)} VNĐ`
 }
 
+function parseUtcDate(value: string | Date): Date {
+  if (value instanceof Date) return value
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    // Matches YYYY-MM-DD HH:mm:ss or YYYY-MM-DDTHH:mm:ss without timezone offset (e.g. from Laravel DB)
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(trimmed)) {
+      return new Date(`${trimmed.replace(' ', 'T')}Z`)
+    }
+  }
+
+  return new Date(value)
+}
+
 export function formatDate(value?: string | Date | null) {
   if (!value) return '—'
-  const date = new Date(value)
+  const date = parseUtcDate(value)
 
   if (Number.isNaN(date.getTime())) return String(value)
 
@@ -31,12 +45,13 @@ export function formatDate(value?: string | Date | null) {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'Asia/Ho_Chi_Minh',
   }).format(date)
 }
 
 export function formatDateTime(value?: string | Date | null) {
   if (!value) return '—'
-  const date = new Date(value)
+  const date = parseUtcDate(value)
 
   if (Number.isNaN(date.getTime())) return String(value)
 
@@ -46,5 +61,6 @@ export function formatDateTime(value?: string | Date | null) {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'Asia/Ho_Chi_Minh',
   }).format(date)
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MessageCircle, Minus, Send, Wifi, WifiOff, X } from 'lucide-react'
+import { MessageCircle, Minus, Send, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
@@ -171,11 +171,10 @@ export function TenantChatWidget() {
               </div>
               <div>
                 <p className="text-sm font-black">Chat với quản lý</p>
-                <p className="text-[11px] font-bold text-white/75">{conversation?.manager_name || 'StayHub'} · {echo ? 'Realtime' : 'Đang kết nối'}</p>
+                <p className="text-[11px] font-bold text-white/75">{conversation?.manager_name || 'StayHub'}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {echo ? <Wifi className="h-4 w-4 text-white/75" /> : <WifiOff className="h-4 w-4 text-white/75" />}
               <button type="button" onClick={() => setIsOpen(false)} className="flex min-h-9 min-w-9 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10" aria-label="Thu nhỏ chat">
                 <Minus className="h-4 w-4" />
               </button>

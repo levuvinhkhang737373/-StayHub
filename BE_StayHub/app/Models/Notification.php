@@ -18,6 +18,7 @@ class Notification extends Model
     public const NOTIFICATION_TYPE_SYSTEM = 3;
     public const NOTIFICATION_TYPE_WARNING = 4;
     public const NOTIFICATION_TYPE_OTHER = 5;
+    public const NOTIFICATION_TYPE_CHAT = 6;
 
     public const NOTIFICATION_TYPE_LABELS = [
         self::NOTIFICATION_TYPE_MAINTENANCE => 'Sửa chữa',
@@ -25,6 +26,7 @@ class Notification extends Model
         self::NOTIFICATION_TYPE_SYSTEM => 'Hệ thống',
         self::NOTIFICATION_TYPE_WARNING => 'Cảnh báo',
         self::NOTIFICATION_TYPE_OTHER => 'Khác',
+        self::NOTIFICATION_TYPE_CHAT => 'Tin nhắn',
     ];
 
     public const TARGET_TYPE_ALL = 1;
@@ -51,7 +53,7 @@ class Notification extends Model
         self::STATUS_CANCELLED => 'Đã hủy',
     ];
 
-    protected $fillable = ['title', 'content', 'notification_type', 'target_type', 'building_id', 'room_id', 'tenant_id', 'published_at', 'status', 'created_by'];
+    protected $fillable = ['title', 'content', 'notification_type', 'target_type', 'building_id', 'room_id', 'tenant_id', 'target_admin_id', 'published_at', 'status', 'created_by'];
 
     protected function casts(): array
     {
@@ -76,6 +78,11 @@ class Notification extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'created_by');
+    }
+
+    public function targetAdmin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'target_admin_id');
     }
 
     public function reads(): HasMany

@@ -14,8 +14,11 @@ use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
 use App\Models\Tenant;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -50,6 +53,13 @@ class AppServiceProvider extends ServiceProvider
             'room_movement'       => RoomMovement::class,
             'tenant'              => Tenant::class,
         ]);
+
+        RateLimiter::for('chat-send', function (Request $request): Limit {
+            $user = $request->user('admin') ?? $request->user('tenant');
+            $guard = $request->user('admin') ? 'admin' : 'tenant';
+
+            return Limit::perMinute(60)->by($guard . ':' . ($user?->id ?? $request->ip()));
+        });
 
         if (config('app.env') === 'production') {
             URL::forceScheme('https');

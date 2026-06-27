@@ -19,7 +19,7 @@ class UpdateRequest extends FormRequest
         return [
             'title' => ['required', 'string', 'max:255'],
             'content' => ['required', 'string'],
-            'notification_type' => ['required', 'integer', 'in:1,2,3,4,5'],
+            'notification_type' => ['required', 'integer', 'in:1,2,3,4,5,6'],
             'target_type' => ['required', 'integer', 'in:1,2,3,4'],
             'building_id' => ['nullable', 'integer', 'exists:buildings,id', 'required_if:target_type,2'],
             'room_id' => ['nullable', 'integer', 'exists:rooms,id', 'required_if:target_type,3'],

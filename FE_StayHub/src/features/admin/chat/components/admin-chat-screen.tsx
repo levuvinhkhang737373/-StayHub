@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { MessageCircle, Search, Send, Users, Wifi, WifiOff } from 'lucide-react'
+import { Loader2, MessageCircle, Search, Send, Users } from 'lucide-react'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { useAdminSession } from '../../auth/hooks/use-admin-session'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -18,6 +18,10 @@ import type {
 } from '../../../shared/chat/types/chat.types'
 
 const ADMIN_ROLE = 2
+const MESSAGES_PER_PAGE = 30
+const SCROLL_UP_THRESHOLD = 80
+const NEAR_BOTTOM_THRESHOLD = 200
+const INITIAL_LOAD_BLOCK_MS = 300
 
 export function AdminChatScreen() {
   const { echo } = useAdminSocket()
@@ -34,6 +38,11 @@ export function AdminChatScreen() {
   const [input, setInput] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const isInitialLoadRef = useRef(true)
+  const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const totalUnread = useMemo(() => conversations.reduce((total, item) => total + Number(item.admin_unread_count || 0), 0), [conversations])
 
@@ -51,7 +60,7 @@ export function AdminChatScreen() {
     try {
       const response = await fetchAdminChatConversations({
         keyword: keyword || undefined,
-        unread: showUnreadOnly || undefined,
+        unread: showUnreadOnly ? 1 : undefined,
         per_page: 50,
       })
       const data = response.result?.data || []
@@ -66,10 +75,22 @@ export function AdminChatScreen() {
 
   const loadMessages = useCallback(async (conversation: ChatConversationResource) => {
     setIsLoadingMessages(true)
+    isInitialLoadRef.current = true
     setErrorMessage(null)
     try {
-      const response = await fetchAdminChatMessages(conversation.id, { per_page: 50 })
+      const response = await fetchAdminChatMessages(conversation.id, { per_page: MESSAGES_PER_PAGE })
       setMessages(response.result?.data || [])
+      setHasMore(response.result?.pagination?.has_more || false)
+
+      window.requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+        }
+        window.setTimeout(() => {
+          isInitialLoadRef.current = false
+        }, INITIAL_LOAD_BLOCK_MS)
+      })
+
       if (conversation.admin_unread_count > 0) {
         const readResponse = await markAdminChatRead(conversation.id)
         if (readResponse.result) {
@@ -82,6 +103,57 @@ export function AdminChatScreen() {
       setIsLoadingMessages(false)
     }
   }, [upsertConversation])
+
+  const loadMoreMessages = useCallback(async () => {
+    if (!activeConversation || isLoadingMore || !hasMore || messages.length === 0) return
+
+    setIsLoadingMore(true)
+    const oldestId = messages[0]?.id
+
+    try {
+      const response = await fetchAdminChatMessages(activeConversation.id, {
+        before_id: oldestId,
+        per_page: MESSAGES_PER_PAGE,
+      })
+
+      const olderMessages = response.result?.data || []
+      setHasMore(response.result?.pagination?.has_more || false)
+
+      if (olderMessages.length > 0) {
+        const container = scrollContainerRef.current
+        const prevScrollHeight = container ? container.scrollHeight : 0
+        const prevScrollTop = container ? container.scrollTop : 0
+
+        setMessages((current) => [...olderMessages, ...current])
+
+        window.requestAnimationFrame(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight
+            container.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight)
+          }
+          window.requestAnimationFrame(() => {
+            setIsLoadingMore(false)
+          })
+        })
+      } else {
+        setIsLoadingMore(false)
+      }
+    } catch (error: any) {
+      console.error('Failed to load more messages:', error)
+      setIsLoadingMore(false)
+    }
+  }, [activeConversation, isLoadingMore, hasMore, messages])
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    if (isInitialLoadRef.current) return
+
+    const container = event.currentTarget
+    if (container.scrollHeight <= container.clientHeight) return
+
+    if (container.scrollTop < SCROLL_UP_THRESHOLD && hasMore && !isLoadingMore) {
+      void loadMoreMessages()
+    }
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -100,18 +172,32 @@ export function AdminChatScreen() {
   }, [activeConversation?.id, loadMessages])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length, activeConversation?.id])
-
-  useEffect(() => {
     if (!echo || !adminId) return
 
     const channel = echo.private(`chat.admin.${adminId}`)
     channel.listen('.ChatMessageSent', (event: ChatMessageSentEvent) => {
       upsertConversation(event.conversation)
       if (event.conversation.id === activeConversation?.id) {
+        const container = scrollContainerRef.current
+        const isNearBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight < NEAR_BOTTOM_THRESHOLD) : false
         setMessages((current) => current.some((item) => item.id === event.message.id) ? current : [...current.filter((item) => !item.optimistic), event.message])
-        void markAdminChatRead(event.conversation.id).then((response) => response.result && upsertConversation(response.result)).catch(() => null)
+
+        // Chỉ gọi markAdminChatRead khi tin nhắn từ tenant (không phải admin tự gửi)
+        // Debounce 500ms để tránh spam API khi nhiều tin nhắn đến liên tục
+        if (event.message.sender_role !== ADMIN_ROLE) {
+          if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current)
+          markReadTimerRef.current = setTimeout(() => {
+            void markAdminChatRead(event.conversation.id).then((response) => response.result && upsertConversation(response.result)).catch(() => null)
+          }, 500)
+        }
+
+        if (isNearBottom) {
+          window.requestAnimationFrame(() => {
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+            }
+          })
+        }
       }
     })
     channel.listen('.ChatConversationRead', (event: ChatConversationReadEvent) => {
@@ -121,6 +207,7 @@ export function AdminChatScreen() {
     return () => {
       channel.stopListening('.ChatMessageSent')
       channel.stopListening('.ChatConversationRead')
+      if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current)
     }
   }, [activeConversation?.id, adminId, echo, upsertConversation])
 
@@ -129,8 +216,23 @@ export function AdminChatScreen() {
 
     const channel = echo.private(`chat.conversation.${activeConversation.id}`)
     channel.listen('.ChatMessageSent', (event: ChatMessageSentEvent) => {
+      // Chỉ xử lý tin nhắn từ tenant (tin admin đã được xử lý bởi admin channel)
+      if (event.message.sender_role === ADMIN_ROLE) return
+
       upsertConversation(event.conversation)
-      setMessages((current) => current.some((item) => item.id === event.message.id) ? current : [...current.filter((item) => !item.optimistic), event.message])
+      if (event.conversation.id === activeConversation?.id) {
+        const container = scrollContainerRef.current
+        const isNearBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight < NEAR_BOTTOM_THRESHOLD) : false
+        setMessages((current) => current.some((item) => item.id === event.message.id) ? current : [...current, event.message])
+
+        if (isNearBottom) {
+          window.requestAnimationFrame(() => {
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+            }
+          })
+        }
+      }
     })
     channel.listen('.ChatConversationRead', (event: ChatConversationReadEvent) => {
       upsertConversation(event.conversation)
@@ -161,12 +263,22 @@ export function AdminChatScreen() {
 
     setInput('')
     setMessages((current) => [...current, optimisticMessage])
+    window.requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+      }
+    })
     setIsSending(true)
     try {
       const response = await sendAdminChatMessage(activeConversation.id, body)
       if (response.result) {
         setMessages((current) => [...current.filter((item) => item.id !== optimisticMessage.id), response.result.message])
         upsertConversation(response.result.conversation)
+        window.requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+          }
+        })
       }
     } catch (error: any) {
       setMessages((current) => current.filter((item) => item.id !== optimisticMessage.id))
@@ -178,9 +290,9 @@ export function AdminChatScreen() {
   }
 
   return (
-    <section className="min-h-[calc(100vh-8rem)] overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/85 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur-xl">
-      <div className="grid min-h-[calc(100vh-8rem)] grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <aside className="border-b border-[#3d2a18]/10 bg-[#24170d] text-[#fffaf1] lg:border-b-0 lg:border-r">
+    <section className="h-[calc(100vh-8rem)] overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/85 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur-xl">
+      <div className="grid h-full grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)]">
+        <aside className="flex h-full flex-col border-b border-[#3d2a18]/10 bg-[#24170d] text-[#fffaf1] lg:border-b-0 lg:border-r">
           <div className="space-y-4 p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -205,7 +317,7 @@ export function AdminChatScreen() {
             </div>
           </div>
 
-          <div className="max-h-[calc(100vh-20rem)] overflow-y-auto px-3 pb-4 lg:max-h-[calc(100vh-22rem)]">
+          <div className="flex-1 overflow-y-auto px-3 pb-4">
             {isLoadingConversations ? (
               <div className="space-y-3 p-3">
                 {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-3xl bg-white/10" />)}
@@ -234,7 +346,7 @@ export function AdminChatScreen() {
           </div>
         </aside>
 
-        <main className="flex min-h-[620px] flex-col bg-[radial-gradient(circle_at_20%_0%,rgba(243,197,107,0.24),transparent_32%),linear-gradient(180deg,#fffaf1,#f4efe6)]">
+        <main className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(243,197,107,0.24),transparent_32%),linear-gradient(180deg,#fffaf1,#f4efe6)]">
           {activeConversation ? (
             <>
               <header className="flex items-center justify-between gap-4 border-b border-[#3d2a18]/10 bg-white/55 p-5 backdrop-blur-md">
@@ -245,13 +357,13 @@ export function AdminChatScreen() {
                     <p className="truncate text-xs font-black uppercase tracking-[0.16em] text-[#8b5e34]">{activeConversation.building_name || 'Tòa nhà'} · {activeConversation.tenant_phone || 'Chưa có SĐT'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 rounded-full border border-[#0f766e]/15 bg-[#0f766e]/10 px-3 py-2 text-xs font-black text-[#0f5f59]">
-                  {echo ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-                  {echo ? 'Realtime' : 'Đang nối'}
-                </div>
               </header>
 
-              <div className="flex-1 overflow-y-auto p-5">
+              <div
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto p-5"
+              >
                 {isLoadingMessages ? (
                   <div className="space-y-3">
                     {Array.from({ length: 6 }).map((_, index) => <div key={index} className={cn('h-14 animate-pulse rounded-3xl bg-[#3d2a18]/10', index % 2 ? 'ml-auto w-2/5' : 'w-3/5')} />)}
@@ -266,6 +378,17 @@ export function AdminChatScreen() {
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {/* Loading spinner khi đang tải tin nhắn cũ */}
+                    {isLoadingMore && (
+                      <div className="flex items-center justify-center py-3">
+                        <Loader2 className="h-5 w-5 animate-spin text-[#8b5e34]" />
+                        <span className="ml-2 text-xs font-bold text-[#8b5e34]">Đang tải tin nhắn cũ...</span>
+                      </div>
+                    )}
+                    {/* Hiển thị thông báo khi đã hết tin nhắn cũ */}
+                    {!hasMore && messages.length > MESSAGES_PER_PAGE && (
+                      <div className="py-3 text-center text-xs font-bold text-[#8b5e34]/50">Đã hiển thị toàn bộ tin nhắn</div>
+                    )}
                     {messages.map((message) => {
                       const isMine = message.sender_role === ADMIN_ROLE
                       return (

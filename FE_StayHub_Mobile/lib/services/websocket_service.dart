@@ -21,7 +21,12 @@ class WebSocketService extends ChangeNotifier {
   // Registered subscription callbacks for reconnection/lazy connection
   VoidCallback? _onAdminMaintenanceCallback;
   Function(Map<String, dynamic>)? _onTenantNotificationCallback;
+  Function(Map<String, dynamic>)? _onChatMessageCallback;
+  Function(Map<String, dynamic>)? _onChatReadCallback;
   int? _tenantId;
+  int? _adminChatId;
+  int? _tenantChatId;
+  int? _conversationId;
 
   // Stream for broadcasting notification events to the application
   final StreamController<Map<String, dynamic>> _notificationStreamController = StreamController<Map<String, dynamic>>.broadcast();
@@ -438,6 +443,112 @@ class WebSocketService extends ChangeNotifier {
     if (_tenantId != null && _onTenantNotificationCallback != null) {
       _subscribeToTenantChannel(_tenantId!);
     }
+    if (_adminChatId != null && _onChatMessageCallback != null) {
+      _subscribeToChatInboxChannel('private-chat.admin.$_adminChatId');
+    }
+    if (_tenantChatId != null && _onChatMessageCallback != null) {
+      _subscribeToChatInboxChannel('private-chat.tenant.$_tenantChatId');
+    }
+    if (_conversationId != null && _onChatMessageCallback != null) {
+      _subscribeToChatConversationChannel(_conversationId!);
+    }
+  }
+
+  void subscribeToAdminChat(int adminId, {
+    required Function(Map<String, dynamic>) onMessage,
+    Function(Map<String, dynamic>)? onRead,
+  }) {
+    _adminChatId = adminId;
+    _onChatMessageCallback = onMessage;
+    _onChatReadCallback = onRead;
+    if (_isConnected) {
+      _subscribeToChatInboxChannel('private-chat.admin.$adminId');
+    }
+  }
+
+  void subscribeToTenantChat(int tenantId, {
+    required Function(Map<String, dynamic>) onMessage,
+    Function(Map<String, dynamic>)? onRead,
+  }) {
+    _tenantChatId = tenantId;
+    _onChatMessageCallback = onMessage;
+    _onChatReadCallback = onRead;
+    if (_isConnected) {
+      _subscribeToChatInboxChannel('private-chat.tenant.$tenantId');
+    }
+  }
+
+  void subscribeToChatConversation(int conversationId, {
+    required Function(Map<String, dynamic>) onMessage,
+    Function(Map<String, dynamic>)? onRead,
+  }) {
+    _conversationId = conversationId;
+    _onChatMessageCallback = onMessage;
+    _onChatReadCallback = onRead;
+    if (_isConnected) {
+      _subscribeToChatConversationChannel(conversationId);
+    }
+  }
+
+  Future<void> _subscribeToChatConversationChannel(int conversationId) async {
+    await _subscribeToChatChannel('private-chat.conversation.$conversationId');
+  }
+
+  Future<void> _subscribeToChatInboxChannel(String channelName) async {
+    await _subscribeToChatChannel(channelName);
+  }
+
+  Future<void> _subscribeToChatChannel(String channelName) async {
+    if (_client == null || !_isConnected) return;
+    if (_activeChannels.containsKey(channelName)) return;
+
+    try {
+      final channel = _client!.privateChannel(
+        channelName,
+        authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
+          onAuthFailed: (exception, trace) {
+            debugPrint('WS Auth failed for channel $channelName: $exception');
+            _debugStreamController.add('Lỗi xác thực kênh $channelName: $exception');
+          },
+        ),
+      );
+      _activeChannels[channelName] = channel;
+
+      final List<StreamSubscription> subscriptions = [];
+      subscriptions.add(channel.bind('ChatMessageSent').listen((event) {
+        final decoded = _decodeEventData(event.data);
+        if (decoded != null) {
+          _onChatMessageCallback?.call(decoded);
+          _notificationStreamController.add({'type': 'chat_message_sent', 'data': decoded});
+        }
+      }));
+      subscriptions.add(channel.bind('ChatConversationRead').listen((event) {
+        final decoded = _decodeEventData(event.data);
+        if (decoded != null) {
+          _onChatReadCallback?.call(decoded);
+          _notificationStreamController.add({'type': 'chat_conversation_read', 'data': decoded});
+        }
+      }));
+
+      _eventSubscriptions[channelName] = subscriptions;
+      channel.subscribe();
+    } catch (e) {
+      debugPrint('WS Chat subscription error ($channelName): $e');
+    }
+  }
+
+  Map<String, dynamic>? _decodeEventData(dynamic rawData) {
+    try {
+      if (rawData is String) {
+        return jsonDecode(rawData) as Map<String, dynamic>;
+      }
+      if (rawData is Map) {
+        return Map<String, dynamic>.from(rawData);
+      }
+    } catch (e) {
+      debugPrint('WS decode event error: $e');
+    }
+    return null;
   }
 
   /// Unsubscribe from a channel
@@ -469,7 +580,12 @@ class WebSocketService extends ChangeNotifier {
     
     _onAdminMaintenanceCallback = null;
     _onTenantNotificationCallback = null;
+    _onChatMessageCallback = null;
+    _onChatReadCallback = null;
     _tenantId = null;
+    _adminChatId = null;
+    _tenantChatId = null;
+    _conversationId = null;
 
     // Cancel subscriptions
     for (final sub in _eventSubscriptions.values) {

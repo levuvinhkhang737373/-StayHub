@@ -151,4 +151,9 @@ class Room extends Model
     {
         return $this->hasMany(Expense::class);
     }
+
+    public function chatConversations(): HasMany
+    {
+        return $this->hasMany(ChatConversation::class);
+    }
 }

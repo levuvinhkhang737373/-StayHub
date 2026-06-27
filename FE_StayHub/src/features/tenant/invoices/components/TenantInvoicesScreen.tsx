@@ -30,16 +30,10 @@ import {
   INVOICE_STATUS_PARTIALLY_PAID,
   INVOICE_STATUS_UNPAID,
 } from '../types/invoice.types'
-import Echo from 'laravel-echo'
-import Pusher from 'pusher-js'
-import axios from 'axios'
-import { appConfig } from '../../../../shared/config/app-config'
-
-if (typeof window !== 'undefined') {
-  ; (window as any).Pusher = Pusher
-}
+import { useTenantSocket } from '../../../../shared/lib/socket/socket-context'
 
 export function TenantInvoicesScreen() {
+  const { echo } = useTenantSocket()
   const [tenant, setTenant] = useState<any>(null)
   const [invoices, setInvoices] = useState<TenantInvoiceResource[]>([])
   const [paginationMeta, setPaginationMeta] = useState<any>(null)
@@ -115,62 +109,7 @@ export function TenantInvoicesScreen() {
 
   // 3. Setup WebSocket listener for real-time updates
   useEffect(() => {
-    if (!tenant?.id) return
-
-    const REVERB_KEY = 'rhtxfafogu4wbww3eufp'
-    const REVERB_HOST = window.location.hostname
-
-    let REVERB_PORT = 8009
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      REVERB_PORT = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80)
-    }
-
-    const REVERB_SCHEME = window.location.protocol === 'https:' ? 'https' : 'http'
-    const isTLS = REVERB_SCHEME === 'https'
-
-    const echo = new Echo({
-      broadcaster: 'reverb',
-      key: REVERB_KEY,
-      wsHost: REVERB_HOST,
-      wsPort: REVERB_PORT,
-      wssPort: REVERB_PORT,
-      forceTLS: isTLS,
-      enabledTransports: isTLS ? ['wss'] : ['ws'],
-      authorizer: (channel: any) => {
-        return {
-          authorize: (socketId: string, callback: any) => {
-            const xsrfToken = document.cookie
-              .split('; ')
-              .find((item) => item.startsWith('XSRF-TOKEN='))
-              ?.split('=')[1]
-
-            axios.post(
-              `${appConfig.apiOrigin}/broadcasting/auth`,
-              {
-                socket_id: socketId,
-                channel_name: channel.name,
-              },
-              {
-                withCredentials: true,
-                headers: {
-                  Accept: 'application/json',
-                  ...(xsrfToken ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrfToken) } : {}),
-                },
-              }
-            )
-              .then((response) => {
-                callback(false, response.data)
-              })
-              .catch((error) => {
-                console.error('WS Tenant Auth failed:', error)
-                callback(true, error)
-              })
-          },
-        }
-      },
-    })
-
-    // Echo instance initialized
+    if (!tenant?.id || !echo) return
 
     // Subscribe to tenant private channel
     const channel = echo.private(`tenant.${tenant.id}`)
@@ -224,9 +163,8 @@ export function TenantInvoicesScreen() {
       channel.stopListening('.InvoicePaid')
       channel.stopListening('.InvoiceIssued')
       channel.stopListening('.InvoiceReissued')
-      echo.disconnect()
     }
-  }, [tenant?.id, detailInvoice?.id, isProofOpen, loadInvoices])
+  }, [tenant?.id, echo, detailInvoice?.id, isProofOpen, loadInvoices])
 
   // 4. View Detail
   const handleViewDetail = async (invoiceId: number) => {

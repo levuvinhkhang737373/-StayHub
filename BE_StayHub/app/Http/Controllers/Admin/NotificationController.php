@@ -227,7 +227,8 @@ class NotificationController extends Controller
                       'Thanh toán đặt cọc thành công',
                       'Hợp đồng đã được ký',
                       'Hóa đơn đã được thanh toán',
-                      'Thanh toán hóa đơn thành công'
+                      'Thanh toán hóa đơn thành công',
+                      'Tin nhắn mới từ khách thuê'
                   ]);
             });
 
@@ -238,6 +239,7 @@ class NotificationController extends Controller
                        ->from('buildings')
                        ->where('manager_admin_id', $admin->id);
                 })
+                ->orWhere('target_admin_id', $admin->id)
                 ->orWhere('created_by', $admin->id);
             });
         }

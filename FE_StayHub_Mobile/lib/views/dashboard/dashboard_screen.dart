@@ -8,6 +8,7 @@ import '../../controllers/invoice_controller.dart';
 import '../../controllers/contract_controller.dart';
 import '../../controllers/maintenance_controller.dart';
 import '../../controllers/notification_controller.dart';
+import '../../controllers/chat_controller.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import '../settings/settings_screen.dart';
@@ -36,6 +37,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<RoomController>().fetchRooms();
       
       final wsService = context.read<WebSocketService>();
+      final adminId = context.read<AuthController>().currentAdmin?.id;
+      if (adminId != null) {
+        wsService.subscribeToAdminChat(
+          adminId,
+          onMessage: (payload) {
+            if (!mounted) return;
+            context.read<ChatController>().handleRealtimeMessage(payload);
+          },
+          onRead: (payload) {
+            if (!mounted) return;
+            context.read<ChatController>().handleRealtimeRead(payload);
+          },
+        );
+      }
       
       // Lắng nghe thông điệp debug để hiện SnackBar lên màn hình (chỉ hiển thị khi có lỗi)
       _debugSubscription = wsService.debugStream.listen((logMessage) {
@@ -106,6 +121,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (mounted) {
             context.read<NotificationController>().fetchNotifications(isAdmin: true);
             context.read<DashboardController>().fetchDashboardStats();
+          }
+        } else if (event['type'] == 'chat_message_sent') {
+          final data = event['data'] as Map<String, dynamic>?;
+          final message = data?['message'] as Map<String, dynamic>?;
+          final conversation = data?['conversation'] as Map<String, dynamic>?;
+          if (message != null && conversation != null && mounted && message['sender_role'] == 1) {
+            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+            final room = conversation['room_number']?.toString() ?? '—';
+            final tenant = conversation['tenant_name']?.toString() ?? 'Khách thuê';
+            final body = message['body']?.toString() ?? 'Bạn có tin nhắn mới.';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Phòng $room - $tenant: $body',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 5),
+                backgroundColor: const Color(0xFF0F766E),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            );
           }
         }
       });
@@ -485,6 +532,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               icon: Icons.campaign,
                               color: Colors.pink,
                               onTap: () => Navigator.pushNamed(context, '/admin/notifications'),
+                            ),
+                            _buildMenuCard(
+                              title: 'Đoạn chat',
+                              subtitle: 'Trả lời tenant realtime',
+                              icon: Icons.chat_bubble_rounded,
+                              color: Colors.green,
+                              onTap: () => Navigator.pushNamed(context, '/admin/chat'),
                             ),
                           ],
                         ),

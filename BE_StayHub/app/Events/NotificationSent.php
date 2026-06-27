@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use App\Http\Resources\Tenant\NotificationResource;
 use App\Models\Notification;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -13,6 +12,8 @@ use Illuminate\Queue\SerializesModels;
 class NotificationSent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public string $connection = 'redis';
 
     public $notification;
 
@@ -26,9 +27,15 @@ class NotificationSent implements ShouldBroadcast
         $channels = [];
 
         if ($this->notification->target_type === Notification::TARGET_TYPE_ADMIN) {
-            return [
-                new PrivateChannel('admin-maintenance'),
-            ];
+            if ($this->notification->notification_type !== Notification::NOTIFICATION_TYPE_CHAT) {
+                $channels[] = new PrivateChannel('admin-maintenance');
+            }
+
+            if ($this->notification->target_admin_id) {
+                $channels[] = new PrivateChannel('chat.admin.' . $this->notification->target_admin_id);
+            }
+
+            return $channels;
         }
 
         if ($this->notification->target_type === Notification::TARGET_TYPE_TENANT) {
@@ -79,6 +86,7 @@ class NotificationSent implements ShouldBroadcast
                 'building_id' => $this->notification->building_id,
                 'room_id' => $this->notification->room_id,
                 'tenant_id' => $this->notification->tenant_id,
+                'target_admin_id' => $this->notification->target_admin_id,
                 'published_at' => optional($this->notification->published_at)->toDateTimeString(),
                 'created_at' => optional($this->notification->created_at)->toDateTimeString(),
             ]
@@ -88,5 +96,10 @@ class NotificationSent implements ShouldBroadcast
     public function broadcastAs(): string
     {
         return 'NotificationSent';
+    }
+
+    public function broadcastQueue(): string
+    {
+        return $this->notification->notification_type === Notification::NOTIFICATION_TYPE_CHAT ? 'chat' : 'default';
     }
 }

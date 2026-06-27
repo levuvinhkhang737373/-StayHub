@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
 class AppConfig {
-  static bool useTunnel = false;
+  static bool useTunnel = true;
   static const String tunnelOrigin = 'https://api.stayhub.id.vn';
 
   // Use http://10.0.2.2:8080 for Android Emulator, http://localhost:8080 for iOS Simulator/Web/Desktop,
@@ -25,7 +25,7 @@ class AppConfig {
 
   static String get reverbHost {
     if (useTunnel) {
-      return 'api.stayhub.id.vn';
+      return 'socket.stayhub.id.vn';
     }
     if (kIsWeb) return 'localhost';
     if (defaultTargetPlatform == TargetPlatform.android) {
@@ -35,7 +35,7 @@ class AppConfig {
   }
 
   static int get reverbPort => useTunnel ? 443 : 8080;
-  static const String reverbAppKey = 'rhtxfafogu4wbww3eufp';
+  static const String reverbAppKey = 'rhtxfafogu4wbww3eufp';                                                                                                                                                                                                                                                                                                Z Q
 
   // Connect timeout in milliseconds
   static const int connectTimeout = 15000;
@@ -44,57 +44,10 @@ class AppConfig {
 
   // Auto-detect if Cloudflare Tunnel is alive
   static Future<void> checkServerConnection() async {
-    if (kIsWeb) {
-      useTunnel = false;
-      return;
-    }
-
-    // 1. Try to connect to local server first
-    try {
-      final dio = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(milliseconds: 1500),
-          receiveTimeout: const Duration(milliseconds: 1500),
-        ),
-      );
-      final response = await dio.get('$localOrigin/up');
-      if (response.statusCode == 200) {
-        useTunnel = false;
-        debugPrint(
-          'StayHub Config: Local API is active ($localOrigin). Forcing local API.',
-        );
-        return;
-      }
-    } catch (_) {
-      // Local server is not reachable, proceed to check tunnel
-    }
-
-    // 2. Fallback to check Cloudflare Tunnel
-    try {
-      final dio = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(milliseconds: 2000),
-          receiveTimeout: const Duration(milliseconds: 2000),
-        ),
-      );
-      final response = await dio.get('$tunnelOrigin/up');
-      if (response.statusCode == 200) {
-        useTunnel = true;
-        debugPrint(
-          'StayHub Config: Connected to Cloudflare Tunnel ($tunnelOrigin)',
-        );
-      } else {
-        useTunnel = false;
-        debugPrint(
-          'StayHub Config: Tunnel returned status ${response.statusCode}, using local API',
-        );
-      }
-    } catch (e) {
-      useTunnel = false;
-      debugPrint(
-        'StayHub Config: Cannot reach Cloudflare Tunnel ($e), using local API ($localOrigin)',
-      );
-    }
+    useTunnel = true;
+    debugPrint(
+      'StayHub Config: Forcing Cloudflare Tunnel host API ($tunnelOrigin)',
+    );
   }
 
 }
