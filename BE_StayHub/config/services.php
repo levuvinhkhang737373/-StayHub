@@ -58,9 +58,18 @@ return [
 
     'omniroute' => [
         'api_key' => env('OMNIROUTE_API_KEY'),
-        'base_url' => rtrim(env('OMNIROUTE_BASE_URL', 'http://host.docker.internal:28128/v1'), '/'),
+        'base_url' => rtrim(env('OMNIROUTE_BASE_URL', 'http://host.docker.internal:20128/v1'), '/'),
         'model' => env('OMNIROUTE_VISION_MODEL', 'gpt-4o-mini'),
         'timeout' => (int) env('OMNIROUTE_TIMEOUT', 60),
+    ],
+
+    'fire_safety' => [
+        'discord_webhook_url' => env('FIRE_DISCORD_WEBHOOK_URL'),
+        'frame_count' => (int) env('FIRE_FRAME_COUNT', 3),
+        'analysis_window_seconds' => (int) env('FIRE_ANALYSIS_WINDOW_SECONDS', 2),
+        'confidence_threshold' => (float) env('FIRE_CONFIDENCE_THRESHOLD', 0.7),
+        'alert_cooldown_seconds' => (int) env('FIRE_ALERT_COOLDOWN_SECONDS', 60),
+        'ai_timeout' => (int) env('FIRE_AI_TIMEOUT', 90),
     ],
 
 ];

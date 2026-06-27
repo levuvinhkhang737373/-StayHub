@@ -30,6 +30,7 @@ import { TenantTransferRoomScreen } from '../features/admin/tenants/components/T
 import { ActivityLogsScreen } from '../features/admin/activity-logs'
 import { RoomMovementsScreen } from '../features/admin/room-movements'
 import { AdminChatScreen } from '../features/admin/chat'
+import { FireSafetyScreen } from '../features/admin/fire-safety'
 import { LegacyTenantTransferRoomRedirect } from './LegacyTenantTransferRoomRedirect'
 
 export const adminRoutes: RouteObject[] = [
@@ -153,6 +154,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'vehicles',
         element: <VehiclesScreen />,
+      },
+      {
+        path: 'fire-safety',
+        element: <AdminRouteGuard access="all"><FireSafetyScreen /></AdminRouteGuard>,
       },
       {
         path: 'maintenance',

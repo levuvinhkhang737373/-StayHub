@@ -142,6 +142,16 @@ class Building extends Model
         return $this->hasMany(Notification::class);
     }
 
+    public function securityCameras(): HasMany
+    {
+        return $this->hasMany(SecurityCamera::class);
+    }
+
+    public function fireSafetyAlerts(): HasMany
+    {
+        return $this->hasMany(FireSafetyAlert::class);
+    }
+
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
