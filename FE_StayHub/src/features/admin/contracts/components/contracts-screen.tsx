@@ -576,7 +576,7 @@ export function ContractsScreen() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          <IconButton title="Xem chi tiết" onClick={() => void viewContract(contract)}>
+                          <IconButton title="Xem chi tiết" success onClick={() => void viewContract(contract)}>
                             <Eye className="h-5 w-5" />
                           </IconButton>
                           {Number(contract.status) === STATUS_EXPIRED && (

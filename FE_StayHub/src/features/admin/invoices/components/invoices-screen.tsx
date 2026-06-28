@@ -432,10 +432,10 @@ export function InvoicesScreen() {
                   <td className="px-5 py-4 text-center"><InvoiceStatusBadge status={invoice.status} label={invoice.status_label || getInvoiceStatusLabel(invoice.status)} /></td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-2">
-                      <IconButton title="Xem chi tiết" onClick={() => void viewInvoice(invoice)}><Eye className="h-5 w-5" /></IconButton>
+                      <IconButton title="Xem chi tiết" success onClick={() => void viewInvoice(invoice)}><Eye className="h-5 w-5" /></IconButton>
                       {canReissueInvoice(invoice) && <IconButton title="Chỉnh sửa & phát hành lại" onClick={() => void openEditInvoice(invoice)}><Pencil className="h-5 w-5" /></IconButton>}
                       
-                      {[INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status)) && <IconButton title="Ghi nhận thanh toán" onClick={() => { setPaymentInvoice(invoice); setIsPaymentOpen(true) }}><Banknote className="h-5 w-5" /></IconButton>}
+                      {[INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status)) && <IconButton title="Ghi nhận thanh toán" success onClick={() => { setPaymentInvoice(invoice); setIsPaymentOpen(true) }}><Banknote className="h-5 w-5" /></IconButton>}
                     </div>
                   </td>
                 </tr>
@@ -809,7 +809,7 @@ function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, o
           </div>
           <div className="overflow-x-auto rounded-3xl border border-[#3d2a18]/10">
             <table className="w-full min-w-[760px] text-left text-xs">
-              <thead className="bg-[#24170d] text-[#fff4df]"><tr><th className="px-4 py-3">Khoản mục</th><th className="px-4 py-3">SL</th><th className="px-4 py-3">Đơn giá</th><th className="px-4 py-3 text-right">Thành tiền</th></tr></thead>
+              <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]"><tr><th className="px-4 py-3">Khoản mục</th><th className="px-4 py-3">SL</th><th className="px-4 py-3">Đơn giá</th><th className="px-4 py-3 text-right">Thành tiền</th></tr></thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-white/65">
                 {(invoice.items || []).map((item) => <tr key={item.id}><td className="px-4 py-3 font-black text-[#24170d]"><p>{item.description}</p><p className="font-bold text-[#8b5e34]/70">{item.item_type_label}</p></td><td className="px-4 py-3 font-bold">{item.quantity}</td><td className="px-4 py-3 font-bold">{formatCurrency(item.unit_price)}</td><td className="px-4 py-3 text-right font-black">{formatCurrency(item.amount)}</td></tr>)}
               </tbody>
@@ -876,8 +876,40 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
   return <div className={cn('rounded-3xl border px-4 py-3 backdrop-blur', toneClassNames)}><p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-65">{label}</p><p className="mt-1 text-3xl font-black tracking-tight tabular-nums">{value}</p></div>
 }
 
-function IconButton({ title, disabled, onClick, children }: { title: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button type="button" disabled={disabled} onClick={onClick} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] disabled:opacity-45" title={title} aria-label={title}>{children}</button>
+function IconButton({
+  title,
+  disabled,
+  danger,
+  success,
+  onClick,
+  children,
+}: {
+  title: string
+  disabled?: boolean
+  danger?: boolean
+  success?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45',
+        danger
+          ? 'hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:ring-rose-100'
+          : success
+            ? 'hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:ring-[#0f766e]/10'
+            : 'hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:ring-[#3d2a18]/10'
+      )}
+      title={title}
+      aria-label={title}
+    >
+      {children}
+    </button>
+  )
 }
 
 function DetailTile({ label, value }: { label: string; value?: React.ReactNode }) {

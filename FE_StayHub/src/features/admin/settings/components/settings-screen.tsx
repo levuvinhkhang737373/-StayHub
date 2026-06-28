@@ -355,7 +355,7 @@ export function SettingsScreen() {
 
             <div className="overflow-x-auto">
               <table className="min-w-[940px] w-full text-left">
-                <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+                <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
                     <th className="px-5 py-4">Cài đặt</th>
                     <th className="px-5 py-4">Tòa nhà</th>

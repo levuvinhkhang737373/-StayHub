@@ -329,7 +329,7 @@ export function RoomsScreen() {
       {/* Table Section */}
       <div className="overflow-x-auto rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
         <table className="w-full min-w-[1000px] text-left">
-          <thead className="bg-[#24170d] text-[11px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+          <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
             <tr>
               <th className="px-5 py-4">Số Phòng</th>
               <th className="px-5 py-4">Tòa nhà</th>
@@ -417,7 +417,7 @@ export function RoomsScreen() {
                        {isSuperAdmin && (
                          <Link 
                            to={`/admin/rooms/update/${roomItem.id}`} 
-                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-amber-500/30 hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/10 active:scale-95" 
+                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" 
                            title="Sửa thông tin phòng"
                          >
                            <Pencil className="h-4.5 w-4.5" />
@@ -428,7 +428,7 @@ export function RoomsScreen() {
                          <button 
                            type="button" 
                            onClick={() => void deleteRoom(roomItem.id)} 
-                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-red-500/25 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-red-500/10 active:scale-95" 
+                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" 
                            title="Xóa phòng"
                          >
                            <Trash2 className="h-5 w-5" />

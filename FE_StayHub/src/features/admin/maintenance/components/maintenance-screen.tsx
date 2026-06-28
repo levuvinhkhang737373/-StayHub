@@ -408,16 +408,16 @@ export function MaintenanceScreen() {
                       <button
                         type="button"
                         onClick={() => void openDetail(req)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95"
                         title="Xem chi tiết"
                       >
-                        <Eye className="h-4.5 w-4.5" />
+                        <Eye className="h-5 w-5" />
                       </button>
 
                       <button
                         type="button"
                         onClick={() => { setUpdatingRequest(req); setNewStatus(Number(req.status) === 2 ? 3 : Number(req.status)) }}
-                        className="ml-auto inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-3 text-xs font-black text-[#fff4df] shadow-sm transition hover:bg-[#3d2a18]"
+                        className="ml-auto inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-3.5 text-xs font-black text-[#fff4df] shadow-sm transition hover:bg-[#3d2a18] focus:outline-none focus:ring-4 focus:ring-[#24170d]/20 active:scale-95"
                       >
                         <Settings className="h-4 w-4" /> Trạng thái
                       </button>

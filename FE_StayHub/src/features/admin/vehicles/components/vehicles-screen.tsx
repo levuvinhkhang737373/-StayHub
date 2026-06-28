@@ -498,11 +498,9 @@ export function VehiclesScreen() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          <>
-                            <button type="button" onClick={() => void viewVehicleDetail(vehicle)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59]" title="Xem chi tiết"><Eye className="h-5 w-5" /></button>
-                            <button type="button" onClick={() => openEditForm(vehicle)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d]" title="Chỉnh sửa"><Edit3 className="h-5 w-5" /></button>
-                            <button type="button" onClick={() => void handleDelete(vehicle)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600" title="Xóa"><Trash2 className="h-5 w-5" /></button>
-                          </>
+                          <button type="button" onClick={() => void viewVehicleDetail(vehicle)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label={`Xem chi tiết xe ${vehicle.license_plate}`}><Eye className="h-5 w-5" /></button>
+                          <button type="button" onClick={() => openEditForm(vehicle)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa" aria-label={`Chỉnh sửa xe ${vehicle.license_plate}`}><Edit3 className="h-5 w-5" /></button>
+                          <button type="button" onClick={() => void handleDelete(vehicle)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Xóa" aria-label={`Xóa xe ${vehicle.license_plate}`}><Trash2 className="h-5 w-5" /></button>
                         </div>
                       </td>
                     </tr>
