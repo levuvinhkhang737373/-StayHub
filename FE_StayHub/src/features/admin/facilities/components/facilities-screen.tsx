@@ -417,14 +417,14 @@ export function FacilitiesScreen() {
                                     </div>
                                     <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-3xl lg:text-4xl">Khu vực và tòa nhà</h1>
                                 </div>
-                                <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end lg:w-auto">
+                                <div className="flex w-full flex-col gap-3 items-end sm:flex-row sm:justify-end lg:w-auto">
                                     {isSuperAdmin && (
-                                        <button type="button" onClick={openCreateRegionModal} className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 px-4 text-sm font-black text-[#fff4df] shadow-xl shadow-black/20 transition-all hover:bg-[#f8e8c8]/15 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98] sm:w-auto lg:min-w-40 cursor-pointer">
+                                        <button type="button" onClick={openCreateRegionModal} className="inline-flex h-10 w-fit self-end lg:self-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#f8e8c8]/15 bg-[#f8e8c8]/10 px-4 text-sm font-black text-[#fff4df] shadow-xl shadow-black/20 transition-all hover:bg-[#f8e8c8]/15 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98] lg:min-w-40 cursor-pointer">
                                             <Plus className="h-4 w-4 shrink-0 text-[#f3c56b] stroke-[2.8]" />
                                             <span>Thêm khu vực</span>
                                         </button>
                                     )}
-                                    <Link to="/admin/facilities/buildings/create" className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:w-auto lg:min-w-40">
+                                    <Link to="/admin/facilities/buildings/create" className="inline-flex h-10 w-fit self-end lg:self-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] lg:min-w-40">
                                         <Building2 className="h-4 w-4 shrink-0 stroke-[2.8]" />
                                         <span>Thêm tòa nhà</span>
                                     </Link>

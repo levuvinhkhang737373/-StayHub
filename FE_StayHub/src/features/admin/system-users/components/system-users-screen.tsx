@@ -251,7 +251,7 @@ export function SystemUsersScreen() {
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý tài khoản admin</h1>
               </div>
               {isSuperAdmin && (
-                <button type="button" onClick={() => navigate('/admin/system-users/create')} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
+                <button type="button" onClick={() => navigate('/admin/system-users/create')} className="inline-flex h-9 w-fit self-end lg:self-auto items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
                   <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm tài khoản
                 </button>
               )}
@@ -300,11 +300,11 @@ export function SystemUsersScreen() {
                   <tr>
                     <th className="px-5 py-4">Tài khoản</th>
                     <th className="px-5 py-4">Liên hệ</th>
-                    <th className="px-5 py-4">Vai trò</th>
-                    <th className="px-5 py-4">Trạng thái</th>
+                    <th className="px-5 py-4 text-center">Vai trò</th>
+                    <th className="px-5 py-4 text-center">Trạng thái</th>
                     <th className="px-5 py-4 text-center">FaceID</th>
                     <th className="px-5 py-4 text-center">Tòa nhà</th>
-                    <th className="px-5 py-4">Cập nhật</th>
+                    <th className="px-5 py-4 text-center">Cập nhật</th>
                     <th className="px-5 py-4 w-[180px]"><div className="flex justify-end"><div className="w-[180px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
@@ -338,12 +338,12 @@ export function SystemUsersScreen() {
                             <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-[#0f766e]" /> {account.phone || 'Chưa có số điện thoại'}</p>
                           </div>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-4 text-center">
                           <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', getRoleBadgeClass(account.role))}>
                             {account.role_label || getRoleLabel(account.role)}
                           </span>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-4 text-center">
                           <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', active ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-rose-200 bg-rose-50 text-rose-700')}>
                             {account.status_label || (active ? 'Hoạt động' : 'Ngừng hoạt động')}
                           </span>
@@ -353,10 +353,12 @@ export function SystemUsersScreen() {
                             {account.has_faceid ? 'Đã đăng ký' : 'Chưa có'}
                           </span>
                         </td>
-                        <td className="px-5 py-4">
-                          <ManagedBuildingsBadges account={account} />
+                        <td className="px-5 py-4 text-center">
+                          <div className="inline-block text-left">
+                            <ManagedBuildingsBadges account={account} />
+                          </div>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-4 text-center">
                           <span className="text-xs font-bold text-[#8b5e34]/75">{formatDateTime(account.updated_at)}</span>
                         </td>
                         <td className="px-5 py-4">

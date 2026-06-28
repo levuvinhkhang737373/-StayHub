@@ -270,7 +270,7 @@ export function TenantsScreen() {
 
                   <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý khách thuê</h1>
                 </div>
-                <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:mb-1 shrink-0">
+                <button type="button" onClick={openCreateForm} className="inline-flex h-9 w-fit self-end lg:self-auto items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:mb-1 shrink-0">
                   <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm khách thuê
                 </button>
               </div>
@@ -314,10 +314,10 @@ export function TenantsScreen() {
                     <tr>
                       <th className="px-5 py-4">Khách thuê</th>
                       <th className="px-5 py-4">Liên hệ</th>
-                      <th className="px-5 py-4"><div className="w-[100px] text-center">Giấy tờ</div></th>
+                      <th className="px-5 py-4 text-center">Giấy tờ</th>
                       <th className="px-5 py-4 text-center">Trạng thái</th>
-                      <th className="px-5 py-4">Tòa nhà</th>
-                      <th className="whitespace-nowrap px-5 py-4">Phòng</th>
+                      <th className="px-5 py-4 text-center">Tòa nhà</th>
+                      <th className="whitespace-nowrap px-5 py-4 text-center">Phòng</th>
                       <th className="px-5 py-4 text-center">Phương tiện</th>
                       <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[184px] text-center">Thao tác</div></div></th>
                     </tr>
@@ -349,10 +349,12 @@ export function TenantsScreen() {
                               <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-[#0f766e]" /> {tenant.phone || 'Chưa có số điện thoại'}</p>
                             </div>
                           </td>
-                          <td className="px-5 py-4">
-                            <div className="space-y-1.5">
-                              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-3 py-1 text-xs font-black text-[#6f6254] shadow-sm"><IdCard className="h-3.5 w-3.5" /> {tenant.identity_type_label || getIdentityTypeLabel(tenant.identity_type)}</span>
-                              <p className="text-xs font-bold text-[#8b5e34]/75">{tenant.identity_number || 'Chưa nhập số giấy tờ'}</p>
+                          <td className="px-5 py-4 text-center">
+                            <div className="inline-block text-left space-y-1.5">
+                              <div className="flex justify-center">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-3 py-1 text-xs font-black text-[#6f6254] shadow-sm"><IdCard className="h-3.5 w-3.5" /> {tenant.identity_type_label || getIdentityTypeLabel(tenant.identity_type)}</span>
+                              </div>
+                              <p className="text-center text-xs font-bold text-[#8b5e34]/75">{tenant.identity_number || 'Chưa nhập số giấy tờ'}</p>
                             </div>
                           </td>
                           <td className="px-5 py-4 text-center">
@@ -360,11 +362,11 @@ export function TenantsScreen() {
                               {tenant.status_label || (renting ? 'Đang thuê' : 'Ngừng thuê')}
                             </span>
                           </td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2 text-xs font-black text-[#0f5f59]"><Building2 className="h-4 w-4" /> {getTenantBuildingName(tenant)}</div>
+                          <td className="px-5 py-4 text-center">
+                            <div className="inline-flex items-center gap-2 text-xs font-black text-[#0f5f59]"><Building2 className="h-4 w-4" /> {getTenantBuildingName(tenant)}</div>
                           </td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2 whitespace-nowrap text-xs font-black text-[#8a4f18]"><DoorOpen className="h-4 w-4 shrink-0" /> {getTenantRoomNumber(tenant)}</div>
+                          <td className="px-5 py-4 text-center">
+                            <div className="inline-flex items-center gap-2 whitespace-nowrap text-xs font-black text-[#8a4f18]"><DoorOpen className="h-4 w-4 shrink-0" /> {getTenantRoomNumber(tenant)}</div>
                           </td>
                           <td className="px-5 py-4 text-center"><CountBadge value={tenant.vehicles_count ?? 0} /></td>
                           <td className="px-5 py-4">

@@ -20,12 +20,23 @@ export function AdminHeader() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const drawerRef = useRef<HTMLDivElement | null>(null)
   const menuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const openedPathnameRef = useRef(location.pathname)
 
   useEffect(() => {
     if (!isDrawerOpen) return
 
+    openedPathnameRef.current = location.pathname
+    const scrollY = window.scrollY
     const previousOverflow = document.body.style.overflow
+    const previousPosition = document.body.style.position
+    const previousTop = document.body.style.top
+    const previousWidth = document.body.style.width
+
     document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+
     drawerRef.current?.focus()
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -38,9 +49,18 @@ export function AdminHeader() {
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.body.style.overflow = previousOverflow
+      document.body.style.position = previousPosition
+      document.body.style.top = previousTop
+      document.body.style.width = previousWidth
+      
+      if (window.location.pathname === openedPathnameRef.current) {
+        window.scrollTo(0, scrollY)
+      } else {
+        window.scrollTo(0, 0)
+      }
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isDrawerOpen])
+  }, [isDrawerOpen, location.pathname])
 
   const handleLogout = useCallback(async () => {
     if (isLoggingOut) return

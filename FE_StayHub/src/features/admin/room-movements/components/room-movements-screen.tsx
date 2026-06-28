@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -42,8 +42,8 @@ const perPageOptions = [
   { value: 100, label: '100 dòng', tone: 'default' as const },
 ]
 
-const tableHeadCellClass = 'whitespace-nowrap px-3 py-3 align-middle'
-const tableBodyCellClass = 'whitespace-nowrap px-3 py-4 align-middle'
+const tableHeadCellClass = 'whitespace-nowrap px-5 py-4 align-middle'
+const tableBodyCellClass = 'whitespace-nowrap px-5 py-4 align-middle'
 
 export function RoomMovementsScreen() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -299,71 +299,69 @@ export function RoomMovementsScreen() {
           )}
         </section>
 
-        <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-white/78 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur">
+        <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
           {errorMessage && <div className="m-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[1480px] border-separate border-spacing-0 text-left">
-              <colgroup>
-                <col className="w-[170px]" />
-                <col className="w-[150px]" />
-                <col className="w-[165px]" />
-                <col className="w-[390px]" />
-                <col className="w-[120px]" />
-                <col className="w-[130px]" />
-                <col className="w-[160px]" />
-                <col className="w-[130px]" />
-                <col className="w-[150px]" />
-                <col className="w-[80px]" />
-              </colgroup>
-            <thead className="bg-[#efe2cf]/45 text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/75">
+            <table className="w-full text-left">
+            <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
               <tr>
                 <th scope="col" className={cn(tableHeadCellClass, 'pl-5')}>Thời điểm</th>
-                <th scope="col" className={tableHeadCellClass}>Mã lịch</th>
                 <th scope="col" className={tableHeadCellClass}>Khách thuê</th>
-                <th scope="col" className={tableHeadCellClass}>Luồng phòng</th>
-                <th scope="col" className={tableHeadCellClass}>Loại</th>
-                <th scope="col" className={tableHeadCellClass}>Trạng thái</th>
-                <th scope="col" className={tableHeadCellClass}>Settlement</th>
-                <th scope="col" className={tableHeadCellClass}>Hợp đồng</th>
-                <th scope="col" className={tableHeadCellClass}>Người xử lý</th>
+                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Luồng phòng</th>
+                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Loại</th>
+                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Trạng thái</th>
+                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Quyết toán</th>
+                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Hợp đồng</th>
+                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Người xử lý</th>
                 <th scope="col" className={cn(tableHeadCellClass, 'pr-5 text-right')}>Chi tiết</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#3d2a18]/10">
+            <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
               {isLoading && (
                 <tr>
-                  <td colSpan={10} className="px-5 py-16 text-center text-sm font-black text-[#8b5e34]">
+                  <td colSpan={9} className="px-5 py-16 text-center text-sm font-black text-[#8b5e34]">
                     <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải lịch sử phòng và cọc...</span>
                   </td>
                 </tr>
               )}
 
               {!isLoading && movements.map((movement) => (
-                <tr key={movement.id} className="group bg-white/55 transition hover:bg-[#fff8eb]">
+                <tr key={movement.id} className="group transition hover:bg-[#f3c56b]/10">
                   <td className={cn(tableBodyCellClass, 'pl-5 text-[13px] font-black text-[#24170d]')}>
                     <div className="flex items-start gap-2">
                       <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5e34]" />
-                      <span className="whitespace-nowrap tabular-nums">{formatDateTime(movement.movement_date)}</span>
+                      {(() => {
+                        const dateTimeStr = formatDateTime(movement.movement_date)
+                        if (dateTimeStr === '—') return <span className="whitespace-nowrap tabular-nums text-[13px] font-black text-[#24170d]">—</span>
+                        const parts = dateTimeStr.split(' ')
+                        const time = parts[0]
+                        const date = parts[1]
+                        return (
+                          <div className="flex flex-col leading-tight">
+                            <span className="whitespace-nowrap tabular-nums text-[13px] font-black text-[#24170d]">{date}</span>
+                            {time && <span className="mt-0.5 whitespace-nowrap tabular-nums text-[11px] font-bold text-[#8b5e34]">{time}</span>}
+                          </div>
+                        )
+                      })()}
                     </div>
-                  </td>
-                  <td className={cn(tableBodyCellClass, 'text-[12px] font-black text-[#24170d]')}>
-                    <span className="inline-flex whitespace-nowrap rounded-xl border border-[#0f766e]/15 bg-[#0f766e]/8 px-3 py-1 text-[11px] font-black leading-4 text-[#0f5f59]">{movement.transfer_code || '—'}</span>
                   </td>
                   <td className={tableBodyCellClass}>
                     <p className="truncate text-[13px] font-black leading-5 text-[#24170d]" title={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}>{movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}</p>
                     <p className="mt-1 truncate text-[11px] font-bold text-[#6f6254]" title={movement.tenant?.phone || movement.tenant?.email || '—'}>{movement.tenant?.phone || movement.tenant?.email || '—'}</p>
                   </td>
-                  <td className={tableBodyCellClass}>
-                    <RoomFlow movement={movement} />
+                  <td className={cn(tableBodyCellClass, 'text-center')}>
+                    <div className="inline-block text-left">
+                      <RoomFlow movement={movement} />
+                    </div>
                   </td>
-                  <td className={tableBodyCellClass}><MovementBadge movement={movement} /></td>
-                  <td className={tableBodyCellClass}><StatusBadge movement={movement} /></td>
-                  <td className={tableBodyCellClass}><SettlementBadge movement={movement} /></td>
-                  <td className={cn(tableBodyCellClass, 'text-[12px] font-black text-[#24170d]')}>
+                  <td className={cn(tableBodyCellClass, 'text-center')}><MovementBadge movement={movement} /></td>
+                  <td className={cn(tableBodyCellClass, 'text-center')}><StatusBadge movement={movement} /></td>
+                  <td className={cn(tableBodyCellClass, 'text-center')}><SettlementBadge movement={movement} /></td>
+                  <td className={cn(tableBodyCellClass, 'text-center text-[12px] font-black text-[#24170d]')}>
                     <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')}</span>
                   </td>
-                  <td className={cn(tableBodyCellClass, 'truncate text-[12px] font-black leading-5 text-[#6f6254]')} title={movement.creator_name || '—'}>{movement.creator_name || '—'}</td>
+                  <td className={cn(tableBodyCellClass, 'text-center truncate text-[12px] font-black leading-5 text-[#6f6254]')} title={movement.creator_name || '—'}>{movement.creator_name || '—'}</td>
                   <td className={cn(tableBodyCellClass, 'pr-5 text-right')}>
                     <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
                       <Eye className="h-5 w-5" />
@@ -374,7 +372,7 @@ export function RoomMovementsScreen() {
 
               {!isLoading && movements.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-5 py-20 text-center">
+                  <td colSpan={9} className="px-5 py-20 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-[#fffaf1]/70 px-6 py-8">
                       <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><History className="h-9 w-9" /></div>
                       <p className="text-lg font-black tracking-tight text-[#24170d]">Chưa có lịch sử phù hợp</p>
@@ -483,9 +481,9 @@ function SettlementBadge({ movement }: { movement: AdminRoomMovementResource }) 
 
 function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
   return (
-    <div className="inline-flex min-w-max items-center gap-2 whitespace-nowrap text-[12px] font-black leading-none text-[#24170d]">
+    <div className="flex flex-col items-center gap-1.5 text-[12px] font-black leading-none text-[#24170d]">
       <span className="inline-flex shrink-0 whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1.5">{roomLabel(movement.from_room, 'Phòng cũ')}</span>
-      <ArrowRightLeft className="h-4 w-4 shrink-0 text-[#8b5e34]" />
+      <ArrowDown className="h-4 w-4 shrink-0 text-[#8b5e34]" />
       <span className="inline-flex shrink-0 whitespace-nowrap rounded-xl border border-[#0f766e]/15 bg-[#0f766e]/8 px-3 py-1.5 text-[#0f5f59]">{roomLabel(movement.to_room, 'Trả phòng')}</span>
     </div>
   )

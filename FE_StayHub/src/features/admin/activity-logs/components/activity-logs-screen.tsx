@@ -304,9 +304,9 @@ export function ActivityLogsScreen() {
                 <tr>
                   <th className="px-4 py-3">Thời gian</th>
                   <th className="px-4 py-3">Admin</th>
-                  <th className="px-4 py-3">Hành động</th>
-                  <th className="px-4 py-3">Đối tượng</th>
-                  <th className="px-4 py-3">IP</th>
+                  <th className="px-4 py-3 text-center">Hành động</th>
+                  <th className="px-4 py-3 text-center">Đối tượng</th>
+                  <th className="px-4 py-3 text-center">IP</th>
                   <th className="px-4 py-3">Thiết bị</th>
                   <th className="px-4 py-3 w-[45px]"><div className="flex justify-end"><div className="w-[45px] text-center">Thao tác</div></div></th>
                 </tr>
@@ -366,9 +366,9 @@ function ActivityLogRow({ log, onView }: { log: AdminActivityLogResource; onView
     <tr className="align-top transition hover:bg-[#fff8eb]">
       <td className="px-4 py-4 tabular-nums"><span className="inline-flex items-center gap-2 font-black text-[#24170d]"><Clock3 className="h-4 w-4 text-[#a65f16]" />{formatDateTime(log.created_at)}</span></td>
       <td className="px-4 py-4"><p className="font-black text-[#24170d]">{adminName}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{adminSubText}</p></td>
-      <td className="px-4 py-4"><ActionBadge action={log.action} /></td>
-      <td className="px-4 py-4"><p className="font-black text-[#24170d]">{entityName}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{entityLabel}</p></td>
-      <td className="px-4 py-4 font-black tabular-nums text-[#24170d]">{log.ip_address || '—'}</td>
+      <td className="px-4 py-4 text-center"><ActionBadge action={log.action} /></td>
+      <td className="px-4 py-4 text-center"><p className="font-black text-[#24170d]">{entityName}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{entityLabel}</p></td>
+      <td className="px-4 py-4 text-center font-black tabular-nums text-[#24170d]">{log.ip_address || '—'}</td>
       <td className="max-w-[18rem] truncate px-4 py-4 text-xs font-bold text-[#6f6254]" title={log.user_agent || undefined}>{log.user_agent || '—'}</td>
       <td className="px-4 py-4">
         <div className="flex justify-end gap-2">

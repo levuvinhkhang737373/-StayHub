@@ -436,7 +436,7 @@ export function ContractsScreen() {
             <button
               type="button"
               onClick={() => navigate('/admin/contracts/create')}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition hover:bg-[#ffd56f] active:scale-[0.98]"
+              className="inline-flex h-10 w-fit self-end lg:self-auto items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition hover:bg-[#ffd56f] active:scale-[0.98]"
             >
               <Plus className="h-4 w-4" /> Thêm hợp đồng
             </button>

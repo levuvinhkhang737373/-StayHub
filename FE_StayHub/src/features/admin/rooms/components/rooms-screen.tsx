@@ -202,10 +202,10 @@ export function RoomsScreen() {
             </div>
             
             {isSuperAdmin && (
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-end xl:w-auto">
+              <div className="flex w-full flex-col gap-3 items-end sm:flex-row sm:justify-end xl:w-auto">
                 <Link 
                   to="/admin/rooms/create" 
-                  className="inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:w-auto xl:min-w-40"
+                  className="inline-flex h-10 w-fit self-end xl:self-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] xl:min-w-40"
                 >
                   <Plus className="h-4 w-4 shrink-0 text-[#24170d] stroke-[2.8]" />
                   Thêm Phòng
