@@ -24,11 +24,20 @@ class ChatConversationRead implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        return [
+        $channels = [
             new PrivateChannel('chat.conversation.' . $this->conversation->id),
             new PrivateChannel('chat.admin.' . $this->conversation->manager_admin_id),
             new PrivateChannel('chat.tenant.' . $this->conversation->tenant_id),
         ];
+
+        // Broadcast to all super admins so their sidebars update in real-time
+        foreach (\App\Models\Admin::where('role', \App\Models\Admin::ROLE_SUPER_ADMIN)->pluck('id') as $superAdminId) {
+            if ($superAdminId !== $this->conversation->manager_admin_id) {
+                $channels[] = new PrivateChannel('chat.admin.' . $superAdminId);
+            }
+        }
+
+        return $channels;
     }
 
     public function broadcastWith(): array

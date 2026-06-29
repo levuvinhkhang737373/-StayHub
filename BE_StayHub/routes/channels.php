@@ -33,7 +33,7 @@ Broadcast::channel('chat.conversation.{conversationId}', function ($user, $conve
     }
 
     if ($user instanceof \App\Models\Admin) {
-        return (int) $conversation->manager_admin_id === (int) $user->id;
+        return \App\Helpers\AdminScope::isSuperAdmin($user) || (int) $conversation->manager_admin_id === (int) $user->id;
     }
 
     return false;
