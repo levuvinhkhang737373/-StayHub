@@ -270,6 +270,8 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
             } else if (notification.notification_type === 2) {
               link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+            } else if (notification.notification_type === 4) {
+              link = '/admin/fire-safety'
             } else if (notification.notification_type === 6) {
               link = '/admin/chat'
             } else {
@@ -286,6 +288,8 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
 
           if (notification.notification_type === 2) {
             window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: notification }))
+          } else if (notification.notification_type === 4) {
+            window.dispatchEvent(new CustomEvent('fire-safety-refresh', { detail: notification }))
           } else if (notification.title === 'Hợp đồng đã được ký' || notification.title === 'Hợp đồng hết hạn') {
             window.dispatchEvent(new CustomEvent('contract-refresh', { detail: notification }))
           }

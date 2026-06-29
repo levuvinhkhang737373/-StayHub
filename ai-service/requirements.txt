@@ -7,3 +7,4 @@ tf-keras
 scipy
 numpy
 pydantic
+requests
