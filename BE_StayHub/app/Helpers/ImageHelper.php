@@ -257,14 +257,30 @@ class ImageHelper
         $request = request();
 
         if ($request instanceof Request) {
-            $root = rtrim($request->getSchemeAndHttpHost(), '/');
+            // Lấy thông tin host từ header chuyển tiếp hoặc header gốc của request
+            $host = $request->header('x-forwarded-host') ?: $request->header('host');
+            if ($host) {
+                $host = rtrim($host, '/');
+                // Nếu là tên miền tunnel, bắt buộc sử dụng giao thức bảo mật HTTPS để tránh lỗi Mixed Content
+                if (str_contains($host, 'stayhub.id.vn')) {
+                    return 'https://' . $host;
+                }
+            }
 
+            $root = rtrim($request->getSchemeAndHttpHost(), '/');
             if (filled($root)) {
+                if (str_contains($root, 'stayhub.id.vn') && !str_starts_with($root, 'https://')) {
+                    $root = str_replace('http://', 'https://', $root);
+                }
                 return $root;
             }
         }
 
-        return rtrim(URL::to('/'), '/');
+        $fallback = rtrim(URL::to('/'), '/');
+        if (str_contains($fallback, 'stayhub.id.vn') && !str_starts_with($fallback, 'https://')) {
+            $fallback = str_replace('http://', 'https://', $fallback);
+        }
+        return $fallback;
     }
 
     private static function shouldRewriteHost(string $host): bool

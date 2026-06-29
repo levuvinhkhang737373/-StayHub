@@ -104,55 +104,187 @@ export function FinancialsScreen() {
       ? (buildings.find((b) => Number(b.id) === Number(buildingId))?.name || 'Tòa nhà ' + buildingId) 
       : 'Tất cả tòa nhà'
 
-    let csv = '\uFEFFsep=,\n'
+    // Tạo file Excel dưới dạng tài liệu HTML có chứa các thuộc tính XML dành riêng cho Excel.
+    // Cách này cho phép chúng ta tùy biến kiểu dáng (font chữ, viền bảng, màu nền, căn lề)
+    // giúp báo cáo hiển thị trực quan, sạch đẹp và chuyên nghiệp hơn rất nhiều.
+    let html = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <!--[if gte mso 9]>
+  <xml>
+    <x:ExcelWorkbook>
+      <x:ExcelWorksheets>
+        <x:ExcelWorksheet>
+          <x:Name>Báo cáo tài chính</x:Name>
+          <x:WorksheetOptions>
+            <x:DisplayGridlines/>
+          </x:WorksheetOptions>
+        </x:ExcelWorksheet>
+      </x:ExcelWorksheets>
+    </x:ExcelWorkbook>
+  </xml>
+  <![endif]-->
+  <style>
+    body, table, tr, td, th { font-family: 'Times New Roman', Times, serif; }
+    table { border-collapse: collapse; }
+    td, th { border: 1px solid #dcd1c4; padding: 6px 10px; font-size: 13pt; color: #24170d; font-family: 'Times New Roman', Times, serif; }
+    .title { font-size: 20pt; font-weight: bold; color: #a65f16; text-align: center; }
+    .subtitle { font-size: 12pt; color: #6f6254; text-align: center; }
+    .section-title { font-size: 15pt; font-weight: bold; background-color: #fff7e8; color: #8b5e34; }
+    .header { font-weight: bold; background-color: #f3c56b; color: #24170d; text-align: center; font-size: 13pt; }
+    .number { text-align: right; }
+    .text-cell { mso-number-format:"\\@"; text-align: center; }
+    .total-row { font-weight: bold; background-color: #fff1d6; }
+    .profit-positive { color: #047857; font-weight: bold; text-align: right; }
+    .profit-negative { color: #be123c; font-weight: bold; text-align: right; }
+  </style>
+</head>
+<body>
+  <table>
+    <!-- Tiêu đề lớn -->
+    <tr><td colspan="4" class="title" style="border:none;">BÁO CÁO TÀI CHÍNH STAYHUB</td></tr>
+    <tr><td colspan="4" class="subtitle" style="border:none;">Thời gian lọc: Tháng ${monthFrom}/${year} - Tháng ${monthTo}/${year}</td></tr>
+    <tr><td colspan="4" class="subtitle" style="border:none;padding-bottom:15px;">Tòa nhà: ${selectedBuildingName}</td></tr>
+    <tr><td colspan="4" style="border:none;height:10px;"></td></tr>
 
-    csv += `BÁO CÁO TÀI CHÍNH STAYHUB\n`
-    csv += `Thời gian lọc:,Tháng ${monthFrom}/${year} - Tháng ${monthTo}/${year}\n`
-    csv += `Tòa nhà:,${selectedBuildingName}\n\n`
+    <tr><td colspan="4" class="section-title" style="border:none;">I. TỔNG QUAN CHỈ TIÊU</td></tr>
+    <tr>
+      <td colspan="2" class="header">Chỉ số</td>
+      <td colspan="2" class="header">Giá trị</td>
+    </tr>
+    <tr>
+      <td colspan="2">Tổng doanh thu</td>
+      <td colspan="2" class="number" style="font-weight:bold;color:#a65f16;">${formatCurrency(reportData.summary.revenue)}</td>
+    </tr>
+    <tr>
+      <td colspan="2">Tổng chi phí</td>
+      <td colspan="2" class="number" style="font-weight:bold;color:#0f766e;">${formatCurrency(reportData.summary.expenses)}</td>
+    </tr>
+    <tr>
+      <td colspan="2" class="total-row">Lợi nhuận ròng</td>
+      <td colspan="2" class="total-row ${reportData.summary.profit >= 0 ? 'profit-positive' : 'profit-negative'}">${formatCurrency(reportData.summary.profit)}</td>
+    </tr>
+    <tr>
+      <td colspan="2">Biên lợi nhuận ròng</td>
+      <td colspan="2" class="number" style="font-weight:bold;">${reportData.summary.profit_margin}%</td>
+    </tr>
+    <tr><td colspan="4" style="border:none;height:15px;"></td></tr>
 
-    csv += `TỔNG QUAN CHỈ TIÊU\n`
-    csv += `Chỉ số,Giá trị\n`
-    csv += `Tổng doanh thu,${reportData.summary.revenue}\n`
-    csv += `Tổng chi phí,${reportData.summary.expenses}\n`
-    csv += `Lợi nhuận ròng,${reportData.summary.profit}\n`
-    csv += `Biên lợi nhuận ròng,${reportData.summary.profit_margin}%\n\n`
+    <tr><td colspan="4" class="section-title" style="border:none;">II. XU HƯỚNG THEO THÁNG</td></tr>
+    <tr>
+      <td class="header">Tháng</td>
+      <td class="header">Doanh thu</td>
+      <td class="header">Chi phí</td>
+      <td class="header">Lợi nhuận ròng</td>
+    </tr>
+`;
 
-    csv += `XU HƯỚNG THEO THÁNG\n`
-    csv += `Tháng,Doanh thu (VNĐ),Chi phí (VNĐ),Lợi nhuận ròng (VNĐ)\n`
     reportData.chart.forEach((pt) => {
-      csv += `${pt.month},${pt.revenue},${pt.expenses},${pt.profit}\n`
-    })
-    csv += '\n'
+      const isPositive = pt.profit >= 0;
+      html += `
+    <tr>
+      <td class="text-cell">${pt.month}</td>
+      <td class="number">${formatCurrency(pt.revenue)}</td>
+      <td class="number">${formatCurrency(pt.expenses)}</td>
+      <td class="${isPositive ? 'profit-positive' : 'profit-negative'}">${formatCurrency(pt.profit)}</td>
+    </tr>`;
+    });
 
-    csv += `CƠ CẤU DOANH THU THEO DỊCH VỤ\n`
-    csv += `Dịch vụ,Doanh thu (VNĐ),Tỷ lệ (%)\n`
+    html += `
+    <tr><td colspan="4" style="border:none;height:15px;"></td></tr>
+
+    <tr><td colspan="4" class="section-title" style="border:none;">III. CƠ CẤU DOANH THU THEO DỊCH VỤ</td></tr>
+    <tr>
+      <td colspan="2" class="header">Dịch vụ</td>
+      <td class="header">Doanh thu (VNĐ)</td>
+      <td class="header">Tỷ lệ (%)</td>
+    </tr>
+`;
+
     reportData.revenue_breakdown.forEach((item) => {
-      csv += `${item.label},${item.amount},${item.percentage}%\n`
-    })
-    csv += '\n'
+      html += `
+    <tr>
+      <td colspan="2">${item.label}</td>
+      <td class="number">${formatCurrency(item.amount)}</td>
+      <td style="text-align:center;">${item.percentage}%</td>
+    </tr>`;
+    });
 
-    csv += `CƠ CẤU CHI PHÍ\n`
-    csv += `Danh mục,Chi phí (VNĐ),Tỷ lệ (%)\n`
+    html += `
+    <tr>
+      <td colspan="2" class="total-row">TỔNG CỘNG DOANH THU</td>
+      <td class="total-row number" style="color:#a65f16;">${formatCurrency(reportData.summary.revenue)}</td>
+      <td class="total-row" style="text-align:center;">100%</td>
+    </tr>
+    <tr><td colspan="4" style="border:none;height:15px;"></td></tr>
+
+    <tr><td colspan="4" class="section-title" style="border:none;">IV. CƠ CẤU CHI PHÍ</td></tr>
+    <tr>
+      <td colspan="2" class="header">Danh mục</td>
+      <td class="header">Chi phí (VNĐ)</td>
+      <td class="header">Tỷ lệ (%)</td>
+    </tr>
+`;
+
     reportData.expense_breakdown.forEach((item) => {
-      csv += `${item.label},${item.amount},${item.percentage}%\n`
-    })
-    csv += '\n'
+      html += `
+    <tr>
+      <td colspan="2">${item.label}</td>
+      <td class="number">${formatCurrency(item.amount)}</td>
+      <td style="text-align:center;">${item.percentage}%</td>
+    </tr>`;
+    });
+
+    html += `
+    <tr>
+      <td colspan="2" class="total-row">TỔNG CỘNG CHI PHÍ</td>
+      <td class="total-row number" style="color:#0f766e;">${formatCurrency(reportData.summary.expenses)}</td>
+      <td class="total-row" style="text-align:center;">100%</td>
+    </tr>
+`;
 
     if (buildingId === '' && reportData.top_buildings && reportData.top_buildings.length > 0) {
-      csv += `HIỆU SUẤT DOANH THU TÒA NHÀ\n`
-      csv += `Tòa nhà,Doanh thu (VNĐ),Tỷ lệ (%)\n`
+      html += `
+    <tr><td colspan="4" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="4" class="section-title" style="border:none;">V. HIỆU SUẤT DOANH THU TÒA NHÀ</td></tr>
+    <tr>
+      <td colspan="2" class="header">Tòa nhà</td>
+      <td class="header">Doanh thu (VNĐ)</td>
+      <td class="header">Tỷ lệ (%)</td>
+    </tr>
+`;
       reportData.top_buildings.forEach((item) => {
-        csv += `${item.name},${item.revenue},${item.percentage}%\n`
-      })
-      csv += '\n'
+        html += `
+    <tr>
+      <td colspan="2">${item.name}</td>
+      <td class="number">${formatCurrency(item.revenue)}</td>
+      <td style="text-align:center;">${item.percentage}%</td>
+    </tr>`;
+      });
+      html += `
+    <tr>
+      <td colspan="2" class="total-row">TỔNG CỘNG DOANH THU</td>
+      <td class="total-row number" style="color:#a65f16;">${formatCurrency(reportData.summary.revenue)}</td>
+      <td class="total-row" style="text-align:center;">100%</td>
+    </tr>
+`;
     }
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    html += `
+  </table>
+</body>
+</html>
+`;
+
+    // Sử dụng kiểu mime của Excel và mã hóa UTF-8
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+    
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
     
-    const filename = `bao_cao_tai_chinh_T${monthFrom}_T${monthTo}_${year}.csv`
+    const filename = `bao_cao_tai_chinh_T${monthFrom}_T${monthTo}_${year}.xls`
     link.setAttribute('download', filename)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
@@ -296,7 +428,7 @@ export function FinancialsScreen() {
               <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-lg font-black tracking-tight text-[#24170d] sm:text-xl">Biểu đồ Lợi nhuận</h2>
-                  <p className="text-xs font-semibold leading-5 text-[#6f6254]">Doanh thu (Cột vàng), Chi phí (Cột xanh), Lợi nhuận ròng (Đường nâu)</p>
+                  <p className="text-xs font-semibold leading-5 text-[#6f6254]">Doanh thu (Cột vàng), Chi phí (Cột xanh), Lợi nhuận ròng (Cột nâu)</p>
                 </div>
               </div>
               <FinancialTrendChart
@@ -439,8 +571,8 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
   const zeroY = yForValue(0)
 
   const slotWidth = chartWidth / data.length
-  // Độ rộng từng thanh (Doanh thu & Chi phí)
-  const barWidth = Math.max(10, Math.min(22, slotWidth * 0.28))
+  // Độ rộng từng thanh (Doanh thu, Chi phí & Lợi nhuận)
+  const barWidth = Math.max(8, Math.min(18, slotWidth * 0.18))
 
   // Trục Y hiển thị 4 mức lưới
   const gridLines = Array.from({ length: 4 }).map((_, index) => {
@@ -448,17 +580,6 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
     const value = maxVal - range * ratio
     return { y: paddingTop + chartHeight * ratio, value }
   })
-
-  // Điểm nối biểu đồ đường Lợi nhuận
-  const linePoints = data.map((d, index) => {
-    const x = paddingLeft + slotWidth * index + slotWidth / 2
-    const y = yForValue(d.profit)
-    return { x, y, profit: d.profit, label: d.month }
-  })
-
-  const linePathD = linePoints
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
-    .join(' ')
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_260px]">
@@ -476,6 +597,12 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
               <stop offset="0%" stopColor="#5eead4" />
               <stop offset="50%" stopColor="#0f766e" />
               <stop offset="100%" stopColor="#083f3b" />
+            </linearGradient>
+            {/* Gradient Lợi nhuận ròng */}
+            <linearGradient id="profGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#e6ccb2" />
+              <stop offset="50%" stopColor="#b08968" />
+              <stop offset="100%" stopColor="#7f5539" />
             </linearGradient>
           </defs>
 
@@ -506,17 +633,23 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
           {data.map((d, index) => {
             const slotCenterX = paddingLeft + slotWidth * index + slotWidth / 2
             
-            // Cột Doanh Thu (Vàng - nằm bên trái tâm slot)
+            // Cột Doanh Thu (Vàng - nằm bên trái)
             const revBarHeight = (d.revenue / range) * chartHeight
-            const revX = slotCenterX - barWidth - 2
+            const revX = slotCenterX - 1.5 * barWidth - 2
             const revY = d.revenue >= 0 ? zeroY - revBarHeight : zeroY
             const revH = Math.max(2, Math.abs(revBarHeight))
 
-            // Cột Chi Phí (Teal - nằm bên phải tâm slot)
+            // Cột Chi Phí (Teal - nằm ở giữa)
             const expBarHeight = (d.expenses / range) * chartHeight
-            const expX = slotCenterX + 2
+            const expX = slotCenterX - 0.5 * barWidth
             const expY = d.expenses >= 0 ? zeroY - expBarHeight : zeroY
             const expH = Math.max(2, Math.abs(expBarHeight))
+
+            // Cột Lợi nhuận ròng (Nâu - nằm bên phải)
+            const profBarHeight = (d.profit / range) * chartHeight
+            const profX = slotCenterX + 0.5 * barWidth + 2
+            const profY = d.profit >= 0 ? zeroY - profBarHeight : zeroY
+            const profH = Math.max(2, Math.abs(profBarHeight))
 
             const isHovered = hoveredIndex === index
 
@@ -529,7 +662,7 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
                   width={barWidth}
                   height={revH}
                   fill="url(#revGrad)"
-                  rx="4"
+                  rx="3"
                   opacity={hoveredIndex === null || isHovered ? 1 : 0.45}
                   className="transition-all duration-200"
                 />
@@ -541,7 +674,19 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
                   width={barWidth}
                   height={expH}
                   fill="url(#expGrad)"
-                  rx="4"
+                  rx="3"
+                  opacity={hoveredIndex === null || isHovered ? 1 : 0.45}
+                  className="transition-all duration-200"
+                />
+
+                {/* Cột Lợi nhuận ròng */}
+                <rect
+                  x={profX}
+                  y={profY}
+                  width={barWidth}
+                  height={profH}
+                  fill="url(#profGrad)"
+                  rx="3"
                   opacity={hoveredIndex === null || isHovered ? 1 : 0.45}
                   className="transition-all duration-200"
                 />
@@ -571,36 +716,6 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
                   className="cursor-pointer"
                 />
               </g>
-            )
-          })}
-
-          {/* Đường biểu đồ Lợi Nhuận ròng */}
-          {linePoints.length > 1 && (
-            <path
-              d={linePathD}
-              fill="none"
-              stroke="#8b5e34"
-              strokeWidth="3.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={hoveredIndex === null ? 0.95 : 0.4}
-            />
-          )}
-
-          {/* Các nút tròn mốc Lợi Nhuận */}
-          {linePoints.map((pt, idx) => {
-            const isHovered = hoveredIndex === idx
-            return (
-              <circle
-                key={idx}
-                cx={pt.x}
-                cy={pt.y}
-                r={isHovered ? 7 : 4.5}
-                fill="#8b5e34"
-                stroke="white"
-                strokeWidth={isHovered ? 3 : 2}
-                className="transition-all duration-150 pointer-events-none"
-              />
             )
           })}
         </svg>

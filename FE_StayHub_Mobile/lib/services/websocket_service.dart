@@ -49,7 +49,7 @@ class WebSocketService extends ChangeNotifier {
     final options = PusherChannelsOptions.fromHost(
       scheme: scheme,
       host: AppConfig.reverbHost,
-      port: AppConfig.reverbPort,
+      port: AppConfig.reverbPort == 443 ? null : AppConfig.reverbPort,
       key: AppConfig.reverbAppKey,
     );
 

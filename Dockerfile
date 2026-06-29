@@ -63,7 +63,7 @@ WORKDIR /var/www/html/BE_StayHub
 # 9. Copy file composer trước để tận dụng layer cache khi build image
 COPY ./BE_StayHub/composer.json ./
 COPY ./BE_StayHub/composer.lock ./
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
+RUN echo "Skipping composer install during build"
 
 # 10. Copy source backend để image vẫn tự chạy được khi không bind mount
 COPY ./BE_StayHub ./

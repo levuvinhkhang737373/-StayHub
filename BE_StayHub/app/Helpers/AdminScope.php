@@ -19,6 +19,11 @@ class AdminScope
         return $admin->role === Admin::ROLE_BUILDING_MANAGER;
     }
 
+    public static function isTechnician(Admin $admin): bool
+    {
+        return false;
+    }
+
     /**
      * Lấy danh sách ID tòa nhà admin đang quản lý.
      */
