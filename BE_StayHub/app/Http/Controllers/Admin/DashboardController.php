@@ -576,14 +576,61 @@ class DashboardController extends Controller
             ->get()
             ->keyBy(fn ($row): string => sprintf('%04d-%02d-%d', (int) $row->billing_year, (int) $row->billing_month, (int) $row->meter_type));
 
-        return collect($monthRange)->map(fn (array $month): array => [
-            'month' => $month['label'],
-            'month_key' => $month['key'],
-            'electric_consumption' => $this->meterConsumptionValue($rows->get($month['key'].'-'.MeterDevice::METER_TYPE_ELECTRIC)),
-            'water_consumption' => $this->meterConsumptionValue($rows->get($month['key'].'-'.MeterDevice::METER_TYPE_WATER)),
-            'electric_reading_count' => (int) ($rows->get($month['key'].'-'.MeterDevice::METER_TYPE_ELECTRIC)?->readings_count ?? 0),
-            'water_reading_count' => (int) ($rows->get($month['key'].'-'.MeterDevice::METER_TYPE_WATER)?->readings_count ?? 0),
-        ])->values()->all();
+        $electricService = \App\Models\Service::whereIn('slug', ['electric', 'dien-sinh-hoat', 'dien'])->first();
+        $waterService = \App\Models\Service::whereIn('slug', ['water', 'nuoc-sinh-hoat', 'nuoc'])->first();
+
+        $servicePrices = collect();
+        if ($electricService && $waterService) {
+            $servicePrices = \App\Models\ServicePrice::query()
+                ->whereIn('building_id', $buildingIds)
+                ->whereIn('service_id', [$electricService->id, $waterService->id])
+                ->whereIn('status', [\App\Models\ServicePrice::STATUS_ACTIVE, \App\Models\ServicePrice::STATUS_EXPIRED])
+                ->orderBy('effective_from', 'desc')
+                ->orderBy('id', 'desc')
+                ->get();
+        }
+
+        return collect($monthRange)->map(function (array $month) use ($rows, $electricService, $waterService, $servicePrices): array {
+            $electricPrice = null;
+            $waterPrice = null;
+
+            if ($electricService) {
+                $ePriceRecord = $servicePrices->first(function ($price) use ($electricService, $month) {
+                    if ($price->service_id !== $electricService->id) {
+                        return false;
+                    }
+                    $effectiveFrom = Carbon::parse($price->effective_from)->startOfDay();
+                    $effectiveTo = $price->effective_to ? Carbon::parse($price->effective_to)->endOfDay() : null;
+                    return $effectiveFrom->lessThanOrEqualTo($month['end']) && 
+                           ($effectiveTo === null || $effectiveTo->greaterThanOrEqualTo($month['start']));
+                });
+                $electricPrice = $ePriceRecord ? (float) $ePriceRecord->price : null;
+            }
+
+            if ($waterService) {
+                $wPriceRecord = $servicePrices->first(function ($price) use ($waterService, $month) {
+                    if ($price->service_id !== $waterService->id) {
+                        return false;
+                    }
+                    $effectiveFrom = Carbon::parse($price->effective_from)->startOfDay();
+                    $effectiveTo = $price->effective_to ? Carbon::parse($price->effective_to)->endOfDay() : null;
+                    return $effectiveFrom->lessThanOrEqualTo($month['end']) && 
+                           ($effectiveTo === null || $effectiveTo->greaterThanOrEqualTo($month['start']));
+                });
+                $waterPrice = $wPriceRecord ? (float) $wPriceRecord->price : null;
+            }
+
+            return [
+                'month' => $month['label'],
+                'month_key' => $month['key'],
+                'electric_consumption' => $this->meterConsumptionValue($rows->get($month['key'].'-'.MeterDevice::METER_TYPE_ELECTRIC)),
+                'water_consumption' => $this->meterConsumptionValue($rows->get($month['key'].'-'.MeterDevice::METER_TYPE_WATER)),
+                'electric_reading_count' => (int) ($rows->get($month['key'].'-'.MeterDevice::METER_TYPE_ELECTRIC)?->readings_count ?? 0),
+                'water_reading_count' => (int) ($rows->get($month['key'].'-'.MeterDevice::METER_TYPE_WATER)?->readings_count ?? 0),
+                'electric_price' => $electricPrice,
+                'water_price' => $waterPrice,
+            ];
+        })->values()->all();
     }
 
     private function meterConsumptionValue(mixed $row): ?float

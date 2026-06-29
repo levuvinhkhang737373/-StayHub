@@ -90,7 +90,7 @@ export function InvoicePreviewModal({ invoice, isIssuing, onClose, onConfirm }: 
 
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[#fffaf1] text-[10px] font-black uppercase tracking-[0.16em] text-[#8b5e34]/70">
+                <thead className="bg-[#fffaf1] text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">
                   <tr>
                     <th className="px-4 py-3">Khoản mục</th>
                     <th className="px-4 py-3 text-right">SL</th>

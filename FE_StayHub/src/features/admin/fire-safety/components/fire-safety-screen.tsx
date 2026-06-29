@@ -644,14 +644,14 @@ export function FireSafetyScreen() {
                         </div>
 
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                          <button type="button" onClick={() => testStream(camera.id)} disabled={testingId === camera.id || analyzingId === camera.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 text-xs font-black text-[#0f5f59] transition hover:bg-[#0f766e]/16 disabled:cursor-not-allowed disabled:opacity-60">
+                          <button type="button" onClick={() => testStream(camera.id)} disabled={testingId === camera.id || analyzingId === camera.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 text-xs font-black text-[#0f5f59] transition hover:bg-[#0f766e]/16 focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60">
                             {testingId === camera.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Test cam
                           </button>
-                          <button type="button" onClick={() => runAnalyze(camera.id)} disabled={analyzingId === camera.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60">
+                          <button type="button" onClick={() => runAnalyze(camera.id)} disabled={analyzingId === camera.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60">
                             {analyzingId === camera.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />} Test AI
                           </button>
-                          {isSuperAdmin && <button type="button" onClick={() => editCamera(camera)} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#f3c56b]/18 px-3 text-xs font-black text-[#8a4f18] transition hover:bg-[#f3c56b]/28">Sửa</button>}
-                          {isSuperAdmin && <button type="button" onClick={() => removeCamera(camera.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50"><Trash2 className="h-4 w-4" /> Xóa</button>}
+                          {isSuperAdmin && <button type="button" onClick={() => editCamera(camera)} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#f3c56b]/18 px-3 text-xs font-black text-[#8a4f18] transition hover:bg-[#f3c56b]/28 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-95">Sửa</button>}
+                          {isSuperAdmin && <button type="button" onClick={() => removeCamera(camera.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95"><Trash2 className="h-4 w-4" /> Xóa</button>}
                         </div>
                       </article>
                     ))}

@@ -85,7 +85,7 @@ export const AdminNavList = memo(function AdminNavList({ items, variant, onNavig
 
       {Object.entries(groupedItems).map(([group, groupItems]) => (
         <div key={group}>
-          <h2 className="mb-4 px-4 text-[10px] font-black uppercase leading-none tracking-[0.24em] text-[#8b5e34]/55">
+          <h2 className="mb-4 px-4 text-[10px] font-black uppercase leading-none tracking-[0.24em] text-[#8b5e34]/55 whitespace-nowrap">
             {group}
           </h2>
           <div className="space-y-1.5">

@@ -22,12 +22,14 @@ export function IconButton({
   title,
   disabled,
   danger,
+  success,
   onClick,
   children,
 }: {
   title: string
   disabled?: boolean
   danger?: boolean
+  success?: boolean
   onClick: () => void
   children: ReactNode
 }) {
@@ -40,7 +42,9 @@ export function IconButton({
         'inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45',
         danger
           ? 'hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:ring-rose-100'
-          : 'hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:ring-[#3d2a18]/10'
+          : success
+            ? 'hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:ring-[#0f766e]/10'
+            : 'hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:ring-[#3d2a18]/10'
       )}
       title={title}
       aria-label={title}

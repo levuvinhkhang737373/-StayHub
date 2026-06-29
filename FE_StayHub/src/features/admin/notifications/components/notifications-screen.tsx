@@ -272,7 +272,7 @@ export function NotificationsScreen() {
               <button 
                 type="button" 
                 onClick={openCreateForm} 
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]"
+                className="inline-flex w-fit self-end xl:self-auto h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]"
               >
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm thông báo
               </button>
@@ -394,10 +394,11 @@ export function NotificationsScreen() {
                               e.stopPropagation();
                               openEditForm(notif);
                             }}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95"
                             title="Sửa bản nháp"
+                            aria-label={`Sửa bản nháp thông báo ${notif.title}`}
                           >
-                            <Edit3 className="h-4.5 w-4.5" />
+                            <Edit3 className="h-5 w-5" />
                           </button>
                         )}
                         <button 
@@ -406,10 +407,11 @@ export function NotificationsScreen() {
                             e.stopPropagation();
                             void handleDelete(notif.id);
                           }}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-white text-rose-600 hover:bg-rose-50"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95"
                           title="Xóa thông báo"
+                          aria-label={`Xóa thông báo ${notif.title}`}
                         >
-                          <Trash2 className="h-4.5 w-4.5" />
+                          <Trash2 className="h-5 w-5" />
                         </button>
                       </div>
                     </div>

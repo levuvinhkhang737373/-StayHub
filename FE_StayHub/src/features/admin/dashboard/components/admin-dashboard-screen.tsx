@@ -849,13 +849,13 @@ export function AdminDashboardScreen() {
     <section className="space-y-6 text-[#24170d]">
       <div className="relative overflow-hidden rounded-[2.25rem] border border-[#3d2a18]/10 bg-[#24170d] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/18 sm:p-7">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,#4a2f17_0%,#372719_50%,#123f32_100%)]" />
-        <div className="relative grid gap-6 lg:grid-cols-[max-content_minmax(0,1fr)] lg:items-start">
-          <div className="max-w-3xl space-y-3 pt-1 xl:w-48">
+        <div className="relative flex flex-col gap-5">
+          <div className="max-w-3xl">
             <p className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/12 px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] text-[#f3c56b]">
-              <Gauge className="h-3.5 w-3.5" /> Dashboard
+              <Gauge className="h-3.5 w-3.5" /> bảng điều khiển
             </p>
           </div>
-          <div className="rounded-[1.75rem] border border-[#fff4df]/12 bg-[#fff4df]/10 p-4 backdrop-blur-md lg:justify-self-stretch">
+          <div className="w-full rounded-[1.75rem] border border-[#fff4df]/12 bg-[#fff4df]/10 p-4 backdrop-blur-md">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(240px,1.65fr)_minmax(100px,0.65fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)]">
               <div>
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#f3c56b]">Phạm vi tòa nhà</label>

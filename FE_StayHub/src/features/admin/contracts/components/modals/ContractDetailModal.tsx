@@ -416,12 +416,12 @@ export function ContractDetailModal({
             <p className={labelClass}>Khách thuê trong hợp đồng</p>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/70">
+                <thead className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">
                   <tr>
-                    <th className="py-2">Khách thuê</th>
-                    <th>Ngày ở</th>
-                    <th>Tính tiền</th>
-                    <th>Trạng thái</th>
+                    <th className="py-3 px-4">Khách thuê</th>
+                    <th className="py-3 px-4">Ngày ở</th>
+                    <th className="py-3 px-4">Tính tiền</th>
+                    <th className="py-3 px-4">Trạng thái</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/10">

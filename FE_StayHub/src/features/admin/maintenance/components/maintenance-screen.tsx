@@ -393,12 +393,11 @@ export function MaintenanceScreen() {
                     {req.images && req.images.length > 0 && (
                       <div className="flex gap-2 overflow-x-auto pb-3 mb-4">
                         {req.images.map((img, idx) => (
-                          <img
+                          <MaintenanceThumbnail
                             key={idx}
                             src={img}
                             alt={`evidence-${idx}`}
                             onClick={() => setLightboxImage(img)}
-                            className="h-12 w-12 rounded-xl object-cover border border-[#3d2a18]/10 cursor-zoom-in hover:scale-105 transition"
                           />
                         ))}
                       </div>
@@ -409,16 +408,16 @@ export function MaintenanceScreen() {
                       <button
                         type="button"
                         onClick={() => void openDetail(req)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95"
                         title="Xem chi tiết"
                       >
-                        <Eye className="h-4.5 w-4.5" />
+                        <Eye className="h-5 w-5" />
                       </button>
 
                       <button
                         type="button"
                         onClick={() => { setUpdatingRequest(req); setNewStatus(Number(req.status) === 2 ? 3 : Number(req.status)) }}
-                        className="ml-auto inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-3 text-xs font-black text-[#fff4df] shadow-sm transition hover:bg-[#3d2a18]"
+                        className="ml-auto inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-3.5 text-xs font-black text-[#fff4df] shadow-sm transition hover:bg-[#3d2a18] focus:outline-none focus:ring-4 focus:ring-[#24170d]/20 active:scale-95"
                       >
                         <Settings className="h-4 w-4" /> Trạng thái
                       </button>
@@ -493,10 +492,11 @@ export function MaintenanceScreen() {
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
                         {detailRequest.images.map((img, idx) => (
                           <div key={idx} className="relative group cursor-zoom-in" onClick={() => setLightboxImage(img)}>
-                            <img src={img} alt={`evidence-${idx}`} className="h-28 w-full object-cover rounded-xl border border-[#3d2a18]/10" />
-                            <span className="absolute bottom-1 right-1 bg-black/60 text-[9px] text-white px-2 py-0.5 rounded font-black uppercase">
-                              {idx === 0 ? 'Ảnh trước' : 'Ảnh sau'}
-                            </span>
+                            <MaintenanceDetailImage
+                              src={img}
+                              alt={`evidence-${idx}`}
+                              label={idx === 0 ? 'Ảnh trước' : 'Ảnh sau'}
+                            />
                           </div>
                         ))}
                       </div>
@@ -684,18 +684,68 @@ function DetailTile({ label, value }: { label: string; value: string | number })
 }
 
 function StatusBadge({ status, label }: { status: number; label: string }) {
-  ColorTone: {
-    const tone = {
-      1: 'border-rose-200 bg-rose-50 text-rose-700', // Mới tạo
-      3: 'border-amber-200 bg-amber-50 text-amber-700', // Đang xử lý
-      4: 'border-emerald-200 bg-emerald-50 text-emerald-700', // Đã hoàn thành
-      5: 'border-stone-200 bg-stone-100 text-stone-600', // Đã hủy
-    }[status] || 'border-stone-200 bg-stone-50 text-stone-600'
+  const tone = {
+    1: 'border-rose-200 bg-rose-50 text-rose-700', // Mới tạo
+    3: 'border-amber-200 bg-amber-50 text-amber-700', // Đang xử lý
+    4: 'border-emerald-200 bg-emerald-50 text-emerald-700', // Đã hoàn thành
+    5: 'border-stone-200 bg-stone-100 text-stone-600', // Đã hủy
+  }[status] || 'border-stone-200 bg-stone-50 text-stone-600'
 
+  return (
+    <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[10px] font-black shadow-sm', tone)}>
+      {label}
+    </span>
+  )
+}
+
+function MaintenanceThumbnail({ src, alt, onClick }: { src: string; alt: string; onClick: () => void; key?: any }) {
+  const [hasError, setHasError] = useState(src.includes('/storage/demo/'))
+
+  if (hasError) {
     return (
-      <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[10px] font-black shadow-sm', tone)}>
-        {label}
-      </span>
+      <div 
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#3d2a18]/5 text-[#8b5e34]/60"
+        title="Không thể tải ảnh"
+      >
+        <ImageIcon className="h-5 w-5" />
+      </div>
     )
   }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setHasError(true)}
+      onClick={onClick}
+      className="h-12 w-12 rounded-xl object-cover border border-[#3d2a18]/10 cursor-zoom-in transition duration-200"
+    />
+  )
+}
+
+function MaintenanceDetailImage({ src, alt, label }: { src: string; alt: string; label: string; key?: any }) {
+  const [hasError, setHasError] = useState(src.includes('/storage/demo/'))
+
+  if (hasError) {
+    return (
+      <div className="relative flex h-28 w-full items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#3d2a18]/5 text-[#8b5e34]/60">
+        <div className="flex flex-col items-center gap-1">
+          <ImageIcon className="h-6 w-6" />
+          <span className="text-[10px] font-black text-[#8b5e34]/80">Không có ảnh</span>
+        </div>
+        <span className="absolute bottom-1 right-1 bg-black/60 text-[9px] text-white px-2 py-0.5 rounded font-black uppercase">
+          {label}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <img src={src} alt={alt} onError={() => setHasError(true)} className="h-28 w-full object-cover rounded-xl border border-[#3d2a18]/10 transition duration-200" />
+      <span className="absolute bottom-1 right-1 bg-black/60 text-[9px] text-white px-2 py-0.5 rounded font-black uppercase">
+        {label}
+      </span>
+    </>
+  )
 }

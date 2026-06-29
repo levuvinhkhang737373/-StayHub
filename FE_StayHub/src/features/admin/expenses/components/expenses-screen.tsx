@@ -430,7 +430,7 @@ export function ExpensesScreen() {
                 </Link>
                 <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Phiếu chi</h1>
               </div>
-              <button type="button" onClick={openCreateForm} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start whitespace-nowrap rounded-xl bg-[#f3c56b] px-5 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] lg:self-center">
+              <button type="button" onClick={openCreateForm} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 w-fit self-end lg:self-auto whitespace-nowrap rounded-xl bg-[#f3c56b] px-5 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Lập phiếu chi
               </button>
             </div>
@@ -475,7 +475,7 @@ export function ExpensesScreen() {
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1080px] text-left text-sm">
-              <thead className="bg-[#24170d] text-xs font-black uppercase tracking-[0.14em] text-[#fff4df]">
+              <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
                   <th className="px-4 py-3">Mã phiếu</th>
                   <th className="px-4 py-3">Khoản chi</th>
@@ -501,7 +501,7 @@ export function ExpensesScreen() {
                     <td className="px-4 py-4"><StatusBadge status={expense.status} label={expense.status_label} /></td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
-                        <IconButton title="Xem chi tiết" onClick={() => void viewExpense(expense)}><Eye className="h-4 w-4" /></IconButton>
+                        <IconButton title="Xem chi tiết" success onClick={() => void viewExpense(expense)}><Eye className="h-4 w-4" /></IconButton>
                         <IconButton title="Sửa phiếu" disabled={Number(expense.status) === 2} onClick={() => editExpense(expense)}><Edit3 className="h-4 w-4" /></IconButton>
                         <IconButton title="Hủy phiếu" danger disabled={Number(expense.status) === 2 || cancellingId === expense.id} onClick={() => void cancelExpense(expense)}><Trash2 className="h-4 w-4" /></IconButton>
                       </div>
@@ -658,8 +658,39 @@ function StatusBadge({ status, label }: { status: number; label?: string | null 
   return <span className={cn('inline-flex rounded-full px-3 py-1 text-xs font-black', isCancelled ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700')}>{label || (isCancelled ? 'Đã hủy' : 'Đã ghi nhận')}</span>
 }
 
-function IconButton({ children, onClick, title, danger, disabled }: { children: ReactNode; onClick: () => void; title: string; danger?: boolean; disabled?: boolean }) {
-  return <button type="button" title={title} onClick={onClick} disabled={disabled} className={cn('inline-flex h-9 w-9 items-center justify-center rounded-xl border text-sm transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-45', danger ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 focus:ring-rose-100' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#6f6254] hover:bg-[#efe2cf] focus:ring-[#f3c56b]/20')}>{children}</button>
+function IconButton({
+  children,
+  onClick,
+  title,
+  danger,
+  success,
+  disabled,
+}: {
+  children: ReactNode
+  onClick: () => void
+  title: string
+  danger?: boolean
+  success?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'inline-flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45',
+        danger
+          ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 focus:ring-rose-100'
+          : success
+            ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59] hover:bg-[#0f766e]/16 focus:ring-[#0f766e]/10'
+            : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:ring-[#3d2a18]/10'
+      )}
+    >
+      {children}
+    </button>
+  )
 }
 
 function FormField({ label, error, children }: { label: string; error?: string; children: ReactNode }) {

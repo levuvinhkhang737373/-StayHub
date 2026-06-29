@@ -270,7 +270,7 @@ export function TenantsScreen() {
 
                   <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Quản lý khách thuê</h1>
                 </div>
-                <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:mb-1 shrink-0">
+                <button type="button" onClick={openCreateForm} className="inline-flex h-9 w-fit self-end lg:self-auto items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] sm:mb-1 shrink-0">
                   <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm khách thuê
                 </button>
               </div>
@@ -314,10 +314,10 @@ export function TenantsScreen() {
                     <tr>
                       <th className="px-5 py-4">Khách thuê</th>
                       <th className="px-5 py-4">Liên hệ</th>
-                      <th className="px-5 py-4"><div className="w-[100px] text-center">Giấy tờ</div></th>
+                      <th className="px-5 py-4 text-center">Giấy tờ</th>
                       <th className="px-5 py-4 text-center">Trạng thái</th>
-                      <th className="px-5 py-4">Tòa nhà</th>
-                      <th className="whitespace-nowrap px-5 py-4">Phòng</th>
+                      <th className="px-5 py-4 text-center">Tòa nhà</th>
+                      <th className="whitespace-nowrap px-5 py-4 text-center">Phòng</th>
                       <th className="px-5 py-4 text-center">Phương tiện</th>
                       <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[184px] text-center">Thao tác</div></div></th>
                     </tr>
@@ -349,10 +349,12 @@ export function TenantsScreen() {
                               <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-[#0f766e]" /> {tenant.phone || 'Chưa có số điện thoại'}</p>
                             </div>
                           </td>
-                          <td className="px-5 py-4">
-                            <div className="space-y-1.5">
-                              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-3 py-1 text-xs font-black text-[#6f6254] shadow-sm"><IdCard className="h-3.5 w-3.5" /> {tenant.identity_type_label || getIdentityTypeLabel(tenant.identity_type)}</span>
-                              <p className="text-xs font-bold text-[#8b5e34]/75">{tenant.identity_number || 'Chưa nhập số giấy tờ'}</p>
+                          <td className="px-5 py-4 text-center">
+                            <div className="inline-block text-left space-y-1.5">
+                              <div className="flex justify-center">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-3 py-1 text-xs font-black text-[#6f6254] shadow-sm"><IdCard className="h-3.5 w-3.5" /> {tenant.identity_type_label || getIdentityTypeLabel(tenant.identity_type)}</span>
+                              </div>
+                              <p className="text-center text-xs font-bold text-[#8b5e34]/75">{tenant.identity_number || 'Chưa nhập số giấy tờ'}</p>
                             </div>
                           </td>
                           <td className="px-5 py-4 text-center">
@@ -360,11 +362,11 @@ export function TenantsScreen() {
                               {tenant.status_label || (renting ? 'Đang thuê' : 'Ngừng thuê')}
                             </span>
                           </td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2 text-xs font-black text-[#0f5f59]"><Building2 className="h-4 w-4" /> {getTenantBuildingName(tenant)}</div>
+                          <td className="px-5 py-4 text-center">
+                            <div className="inline-flex items-center gap-2 text-xs font-black text-[#0f5f59]"><Building2 className="h-4 w-4" /> {getTenantBuildingName(tenant)}</div>
                           </td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2 whitespace-nowrap text-xs font-black text-[#8a4f18]"><DoorOpen className="h-4 w-4 shrink-0" /> {getTenantRoomNumber(tenant)}</div>
+                          <td className="px-5 py-4 text-center">
+                            <div className="inline-flex items-center gap-2 whitespace-nowrap text-xs font-black text-[#8a4f18]"><DoorOpen className="h-4 w-4 shrink-0" /> {getTenantRoomNumber(tenant)}</div>
                           </td>
                           <td className="px-5 py-4 text-center"><CountBadge value={tenant.vehicles_count ?? 0} /></td>
                           <td className="px-5 py-4">
@@ -451,11 +453,11 @@ export function TenantsScreen() {
                       </div>
 
                       <div className="flex items-center justify-end gap-2 border-t border-[#3d2a18]/6 pt-2">
-                        <button type="button" onClick={() => void viewTenant(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59]" title="Xem chi tiết"><Eye className="h-4.5 w-4.5" /></button>
-                        <button type="button" onClick={() => editTenant(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d]" title="Chỉnh sửa"><Edit3 className="h-4.5 w-4.5" /></button>
-                        <button type="button" disabled={statusChangingId === tenant.id} onClick={() => void toggleTenantStatus(tenant)} className={cn('inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45', renting ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100')} title={renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'}><Power className="h-4.5 w-4.5" /></button>
-                        <button type="button" disabled={deletingId === tenant.id} onClick={() => void removeTenant(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600" title="Xóa"><Trash2 className="h-4.5 w-4.5" /></button>
-                        <button type="button" onClick={() => transferTenantRoom(tenant)} disabled={!renting} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f5f59]/25 hover:bg-[#0f5f59]/10 hover:text-[#0f5f59] disabled:cursor-not-allowed disabled:opacity-45" title="Chuyển phòng"><ArrowRightLeft className="h-4.5 w-4.5" /></button>
+                        <button type="button" onClick={() => void viewTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label={`Xem chi tiết khách thuê ${tenant.username}`}><Eye className="h-5 w-5" /></button>
+                        <button type="button" onClick={() => editTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95" title="Chỉnh sửa" aria-label={`Chỉnh sửa khách thuê ${tenant.username}`}><Edit3 className="h-5 w-5" /></button>
+                        <button type="button" disabled={statusChangingId === tenant.id} onClick={() => void toggleTenantStatus(tenant)} className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45', renting ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus:ring-rose-100')} title={renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'} aria-label={`${renting ? 'Ngừng thuê' : 'Kích hoạt thuê lại'} khách thuê ${tenant.username}`}><Power className="h-5 w-5" /></button>
+                        <button type="button" disabled={deletingId === tenant.id} onClick={() => void removeTenant(tenant)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title="Xóa" aria-label={`Xóa khách thuê ${tenant.username}`}><Trash2 className="h-5 w-5" /></button>
+                        <button type="button" onClick={() => transferTenantRoom(tenant)} disabled={!renting} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f5f59]/25 hover:bg-[#0f5f59]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f5f59]/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45" title="Chuyển phòng" aria-label={`Chuyển phòng khách thuê ${tenant.username}`}><ArrowRightLeft className="h-5 w-5" /></button>
                       </div>
                     </div>
                   )

@@ -300,13 +300,13 @@ export function ActivityLogsScreen() {
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1080px] text-left text-sm">
-              <thead className="bg-[#24170d] text-xs font-black uppercase tracking-[0.14em] text-[#fff4df]">
+              <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
                   <th className="px-4 py-3">Thời gian</th>
                   <th className="px-4 py-3">Admin</th>
-                  <th className="px-4 py-3">Hành động</th>
-                  <th className="px-4 py-3">Đối tượng</th>
-                  <th className="px-4 py-3">IP</th>
+                  <th className="px-4 py-3 text-center">Hành động</th>
+                  <th className="px-4 py-3 text-center">Đối tượng</th>
+                  <th className="px-4 py-3 text-center">IP</th>
                   <th className="px-4 py-3">Thiết bị</th>
                   <th className="px-4 py-3 w-[45px]"><div className="flex justify-end"><div className="w-[45px] text-center">Thao tác</div></div></th>
                 </tr>
@@ -366,9 +366,9 @@ function ActivityLogRow({ log, onView }: { log: AdminActivityLogResource; onView
     <tr className="align-top transition hover:bg-[#fff8eb]">
       <td className="px-4 py-4 tabular-nums"><span className="inline-flex items-center gap-2 font-black text-[#24170d]"><Clock3 className="h-4 w-4 text-[#a65f16]" />{formatDateTime(log.created_at)}</span></td>
       <td className="px-4 py-4"><p className="font-black text-[#24170d]">{adminName}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{adminSubText}</p></td>
-      <td className="px-4 py-4"><ActionBadge action={log.action} /></td>
-      <td className="px-4 py-4"><p className="font-black text-[#24170d]">{entityName}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{entityLabel}</p></td>
-      <td className="px-4 py-4 font-black tabular-nums text-[#24170d]">{log.ip_address || '—'}</td>
+      <td className="px-4 py-4 text-center"><ActionBadge action={log.action} /></td>
+      <td className="px-4 py-4 text-center"><p className="font-black text-[#24170d]">{entityName}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{entityLabel}</p></td>
+      <td className="px-4 py-4 text-center font-black tabular-nums text-[#24170d]">{log.ip_address || '—'}</td>
       <td className="max-w-[18rem] truncate px-4 py-4 text-xs font-bold text-[#6f6254]" title={log.user_agent || undefined}>{log.user_agent || '—'}</td>
       <td className="px-4 py-4">
         <div className="flex justify-end gap-2">
@@ -456,7 +456,17 @@ function MetricCard({ icon, label, value, tone = 'neutral' }: { icon: ReactNode;
 }
 
 function IconButton({ children, onClick, title, disabled }: { children: ReactNode; onClick: () => void; title: string; disabled?: boolean }) {
-  return <button type="button" title={title} onClick={onClick} disabled={disabled} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#6f6254] transition hover:bg-[#efe2cf] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 disabled:cursor-not-allowed disabled:opacity-45">{children}</button>
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+    >
+      {children}
+    </button>
+  )
 }
 
 function ActionBadge({ action }: { action: string }) {

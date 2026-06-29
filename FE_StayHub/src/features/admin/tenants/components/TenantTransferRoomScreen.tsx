@@ -36,10 +36,10 @@ import { formatMoneyInput } from '../../../../shared/lib/utils/format'
 
 const ROOM_STATUS_ACTIVE = 1
 const STATUS_RENTING = 1
-const TENANT_PICKER_PAGE_SIZE = 10
+const TENANT_PICKER_PAGE_SIZE = 6
 
 const inputClass =
-  'w-full rounded-2xl border border-[#372515]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#2b1b10] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#d9a441] focus:ring-4 focus:ring-[#d9a441]/18'
+  'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#24170d] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/18'
 
 interface TenantCardState {
   tenantId: number
@@ -539,8 +539,8 @@ export function TenantTransferRoomScreen() {
 
   if (isTenantLoading || isContractLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34] shadow-xl shadow-[#6b3f1d]/10">
-        <div className="flex items-center gap-3 rounded-full border border-[#d9a441]/20 bg-white px-4 py-3 text-sm font-black text-[#2b1b10]">
+      <div className="flex min-h-[50vh] items-center justify-center rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-xl shadow-[#6b3f1d]/10">
+        <div className="flex items-center gap-3 rounded-full border border-[#f3c56b]/20 bg-white px-4 py-3 text-sm font-black text-[#24170d]">
           <Loader2 className="h-4 w-4 animate-spin text-[#a65f16]" />
           <span>Đang tải hồ sơ chuyển phòng...</span>
         </div>
@@ -581,21 +581,21 @@ export function TenantTransferRoomScreen() {
 
   return (
     <section className="space-y-6 text-[#24170d] sm:space-y-8">
-      <section className="overflow-hidden rounded-[2.15rem] border border-[#372515]/10 bg-[#1f150f] shadow-2xl shadow-[#6b3f1d]/18">
+      <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
         <div className="relative overflow-hidden p-5 text-[#fff4df] sm:p-6 lg:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(217,164,65,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.28),transparent_34%),linear-gradient(135deg,#1f150f_0%,#3b2918_50%,#0f3f3b_100%)]" />
-          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-[#d9a441]/45 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.28),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_50%,#0f3f3b_100%)]" />
+          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
           <div className="relative grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
             <div className="space-y-4">
-              <Link to="/admin/room-movements" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#d9a441] transition hover:text-[#f6cd73]">
+              <Link to="/admin/room-movements" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b] transition hover:text-[#ffd56f]">
                 <ArrowLeft className="h-3.5 w-3.5" /> Lịch sử phòng & cọc
               </Link>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#d9a441]/35 bg-[#d9a441]/15 text-[#d9a441] shadow-xl shadow-black/15">
+                <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#f3c56b] shadow-xl shadow-black/15">
                   <ArrowRightLeft className="h-6 w-6" />
                 </span>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Luồng chuyển phòng đầu tháng</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Luồng chuyển phòng đầu tháng</p>
                   <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Lên lịch chuyển phòng</h1>
                 </div>
               </div>
@@ -620,7 +620,7 @@ export function TenantTransferRoomScreen() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Bước 1</p>
@@ -630,10 +630,10 @@ export function TenantTransferRoomScreen() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={selectAllContractTenants} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#372515]/10 bg-white px-4 text-xs font-black uppercase tracking-[0.16em] text-[#2b1b10] transition hover:border-[#0f766e]/20 hover:bg-[#0f766e]/8">
+                <button type="button" onClick={selectAllContractTenants} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-white px-4 text-xs font-black uppercase tracking-[0.16em] text-[#24170d] transition hover:border-[#0f766e]/20 hover:bg-[#0f766e]/8">
                   <CheckCircle2 className="h-4 w-4 text-[#0f5f59]" /> Chọn tất cả
                 </button>
-                <button type="button" onClick={clearOtherContractTenants} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#372515]/10 bg-white px-4 text-xs font-black uppercase tracking-[0.16em] text-[#2b1b10] transition hover:border-[#d97706]/20 hover:bg-[#d97706]/8">
+                <button type="button" onClick={clearOtherContractTenants} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-white px-4 text-xs font-black uppercase tracking-[0.16em] text-[#24170d] transition hover:border-[#d97706]/20 hover:bg-[#d97706]/8">
                   <ShieldAlert className="h-4 w-4 text-[#a65f16]" /> Giữ người đang chọn
                 </button>
               </div>
@@ -649,15 +649,15 @@ export function TenantTransferRoomScreen() {
                     type="button"
                     onClick={() => toggleTenantSelection(contractTenant.tenantId)}
                     className={cn(
-                      'group rounded-[1.4rem] border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#d9a441]/15',
+                      'group rounded-[1.4rem] border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15',
                       checked
                         ? 'border-[#0f766e]/20 bg-[#0f766e]/8 shadow-lg shadow-[#0f766e]/6'
-                        : 'border-[#372515]/10 bg-white/70 hover:border-[#d9a441]/25 hover:bg-white',
+                        : 'border-[#3d2a18]/10 bg-white/70 hover:border-[#f3c56b]/25 hover:bg-white',
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
-                        <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border text-sm font-black', checked ? 'border-[#0f766e]/20 bg-[#0f766e]/12 text-[#0f5f59]' : 'border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34]')}>
+                        <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-colors duration-200', checked ? 'border-[#0f766e]/20 bg-[#0f766e]/12 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/50 text-[#8b5e34] group-hover:bg-[#efe2cf]/85')}>
                           <UserRound className="h-4 w-4" />
                         </span>
                         <div className="space-y-1">
@@ -665,20 +665,20 @@ export function TenantTransferRoomScreen() {
                           <p className="text-xs font-semibold text-[#6f6254]">{contractTenant.phone || contractTenant.email || `Khách thuê #${contractTenant.tenantId}`}</p>
                         </div>
                       </div>
-                      <span className={cn('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]', checked ? 'bg-[#0f766e]/12 text-[#0f5f59]' : 'bg-[#efe2cf]/75 text-[#8b5e34]')}>
+                      <span className={cn('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]', checked ? 'bg-[#0f766e]/12 text-[#0f5f59]' : 'bg-[#f3c56b]/18 text-[#8a4f18] transition-colors duration-200 group-hover:bg-[#f3c56b] group-hover:text-[#24170d]')}>
                         {checked ? 'Đã chọn' : 'Chọn'}
                       </span>
                     </div>
                   </button>
                 )
               }) : (
-                <div className="rounded-[1.4rem] border border-dashed border-[#372515]/12 bg-white/70 px-5 py-6 text-sm font-semibold text-[#6f6254]">
+                <div className="rounded-[1.4rem] border border-dashed border-[#3d2a18]/12 bg-white/70 px-5 py-6 text-sm font-semibold text-[#6f6254]">
                   Hợp đồng này chưa có danh sách khách thuê chi tiết. Hệ thống sẽ chuyển theo khách thuê hiện tại.
                 </div>
               )}
             </div>
 
-            <div className="mt-4 rounded-[1.4rem] border border-dashed border-[#372515]/12 bg-white/60 p-4">
+            <div className="mt-4 rounded-[1.4rem] border border-dashed border-[#3d2a18]/12 bg-white/60 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cách chốt</p>
@@ -693,7 +693,7 @@ export function TenantTransferRoomScreen() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Bước 2</p>
@@ -728,7 +728,7 @@ export function TenantTransferRoomScreen() {
               ))}
 
               {!isRoomsLoading && roomCandidates.length === 0 && (
-                <div className="col-span-full rounded-[1.4rem] border border-dashed border-[#372515]/12 bg-white/65 px-6 py-10 text-center text-sm font-semibold text-[#6f6254]">
+                <div className="col-span-full rounded-[1.4rem] border border-dashed border-[#3d2a18]/12 bg-white/65 px-6 py-10 text-center text-sm font-semibold text-[#6f6254]">
                   Không có phòng phù hợp với số lượng khách, giới tính hoặc sức chứa hiện tại.
                 </div>
               )}
@@ -744,10 +744,10 @@ export function TenantTransferRoomScreen() {
                     type="button"
                     onClick={() => pickRoom(room)}
                     className={cn(
-                      'group rounded-[1.5rem] border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#d9a441]/15',
+                      'group rounded-[1.5rem] border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15',
                       checked
                         ? 'border-[#0f766e]/25 bg-[#0f766e]/8 shadow-lg shadow-[#0f766e]/8'
-                        : 'border-[#372515]/10 bg-white/75 hover:border-[#d9a441]/25 hover:bg-white',
+                        : 'border-[#3d2a18]/10 bg-white/75 hover:border-[#f3c56b]/25 hover:bg-white',
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -760,21 +760,21 @@ export function TenantTransferRoomScreen() {
                           {room.building?.name || room.building_name || `Tòa nhà #${room.building_id}`}
                         </p>
                       </div>
-                      <span className={cn('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em]', checked ? 'bg-[#0f766e]/12 text-[#0f5f59]' : 'bg-[#efe2cf]/75 text-[#8b5e34]')}>
+                      <span className={cn('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em]', checked ? 'bg-[#0f766e]/12 text-[#0f5f59]' : 'bg-[#f3c56b]/18 text-[#8a4f18] transition-colors duration-200 group-hover:bg-[#f3c56b] group-hover:text-[#24170d]')}>
                         {checked ? 'Đang chọn' : 'Chọn'}
                       </span>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3">
+                      <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Sức chứa</p>
                         <p className="mt-1 text-base font-black text-[#24170d]">{room.current_occupants}/{room.max_occupants || '∞'}</p>
                       </div>
-                      <div className="rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3">
+                      <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Còn trống</p>
                         <p className="mt-1 text-base font-black text-[#24170d]">{remainingCapacity}</p>
                       </div>
-                      <div className="col-span-2 rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3">
+                      <div className="col-span-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Cọc yêu cầu</p>
                         <p className="mt-1 text-base font-black tabular-nums text-[#0f5f59]">{formatCurrency(room.base_price)}</p>
                       </div>
@@ -785,9 +785,9 @@ export function TenantTransferRoomScreen() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
             <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#372515]/10 bg-white/80 text-[#8b5e34]"><FileSignature className="h-5 w-5" /></span>
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34]"><FileSignature className="h-5 w-5" /></span>
               <div>
                 <h2 className="text-xl font-black tracking-[-0.04em] sm:text-2xl">Điều chỉnh cọc và phí</h2>
                 <p className="mt-1 text-sm font-semibold text-[#6f6254]">Nhập số khấu trừ hư hao, phí chuyển phòng và cọc phòng mới nếu có.</p>
@@ -825,7 +825,7 @@ export function TenantTransferRoomScreen() {
               </Field>
             </div>
 
-            <div className="mt-5 rounded-[1.6rem] border border-dashed border-[#372515]/12 bg-white/65 p-4">
+            <div className="mt-5 rounded-[1.6rem] border border-dashed border-[#3d2a18]/12 bg-white/65 p-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <LedgerTile label="Cọc gốc" value={oldDepositBalance} tone="neutral" />
                 <LedgerTile label="Khấu trừ + phí" value={damageAmount + transferFeeAmount} tone="danger" />
@@ -845,9 +845,9 @@ export function TenantTransferRoomScreen() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
             <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#372515]/10 bg-white/80 text-[#8b5e34]"><ReceiptText className="h-5 w-5" /></span>
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34]"><ReceiptText className="h-5 w-5" /></span>
               <div>
                 <h2 className="text-xl font-black tracking-[-0.04em] sm:text-2xl">Ghi chú & lịch chốt</h2>
                 <p className="mt-1 text-sm font-semibold text-[#6f6254]">Hệ thống chỉ nhận chuyển phòng vào đúng ngày 01 của tháng kế tiếp.</p>
@@ -864,7 +864,7 @@ export function TenantTransferRoomScreen() {
                   className={cn(inputClass, 'cursor-not-allowed bg-[#f4eadc]')}
                 />
               </Field>
-              <div className="rounded-2xl border border-dashed border-[#372515]/12 bg-white/65 px-4 py-3 text-sm font-semibold leading-6 text-[#6f6254]">
+              <div className="rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/65 px-4 py-3 text-sm font-semibold leading-6 text-[#6f6254]">
                 <p className="font-black text-[#24170d]">Lịch thực thi</p>
                 <p className="mt-2">Command backend sẽ chạy tự động vào ngày 01 lúc 00:10. Nếu còn hóa đơn nợ cũ, chuyển phòng sẽ bị chặn cho đến khi thanh toán xong.</p>
               </div>
@@ -896,7 +896,7 @@ export function TenantTransferRoomScreen() {
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={!canSubmit}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#d9a441]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3b2918] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#f3c56b]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
                 {isSubmitting ? 'Đang lên lịch...' : 'Lên lịch chuyển phòng'}
@@ -906,8 +906,8 @@ export function TenantTransferRoomScreen() {
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#1f150f] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/16">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Tóm tắt chuyển phòng</p>
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/16">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Tóm tắt chuyển phòng</p>
             <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">{selectedRoom ? `Phòng ${selectedRoom.room_number}` : 'Chưa chọn phòng đích'}</h3>
             <p className="mt-2 text-sm font-semibold leading-6 text-[#f8e8c8]/78">
               {selectedRoom
@@ -925,7 +925,7 @@ export function TenantTransferRoomScreen() {
             </div>
 
             <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-white/6 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Trạng thái phòng đích</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Trạng thái phòng đích</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <StatusPill tone={selectedRoom ? (destinationRoomHasContract ? 'success' : 'warning') : 'neutral'}>
                   {selectedRoom ? (destinationRoomHasContract ? 'Đã có hợp đồng active' : 'Phòng trống') : 'Chưa chọn phòng'}
@@ -936,12 +936,12 @@ export function TenantTransferRoomScreen() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[1.5rem] border border-[#d9a441]/20 bg-[#d9a441]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
+            <div className="mt-5 rounded-[1.5rem] border border-[#f3c56b]/20 bg-[#f3c56b]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
               Nếu admin muốn hoàn cọc, hãy tạo phiếu chi thủ công sau khi hệ thống trả `manual_refund_amount`. Hệ thống không tự sinh expense hoàn tiền.
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Hợp đồng hiện tại</p>
             <div className="mt-3 space-y-3">
               <DetailRow label="Mã hợp đồng" value={currentContractCode || '—'} />
@@ -951,16 +951,16 @@ export function TenantTransferRoomScreen() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Khách trong hợp đồng</p>
             <div className="mt-3 space-y-2">
               {selectedTenantCards.length > 0 ? selectedTenantCards.map((card) => (
-                <div key={card.tenantId} className="rounded-2xl border border-[#372515]/10 bg-white/75 px-4 py-3">
+                <div key={card.tenantId} className="rounded-2xl border border-[#3d2a18]/10 bg-white/75 px-4 py-3">
                   <p className="text-sm font-black text-[#24170d]">{card.fullName}</p>
                   <p className="mt-1 text-xs font-semibold text-[#6f6254]">{card.phone || card.email || `Tenant #${card.tenantId}`}</p>
                 </div>
               )) : (
-                <div className="rounded-2xl border border-dashed border-[#372515]/12 bg-white/75 px-4 py-3 text-sm font-semibold text-[#6f6254]">Chưa có khách nào được chọn.</div>
+                <div className="rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/75 px-4 py-3 text-sm font-semibold text-[#6f6254]">Chưa có khách nào được chọn.</div>
               )}
             </div>
           </section>
@@ -973,20 +973,20 @@ export function TenantTransferRoomScreen() {
 function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilterDisabled, tenants, isLoading, errorMessage, currentPage, totalPages, totalTenants, paginationStart, paginationEnd, visiblePages, perPage, onKeywordChange, onBuildingChange, onPageChange, onPerPageChange, onSelectTenant }: TenantPickerProps) {
   return (
     <section className="space-y-6 text-[#24170d] sm:space-y-8">
-      <section className="overflow-hidden rounded-[2.15rem] border border-[#372515]/10 bg-[#1f150f] shadow-2xl shadow-[#6b3f1d]/18">
+      <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
         <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(217,164,65,0.28),transparent_30%),radial-gradient(circle_at_86%_6%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#1f150f_0%,#3b2918_52%,#0f3f3b_100%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(243,197,107,0.28),transparent_30%),radial-gradient(circle_at_86%_6%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
           <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl space-y-4">
-              <Link to="/admin/room-movements" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#d9a441] transition hover:text-[#f6cd73]">
+              <Link to="/admin/room-movements" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b] transition hover:text-[#ffd56f]">
                 <ArrowLeft className="h-3.5 w-3.5" /> Lịch sử phòng & cọc
               </Link>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#d9a441]/35 bg-[#d9a441]/15 text-[#d9a441] shadow-xl shadow-black/15">
+                <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#f3c56b] shadow-xl shadow-black/15">
                   <Users className="h-6 w-6" />
                 </span>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Chọn khách thuê</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Chọn khách thuê</p>
                   <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Bắt đầu lịch chuyển phòng</h1>
                 </div>
               </div>
@@ -1001,7 +1001,7 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur lg:p-5">
+      <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur lg:p-5">
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_16rem]">
           <label className="relative block">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
@@ -1020,47 +1020,49 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-[#372515]/10 bg-white/82 p-4 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur sm:p-5">
-        {errorMessage && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
+      <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-white/82 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur">
+        <div className="p-4 sm:p-5">
+          {errorMessage && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {isLoading && Array.from({ length: 9 }).map((_, index) => (
-            <div key={index} className="h-28 animate-pulse rounded-[1.4rem] bg-stone-100" />
-          ))}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {isLoading && Array.from({ length: 9 }).map((_, index) => (
+              <div key={index} className="h-28 animate-pulse rounded-[1.4rem] bg-stone-100" />
+            ))}
 
-          {!isLoading && tenants.map((tenant) => (
-            <button
-              key={tenant.id}
-              type="button"
-              onClick={() => onSelectTenant(tenant)}
-              className="group rounded-[1.4rem] border border-[#372515]/10 bg-[#fffaf1] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#d9a441]/30 hover:bg-white hover:shadow-lg hover:shadow-[#6b3f1d]/8 focus:outline-none focus:ring-4 focus:ring-[#d9a441]/15"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#372515]/10 bg-white text-[#8b5e34]"><UserRound className="h-5 w-5" /></span>
-                  <div className="space-y-1">
-                    <p className="text-sm font-black text-[#24170d]">{tenant.full_name || tenant.username}</p>
-                    <p className="text-xs font-semibold text-[#6f6254]">{tenant.phone || tenant.email || `Tenant #${tenant.id}`}</p>
+            {!isLoading && tenants.map((tenant) => (
+              <button
+                key={tenant.id}
+                type="button"
+                onClick={() => onSelectTenant(tenant)}
+                className="group rounded-[1.4rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#f3c56b]/30 hover:bg-white hover:shadow-lg hover:shadow-[#6b3f1d]/8 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/50 text-[#8b5e34] transition-colors duration-200 group-hover:bg-[#efe2cf]/85"><UserRound className="h-5 w-5" /></span>
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-[#24170d]">{tenant.full_name || tenant.username}</p>
+                      <p className="text-xs font-semibold text-[#6f6254]">{tenant.phone || tenant.email || `Tenant #${tenant.id}`}</p>
+                    </div>
                   </div>
+                  <span className="inline-flex rounded-full bg-[#f3c56b]/18 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#8a4f18] transition-colors duration-200 group-hover:bg-[#f3c56b] group-hover:text-[#24170d]">Chọn</span>
                 </div>
-                <span className="inline-flex rounded-full bg-[#efe2cf]/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#8b5e34]">Chọn</span>
-              </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <DetailRow label="Phòng hiện tại" value={getTenantRoomText(tenant)} compact />
-                <DetailRow label="Hợp đồng" value={tenant.current_contract?.contract_code || '—'} compact />
-              </div>
-            </button>
-          ))}
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <DetailRow label="Phòng hiện tại" value={getTenantRoomText(tenant)} compact />
+                  <DetailRow label="Hợp đồng" value={tenant.current_contract?.contract_code || '—'} compact />
+                </div>
+              </button>
+            ))}
 
-          {!isLoading && tenants.length === 0 && (
-            <div className="col-span-full rounded-[1.4rem] border border-dashed border-[#372515]/12 bg-[#fffaf1]/70 px-6 py-10 text-center text-sm font-semibold text-[#6f6254]">
-              Không tìm thấy khách thuê đang ở phù hợp với bộ lọc.
-            </div>
-          )}
+            {!isLoading && tenants.length === 0 && (
+              <div className="col-span-full rounded-[1.4rem] border border-dashed border-[#3d2a18]/12 bg-[#fffaf1]/70 px-6 py-10 text-center text-sm font-semibold text-[#6f6254]">
+                Không tìm thấy khách thuê đang ở phù hợp với bộ lọc.
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="mt-5 flex flex-col gap-3 border-t border-[#372515]/10 bg-[#fff8eb]/85 px-1 pt-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-xs font-black text-[#6f6254]">
             Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalTenants}</span> khách thuê
           </p>
@@ -1069,7 +1071,7 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
               <AdminSelect value={perPage} options={tenantPickerPerPageOptions} onChange={onPerPageChange} menuPlacement="top" />
             </div>
             <div className="flex items-center justify-end gap-1.5">
-              <button type="button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#d9a441]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
+              <button type="button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               {visiblePages.map((page, index) => {
@@ -1079,13 +1081,13 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
                 return (
                   <div key={page} className="flex items-center gap-1.5">
                     {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
-                    <button type="button" onClick={() => onPageChange(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === currentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#d9a441]/15')} aria-current={page === currentPage ? 'page' : undefined}>
+                    <button type="button" onClick={() => onPageChange(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === currentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')} aria-current={page === currentPage ? 'page' : undefined}>
                       {page}
                     </button>
                   </div>
                 )
               })}
-              <button type="button" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#372515]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#d9a441]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
+              <button type="button" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -1104,12 +1106,12 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
 
   return (
     <section className="space-y-6 text-[#24170d] sm:space-y-8">
-      <section className="overflow-hidden rounded-[2.15rem] border border-[#372515]/10 bg-[#1f150f] shadow-2xl shadow-[#6b3f1d]/18">
+      <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
         <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(217,164,65,0.28),transparent_30%),radial-gradient(circle_at_86%_6%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#1f150f_0%,#3b2918_52%,#0f3f3b_100%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(243,197,107,0.28),transparent_30%),radial-gradient(circle_at_86%_6%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
           <div className="relative grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Đã lên lịch chuyển phòng</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Đã lên lịch chuyển phòng</p>
               <h1 className="mt-2 text-3xl font-black tracking-[-0.055em] sm:text-4xl">{transferCode || 'TRF-...'}</h1>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#f8e8c8]/78">
                 {tenant.full_name || tenant.username} đã được gắn lịch chuyển phòng. Mã chuyển này sẽ được dùng cho QR settlement và lịch sử room movement.
@@ -1126,7 +1128,7 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 sm:p-5 lg:p-6">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 sm:p-5 lg:p-6">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <ResultCard icon={<ArrowRightLeft className="h-4 w-4" />} title="Luồng chuyển">
                 <div className="space-y-2 text-sm font-semibold leading-6 text-[#6f6254]">
@@ -1155,9 +1157,9 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 sm:p-5 lg:p-6">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 sm:p-5 lg:p-6">
             <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#372515]/10 bg-white/80 text-[#8b5e34]"><ReceiptText className="h-5 w-5" /></span>
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34]"><ReceiptText className="h-5 w-5" /></span>
               <div>
                 <h2 className="text-xl font-black tracking-[-0.04em] sm:text-2xl">Chi tiết lịch đã tạo</h2>
                 <p className="mt-1 text-sm font-semibold text-[#6f6254]">Mã chuyển phòng được dùng cho lịch sử, QR settlement và broadcast realtime.</p>
@@ -1176,27 +1178,27 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#1f150f] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/16">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d9a441]">Thanh toán thủ công</p>
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/16">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Thanh toán thủ công</p>
             <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">Admin tự xử lý phiếu chi</h3>
             <div className="mt-4 space-y-3">
               <SummaryLine label="Mã chuyển" value={transferCode || '—'} />
               <SummaryLine label="Hoàn tay" value={formatCurrency(manualRefundAmount)} accent />
               <SummaryLine label="Settlement QR" value={formatCurrency(settlementDueAmount)} accent />
             </div>
-            <div className="mt-5 rounded-[1.5rem] border border-[#d9a441]/20 bg-[#d9a441]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
+            <div className="mt-5 rounded-[1.5rem] border border-[#f3c56b]/20 bg-[#f3c56b]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
               Không có phiếu chi auto. Admin tự tạo phiếu chi cho phần hoàn cọc nếu cần.
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[#372515]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Hành động</p>
             <div className="mt-4 space-y-3">
-              <button type="button" onClick={onNewTransfer} className="inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#d9a441]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3b2918]">
+              <button type="button" onClick={onNewTransfer} className="inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#f3c56b]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3d2a18]">
                 <Plus className="h-4 w-4" /> Lên lịch mới
               </button>
               {transferCode && (
-                <button type="button" onClick={() => onViewMovement(transferCode)} className="inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#372515]/10 bg-white px-5 text-sm font-black uppercase tracking-[0.16em] text-[#24170d] transition hover:border-[#0f766e]/20 hover:bg-[#0f766e]/8 hover:text-[#0f5f59]">
+                <button type="button" onClick={() => onViewMovement(transferCode)} className="inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-white px-5 text-sm font-black uppercase tracking-[0.16em] text-[#24170d] transition hover:border-[#0f766e]/20 hover:bg-[#0f766e]/8 hover:text-[#0f5f59]">
                   <ArrowRightLeft className="h-4 w-4" /> Xem lịch sử
                 </button>
               )}
@@ -1211,7 +1213,7 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
 function MetricCard({ label, value, icon, currency = false, suffix, textValue }: { label: string; value: number; icon: ReactNode; currency?: boolean; suffix?: string; textValue?: string }) {
   return (
     <div className="rounded-3xl border border-[#f8e8c8]/12 bg-[#f8e8c8]/10 px-4 py-3 text-[#fff4df] backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10">
-      <div className="flex items-center justify-between gap-3 text-[#d9a441]">
+      <div className="flex items-center justify-between gap-3 text-[#f3c56b]">
         {icon}
         <span className="text-[10px] font-black uppercase tracking-[0.18em] opacity-75">{label}</span>
       </div>
@@ -1227,16 +1229,16 @@ function SummaryLine({ label, value, accent = false }: { label: string; value: s
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/6 px-4 py-3 text-sm">
       <span className="font-semibold text-[#f8e8c8]/72">{label}</span>
-      <span className={cn('font-black tabular-nums text-right', accent ? 'text-[#d9a441]' : 'text-[#fff4df]')}>{value}</span>
+      <span className={cn('font-black tabular-nums text-right', accent ? 'text-[#f3c56b]' : 'text-[#fff4df]')}>{value}</span>
     </div>
   )
 }
 
 function ResultCard({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
-    <section className="rounded-[1.6rem] border border-[#372515]/10 bg-white/70 p-4 shadow-sm">
+    <section className="rounded-[1.6rem] border border-[#3d2a18]/10 bg-white/70 p-4 shadow-sm">
       <div className="flex items-center gap-3 text-[#8b5e34]">
-        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-[#372515]/10 bg-[#fffaf1]">{icon}</span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1]">{icon}</span>
         <p className="text-[10px] font-black uppercase tracking-[0.18em]">{title}</p>
       </div>
       <div className="mt-3">{children}</div>
@@ -1246,8 +1248,8 @@ function ResultCard({ icon, title, children }: { icon: ReactNode; title: string;
 
 function StatusPill({ tone, children }: { tone: 'neutral' | 'warning' | 'success'; children: ReactNode }) {
   const className = {
-    neutral: 'border-[#372515]/10 bg-white/10 text-[#fff4df]',
-    warning: 'border-[#d9a441]/20 bg-[#d9a441]/12 text-[#f6cd73]',
+    neutral: 'border-[#3d2a18]/10 bg-white/10 text-[#fff4df]',
+    warning: 'border-[#f3c56b]/20 bg-[#f3c56b]/12 text-[#ffd56f]',
     success: 'border-[#0f766e]/20 bg-[#0f766e]/12 text-[#9be4db]',
   }[tone]
 
@@ -1262,7 +1264,7 @@ function SummaryStat({ label, value, tone }: { label: string; value: number; ton
   }[tone]
 
   return (
-    <div className="rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3 shadow-sm">
+    <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 shadow-sm">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
       <p className={cn('mt-1 text-lg font-black tabular-nums', toneClass)}>{formatCurrency(value)}</p>
     </div>
@@ -1278,18 +1280,18 @@ function LedgerTile({ label, value, tone = 'neutral' }: { label: string; value: 
   }[tone]
 
   return (
-    <div className="rounded-2xl border border-[#372515]/10 bg-white/80 p-3 shadow-sm">
+    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/80 p-3 shadow-sm">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
       <p className={cn('mt-1 text-lg font-black tabular-nums', toneClass)}>{formatCurrency(value)}</p>
     </div>
   )
 }
 
-function DetailRow({ label, value, compact = false }: { label: string; value?: string | null; compact?: boolean }) {
+function DetailRow({ label, value, compact = false }: { label: string; value?: ReactNode; compact?: boolean }) {
   return (
-    <div className={cn('rounded-2xl border border-[#372515]/10 bg-[#fffaf1] p-3', compact ? 'shadow-none' : 'shadow-sm')}>
+    <div className={cn('rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3', compact ? 'shadow-none' : 'shadow-sm')}>
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
-      <p className="mt-1 break-words text-sm font-black text-[#24170d]">{value || '—'}</p>
+      <div className="mt-1 break-words text-sm font-black text-[#24170d]">{value || '—'}</div>
     </div>
   )
 }
@@ -1306,10 +1308,10 @@ function Field({ label, error, children }: { label: string; error?: string[]; ch
 
 function tenantPickerPerPageOptionsFactory(): AdminSelectOption[] {
   return [
-    { value: 5, label: '5 dòng', tone: 'default' as const },
-    { value: 10, label: '10 dòng', tone: 'default' as const },
-    { value: 20, label: '20 dòng', tone: 'default' as const },
-    { value: 50, label: '50 dòng', tone: 'default' as const },
+    { value: 6, label: '6 dòng', tone: 'default' as const },
+    { value: 12, label: '12 dòng', tone: 'default' as const },
+    { value: 18, label: '18 dòng', tone: 'default' as const },
+    { value: 36, label: '36 dòng', tone: 'default' as const },
   ]
 }
 
@@ -1433,12 +1435,20 @@ function nextMonthStartDateString(reference = new Date()) {
   return `${year}-${month}-${day}`
 }
 
-function getTenantRoomText(tenant: AdminTenantResource) {
+function getTenantRoomText(tenant: AdminTenantResource): ReactNode {
   const roomNumber = tenant.current_room?.room_number ?? tenant.room_number
   const buildingName = tenant.current_room?.building_name ?? tenant.building_name
 
   if (!roomNumber) return 'Chưa rõ phòng hiện tại'
-  return `Phòng ${roomNumber}${buildingName ? ` · ${buildingName}` : ''}`
+
+  return (
+    <div className="flex flex-col">
+      <span>Phòng {roomNumber}</span>
+      {buildingName && (
+        <span className="text-[11px] font-semibold text-[#8b5e34]/70 mt-0.5">{buildingName}</span>
+      )}
+    </div>
+  )
 }
 
 function getVisibleErrorMessage(error: unknown, fallback: string) {
