@@ -7,7 +7,6 @@ import '../config/app_config.dart';
 import 'api_service.dart';
 
 class WebSocketService extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
   PusherChannelsClient? _client;
   StreamSubscription? _statusSubscription;
   
@@ -42,12 +41,13 @@ class WebSocketService extends ChangeNotifier {
       await disconnect();
     }
 
-    final wsUrl = 'ws://${AppConfig.reverbHost}:${AppConfig.reverbPort}';
+    final scheme = AppConfig.reverbPort == 443 ? 'wss' : 'ws';
+    final wsUrl = '$scheme://${AppConfig.reverbHost}:${AppConfig.reverbPort}';
     debugPrint('WS: Connecting to Laravel Reverb at $wsUrl...');
     _debugStreamController.add('Đang kết nối WebSocket tới $wsUrl...');
 
     final options = PusherChannelsOptions.fromHost(
-      scheme: AppConfig.reverbPort == 443 ? 'wss' : 'ws',
+      scheme: scheme,
       host: AppConfig.reverbHost,
       port: AppConfig.reverbPort,
       key: AppConfig.reverbAppKey,
@@ -644,6 +644,7 @@ class DioPrivateChannelAuthorizationDelegate
     try {
       await _apiService.init();
       final authHeaders = await _apiService.getAuthHeaders();
+      debugPrint('WS Auth: Authorizing $channelName with socket $socketId');
 
       final response = await _apiService.client.post<Map<String, dynamic>>(
         '${AppConfig.apiOrigin}/broadcasting/auth',
@@ -661,6 +662,8 @@ class DioPrivateChannelAuthorizationDelegate
       if (data == null || data['auth'] == null) {
         throw Exception('Invalid auth response: $data');
       }
+
+      debugPrint('WS Auth: Authorized $channelName');
 
       return PrivateChannelAuthorizationData(
         authKey: data['auth'] as String,
