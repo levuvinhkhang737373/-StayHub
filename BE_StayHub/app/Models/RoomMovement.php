@@ -40,7 +40,7 @@ class RoomMovement extends Model
         self::MOVEMENT_TYPE_TRANSFER => 'Chuyển phòng',
     ];
 
-    protected $fillable = [ 'tenant_id', 'contract_id', 'source_contract_id', 'destination_contract_id', 'from_room_id', 'to_room_id', 'movement_type', 'status', 'movement_date', 'old_room_final_amount', 'transfer_fee', 'deposit_transfer_amount', 'deposit_refund_amount', 'deduction_amount', 'manual_refund_amount', 'deposit_due_amount', 'extra_charge_amount', 'settlement_due_amount', 'settlement_paid_amount', 'settlement_payment_status', 'settlement_payment_references', 'final_electric_reading', 'final_water_reading', 'note', 'scheduled_payload', 'executed_at', 'failure_reason', 'created_by'];
+    protected $fillable = ['transfer_code', 'tenant_id', 'contract_id', 'source_contract_id', 'destination_contract_id', 'from_room_id', 'to_room_id', 'movement_type', 'status', 'movement_date', 'old_room_final_amount', 'transfer_fee', 'deposit_transfer_amount', 'deposit_refund_amount', 'deduction_amount', 'manual_refund_amount', 'deposit_due_amount', 'extra_charge_amount', 'settlement_due_amount', 'settlement_paid_amount', 'settlement_payment_status', 'settlement_payment_references', 'final_electric_reading', 'final_water_reading', 'note', 'scheduled_payload', 'executed_at', 'failure_reason', 'created_by'];
 
     public const UPDATED_AT = null;
 
