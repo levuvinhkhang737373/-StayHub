@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../config/currency_formatter.dart';
 import '../../controllers/service_controller.dart';
 import '../../models/service.dart' as model;
 import '../auth/login_screen.dart'; // import GridPainter
@@ -24,7 +26,8 @@ class _ServicesScreenState extends State<ServicesScreen> {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: service?.name ?? '');
     final unitController = TextEditingController(text: service?.unit ?? '');
-    final priceController = TextEditingController(text: service != null ? '${service.price}' : '');
+    final priceController = TextEditingController(
+        text: service != null ? formatMoney(service.price ?? 0.0).replaceAll('đ', '').trim() : '');
     final descController = TextEditingController(text: service?.description ?? '');
     int status = service?.status ?? 1;
 
@@ -89,6 +92,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                         child: TextFormField(
                           controller: priceController,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [CurrencyInputFormatter()],
                           decoration: InputDecoration(
                             labelText: 'Đơn giá (VNĐ)',
                             filled: true,
@@ -98,7 +102,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                           ),
                           validator: (val) {
                             if (val == null || val.isEmpty) return 'Nhập đơn giá';
-                            if (double.tryParse(val) == null) return 'Sai định dạng số';
+                            if (double.tryParse(val.replaceAll('.', '')) == null) return 'Sai định dạng số';
                             return null;
                           },
                         ),
@@ -152,7 +156,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                         success = await controller.createService(
                           name: nameController.text.trim(),
                           unit: unitController.text.trim(),
-                          price: double.parse(priceController.text),
+                          price: parseMoney(priceController.text),
                           status: status,
                           description: descController.text.trim(),
                         );
@@ -161,7 +165,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                           id: service.id,
                           name: nameController.text.trim(),
                           unit: unitController.text.trim(),
-                          price: double.parse(priceController.text),
+                          price: parseMoney(priceController.text),
                           status: status,
                           description: descController.text.trim(),
                         );
@@ -249,7 +253,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            '${service.price}đ / ${service.unit}',
+                                            '${formatMoney(service.price ?? 0.0)} / ${service.unit}',
                                             style: const TextStyle(
                                               color: Color(0xFF1C1917),
                                               fontWeight: FontWeight.w600,

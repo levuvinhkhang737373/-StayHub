@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../config/currency_formatter.dart';
 import '../../controllers/contract_controller.dart';
 import '../../models/contract.dart';
 import '../auth/login_screen.dart'; // import GridPainter
@@ -29,7 +31,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
   }
 
   double _parseMoney(String value) {
-    return double.tryParse(value.trim().replaceAll(',', '')) ?? 0.0;
+    return parseMoney(value);
   }
 
   void _showAddContractDialog() {
@@ -118,6 +120,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                         child: TextFormField(
                           controller: priceController,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [CurrencyInputFormatter()],
                           decoration: const InputDecoration(labelText: 'Giá thuê (đ/tháng)', border: OutlineInputBorder()),
                           validator: (val) => val == null || val.isEmpty ? 'Nhập giá' : null,
                         ),
@@ -127,6 +130,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                         child: TextFormField(
                           controller: depositController,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [CurrencyInputFormatter()],
                           decoration: const InputDecoration(labelText: 'Tiền đặt cọc (đ)', border: OutlineInputBorder()),
                           validator: (val) => val == null || val.isEmpty ? 'Nhập cọc' : null,
                         ),
@@ -145,8 +149,8 @@ class _ContractsScreenState extends State<ContractsScreen> {
                         tenantName: tenantController.text.trim(),
                         startDate: startController.text,
                         endDate: endController.text,
-                        rentalPrice: double.parse(priceController.text),
-                        depositAmount: double.parse(depositController.text),
+                        rentalPrice: _parseMoney(priceController.text),
+                        depositAmount: _parseMoney(depositController.text),
                       );
 
                       if (success && mounted) {
@@ -299,6 +303,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                         child: TextFormField(
                           controller: deductionController,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [CurrencyInputFormatter()],
                           decoration: const InputDecoration(labelText: 'Khấu trừ hư hao', border: OutlineInputBorder()),
                         ),
                       ),
@@ -307,6 +312,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                         child: TextFormField(
                           controller: feeController,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [CurrencyInputFormatter()],
                           decoration: const InputDecoration(labelText: 'Phí chuyển', border: OutlineInputBorder()),
                         ),
                       ),
@@ -316,6 +322,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                   TextFormField(
                     controller: depositController,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [CurrencyInputFormatter()],
                     decoration: const InputDecoration(labelText: 'Cọc phòng mới (tuỳ chọn)', border: OutlineInputBorder()),
                   ),
                   const SizedBox(height: 12),
@@ -494,8 +501,8 @@ class _ContractsScreenState extends State<ContractsScreen> {
                 _buildInfoRow('Khách thuê:', contract.tenantName),
                 _buildInfoRow('Phòng:', 'Phòng ${contract.roomNumber}'),
                 _buildInfoRow('Thời hạn:', '${contract.startDate} -> ${contract.endDate}'),
-                _buildInfoRow('Giá thuê:', '${contract.rentalPrice.toStringAsFixed(0)}đ / tháng'),
-                _buildInfoRow('Đặt cọc:', '${contract.depositAmount.toStringAsFixed(0)}đ'),
+                _buildInfoRow('Giá thuê:', '${formatMoney(contract.rentalPrice)} / tháng'),
+                _buildInfoRow('Đặt cọc:', formatMoney(contract.depositAmount)),
                 
                 // Actions strip
                 if (contract.status == Contract.STATUS_ACTIVE || contract.status == Contract.STATUS_EXPIRED) ...[

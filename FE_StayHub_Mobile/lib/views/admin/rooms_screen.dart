@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../config/currency_formatter.dart';
 import '../../controllers/room_controller.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/facility_controller.dart';
@@ -396,7 +397,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
-                                              'Đơn giá: ${room.basePrice.toStringAsFixed(0)}đ / tháng',
+                                              'Đơn giá: ${formatMoney(room.basePrice)} / tháng',
                                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
                                             ),
                                           ],
