@@ -7,6 +7,7 @@ use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class RoomRequest extends FormRequest
 {
@@ -28,7 +29,14 @@ class RoomRequest extends FormRequest
         return [
             'building_id'          => 'required|integer|exists:buildings,id',
             'room_type_id'         => 'required|integer|exists:room_types,id',
-            'room_number'          => 'required|string|max:50',
+            'room_number' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('rooms')
+                    ->where(fn($query) => $query->where('building_id', $this->building_id))
+                    ->ignore($this->route('room')),
+            ],
             'floor'                => 'required|integer|min:0',
             'area_m2'              => 'required|numeric|min:0',
             'base_price'           => 'required|numeric|min:0',
@@ -62,6 +70,7 @@ class RoomRequest extends FormRequest
             'room_number.required'          => 'Vui lòng nhập số/tên phòng.',
             'room_number.string'            => 'Số phòng phải là một chuỗi ký tự.',
             'room_number.max'               => 'Số phòng không được vượt quá 50 ký tự.',
+            'room_number.unique' => 'Số phòng đã tồn tại trong tòa nhà này.',
 
             'floor.required'                => 'Vui lòng nhập số tầng.',
             'floor.integer'                 => 'Số tầng phải là số nguyên.',

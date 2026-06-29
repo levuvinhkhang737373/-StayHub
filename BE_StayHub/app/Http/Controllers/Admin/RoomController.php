@@ -103,7 +103,7 @@ class RoomController extends Controller
                     MeterDevice::create([
                         'room_id' => $room->id,
                         'service_id' => $meter['service_id'],
-                        'meter_code' => $meter['service_id'] == 1 ? $room->room_number . '-ĐHĐ-' . $room->building_id : $room->room_number . '-ĐHN-' . $room->building_id,
+                        'meter_code' => $meter['service_id'] == 1 ?   $room->room_number . "-DHD-{$room->id}" :   $room->room_number . "-DHN-{$room->id}",
                         'meter_type' => $meter['meter_type'],
                         'initial_reading' => $meter['initial_reading'],
                         'status' => MeterDevice::STATUS_ACTIVE,
@@ -330,7 +330,7 @@ class RoomController extends Controller
     public function transferTenant(TranferSingleTenantRequest $request)
     {
         try {
-            $result = DB::transaction(fn (): array => $this->scheduleRoomTransfer($request->validated(), $request->user(), $request));
+            $result = DB::transaction(fn(): array => $this->scheduleRoomTransfer($request->validated(), $request->user(), $request));
 
             return ApiResponse::responseJson(true, 'Lên lịch chuyển phòng thành công', 201, new RoomTransferResultResource($result), 201);
         } catch (ValidationException $e) {
@@ -371,7 +371,7 @@ class RoomController extends Controller
             $request,
         );
 
-        DB::afterCommit(fn (): mixed => $this->broadcastNotifications($notifications));
+        DB::afterCommit(fn(): mixed => $this->broadcastNotifications($notifications));
 
         return [
             'transfer_code' => $transferCode,
@@ -385,8 +385,8 @@ class RoomController extends Controller
     private function tenantIds(array $validated): array
     {
         return collect($validated['tenant_ids'] ?? [$validated['tenant_id']])
-            ->filter(fn ($tenantId): bool => filled($tenantId))
-            ->map(fn ($tenantId): int => (int) $tenantId)
+            ->filter(fn($tenantId): bool => filled($tenantId))
+            ->map(fn($tenantId): int => (int) $tenantId)
             ->unique()
             ->values()
             ->all();
@@ -521,7 +521,7 @@ class RoomController extends Controller
 
     private function createPendingMovements(string $transferCode, Contract $sourceContract, Room $fromRoom, Room $toRoom, EloquentCollection $rows, array $payload, Admin $admin): Collection
     {
-        return $rows->map(fn (ContractTenant $row): RoomMovement => RoomMovement::query()->create([
+        return $rows->map(fn(ContractTenant $row): RoomMovement => RoomMovement::query()->create([
             'transfer_code' => $transferCode,
             'tenant_id' => $row->tenant_id,
             'contract_id' => $sourceContract->id,
@@ -572,9 +572,9 @@ class RoomController extends Controller
 
     private function createTransferScheduledNotifications(Collection $movements, Contract $sourceContract, Room $toRoom, Admin $admin): Collection
     {
-        return $movements->map(fn (RoomMovement $movement): Notification => Notification::query()->create([
+        return $movements->map(fn(RoomMovement $movement): Notification => Notification::query()->create([
             'title' => 'Lịch chuyển phòng đã được tạo',
-            'content' => "Bạn được lên lịch chuyển từ phòng {$sourceContract->room?->room_number} sang phòng {$toRoom->room_number} vào ngày ".Carbon::parse($movement->movement_date)->format('d/m/Y').'.',
+            'content' => "Bạn được lên lịch chuyển từ phòng {$sourceContract->room?->room_number} sang phòng {$toRoom->room_number} vào ngày " . Carbon::parse($movement->movement_date)->format('d/m/Y') . '.',
             'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
             'target_type' => Notification::TARGET_TYPE_TENANT,
             'building_id' => $toRoom->building_id,
@@ -588,19 +588,19 @@ class RoomController extends Controller
 
     private function broadcastNotifications(Collection $notifications): void
     {
-        $notifications->each(fn (Notification $notification): mixed => event(new NotificationSent($notification)));
+        $notifications->each(fn(Notification $notification): mixed => event(new NotificationSent($notification)));
     }
 
     private function generateTransferCode(Carbon $movementDate): string
     {
-        $prefix = 'TRF-'.$movementDate->format('Y-m').'-';
+        $prefix = 'TRF-' . $movementDate->format('Y-m') . '-';
         $next = RoomMovement::query()
-            ->where('transfer_code', 'like', $prefix.'%')
+            ->where('transfer_code', 'like', $prefix . '%')
             ->lockForUpdate()
             ->count() + 1;
 
         do {
-            $code = $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            $code = $prefix . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
             $next++;
         } while (RoomMovement::query()->where('transfer_code', $code)->exists());
 
@@ -621,5 +621,4 @@ class RoomController extends Controller
             'creator:id,username,full_name,email,role,status',
         ];
     }
-
 }

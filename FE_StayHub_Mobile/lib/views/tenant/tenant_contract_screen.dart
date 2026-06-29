@@ -27,18 +27,15 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
       final contractController = context.read<ContractController>();
       contractController.fetchContracts('tenant');
 
-      // Lắng nghe WebSocket để tự động reload khi đóng cọc thành công
+      // Lắng nghe WebSocket để tự động reload khi có thay đổi thanh toán/hợp đồng.
       final wsService = context.read<WebSocketService>();
       _wsSubscription = wsService.notificationsStream.listen((event) {
-        if (event['type'] == 'contract_deposit_paid') {
-          debugPrint('WS Event: Contract deposit paid. Reloading contracts...');
+        final type = event['type']?.toString();
+        final data = event['data'];
+
+        if (type == 'contract_deposit_paid' || type == 'invoice_paid' || _isContractPaymentNotification(type, data)) {
+          debugPrint('WS Event: Contract payment update received ($type). Reloading contracts...');
           contractController.fetchContracts('tenant');
-        } else if (event['type'] == 'notification_sent') {
-          final data = event['data'] as Map<String, dynamic>?;
-          if (data != null && (data['title'] == 'Hợp đồng hết hạn' || data['title'] == 'Hợp đồng mới được tạo')) {
-            debugPrint('WS Event: Contract update notification received (${data['title']}). Reloading contracts...');
-            contractController.fetchContracts('tenant');
-          }
         }
       });
     });
@@ -48,6 +45,23 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
   void dispose() {
     _wsSubscription?.cancel();
     super.dispose();
+  }
+
+  bool _isContractPaymentNotification(String? type, dynamic data) {
+    if (type != 'notification_sent' || data is! Map) {
+      return false;
+    }
+
+    final title = data['title']?.toString().toLowerCase() ?? '';
+    final content = data['content']?.toString().toLowerCase() ?? '';
+    final text = '$title $content';
+
+    return title == 'hợp đồng hết hạn' ||
+        title == 'hợp đồng mới được tạo' ||
+        text.contains('thanh toán đặt cọc') ||
+        text.contains('tiền cọc') ||
+        text.contains('chuyển phòng') ||
+        text.contains('mã chuyển phòng');
   }
 
   String _formatCurrency(double amount) {

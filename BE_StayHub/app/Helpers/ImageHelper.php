@@ -3,7 +3,9 @@
 namespace App\Helpers;
 
 use GdImage;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -61,10 +63,10 @@ class ImageHelper
         }
 
         if (filter_var($path, FILTER_VALIDATE_URL)) {
-            return $path;
+            return self::normalizePublicUrl($path);
         }
 
-        return rtrim(config('app.url'), '/').self::normalizeStoredPath($path);
+        return self::publicOrigin().self::normalizeStoredPath($path);
     }
 
     /**
@@ -118,14 +120,14 @@ class ImageHelper
         }
 
         if (filter_var($path, FILTER_VALIDATE_URL)) {
-            return $path;
+            return self::normalizePublicUrl($path);
         }
 
         if ($disk === 'local' || self::isLocalUploadPath($path)) {
             return self::load($path);
         }
 
-        return Storage::disk($disk)->url(ltrim((string) $path, '/'));
+        return self::normalizePublicUrl(Storage::disk($disk)->url(ltrim((string) $path, '/')));
     }
 
     /**
@@ -138,7 +140,7 @@ class ImageHelper
         }
 
         if (filter_var($path, FILTER_VALIDATE_URL)) {
-            return $path;
+            return self::normalizePublicUrl($path);
         }
 
         if ($disk === 'local' || self::isLocalUploadPath($path)) {
@@ -149,7 +151,7 @@ class ImageHelper
         $normalizedPath = ltrim((string) $path, '/');
         $cacheNonce = Str::random(16);
 
-        return Storage::disk(self::temporaryDiskName($disk))->temporaryUrl(
+        return self::temporaryDisk($disk)->temporaryUrl(
             $normalizedPath,
             now()->addMinutes($minutes),
             [
@@ -228,6 +230,69 @@ class ImageHelper
         $path = preg_replace('#^uploads/#', 'upload/', $path);
 
         return self::normalizePath($path);
+    }
+
+    private static function normalizePublicUrl(string $url): string
+    {
+        $parts = parse_url($url);
+
+        if (! isset($parts['host']) || ! self::shouldRewriteHost($parts['host'])) {
+            return $url;
+        }
+
+        $path = $parts['path'] ?? '';
+
+        if (! str_starts_with($path, '/upload/') && ! str_starts_with($path, '/storage/') && ! str_starts_with($path, '/stay-hub/')) {
+            return $url;
+        }
+
+        $query = isset($parts['query']) ? '?'.$parts['query'] : '';
+        $fragment = isset($parts['fragment']) ? '#'.$parts['fragment'] : '';
+
+        return self::publicOrigin().$path.$query.$fragment;
+    }
+
+    private static function publicOrigin(): string
+    {
+        $request = request();
+
+        if ($request instanceof Request) {
+            $root = rtrim($request->getSchemeAndHttpHost(), '/');
+
+            if (filled($root)) {
+                return $root;
+            }
+        }
+
+        return rtrim(URL::to('/'), '/');
+    }
+
+    private static function shouldRewriteHost(string $host): bool
+    {
+        $currentHost = parse_url(self::publicOrigin(), PHP_URL_HOST);
+
+        if (! $currentHost || $host === $currentHost) {
+            return false;
+        }
+
+        return in_array($host, ['localhost', '127.0.0.1', '0.0.0.0', '10.0.2.2', 'minio'], true)
+            || str_ends_with($host, '.stayhub.id.vn');
+    }
+
+    private static function temporaryDisk(string $disk)
+    {
+        $temporaryDisk = self::temporaryDiskName($disk);
+        $config = config('filesystems.disks.'.$temporaryDisk);
+
+        if (($config['driver'] ?? null) !== 's3') {
+            return Storage::disk($temporaryDisk);
+        }
+
+        $origin = self::publicOrigin();
+        $config['url'] = $origin;
+        $config['endpoint'] = $origin;
+
+        return Storage::build($config);
     }
 
     private static function isLocalUploadPath(string $path): bool

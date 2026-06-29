@@ -1,12 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:dio/dio.dart';
 
 class AppConfig {
   static bool useTunnel = true;
   static const String tunnelOrigin = 'https://api.stayhub.id.vn';
 
-  // Use http://10.0.2.2:8080 for Android Emulator, http://localhost:8080 for iOS Simulator/Web/Desktop,
-  // or your local computer IP address (e.g. 192.168.1.X) if testing on physical devices.
   static String get localOrigin {
     if (kIsWeb) {
       return 'http://localhost:8080';
@@ -23,6 +20,8 @@ class AppConfig {
 
   static String get apiUrl => '$apiOrigin/api/v1/';
 
+  static String get assetOrigin => apiOrigin;
+
   static String get reverbHost {
     if (useTunnel) {
       return 'socket.stayhub.id.vn';
@@ -34,7 +33,7 @@ class AppConfig {
     return 'localhost';
   }
 
-  static int get reverbPort => useTunnel ? 443 : 8080;
+  static int get reverbPort => useTunnel ? 443 : 8009;
   static const String reverbAppKey = 'rhtxfafogu4wbww3eufp';
 
   // Connect timeout in milliseconds
@@ -49,5 +48,4 @@ class AppConfig {
       'StayHub Config: Forcing Cloudflare Tunnel host API ($tunnelOrigin)',
     );
   }
-
 }

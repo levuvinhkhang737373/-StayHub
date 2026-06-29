@@ -1,12 +1,13 @@
 const LOCAL_API_URL = 'http://localhost:8080/api/v1'
 const PUBLIC_API_URL = `${window.location.origin}/api/v1`
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1'])
 
 function formatApiBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')
 }
 
 function resolveApiUrl(): string {
-  if (window.location.hostname === 'stayhub.id.vn' || window.location.hostname === 'www.stayhub.id.vn') {
+  if (!LOCAL_HOSTS.has(window.location.hostname)) {
     return PUBLIC_API_URL
   }
 

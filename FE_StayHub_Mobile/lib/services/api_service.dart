@@ -334,10 +334,13 @@ class ApiService {
 dynamic _mapLocalhost(dynamic data) {
   if (data is String) {
     if (data.startsWith('http://localhost:8080')) {
-      return data.replaceFirst('http://localhost:8080', AppConfig.apiOrigin);
+      return data.replaceFirst('http://localhost:8080', AppConfig.assetOrigin);
     }
     if (data.startsWith('http://127.0.0.1:8080')) {
-      return data.replaceFirst('http://127.0.0.1:8080', AppConfig.apiOrigin);
+      return data.replaceFirst('http://127.0.0.1:8080', AppConfig.assetOrigin);
+    }
+    if (data.startsWith('http://10.0.2.2:8080')) {
+      return data.replaceFirst('http://10.0.2.2:8080', AppConfig.assetOrigin);
     }
     return data;
   } else if (data is Map<String, dynamic>) {

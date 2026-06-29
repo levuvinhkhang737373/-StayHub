@@ -2,10 +2,16 @@
 
 namespace Tests\Feature\Webhook;
 
+use App\Events\ContractDepositPaid;
+use App\Events\InvoicePaid;
+use App\Events\NotificationSent;
 use App\Models\Admin;
 use App\Models\Building;
 use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
+use App\Models\ContractTenant;
+use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
@@ -13,6 +19,7 @@ use App\Models\RoomType;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class SePayWebhookControllerTest extends TestCase
@@ -91,6 +98,8 @@ class SePayWebhookControllerTest extends TestCase
     public function test_sepay_webhook_processes_payment_successfully(): void
     {
         Config::set('services.sepay.webhook_token', 'test-token-123');
+        $this->createTenantForContract($this->contract, 'deposit');
+        Event::fake([ContractDepositPaid::class, NotificationSent::class]);
 
         $payload = [
             'id' => 99999,
@@ -124,6 +133,61 @@ class SePayWebhookControllerTest extends TestCase
         // Verify contract status is updated to Paid/Success
         $this->contract->refresh();
         $this->assertEquals(Contract::PAYMENT_STATUS_SUCCESS, $this->contract->payment_status);
+        Event::assertDispatched(ContractDepositPaid::class, fn (ContractDepositPaid $event): bool => $event->contract['id'] === $this->contract->id);
+        Event::assertDispatched(NotificationSent::class);
+    }
+
+    public function test_sepay_webhook_processes_invoice_payment_and_dispatches_realtime_event(): void
+    {
+        Config::set('services.sepay.webhook_token', 'test-token-123');
+        $this->createTenantForContract($this->contract, 'invoice');
+        Event::fake([InvoicePaid::class, NotificationSent::class]);
+
+        $invoice = Invoice::create([
+            'invoice_code' => 'INV-WEBHOOK-001',
+            'contract_id' => $this->contract->id,
+            'room_id' => $this->contract->room_id,
+            'billing_month' => 6,
+            'billing_year' => 2026,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '1250000.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '1250000.00',
+            'due_date' => '2026-07-05',
+            'status' => Invoice::STATUS_UNPAID,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->postJson('/api/v1/sepay-webhook', [
+            'id' => 88888,
+            'gateway' => 'MBBank',
+            'amount' => 1250000,
+            'transferType' => 'in',
+            'content' => 'Thanh toan INV-WEBHOOK-001',
+            'code' => 'FT-INVOICE-001',
+        ], [
+            'Authorization' => 'Apikey test-token-123'
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => true,
+                'message' => 'Xử lý thanh toán hóa đơn thành công.'
+            ]);
+
+        $invoice->refresh();
+        $this->assertEquals(Invoice::STATUS_PAID, $invoice->status);
+        $this->assertEquals('1250000.00', $invoice->paid_amount);
+        $this->assertEquals('0.00', $invoice->remaining_amount);
+        $this->assertDatabaseHas('payments', [
+            'invoice_id' => $invoice->id,
+            'transaction_reference' => 'FT-INVOICE-001',
+            'status' => Payment::STATUS_CONFIRMED,
+        ]);
+        Event::assertDispatched(InvoicePaid::class, fn (InvoicePaid $event): bool => $event->invoice['id'] === $invoice->id);
+        Event::assertDispatched(NotificationSent::class);
     }
 
     public function test_sepay_webhook_fails_with_invalid_token(): void
@@ -208,6 +272,7 @@ class SePayWebhookControllerTest extends TestCase
     public function test_sepay_webhook_processes_transfer_extra_charge_without_collecting_destination_deposit(): void
     {
         Config::set('services.sepay.webhook_token', 'test-token-123');
+        Event::fake([ContractDepositPaid::class, NotificationSent::class]);
 
         $room = $this->contract->room()->with('building')->firstOrFail();
         $tenant = Tenant::create([
@@ -277,6 +342,36 @@ class SePayWebhookControllerTest extends TestCase
             'settlement_paid_amount' => '500000.00',
             'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
         ]);
+        Event::assertNotDispatched(ContractDepositPaid::class);
+        Event::assertDispatched(NotificationSent::class);
+    }
+
+    private function createTenantForContract(Contract $contract, string $suffix): Tenant
+    {
+        $tenant = Tenant::create([
+            'username' => "webhook_{$suffix}_tenant",
+            'full_name' => "Webhook {$suffix} Tenant",
+            'email' => "webhook-{$suffix}-tenant@stayhub.local",
+            'phone' => '091' . str_pad((string) random_int(1, 9999999), 7, '0', STR_PAD_LEFT),
+            'password' => bcrypt('password'),
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '999' . str_pad((string) random_int(1, 999999999), 9, '0', STR_PAD_LEFT),
+            'date_of_birth' => '2000-01-01',
+            'building_id' => $contract->room?->building_id,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $tenant->id,
+            'join_date' => $contract->start_date?->toDateString() ?? '2026-06-12',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        return $tenant;
     }
 
     public function test_sepay_webhook_bypasses_test_delivery(): void

@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Events\ContractDepositPaid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 class ContractDepositTransaction extends Model
 {
@@ -64,7 +66,7 @@ class ContractDepositTransaction extends Model
             $contract = $transaction->contract;
             if ($contract) {
                 $contract->updatePaymentStatus();
-                event(new \App\Events\ContractDepositPaid($contract));
+                DB::afterCommit(fn () => event(new ContractDepositPaid($contract->fresh(['room.building', 'tenants']))));
             }
         });
 
@@ -72,7 +74,7 @@ class ContractDepositTransaction extends Model
             $contract = $transaction->contract;
             if ($contract) {
                 $contract->updatePaymentStatus();
-                event(new \App\Events\ContractDepositPaid($contract));
+                DB::afterCommit(fn () => event(new ContractDepositPaid($contract->fresh(['room.building', 'tenants']))));
             }
         });
     }

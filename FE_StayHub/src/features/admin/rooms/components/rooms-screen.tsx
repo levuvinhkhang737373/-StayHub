@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { useAdminSession } from '../../auth/hooks/admin-session-store'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
+import { resolveAssetUrl } from '../../../../shared/lib/utils/asset-url'
 
 const statusLabels: Record<number, string> = {
   1: 'Hoạt động',
@@ -639,8 +640,7 @@ export function RoomsScreen() {
                     {room?.images && room.images.length > 0 ? (
                       <div className="grid grid-cols-3 gap-3 p-1">
                         {room.images.map((item, index) => {
-                          const apiBaseUrl = import.meta.env.VITE_BASE_URL || '';
-                          const fullImageUrl = `${apiBaseUrl}${item.image_path}`;
+                          const fullImageUrl = resolveAssetUrl(item.image_path);
                           
                           return (
                             <div 
