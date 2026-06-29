@@ -77,7 +77,7 @@ class SecurityCameraController extends Controller
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $camera = SecurityCamera::query()->create($this->payload($validated, $admin));
 
-                AdminActivityLogger::write($admin, 'create_security_camera', SecurityCamera::class, $camera->id, null, $camera->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo máy quay an ninh', SecurityCamera::class, $camera->id, null, $camera->toArray(), $request);
 
                 $camera->load(['building.manager', 'creator'])->loadCount('alerts');
 
@@ -134,7 +134,7 @@ class SecurityCameraController extends Controller
                 $oldData = $camera->toArray();
                 $camera->fill($this->payload($validated, $admin, true))->save();
 
-                AdminActivityLogger::write($admin, 'update_security_camera', SecurityCamera::class, $camera->id, $oldData, $camera->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật máy quay an ninh', SecurityCamera::class, $camera->id, $oldData, $camera->toArray(), $request);
 
                 $camera->load(['building.manager', 'creator', 'updater'])->loadCount('alerts');
 
@@ -170,7 +170,7 @@ class SecurityCameraController extends Controller
                 $oldData = $camera->toArray();
                 $camera->delete();
 
-                AdminActivityLogger::write($admin, 'delete_security_camera', SecurityCamera::class, $securityCamera, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa máy quay an ninh', SecurityCamera::class, $securityCamera, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa camera thành công', 200, null, 200);
             });

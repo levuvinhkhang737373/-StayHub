@@ -177,7 +177,7 @@ class MaintenanceRequestController extends Controller
                 // Ghi log hoạt động của admin
                 AdminActivityLogger::write(
                     $admin,
-                    'update_maintenance_status',
+                    'Cập nhật trạng thái bảo trì',
                     MaintenanceRequest::class,
                     $maintenance->id,
                     $oldData,

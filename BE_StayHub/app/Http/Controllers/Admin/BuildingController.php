@@ -81,7 +81,7 @@ class BuildingController extends Controller
                 $this->syncBuildingImages($building, $validated, $request, $admin);
                 $this->loadBuildingDetail($building);
 
-                AdminActivityLogger::write($admin, 'create_building', Building::class, $building->id, null, $building->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo tòa nhà', Building::class, $building->id, null, $building->toArray(), $request);
 
                 return ApiResponse::responseJson(true, 'Tạo tòa nhà thành công', 201, new BuildingDetailResource($building), 201);
             });
@@ -155,7 +155,7 @@ class BuildingController extends Controller
                 $buildingModel->unsetRelations();
                 $this->loadBuildingDetail($buildingModel);
 
-                AdminActivityLogger::write($admin, 'update_building', Building::class, $buildingModel->id, $oldData, $buildingModel->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật tòa nhà', Building::class, $buildingModel->id, $oldData, $buildingModel->toArray(), $request);
 
                 return ApiResponse::responseJson(true, 'Cập nhật tòa nhà thành công', 200, new BuildingDetailResource($buildingModel), 200);
             });
@@ -189,7 +189,7 @@ class BuildingController extends Controller
                 $buildingModel->forceFill(['status' => $validated['status']])->save();
                 $this->loadBuildingDetail($buildingModel);
 
-                AdminActivityLogger::write($admin, 'update_building_status', Building::class, $buildingModel->id, $oldData, $buildingModel->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái tòa nhà', Building::class, $buildingModel->id, $oldData, $buildingModel->toArray(), $request);
 
                 return ApiResponse::responseJson(true, 'Cập nhật trạng thái tòa nhà thành công', 200, new BuildingDetailResource($buildingModel), 200);
             });
@@ -227,7 +227,7 @@ class BuildingController extends Controller
                 $buildingModel->images->each(fn (BuildingImage $image): bool => ImageHelper::delete($image->image_path));
                 $buildingModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_building', Building::class, $buildingModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa tòa nhà', Building::class, $buildingModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa tòa nhà thành công', 200, null, 200);
             });
@@ -348,7 +348,7 @@ class BuildingController extends Controller
                     \Illuminate\Support\Facades\Log::error('Error notifying tenants of utility price update: ' . $e->getMessage());
                 }
 
-                AdminActivityLogger::write($admin, 'update_utility_prices', Building::class, $buildingModel->id, null, $updatedPrices, $request);
+                AdminActivityLogger::write($admin, 'Cập nhật giá điện nước', Building::class, $buildingModel->id, null, $updatedPrices, $request);
 
                 return ApiResponse::responseJson(true, 'Cập nhật đơn giá dịch vụ thành công', 200, $updatedPrices, 200);
             });

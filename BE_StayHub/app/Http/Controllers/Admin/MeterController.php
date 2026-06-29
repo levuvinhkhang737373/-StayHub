@@ -139,7 +139,7 @@ class MeterController extends Controller
                     }
                 }
 
-                AdminActivityLogger::write($admin, 'create_meter_device', MeterDevice::class, $meterDevice->id, null, $meterDevice->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo đồng hồ điện nước', MeterDevice::class, $meterDevice->id, null, $meterDevice->toArray(), $request);
 
                 return ApiResponse::responseJson(true, 'Tạo đồng hồ thành công', 201, new MeterResource($meterDevice->load(['room.building', 'service', 'replacementMeter'])), 201);
             });
@@ -278,7 +278,7 @@ class MeterController extends Controller
 
                 $meterDeviceModel->save();
 
-                AdminActivityLogger::write($admin, 'update_meter_device', MeterDevice::class, $meterDeviceModel->id, $oldData, $meterDeviceModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật đồng hồ điện nước', MeterDevice::class, $meterDeviceModel->id, $oldData, $meterDeviceModel->fresh()->toArray(), $request);
 
                 return ApiResponse::responseJson(true, 'Cập nhật đồng hồ thành công', 200, new MeterResource($meterDeviceModel->load(['room.building', 'service', 'replacementMeter'])), 200);
             });
@@ -336,7 +336,7 @@ class MeterController extends Controller
                 $meterDeviceModel->replaced_by_meter_id = $validated['replaced_by_meter_id'] ?? $meterDeviceModel->replaced_by_meter_id;
                 $meterDeviceModel->save();
 
-                AdminActivityLogger::write($admin, 'update_meter_device_status', MeterDevice::class, $meterDeviceModel->id, $oldData, $meterDeviceModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái đồng hồ điện nước', MeterDevice::class, $meterDeviceModel->id, $oldData, $meterDeviceModel->fresh()->toArray(), $request);
 
                 return ApiResponse::responseJson(true, 'Cập nhật trạng thái đồng hồ thành công', 200, new MeterResource($meterDeviceModel->load(['room.building', 'service', 'replacementMeter'])), 200);
             });
@@ -375,7 +375,7 @@ class MeterController extends Controller
                 ImageHelper::delete($meterDeviceModel->image_path);
                 $meterDeviceModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_meter_device', MeterDevice::class, $meterDeviceModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa đồng hồ điện nước', MeterDevice::class, $meterDeviceModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa đồng hồ thành công', 200, null, 200);
             });

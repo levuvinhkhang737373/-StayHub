@@ -85,7 +85,7 @@ class NotificationController extends Controller
                 ]);
 
                 // Ghi log hành động admin
-                AdminActivityLogger::write($admin, 'create_notification', Notification::class, $created->id, null, $created->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo thông báo', Notification::class, $created->id, null, $created->toArray(), $request);
 
                 return $created;
             });
@@ -167,7 +167,7 @@ class NotificationController extends Controller
                 ]);
 
                 // Ghi log hành động admin
-                AdminActivityLogger::write($admin, 'update_notification', Notification::class, $notification->id, $oldData, $notification->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật thông báo', Notification::class, $notification->id, $oldData, $notification->fresh()->toArray(), $request);
             });
 
             $notification->load(['building', 'room', 'tenant', 'creator']);
@@ -205,7 +205,7 @@ class NotificationController extends Controller
                 $notification->delete();
 
                 // Ghi log hành động admin
-                AdminActivityLogger::write($admin, 'delete_notification', Notification::class, $notification->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa thông báo', Notification::class, $notification->id, $oldData, null, $request);
             });
 
             return ApiResponse::responseJson(true, 'Xóa thông báo thành công', 200, null, 200);

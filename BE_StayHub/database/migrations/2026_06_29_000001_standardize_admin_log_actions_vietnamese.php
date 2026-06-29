@@ -1,14 +1,11 @@
 <?php
 
-namespace App\Helpers;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
 
-use App\Models\Admin;
-use App\Models\AdminLog;
-use Illuminate\Http\Request;
-
-class AdminActivityLogger
+return new class extends Migration
 {
-    public const ACTION_LABELS = [
+    private const ACTION_LABELS = [
         'add_deposit_transaction' => 'Thêm giao dịch tiền cọc',
         'analyze_meter_image' => 'Phân tích ảnh chỉ số điện nước',
         'assign_maintenance_staff' => 'Phân công nhân sự bảo trì',
@@ -54,8 +51,8 @@ class AdminActivityLogger
         'login_success' => 'Đăng nhập thành công',
         'logout' => 'Đăng xuất',
         'record_invoice_payment' => 'Ghi nhận thanh toán hóa đơn',
-        'reissue_invoice' => 'Phát hành lại hóa đơn',
         'register_faceid' => 'Đăng ký nhận diện khuôn mặt',
+        'reissue_invoice' => 'Phát hành lại hóa đơn',
         'renew_contract' => 'Gia hạn hợp đồng',
         'save_meter_reading' => 'Lưu chỉ số điện nước',
         'schedule_room_transfer' => 'Lên lịch chuyển phòng',
@@ -97,29 +94,34 @@ class AdminActivityLogger
         'update_vehicle_status' => 'Cập nhật trạng thái phương tiện',
     ];
 
-    public static function write(
-        Admin $admin,
-        string $action,
-        string $entityType,
-        ?int $entityId = null,
-        ?array $oldData = null,
-        ?array $newData = null,
-        ?Request $request = null,
-    ): AdminLog {
-        return AdminLog::query()->create([
-            'admin_id'    => $admin->id,
-            'action'      => self::normalizeAction($action),
-            'entity_type' => $entityType,
-            'entity_id'   => $entityId,
-            'old_data'    => $oldData,
-            'new_data'    => $newData,
-            'ip_address'  => $request?->ip(),
-            'user_agent'  => $request?->userAgent(),
-        ]);
+    private const OLD_LABELS = [
+        'Tạo tài khoản admin' => 'Tạo tài khoản quản trị',
+        'Cập nhật tài khoản admin' => 'Cập nhật tài khoản quản trị',
+        'Cập nhật trạng thái tài khoản admin' => 'Cập nhật trạng thái tài khoản quản trị',
+        'Xóa tài khoản admin' => 'Xóa tài khoản quản trị',
+        'Đăng nhập bằng FaceID thành công' => 'Đăng nhập bằng nhận diện khuôn mặt thành công',
+        'Đăng ký FaceID' => 'Đăng ký nhận diện khuôn mặt',
+        'Xóa FaceID' => 'Xóa nhận diện khuôn mặt',
+        'Tạo camera an ninh' => 'Tạo máy quay an ninh',
+        'Cập nhật camera an ninh' => 'Cập nhật máy quay an ninh',
+        'Xóa camera an ninh' => 'Xóa máy quay an ninh',
+    ];
+
+    public function up(): void
+    {
+        foreach ([...self::ACTION_LABELS, ...self::OLD_LABELS] as $action => $label) {
+            DB::table('admin_logs')
+                ->where('action', $action)
+                ->update(['action' => $label]);
+        }
     }
 
-    public static function normalizeAction(string $action): string
+    public function down(): void
     {
-        return self::ACTION_LABELS[$action] ?? $action;
+        foreach (array_flip(self::ACTION_LABELS) as $label => $action) {
+            DB::table('admin_logs')
+                ->where('action', $label)
+                ->update(['action' => $action]);
+        }
     }
-}
+};

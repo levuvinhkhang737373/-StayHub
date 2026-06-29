@@ -157,7 +157,7 @@ class InvoiceController extends Controller
                 $this->markMeterReadingsInvoiced($invoice);
                 $tenantNotifications = $this->createInvoiceIssuedNotifications($invoice, $admin);
 
-                AdminActivityLogger::write($admin, 'generate_and_issue_invoice', Invoice::class, $invoice->id, null, $invoice->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo và phát hành hóa đơn', Invoice::class, $invoice->id, null, $invoice->toArray(), $request);
 
                 DB::afterCommit(function () use ($invoice, $tenantNotifications): void {
                     event(new InvoiceIssued($invoice->fresh($this->detailRelations())));
@@ -337,7 +337,7 @@ class InvoiceController extends Controller
                     $notifications = $notifications->merge($this->createInvoiceReissuedNotifications($freshInvoice, $admin, ! $isSourceInvoice));
                 }
 
-                AdminActivityLogger::write($admin, 'reissue_invoice', Invoice::class, $invoiceModel->id, $oldData, [
+                AdminActivityLogger::write($admin, 'Phát hành lại hóa đơn', Invoice::class, $invoiceModel->id, $oldData, [
                     'invoice' => $invoiceModel->fresh()->toArray(),
                     'affected_invoice_ids' => $affectedInvoices->pluck('id')->values()->all(),
                     'reason' => $reason,
@@ -421,7 +421,7 @@ class InvoiceController extends Controller
                     $this->applyConfirmedPayment($invoiceModel, (string) $payment->amount);
                     $notifications = $this->createInvoicePaidNotifications($invoiceModel->fresh($this->detailRelations()), $payment, $admin);
 
-                    AdminActivityLogger::write($admin, 'record_invoice_payment', Payment::class, $payment->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
+                    AdminActivityLogger::write($admin, 'Ghi nhận thanh toán hóa đơn', Payment::class, $payment->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
 
                     DB::afterCommit(function () use ($invoiceModel, $notifications): void {
                         event(new InvoicePaid($invoiceModel->fresh($this->detailRelations())));
@@ -487,7 +487,7 @@ class InvoiceController extends Controller
                 $this->applyConfirmedPayment($invoiceModel, (string) $paymentModel->amount);
                 $notifications = $this->createInvoicePaidNotifications($invoiceModel->fresh($this->detailRelations()), $paymentModel, $admin);
 
-                AdminActivityLogger::write($admin, 'confirm_invoice_payment', Payment::class, $paymentModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Xác nhận thanh toán hóa đơn', Payment::class, $paymentModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
 
                 DB::afterCommit(function () use ($invoiceModel, $notifications): void {
                     event(new InvoicePaid($invoiceModel->fresh($this->detailRelations())));
@@ -549,7 +549,7 @@ class InvoiceController extends Controller
                     ]);
                 }
 
-                AdminActivityLogger::write($admin, 'cancel_invoice', Invoice::class, $invoiceModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Hủy hóa đơn', Invoice::class, $invoiceModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
 
                 $invoiceModel->load($this->detailRelations());
 

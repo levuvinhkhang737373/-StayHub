@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   Plus,
   Power,
   Trash2,
+  UserPlus,
   Users,
   X,
 } from 'lucide-react'
@@ -25,16 +26,19 @@ import { fetchAdminBuildings } from '../../facilities/services/facilities.servic
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import {
+  addTenantToContract,
   createAdminContractDepositTransaction,
   deleteAdminContract,
   fetchAdminContractDetail,
   fetchAdminContracts,
   fetchAvailableRooms,
+  fetchContractAvailableTenants,
   terminateAdminContract,
   updateAdminContractStatus,
 } from '../services/contracts.service'
 import type {
   AdminContractResource,
+  AdminContractTenantOptionResource,
   AdminPaginationMeta,
 } from '../types/contract-api.model'
 
@@ -60,6 +64,7 @@ import { PayDepositModal } from './modals/PayDepositModal'
 import { DepositQRModal } from './modals/DepositQRModal'
 import { StatusModal } from './modals/StatusModal'
 import { TerminateContractModal, type TerminateContractForm } from './modals/TerminateContractModal'
+import { AddContractTenantModal, createDefaultAddContractTenantForm } from './modals/AddContractTenantModal'
 
 type ContractRoomOption = {
   id: number
@@ -69,6 +74,25 @@ type ContractRoomOption = {
   base_price?: string | number | null
   max_occupants?: number | null
   current_occupants?: number | null
+}
+
+function createDefaultAddTenantFormForContract(contract: AdminContractResource) {
+  const contractEndDate = contract.actual_end_date || contract.end_date || ''
+  let defaultDate = todayStr
+
+  if (contract.start_date && defaultDate < contract.start_date) {
+    defaultDate = contract.start_date
+  }
+
+  if (contractEndDate && defaultDate > contractEndDate) {
+    defaultDate = contractEndDate
+  }
+
+  return {
+    ...createDefaultAddContractTenantForm(),
+    join_date: defaultDate,
+    billing_start_date: defaultDate,
+  }
 }
 
 export function ContractsScreen() {
@@ -108,6 +132,14 @@ export function ContractsScreen() {
   const [payingDepositContract, setPayingDepositContract] = useState<AdminContractResource | null>(null)
   const [terminatingContract, setTerminatingContract] = useState<AdminContractResource | null>(null)
   const [isTerminating, setIsTerminating] = useState(false)
+  const [addingTenantContract, setAddingTenantContract] = useState<AdminContractResource | null>(null)
+  const [availableTenants, setAvailableTenants] = useState<AdminContractTenantOptionResource[]>([])
+  const [addTenantForm, setAddTenantForm] = useState(createDefaultAddContractTenantForm)
+  const [addTenantKeyword, setAddTenantKeyword] = useState('')
+  const [addTenantError, setAddTenantError] = useState<string | null>(null)
+  const [isLoadingAvailableTenants, setIsLoadingAvailableTenants] = useState(false)
+  const [isAddingTenant, setIsAddingTenant] = useState(false)
+  const availableTenantRequestRef = useRef(0)
   const [terminateForm, setTerminateForm] = useState<TerminateContractForm>({
     actual_end_date: todayStr,
     deduction_amount: '0',
@@ -272,6 +304,90 @@ export function ContractsScreen() {
       setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết hợp đồng.'))
     } finally {
       setIsDetailLoading(false)
+    }
+  }
+
+  const loadAvailableTenants = useCallback(async (contractId: number, nextKeyword = '') => {
+    const requestId = availableTenantRequestRef.current + 1
+    availableTenantRequestRef.current = requestId
+    setIsLoadingAvailableTenants(true)
+    setAddTenantError(null)
+
+    try {
+      const response = await fetchContractAvailableTenants(contractId, {
+        keyword: nextKeyword.trim() || undefined,
+        per_page: 50,
+      })
+      if (availableTenantRequestRef.current !== requestId) return
+      setAvailableTenants(response.result?.data || [])
+    } catch (error) {
+      if (availableTenantRequestRef.current !== requestId) return
+      setAvailableTenants([])
+      setAddTenantError(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê theo tòa nhà.'))
+    } finally {
+      if (availableTenantRequestRef.current === requestId) {
+        setIsLoadingAvailableTenants(false)
+      }
+    }
+  }, [])
+
+  const openAddTenantModal = (contract: AdminContractResource) => {
+    setAddingTenantContract(contract)
+    setAvailableTenants([])
+    setAddTenantForm(createDefaultAddTenantFormForContract(contract))
+    setAddTenantKeyword('')
+    setAddTenantError(null)
+    void loadAvailableTenants(contract.id)
+  }
+
+  const cancelAddTenantModal = () => {
+    setAddingTenantContract(null)
+    setAvailableTenants([])
+    setAddTenantForm(createDefaultAddContractTenantForm())
+    setAddTenantKeyword('')
+    setAddTenantError(null)
+  }
+
+  const updateAddTenantKeyword = (nextKeyword: string) => {
+    setAddTenantKeyword(nextKeyword)
+
+    if (addingTenantContract) {
+      void loadAvailableTenants(addingTenantContract.id, nextKeyword)
+    }
+  }
+
+  const submitAddTenant = async () => {
+    if (!addingTenantContract || isAddingTenant) return
+
+    if (!addTenantForm.tenant_id || !addTenantForm.join_date || !addTenantForm.billing_start_date) {
+      setAddTenantError('Vui lòng chọn khách thuê và nhập đủ ngày vào ở, ngày bắt đầu tính tiền.')
+      return
+    }
+
+    try {
+      setIsAddingTenant(true)
+      setAddTenantError(null)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+
+      const response = await addTenantToContract(addingTenantContract.id, {
+        tenant_id: Number(addTenantForm.tenant_id),
+        join_date: addTenantForm.join_date,
+        billing_start_date: addTenantForm.billing_start_date,
+      })
+
+      setSuccessMessage('Thêm khách thuê vào hợp đồng thành công.')
+
+      if (detailContract?.id === addingTenantContract.id && response.result) {
+        setDetailContract(response.result)
+      }
+
+      cancelAddTenantModal()
+      await loadContracts()
+    } catch (error) {
+      setAddTenantError(getVisibleErrorMessage(error, 'Không thể thêm khách thuê vào hợp đồng.'))
+    } finally {
+      setIsAddingTenant(false)
     }
   }
 
@@ -584,6 +700,11 @@ export function ContractsScreen() {
                               <CalendarPlus className="h-5 w-5" />
                             </IconButton>
                           )}
+                          {Number(contract.status) === STATUS_ACTIVE && (
+                            <IconButton title="Thêm người vào phòng / hợp đồng" onClick={() => openAddTenantModal(contract)}>
+                              <UserPlus className="h-5 w-5" />
+                            </IconButton>
+                          )}
                           {[STATUS_ACTIVE, STATUS_EXPIRED].includes(Number(contract.status)) && (
                             <IconButton title="Thanh lý hợp đồng" onClick={() => openTerminateModal(contract)}>
                               <ClipboardCheck className="h-5 w-5" />
@@ -697,6 +818,22 @@ export function ContractsScreen() {
           onPayDeposit={(contract) => {
             setPayingDepositContract(contract)
           }}
+        />
+      )}
+
+      {addingTenantContract && (
+        <AddContractTenantModal
+          contract={addingTenantContract}
+          tenants={availableTenants}
+          form={addTenantForm}
+          keyword={addTenantKeyword}
+          errorMessage={addTenantError}
+          isLoading={isLoadingAvailableTenants}
+          isSaving={isAddingTenant}
+          onKeywordChange={updateAddTenantKeyword}
+          onChange={setAddTenantForm}
+          onCancel={cancelAddTenantModal}
+          onSubmit={() => void submitAddTenant()}
         />
       )}
 

@@ -129,6 +129,8 @@ Route::prefix('admin')->group(function (): void {
         Route::patch('contracts/{contract}/status', [ContractController::class, 'updateStatus']);
         Route::post('contracts/{contract}/terminate', [ContractController::class, 'terminate']);
         Route::post('contracts/{contract}/renew', [ContractController::class, 'renew']);
+        Route::get('contracts/{contract}/available-tenants', [ContractController::class, 'availableTenants']);
+        Route::post('contracts/{contract}/tenants', [ContractController::class, 'addTenant']);
         Route::post('contracts/{contract}/deposit-transactions', [ContractController::class, 'addDepositTransaction']);
         Route::apiResource('contracts', ContractController::class);
 

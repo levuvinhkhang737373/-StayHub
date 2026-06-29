@@ -50,7 +50,7 @@ class RegionController extends Controller
                 $region = Region::query()->create($this->payload($validated, $admin?->id));
 
                 if ($admin) {
-                    AdminActivityLogger::write($admin, 'create_region', Region::class, $region->id, null, $region->toArray(), $request);
+                    AdminActivityLogger::write($admin, 'Tạo khu vực', Region::class, $region->id, null, $region->toArray(), $request);
                 }
 
                 $region->load($this->storeRelations())->loadCount($this->counts());
@@ -106,7 +106,7 @@ class RegionController extends Controller
                 $regionModel->fill($this->payload($validated, $regionModel->created_by, true))->save();
 
                 if ($admin) {
-                    AdminActivityLogger::write($admin, 'update_region', Region::class, $regionModel->id, $oldData, $regionModel->fresh()->toArray(), $request);
+                    AdminActivityLogger::write($admin, 'Cập nhật khu vực', Region::class, $regionModel->id, $oldData, $regionModel->fresh()->toArray(), $request);
                 }
 
                 $regionModel->load($this->storeRelations())->loadCount($this->counts());
@@ -141,7 +141,7 @@ class RegionController extends Controller
                 $oldData = $regionModel->toArray();
                 $regionModel->forceFill(['is_active' => $validated['status']])->save();
 
-                AdminActivityLogger::write($admin, 'update_region_status', Region::class, $regionModel->id, $oldData, $regionModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái khu vực', Region::class, $regionModel->id, $oldData, $regionModel->fresh()->toArray(), $request);
 
                 $regionModel->load($this->storeRelations())->loadCount($this->counts());
 
@@ -179,7 +179,7 @@ class RegionController extends Controller
                 $regionModel->delete();
 
                 if ($admin) {
-                    AdminActivityLogger::write($admin, 'delete_region', Region::class, $regionModel->id, $oldData, null, $request);
+                    AdminActivityLogger::write($admin, 'Xóa khu vực', Region::class, $regionModel->id, $oldData, null, $request);
                 }
 
                 return ApiResponse::responseJson(true, 'Xóa khu vực thành công', 200, null, 200);

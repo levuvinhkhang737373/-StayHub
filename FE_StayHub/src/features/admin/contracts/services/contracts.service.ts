@@ -1,9 +1,11 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
 import type {
+  AdminContractAddTenantPayload,
   AdminContractFilters,
   AdminContractPayload,
   AdminContractResource,
   AdminContractStatusPayload,
+  AdminContractTenantOptionResource,
   AdminContractTerminatePayload,
   AdminContractTerminationResult,
   AdminPaginator,
@@ -94,6 +96,13 @@ export async function fetchAdminContractVehicles(params: { tenant_id?: number; i
   })
 }
 
+export async function fetchContractAvailableTenants(contractId: number, params: { keyword?: string; page?: number; per_page?: number } = {}) {
+  return apiRequest<AdminPaginator<AdminContractTenantOptionResource>>({
+    url: `admin/contracts/${contractId}/available-tenants${buildQuery({ per_page: 20, ...params })}`,
+    method: 'GET',
+  })
+}
+
 export async function fetchAvailableRooms(params: { building_id: number }) {
   return apiRequest<Array<{ id: number; building_id: number; room_number?: string | null; status?: number | null; base_price?: string | number | null; max_occupants?: number | null; current_occupants?: number | null }>>({
     url: `admin/contracts/available-rooms${buildQuery(params)}`,
@@ -144,6 +153,14 @@ export async function updateAdminContractStatus(contractId: number, payload: Adm
 export async function terminateAdminContract(contractId: number, payload: AdminContractTerminatePayload) {
   return apiRequest<AdminContractTerminationResult>({
     url: `admin/contracts/${contractId}/terminate`,
+    method: 'POST',
+    data: payload,
+  })
+}
+
+export async function addTenantToContract(contractId: number, payload: AdminContractAddTenantPayload) {
+  return apiRequest<AdminContractResource>({
+    url: `admin/contracts/${contractId}/tenants`,
     method: 'POST',
     data: payload,
   })

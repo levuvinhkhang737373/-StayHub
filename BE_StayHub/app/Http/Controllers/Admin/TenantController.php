@@ -85,7 +85,7 @@ class TenantController extends Controller
                     $createdTenant->forceFill($imagePayload)->save();
                 }
 
-                AdminActivityLogger::write($admin, 'create_tenant', Tenant::class, $createdTenant->id, null, $createdTenant->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo khách thuê', Tenant::class, $createdTenant->id, null, $createdTenant->fresh()->toArray(), $request);
 
                 $this->loadDetailRelations($createdTenant);
 
@@ -182,7 +182,7 @@ class TenantController extends Controller
                 }
 
                 $newData = $tenantModel->fresh()->toArray();
-                AdminActivityLogger::write($admin, 'update_tenant', Tenant::class, $tenantModel->id, $oldData, $newData, $request);
+                AdminActivityLogger::write($admin, 'Cập nhật khách thuê', Tenant::class, $tenantModel->id, $oldData, $newData, $request);
 
                 $this->loadDetailRelations($tenantModel);
 
@@ -225,7 +225,7 @@ class TenantController extends Controller
                     $newData['reason'] = $validated['reason'];
                 }
 
-                AdminActivityLogger::write($admin, 'update_tenant_status', Tenant::class, $tenantModel->id, $oldData, $newData, $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái khách thuê', Tenant::class, $tenantModel->id, $oldData, $newData, $request);
 
                 $this->loadDetailRelations($tenantModel);
 
@@ -271,7 +271,7 @@ class TenantController extends Controller
                 $pathsToDelete = $this->currentImagePaths($tenantModel);
                 $tenantModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_tenant', Tenant::class, $tenantModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa khách thuê', Tenant::class, $tenantModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa khách thuê thành công', 200, null, 200);
             });

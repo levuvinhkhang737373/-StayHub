@@ -124,7 +124,7 @@ class RoomController extends Controller
                 }
             }
 
-            AdminActivityLogger::write($admin, 'create_room', Room::class, $room->id, null, $room->fresh()->toArray(), $request);
+            AdminActivityLogger::write($admin, 'Tạo phòng', Room::class, $room->id, null, $room->fresh()->toArray(), $request);
 
             DB::commit();
 
@@ -247,7 +247,7 @@ class RoomController extends Controller
                 $room->assets()->delete();
             }
 
-            AdminActivityLogger::write($admin, 'update_room', Room::class, $room->id, $oldData, $room->fresh()->toArray(), $request);
+            AdminActivityLogger::write($admin, 'Cập nhật phòng', Room::class, $room->id, $oldData, $room->fresh()->toArray(), $request);
 
             DB::commit();
 
@@ -296,7 +296,7 @@ class RoomController extends Controller
             $room->assets()->delete();
             $room->images()->delete();
             $room->delete();
-            AdminActivityLogger::write($admin, 'delete_room', Room::class, (int) $id, $oldData, null, $request);
+            AdminActivityLogger::write($admin, 'Xóa phòng', Room::class, (int) $id, $oldData, null, $request);
             foreach ($roomImages as $image) {
                 if ($image->image_path) {
                     ImageHelper::delete($image->image_path);
@@ -320,7 +320,7 @@ class RoomController extends Controller
             $update_status_for_room = $room->update([
                 'status' => $room->status == 1 ? 3 : 1
             ]);
-            AdminActivityLogger::write($admin, 'update_room_status', Room::class, $room->id, $oldData, $room->fresh()->toArray(), $request);
+            AdminActivityLogger::write($admin, 'Cập nhật trạng thái phòng', Room::class, $room->id, $oldData, $room->fresh()->toArray(), $request);
             return ApiResponse::responseJson(true, "Cập nhật trạng thái phòng thành công", 200, null, 200);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
@@ -363,7 +363,7 @@ class RoomController extends Controller
 
         AdminActivityLogger::write(
             $admin,
-            'schedule_room_transfer',
+            'Lên lịch chuyển phòng',
             RoomMovement::class,
             $movements->first()->id,
             null,
