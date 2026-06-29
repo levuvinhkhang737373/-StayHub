@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { AssetResource, BuildingResource, RoomTypeResource, AdminRoomResource } from '../types/rooms.model';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AdminSelect } from '../../shared/components/AdminSelect';
+import { resolveAssetUrl } from '../../../../shared/lib/utils/asset-url';
 import { formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format';
 
 interface LocalFormState {
@@ -498,11 +499,10 @@ export function UpdateRoomScreen() {
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   {/* Nhóm ảnh cũ trên server */}
                   {existingImages.map((img) => {
-                    const apiBaseUrl = import.meta.env.VITE_BASE_URL_BACKEND || 'http://localhost:8000';
-                    const cleanPath = img.image_path.startsWith('/') ? img.image_path.slice(1) : img.image_path;
+                    const imageUrl = resolveAssetUrl(img.image_path);
                     return (
                       <div key={`exist-${img.id}`} className="group relative aspect-square overflow-hidden rounded-xl border border-[#3d2a18]/10 bg-stone-50">
-                        <img src={`${apiBaseUrl}/${cleanPath}`} alt="existing-room-media" className="h-full w-full object-cover opacity-80" />
+                        <img src={imageUrl} alt="existing-room-media" className="h-full w-full object-cover opacity-80" />
                         <span className="absolute bottom-2 left-2 rounded bg-[#24170d]/80 px-1.5 py-0.5 text-[9px] font-black text-white uppercase tracking-wider">Ảnh cũ</span>
                         <button
                           type="button"

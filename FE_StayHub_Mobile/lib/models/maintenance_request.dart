@@ -56,10 +56,13 @@ class MaintenanceRequest {
   static String? _mapLocalUrl(String? url) {
     if (url == null) return null;
     if (url.startsWith('http://localhost:8080')) {
-      return url.replaceFirst('http://localhost:8080', AppConfig.apiOrigin);
+      return url.replaceFirst('http://localhost:8080', AppConfig.assetOrigin);
     }
     if (url.startsWith('http://127.0.0.1:8080')) {
-      return url.replaceFirst('http://127.0.0.1:8080', AppConfig.apiOrigin);
+      return url.replaceFirst('http://127.0.0.1:8080', AppConfig.assetOrigin);
+    }
+    if (url.startsWith('http://10.0.2.2:8080')) {
+      return url.replaceFirst('http://10.0.2.2:8080', AppConfig.assetOrigin);
     }
     return url;
   }
