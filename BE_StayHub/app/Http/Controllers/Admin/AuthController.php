@@ -47,7 +47,7 @@ class AuthController extends Controller
             }
 
             $this->loginAdminSession($request, $admin);
-            $this->writeLoginLog($request, $admin, 'login_success');
+            $this->writeLoginLog($request, $admin, 'Đăng nhập thành công');
 
             return ApiResponse::responseJson(true, 'Đăng nhập admin thành công', 200, [
                 'admin' => new AdminAuthResource($this->authProfile($admin->refresh())),
@@ -101,7 +101,7 @@ class AuthController extends Controller
             $this->loginAdminSession($request, $admin);
             AdminActivityLogger::write(
                 $admin,
-                'face_login_success',
+                'Đăng nhập bằng nhận diện khuôn mặt thành công',
                 Admin::class,
                 $admin->id,
                 null,
@@ -141,7 +141,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Đăng ký FaceID cho admin hiện tại.   
+     * Đăng ký nhận diện khuôn mặt cho admin hiện tại.   
      */
     public function registerFaceId(Request $request): JsonResponse
     {
@@ -184,7 +184,7 @@ class AuthController extends Controller
 
             AdminActivityLogger::write(
                 $admin,
-                'register_faceid',
+                'Đăng ký nhận diện khuôn mặt',
                 Admin::class,
                 $admin->id,
                 $oldData,
@@ -192,7 +192,7 @@ class AuthController extends Controller
                 $request
             );
 
-            return ApiResponse::responseJson(true, 'Đăng ký FaceID thành công', 200, [
+            return ApiResponse::responseJson(true, 'Đăng ký nhận diện khuôn mặt thành công', 200, [
                 'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
             ], 200);
         } catch (\Exception $e) {
@@ -201,7 +201,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Xóa FaceID của admin hiện tại.
+     * Xóa nhận diện khuôn mặt của admin hiện tại.
      */
     public function deleteFaceId(Request $request): JsonResponse
     {
@@ -235,7 +235,7 @@ class AuthController extends Controller
 
             AdminActivityLogger::write(
                 $admin,
-                'delete_faceid',
+                'Xóa nhận diện khuôn mặt',
                 Admin::class,
                 $admin->id,
                 $oldData,
@@ -243,7 +243,7 @@ class AuthController extends Controller
                 $request
             );
 
-            return ApiResponse::responseJson(true, 'Xóa FaceID thành công', 200, [
+            return ApiResponse::responseJson(true, 'Xóa nhận diện khuôn mặt thành công', 200, [
                 'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
             ], 200);
         } catch (\Exception $e) {
@@ -289,7 +289,7 @@ class AuthController extends Controller
 
             AdminActivityLogger::write(
                 $admin,
-                'change_password',
+                'Đổi mật khẩu',
                 Admin::class,
                 $admin->id,
                 null,
@@ -334,7 +334,7 @@ class AuthController extends Controller
 
             AdminActivityLogger::write(
                 $admin,
-                'update_profile',
+                'Cập nhật hồ sơ cá nhân',
                 Admin::class,
                 $admin->id,
                 $oldData,
@@ -362,7 +362,7 @@ class AuthController extends Controller
             if ($admin instanceof Admin) {
                 AdminActivityLogger::write(
                     $admin,
-                    'logout',
+                    'Đăng xuất',
                     Admin::class,
                     $admin->id,
                     null,

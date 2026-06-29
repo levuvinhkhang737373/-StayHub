@@ -62,7 +62,7 @@ class SettingController extends Controller
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $setting = Setting::query()->create($this->payload($validated, $admin->id));
 
-                AdminActivityLogger::write($admin, 'create_setting', Setting::class, $setting->id, null, $setting->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo cài đặt', Setting::class, $setting->id, null, $setting->toArray(), $request);
 
                 $setting->load($this->detailRelations());
 
@@ -128,7 +128,7 @@ class SettingController extends Controller
                 $oldData = $settingModel->toArray();
                 $settingModel->fill($this->payload($validated, null, true))->save();
 
-                AdminActivityLogger::write($admin, 'update_setting', Setting::class, $settingModel->id, $oldData, $settingModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật cài đặt', Setting::class, $settingModel->id, $oldData, $settingModel->fresh()->toArray(), $request);
 
                 $settingModel->load($this->detailRelations());
 
@@ -165,7 +165,7 @@ class SettingController extends Controller
                 $settingModel->is_public = !$settingModel->is_public;
                 $settingModel->save();
 
-                AdminActivityLogger::write($admin, 'update_setting_public', Setting::class, $settingModel->id, $oldData, $settingModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật hiển thị cài đặt', Setting::class, $settingModel->id, $oldData, $settingModel->fresh()->toArray(), $request);
 
                 $settingModel->load($this->detailRelations());
 
@@ -202,7 +202,7 @@ class SettingController extends Controller
                 $oldData = $settingModel->toArray();
                 $settingModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_setting', Setting::class, $settingModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa cài đặt', Setting::class, $settingModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa cài đặt thành công', 200, null, 200);
             });

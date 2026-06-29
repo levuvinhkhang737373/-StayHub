@@ -73,7 +73,7 @@ class ExpenseController extends Controller
                     'created_by' => $admin->id,
                 ]));
 
-                AdminActivityLogger::write($admin, 'create_expense', Expense::class, $expense->id, null, $expense->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo phiếu chi', Expense::class, $expense->id, null, $expense->toArray(), $request);
 
                 $expense->load($this->detailRelations());
 
@@ -154,7 +154,7 @@ class ExpenseController extends Controller
 
                 collect($deletedImages)->each(fn (string $path): bool => ImageHelper::delete($path));
 
-                AdminActivityLogger::write($admin, 'update_expense', Expense::class, $expenseModel->id, $oldData, $expenseModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật phiếu chi', Expense::class, $expenseModel->id, $oldData, $expenseModel->fresh()->toArray(), $request);
 
                 $expenseModel->load($this->detailRelations());
 
@@ -191,7 +191,7 @@ class ExpenseController extends Controller
                 $oldData = $expenseModel->toArray();
                 $expenseModel->forceFill(['status' => Expense::STATUS_CANCELLED])->save();
 
-                AdminActivityLogger::write($admin, 'cancel_expense', Expense::class, $expenseModel->id, $oldData, $expenseModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Hủy phiếu chi', Expense::class, $expenseModel->id, $oldData, $expenseModel->fresh()->toArray(), $request);
 
                 $expenseModel->load($this->detailRelations());
 

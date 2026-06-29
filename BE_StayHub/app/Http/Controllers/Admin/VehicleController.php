@@ -64,7 +64,7 @@ class VehicleController extends Controller
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $vehicle = Vehicle::query()->create($this->payload($validated));
 
-                AdminActivityLogger::write($admin, 'create_vehicle', Vehicle::class, $vehicle->id, null, $vehicle->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo phương tiện', Vehicle::class, $vehicle->id, null, $vehicle->toArray(), $request);
 
                 $vehicle->load($this->detailRelations())->loadCount($this->counts());
 
@@ -127,7 +127,7 @@ class VehicleController extends Controller
                 $oldData = $vehicleModel->toArray();
                 $vehicleModel->fill($this->payload($validated, true))->save();
 
-                AdminActivityLogger::write($admin, 'update_vehicle', Vehicle::class, $vehicleModel->id, $oldData, $vehicleModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật phương tiện', Vehicle::class, $vehicleModel->id, $oldData, $vehicleModel->fresh()->toArray(), $request);
 
                 $vehicleModel->load($this->detailRelations())->loadCount($this->counts());
 
@@ -161,7 +161,7 @@ class VehicleController extends Controller
                 $oldData = $vehicleModel->toArray();
                 $vehicleModel->forceFill(['is_active' => (bool) $validated['status']])->save();
 
-                AdminActivityLogger::write($admin, 'update_vehicle_status', Vehicle::class, $vehicleModel->id, $oldData, $vehicleModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái phương tiện', Vehicle::class, $vehicleModel->id, $oldData, $vehicleModel->fresh()->toArray(), $request);
 
                 $vehicleModel->load($this->detailRelations())->loadCount($this->counts());
 
@@ -197,7 +197,7 @@ class VehicleController extends Controller
                 $oldData = $vehicleModel->toArray();
                 $vehicleModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_vehicle', Vehicle::class, $vehicleModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa phương tiện', Vehicle::class, $vehicleModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa phương tiện thành công', 200, null, 200);
             });

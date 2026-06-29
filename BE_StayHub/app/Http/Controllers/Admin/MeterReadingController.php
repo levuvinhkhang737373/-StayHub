@@ -196,7 +196,7 @@ class MeterReadingController extends Controller
             $analysis['image_path'] = $imagePath;
             $analysis['image_url']  = ImageHelper::load($imagePath);
 
-            AdminActivityLogger::write($admin, 'analyze_meter_image', MeterReading::class, null, null, $analysis, $request);
+            AdminActivityLogger::write($admin, 'Phân tích ảnh chỉ số điện nước', MeterReading::class, null, null, $analysis, $request);
 
             return ApiResponse::responseJson(
                 (bool) ($analysis['success'] ?? false),
@@ -329,7 +329,7 @@ class MeterReadingController extends Controller
                     'initial_reading' => $validated['current_reading']
                 ]);
 
-                AdminActivityLogger::write($admin, 'save_meter_reading', MeterReading::class, $record->id, null, $record->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Lưu chỉ số điện nước', MeterReading::class, $record->id, null, $record->toArray(), $request);
 
                 return $record;
             });

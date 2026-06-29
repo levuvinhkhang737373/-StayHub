@@ -27,6 +27,22 @@ export interface AdminVehicleOptionResource {
   is_active_label?: string | null
 }
 
+export interface AdminContractTenantOptionResource {
+  id: number
+  full_name?: string | null
+  username?: string | null
+  phone?: string | null
+  email?: string | null
+  identity_number?: string | null
+  gender?: number | null
+  gender_label?: string | null
+  status?: number | null
+  status_label?: string | null
+  building_id?: number | null
+  current_room?: null
+  current_contract?: null
+}
+
 export interface AdminContractTenantResource {
   id?: number
   contract_id?: number
@@ -275,6 +291,12 @@ export interface AdminContractTerminatePayload {
   deduction_amount?: string | null
   payment_method?: number | null
   note?: string | null
+}
+
+export interface AdminContractAddTenantPayload {
+  tenant_id: number
+  join_date: string
+  billing_start_date?: string | null
 }
 
 export interface AdminContractTerminationSettlement {

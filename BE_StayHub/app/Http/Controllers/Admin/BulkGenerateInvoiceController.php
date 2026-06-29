@@ -24,7 +24,7 @@ class BulkGenerateInvoiceController extends Controller
             $admin->id
         )->onQueue('high');
 
-        AdminActivityLogger::write($admin, 'bulk_generate_invoice_queued', Building::class, (int) $validated['building_id'], null, [
+        AdminActivityLogger::write($admin, 'Xếp hàng tạo hóa đơn hàng loạt', Building::class, (int) $validated['building_id'], null, [
             'building_id' => (int) $validated['building_id'],
             'billing_month' => (int) $validated['billing_month'],
             'billing_year' => (int) $validated['billing_year'],

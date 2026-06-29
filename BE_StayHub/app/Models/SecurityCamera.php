@@ -18,8 +18,8 @@ class SecurityCamera extends Model
 
     public const SOURCE_TYPE_LABELS = [
         self::SOURCE_TYPE_SNAPSHOT => 'Ảnh chụp định kỳ',
-        self::SOURCE_TYPE_MJPEG => 'MJPEG/HTTP stream',
-        self::SOURCE_TYPE_RTSP => 'RTSP camera',
+        self::SOURCE_TYPE_MJPEG => 'Luồng MJPEG/HTTP',
+        self::SOURCE_TYPE_RTSP => 'Máy quay RTSP',
     ];
 
     public const STATUS_ACTIVE = 1;

@@ -54,7 +54,7 @@ class ExpenseCategoryController extends Controller
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $expenseCategory = ExpenseCategory::query()->create($this->payload($validated, $admin->id));
 
-                AdminActivityLogger::write($admin, 'create_expense_category', ExpenseCategory::class, $expenseCategory->id, null, $expenseCategory->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo danh mục chi phí', ExpenseCategory::class, $expenseCategory->id, null, $expenseCategory->toArray(), $request);
 
                 $expenseCategory->load($this->relations())->loadCount($this->counts());
 
@@ -113,7 +113,7 @@ class ExpenseCategoryController extends Controller
                 $oldData = $expenseCategoryModel->toArray();
                 $expenseCategoryModel->fill($this->payload($validated, null, true))->save();
 
-                AdminActivityLogger::write($admin, 'update_expense_category', ExpenseCategory::class, $expenseCategoryModel->id, $oldData, $expenseCategoryModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật danh mục chi phí', ExpenseCategory::class, $expenseCategoryModel->id, $oldData, $expenseCategoryModel->fresh()->toArray(), $request);
 
                 $expenseCategoryModel->load($this->relations())->loadCount($this->counts());
 
@@ -147,7 +147,7 @@ class ExpenseCategoryController extends Controller
                 $oldData = $expenseCategoryModel->toArray();
                 $expenseCategoryModel->forceFill(['is_active' => (bool) $validated['status']])->save();
 
-                AdminActivityLogger::write($admin, 'update_expense_category_status', ExpenseCategory::class, $expenseCategoryModel->id, $oldData, $expenseCategoryModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái danh mục chi phí', ExpenseCategory::class, $expenseCategoryModel->id, $oldData, $expenseCategoryModel->fresh()->toArray(), $request);
 
                 $expenseCategoryModel->load($this->relations())->loadCount($this->counts());
 
@@ -183,7 +183,7 @@ class ExpenseCategoryController extends Controller
                 $oldData = $expenseCategoryModel->toArray();
                 $expenseCategoryModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_expense_category', ExpenseCategory::class, $expenseCategoryModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa danh mục chi phí', ExpenseCategory::class, $expenseCategoryModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa danh mục chi phí thành công', 200, null, 200);
             });

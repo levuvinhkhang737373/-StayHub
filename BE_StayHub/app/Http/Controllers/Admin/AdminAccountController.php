@@ -60,14 +60,14 @@ class AdminAccountController extends Controller
             $account = DB::transaction(function () use ($validated, $admin, $request): Admin {
                 $createdAccount = Admin::query()->create($this->payload($validated));
 
-                AdminActivityLogger::write($admin, 'create_admin_account', Admin::class, $createdAccount->id, null, $createdAccount->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo tài khoản quản trị', Admin::class, $createdAccount->id, null, $createdAccount->toArray(), $request);
 
                 $this->loadDetailRelations($createdAccount);
 
                 return $createdAccount;
             });
 
-            $message = 'Tạo tài khoản admin thành công. Mật khẩu đang được gửi qua email.';
+            $message = 'Tạo tài khoản quản trị thành công. Mật khẩu đang được gửi qua email.';
 
             try {
                 Mail::to($account->email)->queue(new SendPasswordEmail($account, $plainPassword));
@@ -78,7 +78,7 @@ class AdminAccountController extends Controller
                     'error' => $mailException->getMessage(),
                 ]);
 
-                $message = 'Tạo tài khoản admin thành công nhưng chưa gửi được email mật khẩu.';
+                $message = 'Tạo tài khoản quản trị thành công nhưng chưa gửi được email mật khẩu.';
             }
 
             return ApiResponse::responseJson(true, $message, 201, new AdminAccountDetailResource($account), 201);
@@ -152,11 +152,11 @@ class AdminAccountController extends Controller
                     $newData['password_changed'] = true;
                 }
 
-                AdminActivityLogger::write($admin, 'update_admin_account', Admin::class, $accountModel->id, $oldData, $newData, $request);
+                AdminActivityLogger::write($admin, 'Cập nhật tài khoản quản trị', Admin::class, $accountModel->id, $oldData, $newData, $request);
 
                 $this->loadDetailRelations($accountModel);
 
-                return ApiResponse::responseJson(true, 'Cập nhật tài khoản admin thành công', 200, new AdminAccountDetailResource($accountModel), 200);
+                return ApiResponse::responseJson(true, 'Cập nhật tài khoản quản trị thành công', 200, new AdminAccountDetailResource($accountModel), 200);
             });
             return $response;
         } catch (\Exception $e) {
@@ -200,11 +200,11 @@ class AdminAccountController extends Controller
                     $newData['reason'] = $validated['reason'];
                 }
 
-                AdminActivityLogger::write($admin, 'update_admin_account_status', Admin::class, $accountModel->id, $oldData, $newData, $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái tài khoản quản trị', Admin::class, $accountModel->id, $oldData, $newData, $request);
 
                 $this->loadDetailRelations($accountModel);
 
-                return ApiResponse::responseJson(true, 'Cập nhật trạng thái tài khoản admin thành công', 200, new AdminAccountDetailResource($accountModel), 200);
+                return ApiResponse::responseJson(true, 'Cập nhật trạng thái tài khoản quản trị thành công', 200, new AdminAccountDetailResource($accountModel), 200);
             });
 
             return $response;
@@ -248,9 +248,9 @@ class AdminAccountController extends Controller
                 $oldData = $accountModel->toArray();
                 $accountModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_admin_account', Admin::class, $accountModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa tài khoản quản trị', Admin::class, $accountModel->id, $oldData, null, $request);
 
-                return ApiResponse::responseJson(true, 'Xóa tài khoản admin thành công', 200, null, 200);
+                return ApiResponse::responseJson(true, 'Xóa tài khoản quản trị thành công', 200, null, 200);
             });
 
             return $response;

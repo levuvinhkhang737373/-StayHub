@@ -58,7 +58,7 @@ class RoomTypeController extends Controller
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $roomType = RoomType::query()->create($this->payload($validated, $admin->id));
 
-                AdminActivityLogger::write($admin, 'create_room_type', RoomType::class, $roomType->id, null, $roomType->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo loại phòng', RoomType::class, $roomType->id, null, $roomType->toArray(), $request);
 
                 $roomType->load($this->storeRelations())->loadCount($this->counts());
 
@@ -123,7 +123,7 @@ class RoomTypeController extends Controller
                 $oldData = $roomTypeModel->toArray();
                 $roomTypeModel->fill($this->payload($validated, null, true))->save();
 
-                AdminActivityLogger::write($admin, 'update_room_type', RoomType::class, $roomTypeModel->id, $oldData, $roomTypeModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật loại phòng', RoomType::class, $roomTypeModel->id, $oldData, $roomTypeModel->fresh()->toArray(), $request);
 
                 $roomTypeModel->load($this->storeRelations())->loadCount($this->counts());
 
@@ -157,7 +157,7 @@ class RoomTypeController extends Controller
                 $oldData = $roomTypeModel->toArray();
                 $roomTypeModel->forceFill(['status' => $validated['status']])->save();
 
-                AdminActivityLogger::write($admin, 'update_room_type_status', RoomType::class, $roomTypeModel->id, $oldData, $roomTypeModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái loại phòng', RoomType::class, $roomTypeModel->id, $oldData, $roomTypeModel->fresh()->toArray(), $request);
 
                 $roomTypeModel->load($this->storeRelations())->loadCount($this->counts());
 
@@ -193,7 +193,7 @@ class RoomTypeController extends Controller
                 $oldData = $roomTypeModel->toArray();
                 $roomTypeModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_room_type', RoomType::class, $roomTypeModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa loại phòng', RoomType::class, $roomTypeModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa loại phòng thành công', 200, null, 200);
             });

@@ -53,7 +53,7 @@ class ServiceController extends Controller
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $service = Service::query()->create($this->payload($validated, $admin->id));
 
-                AdminActivityLogger::write($admin, 'create_service', Service::class, $service->id, null, $service->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo dịch vụ', Service::class, $service->id, null, $service->toArray(), $request);
 
                 $service->load($this->detailRelations($admin))->loadCount($this->counts($admin));
 
@@ -112,7 +112,7 @@ class ServiceController extends Controller
                 $oldData = $serviceModel->toArray();
                 $serviceModel->fill($this->payload($validated, null, true))->save();
 
-                AdminActivityLogger::write($admin, 'update_service', Service::class, $serviceModel->id, $oldData, $serviceModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật dịch vụ', Service::class, $serviceModel->id, $oldData, $serviceModel->fresh()->toArray(), $request);
 
                 $serviceModel->load($this->detailRelations($admin))->loadCount($this->counts($admin));
 
@@ -146,7 +146,7 @@ class ServiceController extends Controller
                 $oldData = $serviceModel->toArray();
                 $serviceModel->forceFill(['is_active' => (bool) $validated['status']])->save();
 
-                AdminActivityLogger::write($admin, 'update_service_status', Service::class, $serviceModel->id, $oldData, $serviceModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái dịch vụ', Service::class, $serviceModel->id, $oldData, $serviceModel->fresh()->toArray(), $request);
 
                 $serviceModel->load($this->detailRelations($admin))->loadCount($this->counts($admin));
 
@@ -182,7 +182,7 @@ class ServiceController extends Controller
                 $oldData = $serviceModel->toArray();
                 $serviceModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_service', Service::class, $serviceModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa dịch vụ', Service::class, $serviceModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa dịch vụ thành công', 200, null, 200);
             });

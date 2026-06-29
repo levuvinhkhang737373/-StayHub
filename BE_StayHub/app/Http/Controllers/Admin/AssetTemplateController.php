@@ -56,7 +56,7 @@ class AssetTemplateController extends Controller
             $response = DB::transaction(function () use ($validated, $admin, $request): JsonResponse {
                 $assetTemplate = AssetTemplate::query()->create($this->payload($validated, $admin));
 
-                AdminActivityLogger::write($admin, 'create_asset_template', AssetTemplate::class, $assetTemplate->id, null, $assetTemplate->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo mẫu tài sản', AssetTemplate::class, $assetTemplate->id, null, $assetTemplate->toArray(), $request);
 
                 $assetTemplate->load($this->storeRelations())->loadCount($this->counts());
 
@@ -120,7 +120,7 @@ class AssetTemplateController extends Controller
                 $oldData = $assetTemplateModel->toArray();
                 $assetTemplateModel->fill($this->payload($validated, $admin, true))->save();
 
-                AdminActivityLogger::write($admin, 'update_asset_template', AssetTemplate::class, $assetTemplateModel->id, $oldData, $assetTemplateModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật mẫu tài sản', AssetTemplate::class, $assetTemplateModel->id, $oldData, $assetTemplateModel->fresh()->toArray(), $request);
 
                 $assetTemplateModel->load($this->storeRelations())->loadCount($this->counts());
 
@@ -153,7 +153,7 @@ class AssetTemplateController extends Controller
                 $oldData = $assetTemplateModel->toArray();
                 $assetTemplateModel->forceFill(['status' => $validated['status']])->save();
 
-                AdminActivityLogger::write($admin, 'update_asset_template_status', AssetTemplate::class, $assetTemplateModel->id, $oldData, $assetTemplateModel->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái mẫu tài sản', AssetTemplate::class, $assetTemplateModel->id, $oldData, $assetTemplateModel->fresh()->toArray(), $request);
 
                 $assetTemplateModel->load($this->storeRelations())->loadCount($this->counts());
 
@@ -189,7 +189,7 @@ class AssetTemplateController extends Controller
                 $oldData = $assetTemplateModel->toArray();
                 $assetTemplateModel->delete();
 
-                AdminActivityLogger::write($admin, 'delete_asset_template', AssetTemplate::class, $assetTemplateModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa mẫu tài sản', AssetTemplate::class, $assetTemplateModel->id, $oldData, null, $request);
 
                 return ApiResponse::responseJson(true, 'Xóa mẫu tài sản thành công', 200, null, 200);
             });

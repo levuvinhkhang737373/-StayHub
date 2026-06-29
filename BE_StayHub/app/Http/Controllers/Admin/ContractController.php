@@ -8,6 +8,7 @@ use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Contract\AddTenantRequest;
 use App\Http\Requests\Admin\Contract\DepositTransactionRequest;
 use App\Http\Requests\Admin\Contract\IndexRequest;
 use App\Http\Requests\Admin\Contract\RegisterRequest;
@@ -186,7 +187,7 @@ class ContractController extends Controller
                 $this->refreshRoomOccupants($room->id);
                 $this->loadDetailRelations($contract);
 
-                AdminActivityLogger::write($admin, 'create_contract', Contract::class, $contract->id, null, $contract->fresh()->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Tạo hợp đồng', Contract::class, $contract->id, null, $contract->fresh()->toArray(), $request);
 
                 return $contract;
             });
@@ -226,6 +227,157 @@ class ContractController extends Controller
             }
 
             return ApiResponse::responseJson(true, 'Chi tiết hợp đồng', 200, new ContractDetailResource($contractModel), 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
+    public function availableTenants(Request $request, int $contract): JsonResponse
+    {
+        try {
+            $admin = $request->user('admin');
+
+            if (! $admin || ! $this->canManageContracts($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền xem danh sách khách thuê có thể thêm', 403, null, 403);
+            }
+
+            $contractModel = $this->accessibleQuery($admin)
+                ->with('room.building:id,manager_admin_id,name,gender_policy')
+                ->find($contract);
+
+            if (! $contractModel) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy hợp đồng', 404, null, 404);
+            }
+
+            if ($this->isTerminalContract($contractModel)) {
+                return ApiResponse::responseJson(false, 'Hợp đồng đã thanh lý hoặc đã hủy, không thể thêm khách thuê.', 422, null, 422);
+            }
+
+            if ((int) $contractModel->status !== Contract::STATUS_ACTIVE) {
+                return ApiResponse::responseJson(false, 'Chỉ có thể thêm khách thuê vào hợp đồng đang hiệu lực.', 422, null, 422);
+            }
+
+            $room = $contractModel->room;
+
+            if (! $room) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy phòng của hợp đồng', 404, null, 404);
+            }
+
+            if (! AdminScope::ensureBuildingAccess($admin, (int) $room->building_id)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền thao tác hợp đồng của tòa nhà này.', 403, null, 403);
+            }
+
+            if ((int) $room->status !== Room::STATUS_ACTIVE) {
+                return ApiResponse::responseJson(false, 'Chỉ có thể thêm khách thuê vào phòng đang hoạt động.', 422, null, 422);
+            }
+
+            $keyword = trim((string) $request->query('keyword', ''));
+            $perPage = max(1, min((int) $request->query('per_page', 20), 100));
+            $existingTenantIds = $contractModel->contractTenants()->pluck('tenant_id')->map(fn ($id): int => (int) $id)->all();
+
+            $tenants = $this->availableTenantsQuery($admin, $contractModel, $keyword, $existingTenantIds)
+                ->paginate($perPage);
+
+            return ApiResponse::responseJson(true, 'Danh sách khách thuê có thể thêm vào hợp đồng', 200, $this->paginatedTenantOptions($tenants), 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
+    public function addTenant(AddTenantRequest $request, int $contract): JsonResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $admin = $request->user('admin');
+
+            if (! $admin || ! $this->canManageContracts($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền thêm khách thuê vào hợp đồng', 403, null, 403);
+            }
+
+            $updatedContract = DB::transaction(function () use ($validated, $contract, $admin, $request): Contract {
+                $contractModel = $this->accessibleQuery($admin)
+                    ->with('room.building:id,manager_admin_id,name,gender_policy')
+                    ->lockForUpdate()
+                    ->find($contract);
+
+                if (! $contractModel) {
+                    $this->throwResponse('Không tìm thấy hợp đồng', 404);
+                }
+
+                if ($this->isTerminalContract($contractModel)) {
+                    $this->throwResponse('Hợp đồng đã thanh lý hoặc đã hủy, không thể thêm khách thuê.', 422);
+                }
+
+                if ((int) $contractModel->status !== Contract::STATUS_ACTIVE) {
+                    $this->throwResponse('Chỉ có thể thêm khách thuê vào hợp đồng đang hiệu lực.', 422);
+                }
+
+                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $contractModel->room_id);
+
+                if (! $room) {
+                    $this->throwResponse('Không tìm thấy phòng của hợp đồng', 404);
+                }
+
+                if (! AdminScope::ensureBuildingAccess($admin, (int) $room->building_id)) {
+                    $this->throwResponse('Bạn không có quyền thao tác hợp đồng của tòa nhà này.', 403);
+                }
+
+                if ((int) $room->status !== Room::STATUS_ACTIVE) {
+                    $this->throwResponse('Chỉ có thể thêm khách thuê vào phòng đang hoạt động.', 422);
+                }
+
+                if ($contractModel->contractTenants()->where('tenant_id', (int) $validated['tenant_id'])->exists()) {
+                    $this->throwResponse('Khách thuê đã có trong hợp đồng này.', 422);
+                }
+
+                $tenantBelongsToBuilding = Tenant::query()
+                    ->whereKey((int) $validated['tenant_id'])
+                    ->where('building_id', (int) $room->building_id)
+                    ->exists();
+
+                if (! $tenantBelongsToBuilding) {
+                    $this->throwResponse('Khách thuê phải thuộc đúng tòa nhà của phòng đang thao tác.', 422);
+                }
+
+                $billingStartDate = $validated['billing_start_date'] ?? $validated['join_date'];
+                $this->assertAddTenantDates($contractModel, $validated['join_date'], $billingStartDate);
+
+                $oldData = $contractModel->load($this->detailRelations())->loadCount($this->detailCounts())->toArray();
+
+                $tenantPayloads = collect($this->currentTenantPayloads($contractModel))
+                    ->push([
+                        'tenant_id' => (int) $validated['tenant_id'],
+                        'join_date' => $validated['join_date'],
+                        'leave_date' => null,
+                        'billing_start_date' => $billingStartDate,
+                        'billing_end_date' => null,
+                        'is_staying' => true,
+                    ])
+                    ->values()
+                    ->all();
+
+                $activeTenantPayloads = collect($tenantPayloads)
+                    ->filter(fn (array $tenant): bool => (bool) $tenant['is_staying'])
+                    ->values()
+                    ->all();
+
+                $this->assertTenantPayloads($admin, $activeTenantPayloads, $room, $contractModel->id, (int) $contractModel->status);
+                $this->assertRoomCapacity($room, $activeTenantPayloads, $contractModel->id);
+                $this->syncContractTenants($contractModel, $tenantPayloads, $admin, false);
+                $this->refreshRoomOccupants((int) $contractModel->room_id);
+
+                $contractModel->unsetRelations();
+                $this->loadDetailRelations($contractModel);
+
+                AdminActivityLogger::write($admin, 'Thêm khách thuê vào hợp đồng', Contract::class, $contractModel->id, $oldData, $contractModel->toArray(), $request);
+
+                return $contractModel;
+            });
+
+            return ApiResponse::responseJson(true, 'Thêm khách thuê vào hợp đồng thành công', 201, new ContractDetailResource($updatedContract), 201);
+        } catch (HttpResponseException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
@@ -349,7 +501,7 @@ class ContractController extends Controller
                 $contractModel->unsetRelations();
                 $this->loadDetailRelations($contractModel);
 
-                AdminActivityLogger::write($admin, 'update_contract', Contract::class, $contractModel->id, $oldData, $contractModel->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật hợp đồng', Contract::class, $contractModel->id, $oldData, $contractModel->toArray(), $request);
 
                 return $contractModel;
             });
@@ -443,7 +595,7 @@ class ContractController extends Controller
                 $contractModel->unsetRelations();
                 $this->loadDetailRelations($contractModel);
 
-                AdminActivityLogger::write($admin, 'update_contract_status', Contract::class, $contractModel->id, $oldData, $contractModel->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Cập nhật trạng thái hợp đồng', Contract::class, $contractModel->id, $oldData, $contractModel->toArray(), $request);
 
                 return $contractModel;
             });
@@ -534,7 +686,7 @@ class ContractController extends Controller
                 $contractModel->unsetRelations();
                 $this->loadDetailRelations($contractModel);
 
-                AdminActivityLogger::write($admin, 'terminate_contract', Contract::class, $contractModel->id, $oldData, $contractModel->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Thanh lý hợp đồng', Contract::class, $contractModel->id, $oldData, $contractModel->toArray(), $request);
 
                 $notifications = $this->createContractTerminatedNotifications($contractModel, $admin, $activeTenantRows, $settlement);
                 DB::afterCommit(fn () => $this->broadcastNotifications($notifications));
@@ -596,7 +748,7 @@ class ContractController extends Controller
                 $contractModel->delete();
 
                 $this->refreshRoomOccupants($roomId);
-                AdminActivityLogger::write($admin, 'delete_contract', Contract::class, $contractModel->id, $oldData, null, $request);
+                AdminActivityLogger::write($admin, 'Xóa hợp đồng', Contract::class, $contractModel->id, $oldData, null, $request);
             });
 
             $this->deleteDiskFiles($pathsToDelete);
@@ -731,7 +883,7 @@ class ContractController extends Controller
                 $this->refreshRoomOccupants((int) $oldContract->room_id);
                 $this->loadDetailRelations($contract);
 
-                AdminActivityLogger::write($admin, 'renew_contract', Contract::class, $contract->id, null, $contract->toArray(), $request);
+                AdminActivityLogger::write($admin, 'Gia hạn hợp đồng', Contract::class, $contract->id, null, $contract->toArray(), $request);
 
                 return $contract;
             });
@@ -780,7 +932,7 @@ class ContractController extends Controller
             $contractModel->unsetRelations();
             $this->loadDetailRelations($contractModel);
 
-            AdminActivityLogger::write($admin, 'add_deposit_transaction', Contract::class, $contractModel->id, null, $newTransaction->toArray(), $request);
+            AdminActivityLogger::write($admin, 'Thêm giao dịch tiền cọc', Contract::class, $contractModel->id, null, $newTransaction->toArray(), $request);
 
             return ApiResponse::responseJson(true, 'Ghi nhận giao dịch cọc thành công', 201, new ContractDetailResource($contractModel), 201);
         } catch (HttpResponseException $e) {
@@ -897,6 +1049,112 @@ class ContractController extends Controller
                 'total' => $paginator->total(),
             ],
         ];
+    }
+
+    private function paginatedTenantOptions(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'data' => $paginator->getCollection()
+                ->map(fn (Tenant $tenant): array => [
+                    'id' => $tenant->id,
+                    'full_name' => $tenant->full_name,
+                    'username' => $tenant->username,
+                    'phone' => $tenant->phone,
+                    'email' => $tenant->email,
+                    'identity_number' => $tenant->identity_number,
+                    'gender' => $tenant->gender,
+                    'gender_label' => $tenant->gender ? (Tenant::GENDER_LABELS[$tenant->gender] ?? null) : null,
+                    'status' => $tenant->status,
+                    'status_label' => Tenant::STATUS_LABELS[$tenant->status] ?? null,
+                    'building_id' => $tenant->building_id,
+                    'current_room' => null,
+                    'current_contract' => null,
+                ])
+                ->values()
+                ->all(),
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
+            ],
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'last_page' => $paginator->lastPage(),
+                'path' => $paginator->path(),
+                'per_page' => $paginator->perPage(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
+        ];
+    }
+
+    private function availableTenantsQuery(Admin $admin, Contract $contract, string $keyword, array $excludedTenantIds): Builder
+    {
+        $room = $contract->room;
+        $building = $room?->building;
+        $status = (int) $contract->status;
+
+        return AdminScope::applyTenantScope(Tenant::query(), $admin)
+            ->select(['id', 'building_id', 'username', 'full_name', 'phone', 'email', 'identity_number', 'gender', 'status'])
+            ->where('building_id', (int) $room->building_id)
+            ->where('status', Tenant::STATUS_RENTING)
+            ->whereNotIn('id', $excludedTenantIds)
+            ->when($building, fn (Builder $query): Builder => $this->applyBuildingGenderPolicy($query, (int) $building->gender_policy))
+            ->when($status === Contract::STATUS_ACTIVE, function (Builder $query) use ($contract): Builder {
+                return $query->whereDoesntHave('contractTenants', function (Builder $contractTenantQuery) use ($contract): void {
+                    $contractTenantQuery
+                        ->where('is_staying', true)
+                        ->whereHas('contract', function (Builder $activeContractQuery) use ($contract): void {
+                            $activeContractQuery
+                                ->where('status', Contract::STATUS_ACTIVE)
+                                ->whereKeyNot($contract->id);
+                        });
+                });
+            })
+            ->when($keyword !== '', function (Builder $query) use ($keyword): Builder {
+                $escapedKeyword = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $keyword).'%';
+
+                return $query->where(function (Builder $keywordQuery) use ($escapedKeyword): void {
+                    $keywordQuery
+                        ->where('full_name', 'like', $escapedKeyword)
+                        ->orWhere('username', 'like', $escapedKeyword)
+                        ->orWhere('phone', 'like', $escapedKeyword)
+                        ->orWhere('email', 'like', $escapedKeyword)
+                        ->orWhere('identity_number', 'like', $escapedKeyword);
+                });
+            })
+            ->orderBy('full_name')
+            ->orderBy('id');
+    }
+
+    private function applyBuildingGenderPolicy(Builder $query, int $genderPolicy): Builder
+    {
+        return match ($genderPolicy) {
+            2 => $query->where('gender', Tenant::GENDER_MALE),
+            3 => $query->where('gender', Tenant::GENDER_FEMALE),
+            1 => $query,
+            default => $query->whereRaw('1 = 0'),
+        };
+    }
+
+    private function assertAddTenantDates(Contract $contract, string $joinDate, string $billingStartDate): void
+    {
+        $contractStartDate = $contract->start_date?->toDateString();
+        $contractEndDate = $contract->actual_end_date?->toDateString() ?? $contract->end_date?->toDateString();
+
+        if ($contractStartDate && $joinDate < $contractStartDate) {
+            $this->throwResponse('Ngày vào ở không được nhỏ hơn ngày bắt đầu hợp đồng.', 422);
+        }
+
+        if ($contractEndDate && $joinDate > $contractEndDate) {
+            $this->throwResponse('Ngày vào ở không được lớn hơn ngày kết thúc hợp đồng.', 422);
+        }
+
+        if ($contractEndDate && $billingStartDate > $contractEndDate) {
+            $this->throwResponse('Ngày bắt đầu tính tiền không được lớn hơn ngày kết thúc hợp đồng.', 422);
+        }
     }
 
     private function normalizedTenantPayloads(array $validated, ?Contract $contract): array
