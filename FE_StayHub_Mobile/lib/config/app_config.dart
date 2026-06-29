@@ -35,7 +35,7 @@ class AppConfig {
   }
 
   static int get reverbPort => useTunnel ? 443 : 8080;
-  static const String reverbAppKey = 'rhtxfafogu4wbww3eufp';                                                                                                                                                                                                                                                                                                Z Q
+  static const String reverbAppKey = 'rhtxfafogu4wbww3eufp';
 
   // Connect timeout in milliseconds
   static const int connectTimeout = 15000;
