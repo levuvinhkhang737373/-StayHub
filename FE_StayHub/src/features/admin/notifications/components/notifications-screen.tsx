@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { 
-  ArrowLeft, 
   Bell, 
   Plus, 
   Trash2, 
@@ -257,17 +256,16 @@ export function NotificationsScreen() {
       <section className="space-y-6 text-[#24170d]">
         {/* Header and Summary Panel */}
         <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-3 text-[#fff4df] sm:p-4">
+          <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
             <div className="relative flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
-                <Link to="/admin/dashboard" className="mb-1 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-                </Link>
-                <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-[1.7rem] lg:text-3xl flex items-center gap-2.5">
-                  <Bell className="h-7 w-7 text-[#f3c56b]" />
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">VẬN HÀNH</span>
+                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                  <Bell className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Thông báo
                 </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Soạn thảo, quản lý và gửi thông báo chung đến toàn bộ cư dân hoặc cá nhân.</p>
               </div>
               <button 
                 type="button" 

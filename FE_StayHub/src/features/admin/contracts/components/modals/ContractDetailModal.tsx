@@ -271,7 +271,7 @@ export function ContractDetailModal({
           <thead>
             <tr>
               <th>Số lần gia hạn</th>
-              <th>Thời gian gia han (tháng)</th>
+              <th>Thời gian gia hạn (tháng)</th>
               <th>Từ ngày</th>
               <th>Đến ngày</th>
               <th>Giá thuê/ tháng (triệu đồng)</th>
@@ -419,22 +419,22 @@ export function ContractDetailModal({
                 <thead className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">
                   <tr>
                     <th className="py-3 px-4">Khách thuê</th>
-                    <th className="py-3 px-4">Ngày ở</th>
-                    <th className="py-3 px-4">Tính tiền</th>
-                    <th className="py-3 px-4">Trạng thái</th>
+                    <th className="py-3 px-4 text-center">Ngày ở</th>
+                    <th className="py-3 px-4 text-center">Thời gian tính tiền</th>
+                    <th className="py-3 px-4 text-center">Trạng thái</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/10">
                   {(contract.contract_tenants || []).map((tenant) => (
                     <tr key={tenant.id || tenant.tenant_id}>
-                      <td className="py-3 font-black">{tenant.tenant?.full_name || tenant.tenant_id}</td>
-                      <td className="font-black">
+                      <td className="py-3 px-4 font-black">{tenant.tenant?.full_name || tenant.tenant_id}</td>
+                      <td className="py-3 px-4 font-black text-center">
                         {formatDate(tenant.join_date)} → {formatDate(tenant.leave_date)}
                       </td>
-                      <td className="font-black">
+                      <td className="py-3 px-4 font-black text-center">
                         {formatDate(tenant.billing_start_date)} → {formatDate(tenant.billing_end_date)}
                       </td>
-                      <td className="font-black">{tenant.is_staying ? 'Đang ở' : 'Đã rời'}</td>
+                      <td className="py-3 px-4 font-black text-center">{tenant.is_staying ? 'Đang ở' : 'Đã rời'}</td>
                     </tr>
                   ))}
                 </tbody>

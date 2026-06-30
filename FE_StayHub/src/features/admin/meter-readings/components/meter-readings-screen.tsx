@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
+import { AlertTriangle, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, updateUtilityPrices, fetchUtilityPriceHistory } from '../services/meter-readings.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -841,17 +841,18 @@ export function MeterReadingsScreen() {
       <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         {/* Gradient Banner Header */}
         <section className="relative rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
+          <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
             <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
-                <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-                </Link>
-
-                <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Chốt điện nước</h1>
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">DỊCH VỤ & ĐIỆN NƯỚC</span>
+                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                  <Zap className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                  Chốt điện nước
+                </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Ghi nhận số điện nước tiêu thụ hàng tháng và tự động tính phí dịch vụ.</p>
               </div>
 
               {/* Filters / Cycle Selection */}

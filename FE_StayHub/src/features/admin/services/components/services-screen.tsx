@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Database, Edit3, Eye, Plus, Power, Search, Trash2, X, Zap } from 'lucide-react'
+import { Database, Edit3, Eye, Plus, Power, Search, Trash2, X, Zap, Settings } from 'lucide-react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -219,17 +219,18 @@ export function ServicesScreen() {
     <>
       <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
+          <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
             <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
-                <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-                </Link>
-               
-                <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Danh mục dịch vụ</h1>
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">DỊCH VỤ & ĐIỆN NƯỚC</span>
+                  <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                    <Settings className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                    Danh mục dịch vụ
+                  </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Cấu hình các dịch vụ tiện ích đi kèm (internet, gửi xe, vệ sinh, v.v.).</p>
               </div>
               {isSuperAdmin && (
                 <button type="button" onClick={openCreateForm} className="inline-flex h-9 w-fit self-end lg:self-auto items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
@@ -278,7 +279,7 @@ export function ServicesScreen() {
                     <th className="px-5 py-4">Cách tính phí</th>
                     <th className="px-5 py-4 text-center">Đơn vị</th>
                     <th className="px-5 py-4 text-center">Bắt buộc</th>
-                    <th className="px-5 py-4 text-center">Dữ liệu</th>
+                    <th className="px-5 py-4 text-center">Liên kết</th>
                     <th className="px-5 py-4 text-center">Trạng thái</th>
                     <th className="px-5 py-4 w-[180px]"><div className="flex justify-end"><div className="w-[180px] text-center">Thao tác</div></div></th>
                   </tr>

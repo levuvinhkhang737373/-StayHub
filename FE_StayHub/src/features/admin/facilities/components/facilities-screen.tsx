@@ -408,14 +408,16 @@ export function FacilitiesScreen() {
             <>
                 <section className="space-y-5 sm:space-y-6 text-[#24170d]">
                     <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-                        <div className="relative p-4 text-[#fff4df] sm:p-5">
+                        <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
                             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
                             <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                 <div className="min-w-0">
-                                    <div className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
-                                        <span>StayHub</span>
-                                    </div>
-                                    <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-3xl lg:text-4xl">Khu vực và tòa nhà</h1>
+                                    <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">QUẢN LÝ LƯU TRÚ</span>
+                                    <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                                        <Building2 className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                                        Khu vực và tòa nhà
+                                    </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Thiết lập và quản lý các khu vực địa lý, danh sách tòa nhà trong hệ thống StayHub.</p>
                                 </div>
                                 <div className="flex w-full flex-col gap-3 items-end sm:flex-row sm:justify-end lg:w-auto">
                                     {isSuperAdmin && (

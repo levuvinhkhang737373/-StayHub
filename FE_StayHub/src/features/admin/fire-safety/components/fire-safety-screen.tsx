@@ -1,9 +1,7 @@
 import type { Dispatch, FormEvent, ReactNode, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
-  ArrowLeft,
   Building2,
   Camera,
   CheckCircle2,
@@ -512,15 +510,16 @@ export function FireSafetyScreen() {
   return (
     <section className="space-y-5 text-[#24170d] sm:space-y-6">
       <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-        <div className="relative p-4 text-[#fff4df] sm:p-5">
+        <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_85%_20%,rgba(15,118,110,0.22),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
           <div className="relative flex min-w-0 flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
-              <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-              </Link>
-              <h1 className="mt-2 max-w-4xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-[1.9rem] lg:text-4xl">Quản lý camera & báo cháy AI</h1>
-
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">VẬN HÀNH</span>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                <Camera className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                AI Camera
+              </h1>
+              <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Giám sát an ninh, phát hiện chuyển động và cảnh báo sự cố thời gian thực.</p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <button
@@ -600,15 +599,15 @@ export function FireSafetyScreen() {
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60">
-                  <div className="hidden grid-cols-[1.35fr_1fr_0.9fr_1.1fr] gap-3 bg-[#24170d] px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8] lg:grid">
+                  <div className="hidden grid-cols-[1.15fr_1.2fr_0.95fr_1.1fr] gap-4 bg-[#24170d] px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8] lg:grid">
                     <span>Camera</span>
-                    <span>Tòa nhà</span>
-                    <span>Cấu hình</span>
-                    <span className="text-right">Thao tác</span>
+                    <span className="text-center">Tòa nhà</span>
+                    <span>Thông số</span>
+                    <span className="text-center">Thao tác</span>
                   </div>
                   <div className="divide-y divide-[#3d2a18]/8">
                     {cameras.map((camera) => (
-                      <article key={camera.id} className="grid gap-4 bg-[#fffaf1]/75 p-4 transition hover:bg-[#f3c56b]/8 lg:grid-cols-[1.35fr_1fr_0.9fr_1.1fr] lg:items-center">
+                      <article key={camera.id} className="grid gap-4 bg-[#fffaf1]/75 p-4 transition hover:bg-[#f3c56b]/8 lg:grid-cols-[1.15fr_1.2fr_0.95fr_1.1fr] lg:items-center">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="truncate text-base font-black text-[#24170d]">{camera.name}</h3>
@@ -630,17 +629,21 @@ export function FireSafetyScreen() {
                           )}
                         </div>
 
-                        <div className="min-w-0 text-sm font-bold text-[#3d2a18]">
-                          <div className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#a65f16]" /> {camera.building_name || `Tòa #${camera.building_id}`}</div>
+                        <div className="min-w-0 text-sm font-bold text-[#3d2a18] lg:text-center">
+                          <div className="flex items-center gap-2 lg:justify-center"><Building2 className="h-4 w-4 text-[#a65f16]" /> {camera.building_name || `Tòa #${camera.building_id}`}</div>
                           <p className="mt-1 text-xs font-semibold text-[#8b5e34]">Manager: {camera.manager_name || 'Chưa gán'}</p>
                         </div>
 
-                        <div className="space-y-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b5e34]">
-                          <div>{camera.source_type_label}</div>
-                          <div>{camera.frames_per_batch} frame / {camera.frame_interval_seconds}s</div>
-                          <div>Cooldown {camera.alert_cooldown_seconds}s</div>
-                          <div>{camera.alerts_count || 0} cảnh báo</div>
-                          {camera.latest_alert && <div className={cn('mt-2 inline-flex rounded-full border px-2.5 py-1 normal-case tracking-normal', riskTone(camera.latest_alert.risk_level))}>Gần nhất: {camera.latest_alert.risk_level_label}</div>}
+                        <div className="space-y-1.5 text-xs font-bold text-[#6f6254]">
+                          <div>Loại luồng: <span className="font-extrabold text-[#24170d]">{camera.source_type_label}</span></div>
+                          <div>Tần suất quét: <span className="font-extrabold text-[#24170d]">{camera.frames_per_batch} khung hình / {camera.frame_interval_seconds}s</span></div>
+                          <div>Thời gian chờ: <span className="font-extrabold text-[#24170d]">{camera.alert_cooldown_seconds}s</span></div>
+                          <div>Số cảnh báo: <span className="font-extrabold text-[#24170d]">{camera.alerts_count || 0} lần</span></div>
+                          {camera.latest_alert && (
+                            <div className={cn('mt-2 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.18em]', riskTone(camera.latest_alert.risk_level))}>
+                              Gần nhất: {camera.latest_alert.risk_level_label}
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
