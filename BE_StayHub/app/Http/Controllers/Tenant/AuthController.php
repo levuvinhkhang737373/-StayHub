@@ -200,6 +200,56 @@ class AuthController extends Controller
     }
 
     /**
+     * Lấy lịch sử chỉ số chốt điện nước của phòng khách thuê
+     */
+    public function utilityReadings(Request $request): JsonResponse
+    {
+        try {
+            $tenant = $request->user('tenant');
+            if (! $tenant) {
+                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+            }
+
+            $roomId = $tenant->room_id;
+            if (! $roomId) {
+                return ApiResponse::responseJson(false, 'Khách thuê chưa được liên kết với phòng nào', 400, null, 400);
+            }
+
+            $readings = \App\Models\MeterReading::whereHas('meterDevice', function ($query) use ($roomId) {
+                $query->where('room_id', $roomId);
+            })
+            ->with(['meterDevice.service'])
+            ->orderBy('billing_year', 'desc')
+            ->orderBy('billing_month', 'desc')
+            ->get();
+
+            $data = $readings->map(function ($reading) {
+                return [
+                    'id' => $reading->id,
+                    'meter_device_id' => $reading->meter_device_id,
+                    'meter_type' => $reading->meterDevice?->meter_type, // 1: Điện, 2: Nước
+                    'meter_code' => $reading->meterDevice?->meter_code,
+                    'service_name' => $reading->meterDevice?->service?->name ?? 'Dịch vụ',
+                    'billing_month' => $reading->billing_month,
+                    'billing_year' => $reading->billing_year,
+                    'previous_reading' => (float) $reading->previous_reading,
+                    'current_reading' => (float) $reading->current_reading,
+                    'consumption' => (float) $reading->consumption,
+                    'reading_date' => $reading->reading_date ? $reading->reading_date->toDateString() : null,
+                    'image_url' => $reading->image_path ? \App\Helpers\ImageHelper::load($reading->image_path) : null,
+                    'note' => $reading->note,
+                    'status' => $reading->status,
+                    'status_label' => \App\Models\MeterReading::STATUS_LABELS[$reading->status] ?? 'Chưa xác định',
+                ];
+            });
+
+            return ApiResponse::responseJson(true, 'Lịch sử chỉ số điện nước của phòng', 200, $data, 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
+    /**
      * Lấy danh sách cài đặt liên quan đến tòa nhà của khách thuê
      */
     public function buildingSettings(Request $request): JsonResponse

@@ -6,7 +6,7 @@ import 'package:dio/dio.dart';
 import '../config/app_config.dart';
 import 'api_service.dart';
 
-class WebSocketService extends ChangeNotifier {
+class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   PusherChannelsClient? _client;
   StreamSubscription? _statusSubscription;
   
@@ -27,6 +27,10 @@ class WebSocketService extends ChangeNotifier {
   int? _tenantChatId;
   int? _conversationId;
 
+  WebSocketService() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   // Stream for broadcasting notification events to the application
   final StreamController<Map<String, dynamic>> _notificationStreamController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get notificationsStream => _notificationStreamController.stream;
@@ -37,8 +41,13 @@ class WebSocketService extends ChangeNotifier {
 
   /// Connect to the Laravel Reverb WebSocket server
   Future<void> connect() async {
+    if (_client != null && _isConnected) {
+      debugPrint('WS: Already connected.');
+      return;
+    }
+
     if (_client != null) {
-      await disconnect();
+      await _closeConnectionOnly();
     }
 
     final scheme = AppConfig.reverbPort == 443 ? 'wss' : 'ws';
@@ -58,6 +67,8 @@ class WebSocketService extends ChangeNotifier {
       connectionErrorHandler: (exception, trace, refresh) {
         debugPrint('WS Connection Error: $exception');
         _debugStreamController.add('Lỗi kết nối WebSocket: $exception');
+        _isConnected = false;
+        notifyListeners();
         // Automatically attempt reconnection
         Future.delayed(const Duration(seconds: 5), () => refresh());
       },
@@ -616,8 +627,65 @@ class WebSocketService extends ChangeNotifier {
     notifyListeners();
   }
   
+  /// Closes the current connection and cleans up active subscriptions/channels, but preserves callbacks/configs.
+  Future<void> _closeConnectionOnly() async {
+    debugPrint('WS: Closing connection only, keeping callbacks...');
+    
+    // Cancel subscriptions
+    for (final sub in _eventSubscriptions.values) {
+      if (sub is List) {
+        for (final item in sub) {
+          if (item is StreamSubscription) {
+            await item.cancel();
+          }
+        }
+      } else if (sub is StreamSubscription) {
+        await sub.cancel();
+      }
+    }
+    _eventSubscriptions.clear();
+    _activeChannels.clear();
+
+    if (_statusSubscription != null) {
+      await _statusSubscription!.cancel();
+      _statusSubscription = null;
+    }
+
+    if (_client != null) {
+      await _client!.disconnect();
+      _client = null;
+    }
+    
+    _isConnected = false;
+    notifyListeners();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    debugPrint('WS AppLifecycleState changed to: $state');
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      debugPrint('WS: App backgrounded, closing connection to save battery...');
+      _closeConnectionOnly();
+    } else if (state == AppLifecycleState.resumed) {
+      debugPrint('WS: App resumed, checking connection status...');
+      
+      final bool hasActiveSubscriptions = _onAdminMaintenanceCallback != null ||
+          _tenantId != null ||
+          _adminChatId != null ||
+          _tenantChatId != null ||
+          _conversationId != null;
+
+      if (hasActiveSubscriptions) {
+        debugPrint('WS: App resumed with active subscriptions. Reconnecting...');
+        _debugStreamController.add('Ứng dụng hoạt động trở lại, đang kết nối lại WebSocket...');
+        connect();
+      }
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     disconnect();
     _notificationStreamController.close();
     _debugStreamController.close();

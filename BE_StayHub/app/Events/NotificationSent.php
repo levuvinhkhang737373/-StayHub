@@ -13,8 +13,6 @@ class NotificationSent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public string $connection = 'redis';
-
     public $notification;
 
     public function __construct(Notification $notification)
@@ -26,7 +24,7 @@ class NotificationSent implements ShouldBroadcast
     {
         $channels = [];
 
-        if ($this->notification->target_type === Notification::TARGET_TYPE_ADMIN) {
+        if ((int) $this->notification->target_type === Notification::TARGET_TYPE_ADMIN) {
             if ($this->notification->notification_type !== Notification::NOTIFICATION_TYPE_CHAT) {
                 $channels[] = new PrivateChannel('admin-maintenance');
             }
@@ -38,9 +36,9 @@ class NotificationSent implements ShouldBroadcast
             return $channels;
         }
 
-        if ($this->notification->target_type === Notification::TARGET_TYPE_TENANT) {
+        if ((int) $this->notification->target_type === Notification::TARGET_TYPE_TENANT) {
             $channels[] = new PrivateChannel('tenant.' . $this->notification->tenant_id);
-        } elseif ($this->notification->target_type === Notification::TARGET_TYPE_ROOM) {
+        } elseif ((int) $this->notification->target_type === Notification::TARGET_TYPE_ROOM) {
             // Tìm tất cả khách thuê thuộc phòng đó thông qua hợp đồng đang hiệu lực
             $tenantIds = \App\Models\Tenant::query()
                 ->whereHas('contracts', function ($q) {
@@ -53,7 +51,7 @@ class NotificationSent implements ShouldBroadcast
             foreach ($tenantIds as $id) {
                 $channels[] = new PrivateChannel('tenant.' . $id);
             }
-        } elseif ($this->notification->target_type === Notification::TARGET_TYPE_BUILDING) {
+        } elseif ((int) $this->notification->target_type === Notification::TARGET_TYPE_BUILDING) {
             // Tìm tất cả khách thuê thuộc tòa nhà đó
             $tenantIds = \App\Models\Tenant::query()
                 ->where('building_id', $this->notification->building_id)

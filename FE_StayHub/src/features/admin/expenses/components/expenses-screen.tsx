@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { Banknote, Building2, CalendarDays, DoorOpen, Edit3, Eye, ImageIcon, Plus, ReceiptText, Search, Trash2, UploadCloud, WalletCards, X, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import type { AdminSelectOption } from '../../shared/components/AdminSelect'
-import { formatCurrency, formatDate } from '../../../../shared/lib/utils/format'
+import { formatCurrency, formatDate, formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
@@ -278,7 +278,7 @@ export function ExpensesScreen() {
       room_id: expense.room_id ? String(expense.room_id) : '',
       expense_category_id: expense.expense_category_id ? String(expense.expense_category_id) : '',
       title: expense.title || '',
-      amount: expense.amount || '',
+      amount: formatMoneyInput(String(expense.amount || '')),
       expense_date: expense.expense_date || todayString(),
       payment_method: String(expense.payment_method || 1),
       note: expense.note || '',
@@ -330,12 +330,13 @@ export function ExpensesScreen() {
 
   const validateForm = () => {
     const errors: Record<string, string> = {}
-    const amount = Number(form.amount)
+    const parsedAmountString = parseMoneyInput(form.amount.trim())
+    const amount = Number(parsedAmountString)
 
     if (!form.building_id) errors.building_id = 'Vui lòng chọn tòa nhà.'
     if (!form.title.trim()) errors.title = 'Vui lòng nhập tiêu đề phiếu chi.'
     if (!form.amount.trim() || Number.isNaN(amount) || amount <= 0) errors.amount = 'Số tiền VNĐ phải lớn hơn 0.'
-    if (!/^\d+(\.\d{1,2})?$/.test(form.amount.trim())) errors.amount = 'Số tiền dùng decimal, tối đa 2 chữ số thập phân.'
+    if (!/^\d+$/.test(parsedAmountString)) errors.amount = 'Số tiền phải là số nguyên hợp lệ.'
     if (!form.expense_date) errors.expense_date = 'Vui lòng chọn ngày chi.'
     if (form.receipt_images.length + ((editingExpense?.receipt_images || []).length - form.deleted_receipt_images.length) > 10) errors.receipt_images = 'Tối đa 10 ảnh chứng từ cho một phiếu chi.'
 
@@ -354,7 +355,7 @@ export function ExpensesScreen() {
       room_id: form.room_id ? Number(form.room_id) : null,
       expense_category_id: form.expense_category_id ? Number(form.expense_category_id) : null,
       title: form.title.trim(),
-      amount: form.amount.trim(),
+      amount: parseMoneyInput(form.amount.trim()),
       expense_date: form.expense_date,
       payment_method: Number(form.payment_method || 1),
       note: form.note.trim() || null,
@@ -581,7 +582,7 @@ export function ExpensesScreen() {
               </div>
               <FormField label="Tiêu đề" error={formErrors.title}><input value={form.title} onChange={(event) => updateForm('title', event.target.value)} className={inputClass} placeholder="VD: Sửa máy lạnh phòng A101" /></FormField>
               <div className="grid gap-3 sm:grid-cols-2">
-                <FormField label="Số tiền VNĐ" error={formErrors.amount}><input value={form.amount} onChange={(event) => updateForm('amount', event.target.value)} inputMode="decimal" className={inputClass} placeholder="650000.00" /></FormField>
+                <FormField label="Số tiền VNĐ" error={formErrors.amount}><input value={form.amount} onChange={(event) => updateForm('amount', formatMoneyInput(event.target.value))} inputMode="numeric" className={inputClass} placeholder="650.000" /></FormField>
                 <FormField label="Ngày chi" error={formErrors.expense_date}><AdminDateInput value={form.expense_date} onChange={(value) => updateForm('expense_date', value)} className={inputClass} /></FormField>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -608,7 +609,7 @@ export function ExpensesScreen() {
 
               <div className="rounded-2xl bg-[#24170d] p-4 text-[#fff4df]">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]">Tạm tính</p>
-                <p className="mt-2 text-2xl font-black tabular-nums">{formatCurrency(form.amount || 0)}</p>
+                <p className="mt-2 text-2xl font-black tabular-nums">{formatCurrency(parseMoneyInput(form.amount || '0'))}</p>
               </div>
             </div>
           </div>
