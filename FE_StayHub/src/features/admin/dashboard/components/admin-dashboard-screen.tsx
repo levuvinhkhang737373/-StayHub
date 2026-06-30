@@ -937,7 +937,7 @@ export function AdminDashboardScreen() {
         </ChartCard>
       </div>
 
-      <ChartCard title="Chi tiền theo kỳ lọc" description="Theo dõi tổng tiền chi theo tháng và nhóm danh mục chi phí.">
+      <ChartCard title="Chi tiền theo kỳ" description="Theo dõi tổng tiền chi theo tháng và nhóm danh mục chi phí.">
         <ExpenseChart chart={overview.expense_chart} />
       </ChartCard>
 

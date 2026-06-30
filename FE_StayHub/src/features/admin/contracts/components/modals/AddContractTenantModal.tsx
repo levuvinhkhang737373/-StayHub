@@ -132,9 +132,7 @@ export function AddContractTenantModal({
                     <Users className="h-8 w-8" />
                   </div>
                   <p className="text-base font-black text-[#24170d]">Không còn khách thuê phù hợp</p>
-                  <p className="mt-2 max-w-sm text-sm font-semibold leading-6 text-[#6f6254]">
-                    Danh sách chỉ lấy khách thuê thuộc đúng tòa nhà, còn hoạt động, chưa ở hợp đồng hiệu lực khác và chưa có trong hợp đồng này.
-                  </p>
+
                 </div>
               )}
 
@@ -205,9 +203,7 @@ export function AddContractTenantModal({
                 </div>
               </div>
 
-              <div className="rounded-[1.5rem] border border-[#0f766e]/15 bg-[#0f766e]/8 p-4 text-xs font-bold leading-6 text-[#0f5f59]">
-                Hệ thống sẽ tự kiểm tra quyền tòa nhà, giới tính theo chính sách tòa, khách đang ở hợp đồng khác, thời hạn hợp đồng và sức chứa phòng trước khi thêm.
-              </div>
+
 
               <div className="flex flex-col-reverse gap-3 sm:flex-row lg:flex-col-reverse">
                 <button type="button" onClick={onCancel} className="h-12 rounded-2xl border border-[#3d2a18]/10 bg-white px-5 text-sm font-black text-[#8b5e34] transition hover:bg-[#fffaf1]">

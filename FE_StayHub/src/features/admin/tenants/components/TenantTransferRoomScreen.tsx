@@ -703,7 +703,7 @@ export function TenantTransferRoomScreen() {
                     {currentContractCode ? ` · Hợp đồng: ${currentContractCode}` : ''}
                   </p>
                 </div>
-                
+
                 <div className="flex flex-col gap-1 items-end text-right">
                   <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Ngày chuyển dự kiến</span>
                   <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#0f5f59] bg-[#0f766e]/10 border border-[#0f766e]/15 px-3 py-1.5 rounded-full">
@@ -838,8 +838,8 @@ export function TenantTransferRoomScreen() {
                 const checked = selectedRoom?.id === room.id
                 const isOccupied = room.current_occupants > 0
                 const statusLabel = isOccupied ? 'Ghép phòng' : 'Phòng trống'
-                const statusColor = isOccupied 
-                  ? 'border-amber-200 bg-amber-50 text-amber-800' 
+                const statusColor = isOccupied
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
                   : 'border-emerald-200 bg-emerald-50 text-emerald-800'
 
                 return (
@@ -864,7 +864,7 @@ export function TenantTransferRoomScreen() {
                           {room.building?.name || room.building_name || `Tòa nhà #${room.building_id}`}
                         </p>
                       </div>
-                      
+
                       <span className={cn('flex h-5 w-5 items-center justify-center rounded-full border transition-colors duration-200', checked ? 'border-[#0f766e] bg-[#0f766e] text-white' : 'border-[#3d2a18]/25 bg-white')}>
                         {checked && <CheckCircle2 className="h-3 w-3" />}
                       </span>
@@ -908,7 +908,7 @@ export function TenantTransferRoomScreen() {
                 <p className="text-xs font-black text-[#6f6254]">
                   Hiển thị <span className="tabular-nums text-[#24170d]">{roomPaginationStart}</span>-<span className="tabular-nums text-[#24170d]">{roomPaginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalRoomsCount}</span> phòng
                 </p>
-                
+
                 <div className="flex items-center justify-end gap-1.5">
                   <button
                     type="button"
@@ -919,7 +919,7 @@ export function TenantTransferRoomScreen() {
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
                   </button>
-                  
+
                   {visibleRoomPages.map((page, index) => {
                     const previousPage = visibleRoomPages[index - 1]
                     const hasGap = previousPage && page - previousPage > 1
@@ -972,11 +972,11 @@ export function TenantTransferRoomScreen() {
             <div className="mt-5 space-y-3">
               <SummaryLine label="Số khách chuyển" value={`${selectedTenantIds.length} người`} />
               <SummaryLine label="Ngày thực thi" value={effectiveMovementDate} />
-              
+
               <hr className="border-[#3d2a18]/8" />
-              
+
               <SummaryLine label="Cọc gốc hiện tại" value={formatCurrency(oldDepositBalance)} />
-              
+
               <div className="flex flex-col gap-2 rounded-2xl border border-[#3d2a18]/8 bg-[#fffaf1]/50 p-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/65">Chi phí phát sinh</p>
                 <div className="mt-1 space-y-2">
@@ -993,7 +993,7 @@ export function TenantTransferRoomScreen() {
 
               <SummaryLine label="Cọc khả dụng còn lại" value={formatCurrency(availableAfterCosts)} accent={availableAfterCosts > 0} />
               <SummaryLine label="Cọc áp dụng phòng mới" value={formatCurrency(depositAppliedToNewRoom)} />
-              
+
               <hr className="border-[#3d2a18]/8" />
 
               {/* Outstanding payment or Refund Highlight */}
@@ -1101,7 +1101,6 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
                 <Users className="h-8 w-8 text-[#f3c56b] shrink-0" />
                 Bắt đầu lịch chuyển phòng
               </h1>
-              <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Tìm kiếm và lựa chọn khách thuê có nhu cầu chuyển đổi sang phòng mới.</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[28rem] xl:grid-cols-2">
