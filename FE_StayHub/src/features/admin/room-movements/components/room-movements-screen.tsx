@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { AlertTriangle, ArrowDown, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -250,17 +250,12 @@ export function RoomMovementsScreen() {
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
             <div className="relative grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
               <div>
-                <Link to="/admin/tenants" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Khách thuê & hợp đồng
-                </Link>
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#f3c56b] shadow-xl shadow-black/15">
-                    <History className="h-6 w-6" />
-                  </span>
-                  <div>
-                    <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Lịch sử phòng & cọc</h1>
-                  </div>
-                </div>
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">KHÁCH THUÊ & HỢP ĐỒNG</span>
+                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                  <History className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                  Lịch sử phòng & cọc
+                </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Theo dõi biến động dòng tiền đặt cọc và nhật ký nhận/trả phòng của khách thuê.</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

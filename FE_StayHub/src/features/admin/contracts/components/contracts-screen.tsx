@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft,
   Building2,
   CalendarDays,
   CalendarPlus,
@@ -538,16 +537,16 @@ export function ContractsScreen() {
   return (
     <section className="space-y-5 sm:space-y-6 text-[#24170d]">
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-        <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
+        <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
           <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-              </Link>
-              <h1 className="mt-3 flex items-center gap-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">
-                <FileText className="h-9 w-9 text-[#f3c56b]" /> Quản lý hợp đồng
-              </h1>
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">KHÁCH THUÊ & HỢP ĐỒNG</span>
+                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                  <FileText className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                  Quản lý hợp đồng
+                </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Tạo mới, gia hạn và theo dõi các hợp đồng thuê phòng của khách hàng.</p>
             </div>
             <button
               type="button"
@@ -639,9 +638,9 @@ export function ContractsScreen() {
                 <tr>
                   <th className="px-5 py-4">Hợp đồng</th>
                   <th className="px-5 py-4">Phòng / Tòa nhà</th>
-                  <th className="px-5 py-4">Thời hạn</th>
+                  <th className="px-5 py-4 text-center">Thời hạn</th>
                   <th className="px-5 py-4">Giá / Cọc</th>
-                  <th className="px-5 py-4 text-center">Dữ liệu</th>
+                  <th className="px-5 py-4 text-center">Khách & Xe</th>
                   <th className="px-5 py-4 text-center">Trạng thái</th>
                   <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[232px] text-center">Thao tác</div></div></th>
                 </tr>
@@ -671,11 +670,13 @@ export function ContractsScreen() {
                           <p className="text-[#24170d]">Phòng {contract.room_number || contract.room_code || contract.room_id}</p>
                         </div>
                       </td>
-                      <td className="px-5 py-4">
-                        <p className="flex items-center gap-1.5 text-xs font-black text-[#0f5f59]">
-                          <CalendarDays className="h-4 w-4" /> {formatDate(contract.start_date)} → {formatDate(contract.end_date)}
-                        </p>
-                        {contract.actual_end_date && <p className="mt-1 text-xs font-bold text-rose-600">KT thực tế: {formatDate(contract.actual_end_date)}</p>}
+                      <td className="px-5 py-4 text-center">
+                        <div className="inline-flex flex-col items-center">
+                          <p className="flex items-center gap-1.5 text-xs font-black text-[#0f5f59]">
+                            <CalendarDays className="h-4 w-4" /> {formatDate(contract.start_date)} → {formatDate(contract.end_date)}
+                          </p>
+                          {contract.actual_end_date && <p className="mt-1 text-xs font-bold text-rose-600">KT thực tế: {formatDate(contract.actual_end_date)}</p>}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-xs font-black text-[#24170d]">{formatCurrency(contract.room_price)}</p>

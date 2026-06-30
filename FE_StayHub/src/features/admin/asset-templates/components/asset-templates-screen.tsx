@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, Boxes, ChevronLeft, ChevronRight, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
+import { Boxes, ChevronLeft, ChevronRight, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
 import { AssetTemplateModal } from './asset-template-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -241,25 +240,25 @@ export function AssetTemplatesScreen() {
       <>
       <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-3 text-[#fff4df] sm:p-4">
+          <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
             <div className="relative flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
-                <Link to="/admin/dashboard" className="mb-1 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-                </Link>
-                <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
-                </div>
-                <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-[1.7rem] lg:text-3xl">Mẫu tài sản</h1>
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">QUẢN LÝ LƯU TRÚ</span>
+                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                  <Boxes className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                  Mẫu tài sản
+                </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Quản lý danh mục thiết bị, vật tư và tài sản mẫu bàn giao cho từng phòng trọ.</p>
               </div>
               <button type="button" onClick={openCreateForm} className="inline-flex h-9 w-fit self-end lg:self-auto items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
-                <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm mẫu mới
+                <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm mẫu tài sản
               </button>
             </div>
 
-            <div className="relative mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <MetricCard label="Tổng mẫu" value={allAssetTemplates.length} tone="neutral" />
-              <MetricCard label="Hoạt động" value={activeAssetTemplates} tone="emerald" />
+            <div className="relative mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <MetricCard label="Tổng số mẫu" value={allAssetTemplates.length} tone="neutral" />
+              <MetricCard label="Đang hoạt động" value={activeAssetTemplates} tone="emerald" />
             </div>
           </div>
         </div>
@@ -291,9 +290,9 @@ export function AssetTemplatesScreen() {
               <table className="min-w-[880px] w-full text-left">
                 <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                   <tr>
-                    <th className="px-5 py-4">Mẫu tài sản</th>
+                    <th className="px-5 py-4">Tên tài sản</th>
                     <th className="px-5 py-4 text-center">Đơn vị</th>
-                    <th className="px-5 py-4 text-center">Đang gán</th>
+                    <th className="px-5 py-4 text-center">Số lượng đang dùng</th>
                     <th className="px-5 py-4 text-center">Trạng thái</th>
                     <th className="px-5 py-4 w-[190px]"><div className="flex justify-end"><div className="w-[190px] text-center">Thao tác</div></div></th>
                   </tr>
@@ -405,8 +404,8 @@ export function AssetTemplatesScreen() {
             <div className="bg-[#24170d] p-5 text-[#fff4df]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Asset template detail</p>
-                  <h2 className="mt-2 text-2xl font-black tracking-tight">{detailAssetTemplate?.name || 'Đang tải chi tiết...'}</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Chi tiết mẫu tài sản</p>
+                  <h2 id="asset-modal-title" className="mt-2 text-2xl font-black tracking-tight">{detailAssetTemplate?.name || 'Đang tải chi tiết...'}</h2>
                 </div>
                 <button type="button" onClick={closeAssetTemplateDetail} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20">
                   <X className="h-5 w-5" />
@@ -420,7 +419,7 @@ export function AssetTemplatesScreen() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <DetailTile label="Đơn vị" value={detailAssetTemplate?.default_unit_label || unitLabels[Number(detailAssetTemplate?.default_unit_name || 1)]} />
-                <DetailTile label="Đang gán" value={detailAssetTemplate?.room_assets_count ?? 0} />
+                <DetailTile label="Đang sử dụng" value={detailAssetTemplate?.room_assets_count ?? 0} />
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

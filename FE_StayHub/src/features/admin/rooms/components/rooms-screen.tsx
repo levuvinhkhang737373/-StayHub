@@ -3,7 +3,7 @@ import { cn } from '../../../../shared/lib/utils/cn'
 import type { AdminRoomResource } from '../types/rooms.model'
 import { createPortal } from 'react-dom'
 import { deleteAdminRoom, fetchAdminRoomDetail, fetchAdminRooms, updateAdminRoomStatus, fetchBuilding, fetchRoomType } from '../services/rooms.service'
-import { Eye, Trash2, Pencil, PackageOpen, Plus, Search, X, Power, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Eye, Trash2, Pencil, PackageOpen, Plus, Search, X, Power, ChevronLeft, ChevronRight, DoorOpen } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAdminSession } from '../../auth/hooks/admin-session-store'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -195,11 +195,12 @@ export function RoomsScreen() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
           <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
-              <div className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
-                <span>StayHub</span>
-              </div>
-              <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-3xl lg:text-4xl">Quản lý Phòng</h1>
-              <p className="mt-1 text-xs font-semibold text-[#f8e8c8]/70">Xem danh sách, cập nhật trạng thái và thông tin chi tiết các phòng trọ.</p>
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">QUẢN LÝ LƯU TRÚ</span>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                <DoorOpen className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                Quản lý phòng
+              </h1>
+              <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Xem danh sách, cập nhật trạng thái và thông tin chi tiết các phòng trọ.</p>
             </div>
             
             {isSuperAdmin && (

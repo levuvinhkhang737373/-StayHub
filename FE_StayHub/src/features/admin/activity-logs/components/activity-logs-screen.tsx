@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ChevronLeft, ChevronRight, Clock3, Eye, History, Network, Search, ShieldCheck, UserRound, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock3, Eye, History, Network, Search, ShieldCheck, UserRound, X } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
@@ -254,16 +254,18 @@ export function ActivityLogsScreen() {
     <>
       <section className="space-y-5 text-[#24170d] sm:space-y-6">
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-4 text-[#fff4df] sm:p-6 lg:p-7">
+          <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(243,197,107,0.30),transparent_31%),radial-gradient(circle_at_78%_10%,rgba(15,118,110,0.30),transparent_34%),linear-gradient(135deg,#24170d_0%,#4a2b14_48%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
 
             <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
-                <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-                </Link>
-                <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Nhật ký thao tác admin</h1>
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">HỆ THỐNG</span>
+                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                  <History className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                  Nhật ký admin
+                </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Ghi vết lịch sử thao tác của các tài khoản quản trị viên trên hệ thống.</p>
               </div>
 
             </div>
@@ -363,7 +365,7 @@ function ActivityLogRow({ log, onView }: { log: AdminActivityLogResource; onView
   const adminSubText = log.admin?.role_label || log.admin?.email || log.admin?.username || 'Không còn tài khoản'
 
   return (
-    <tr className="align-top transition hover:bg-[#fff8eb]">
+    <tr className="align-middle transition hover:bg-[#fff8eb]">
       <td className="px-4 py-4 tabular-nums"><span className="inline-flex items-center gap-2 font-black text-[#24170d]"><Clock3 className="h-4 w-4 text-[#a65f16]" />{formatDateTime(log.created_at)}</span></td>
       <td className="px-4 py-4"><p className="font-black text-[#24170d]">{adminName}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{adminSubText}</p></td>
       <td className="px-4 py-4 text-center"><ActionBadge action={log.action} /></td>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Banknote, Building2, CalendarDays, DoorOpen, Edit3, Eye, ImageIcon, Plus, ReceiptText, Search, Trash2, UploadCloud, WalletCards, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Banknote, Building2, CalendarDays, DoorOpen, Edit3, Eye, ImageIcon, Plus, ReceiptText, Search, Trash2, UploadCloud, WalletCards, X, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import type { AdminSelectOption } from '../../shared/components/AdminSelect'
 import { formatCurrency, formatDate } from '../../../../shared/lib/utils/format'
@@ -252,7 +252,7 @@ export function ExpensesScreen() {
     }
   }, [selectedBuildingId, selectedRoomId, visibleRooms])
 
-  const updateForm = (key: keyof ExpenseFormValues, value: string | File[] | string[]) => {
+  const updateForm = <K extends keyof ExpenseFormValues>(key: K, value: ExpenseFormValues[K]) => {
     setForm((current) => {
       const next = { ...current, [key]: value }
       if (key === 'building_id') next.room_id = ''
@@ -419,16 +419,18 @@ export function ExpensesScreen() {
     <>
       <section className="space-y-5 text-[#24170d] sm:space-y-6">
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-4 text-[#fff4df] sm:p-6 xl:p-7">
+          <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(243,197,107,0.30),transparent_31%),radial-gradient(circle_at_78%_10%,rgba(15,118,110,0.30),transparent_34%),linear-gradient(135deg,#24170d_0%,#4a2b14_48%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
 
             <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
-                <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-                </Link>
-                <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">Phiếu chi</h1>
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">TÀI CHÍNH & BÁO CÁO</span>
+                  <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                    <CreditCard className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                    Quản lý phiếu chi
+                  </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Ghi nhận, quản lý và theo dõi các khoản chi phí vận hành tòa nhà.</p>
               </div>
               <button type="button" onClick={openCreateForm} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 w-fit self-end lg:self-auto whitespace-nowrap rounded-xl bg-[#f3c56b] px-5 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Lập phiếu chi
@@ -477,33 +479,58 @@ export function ExpensesScreen() {
             <table className="w-full min-w-[1080px] text-left text-sm">
               <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
-                  <th className="px-4 py-3">Mã phiếu</th>
-                  <th className="px-4 py-3">Khoản chi</th>
-                  <th className="px-4 py-3">Tòa / phòng</th>
-                  <th className="px-4 py-3">Danh mục</th>
-                  <th className="px-4 py-3 text-right">Số tiền</th>
-                  <th className="px-4 py-3">Ngày chi</th>
-                  <th className="px-4 py-3">Trạng thái</th>
-                  <th className="px-4 py-3 w-[120px]"><div className="flex justify-end"><div className="w-[120px] text-center">Thao tác</div></div></th>
+                  <th className="px-5 py-4">Mã phiếu</th>
+                  <th className="px-5 py-4">Khoản chi</th>
+                  <th className="px-5 py-4">Tòa / phòng</th>
+                  <th className="px-5 py-4 text-center">Danh mục</th>
+                  <th className="px-5 py-4 text-center">Số tiền</th>
+                  <th className="px-5 py-4 text-center">Ngày chi</th>
+                  <th className="px-5 py-4 text-center">Trạng thái</th>
+                  <th className="px-5 py-4 w-[180px] text-center">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#3d2a18]/8 bg-white/45">
-                {isLoading && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm font-black text-[#8b5e34]">Đang tải danh sách phiếu chi...</td></tr>}
-                {!isLoading && expenses.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm font-black text-[#8b5e34]">Chưa có phiếu chi phù hợp.</td></tr>}
+              <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
+                {isLoading && Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={index}>
+                    <td colSpan={8} className="px-5 py-4"><div className="h-14 animate-pulse rounded-2xl bg-[#efe2cf]/45" /></td>
+                  </tr>
+                ))}
+
+                {!isLoading && expenses.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-5 py-20 text-center">
+                      <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-white/55 px-6 py-8">
+                        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><ReceiptText className="h-9 w-9" /></div>
+                        <p className="text-lg font-black tracking-tight text-[#24170d]">Không tìm thấy phiếu chi</p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">{hasActiveFilters ? 'Thử xóa bộ lọc hoặc đổi từ khóa tìm kiếm.' : 'Hãy lập phiếu chi đầu tiên.'}</p>
+                        {hasActiveFilters && (
+                          <button type="button" onClick={clearFilters} className="mt-4 inline-flex h-10 items-center justify-center rounded-2xl bg-[#24170d] px-4 text-xs font-black text-[#fff4df] transition hover:bg-[#3d2a18]">
+                            Xóa bộ lọc
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
                 {!isLoading && expenses.map((expense) => (
-                  <tr key={expense.id} className="align-top transition hover:bg-[#fff8eb]">
-                    <td className="px-4 py-4"><p className="font-black text-[#24170d]">{expense.expense_code}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{expense.payment_method_label || '—'}</p></td>
-                    <td className="px-4 py-4"><p className="font-black text-[#24170d]">{expense.title}</p><p className="mt-1 line-clamp-1 text-xs font-bold text-[#8b5e34]/75">{expense.note || 'Không có ghi chú'}</p></td>
-                    <td className="px-4 py-4"><p className="font-black text-[#24170d]">{getExpenseBuildingName(expense)}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{getExpenseRoomName(expense)}</p></td>
-                    <td className="px-4 py-4 text-xs font-black text-[#8b5e34]">{getExpenseCategoryName(expense)}</td>
-                    <td className="px-4 py-4 text-right font-black tabular-nums text-[#0f5f59]">{expense.amount_formatted || formatCurrency(expense.amount)}</td>
-                    <td className="px-4 py-4 text-xs font-black text-[#6f6254]">{formatDate(expense.expense_date)}</td>
-                    <td className="px-4 py-4"><StatusBadge status={expense.status} label={expense.status_label} /></td>
-                    <td className="px-4 py-4">
-                      <div className="flex justify-end gap-2">
-                        <IconButton title="Xem chi tiết" success onClick={() => void viewExpense(expense)}><Eye className="h-4 w-4" /></IconButton>
-                        <IconButton title="Sửa phiếu" disabled={Number(expense.status) === 2} onClick={() => editExpense(expense)}><Edit3 className="h-4 w-4" /></IconButton>
-                        <IconButton title="Hủy phiếu" danger disabled={Number(expense.status) === 2 || cancellingId === expense.id} onClick={() => void cancelExpense(expense)}><Trash2 className="h-4 w-4" /></IconButton>
+                  <tr key={expense.id} className="align-middle transition hover:bg-[#f3c56b]/10 group">
+                    <td className="px-5 py-4"><p className="font-black text-[#24170d]">{expense.expense_code}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{expense.payment_method_label || '—'}</p></td>
+                    <td className="px-5 py-4"><p className="font-black text-[#24170d]">{expense.title}</p><p className="mt-1 line-clamp-1 text-xs font-bold text-[#8b5e34]/75">{expense.note || 'Không có ghi chú'}</p></td>
+                    <td className="px-5 py-4"><p className="font-black text-[#24170d]">{getExpenseBuildingName(expense)}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{getExpenseRoomName(expense)}</p></td>
+                    <td className="px-5 py-4 text-xs font-black text-[#8b5e34] text-center">{getExpenseCategoryName(expense)}</td>
+                    <td className="px-5 py-4 font-black tabular-nums text-[#24170d] text-center">{expense.amount_formatted || formatCurrency(expense.amount)}</td>
+                    <td className="px-5 py-4 text-center">
+                      <div className="inline-flex items-center gap-1.5 text-xs font-black text-[#0f5f59]">
+                        <CalendarDays className="h-4 w-4" /> {formatDate(expense.expense_date)}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-center"><StatusBadge status={expense.status} label={expense.status_label} /></td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-center gap-2">
+                        <IconButton title="Xem chi tiết" success onClick={() => void viewExpense(expense)}><Eye className="h-5 w-5" /></IconButton>
+                        <IconButton title="Sửa phiếu" disabled={Number(expense.status) === 2} onClick={() => editExpense(expense)}><Edit3 className="h-5 w-5" /></IconButton>
+                        <IconButton title="Hủy phiếu" danger disabled={Number(expense.status) === 2 || cancellingId === expense.id} onClick={() => void cancelExpense(expense)}><Trash2 className="h-5 w-5" /></IconButton>
                       </div>
                     </td>
                   </tr>
@@ -636,14 +663,14 @@ export function ExpensesScreen() {
 
 function MetricCard({ icon, label, value, tone = 'neutral' }: { icon: ReactNode; label: string; value: ReactNode; tone?: 'neutral' | 'emerald' | 'rose' | 'amber' }) {
   const toneClasses = {
-    neutral: 'bg-white/10 text-[#fff4df]',
-    emerald: 'bg-emerald-300/12 text-emerald-100',
-    rose: 'bg-rose-300/12 text-rose-100',
-    amber: 'bg-[#f3c56b]/14 text-[#ffe2a3]',
+    neutral: 'border-[#f8e8c8]/12 bg-[#f8e8c8]/10 text-[#fff4df]',
+    emerald: 'border-[#0f766e]/35 bg-[#0f766e]/16 text-[#c8fff4]',
+    rose: 'border-rose-300/35 bg-rose-300/16 text-[#fff4df]',
+    amber: 'border-[#f3c56b]/35 bg-[#f3c56b]/18 text-[#fff4df]',
   }
 
   return (
-    <div className={cn('flex h-full min-h-[6.75rem] min-w-0 flex-col rounded-[1.45rem] border border-white/12 p-4 shadow-lg shadow-black/5 backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white/12', toneClasses[tone])}>
+    <div className={cn('flex h-full min-h-[6.75rem] min-w-0 flex-col rounded-[1.45rem] border p-4 shadow-lg shadow-black/5 backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white/12', toneClasses[tone])}>
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/12 text-[#f3c56b]">{icon}</div>
         <p className="min-w-0 whitespace-nowrap text-[10px] font-black uppercase leading-none tracking-[0.14em] opacity-75">{label}</p>
@@ -655,7 +682,15 @@ function MetricCard({ icon, label, value, tone = 'neutral' }: { icon: ReactNode;
 
 function StatusBadge({ status, label }: { status: number; label?: string | null }) {
   const isCancelled = Number(status) === 2
-  return <span className={cn('inline-flex rounded-full px-3 py-1 text-xs font-black', isCancelled ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700')}>{label || (isCancelled ? 'Đã hủy' : 'Đã ghi nhận')}</span>
+  const className = isCancelled
+    ? 'border-rose-200 bg-rose-50 text-rose-700'
+    : 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]'
+
+  return (
+    <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', className)}>
+      {label || (isCancelled ? 'Đã hủy' : 'Đã ghi nhận')}
+    </span>
+  )
 }
 
 function IconButton({

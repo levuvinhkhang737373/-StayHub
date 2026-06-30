@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft,
   Banknote,
   Building2,
   CalendarDays,
@@ -314,16 +313,16 @@ export function InvoicesScreen() {
   return (
     <section className="space-y-5 sm:space-y-6 text-[#24170d]">
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-        <div className="relative p-4 text-[#fff4df] sm:p-5 lg:p-6">
+        <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
           <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <Link to="/admin/dashboard" className="mb-2 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-              </Link>
-              <h1 className="mt-3 flex items-center gap-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem]">
-                <Receipt className="h-9 w-9 text-[#f3c56b]" /> Quản lý hóa đơn
-              </h1>
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">TÀI CHÍNH & BÁO CÁO</span>
+                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                  <Receipt className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                  Hóa đơn
+                </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Lập hóa đơn thanh toán hàng tháng, ghi nhận công nợ và trạng thái thanh toán.</p>
             </div>
             <button
               type="button"

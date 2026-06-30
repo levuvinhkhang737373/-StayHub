@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Edit3, Eye, Plus, RefreshCw, Search, Settings, Trash2, X, Power } from 'lucide-react'
+import { Edit3, Eye, Plus, RefreshCw, Search, Settings, Trash2, X, Power } from 'lucide-react'
 import { formatDate } from '../../../../shared/lib/utils/format'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
@@ -300,15 +300,16 @@ export function SettingsScreen() {
       <>
       <section className="space-y-5 sm:space-y-6 text-[#24170d]">
         <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
-          <div className="relative p-3 text-[#fff4df] sm:p-4">
+          <div className="relative p-5 text-[#fff4df] sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(243,197,107,0.24),transparent_30%),radial-gradient(circle_at_82%_16%,rgba(15,118,110,0.22),transparent_32%),linear-gradient(135deg,#24170d_0%,#3d2a18_54%,#0f3f3b_100%)]" />
             <div className="relative flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
-                <Link to="/admin/dashboard" className="mb-1 inline-flex items-center gap-2 text-xs font-black text-[#f3c56b] transition hover:text-[#ffd56f]">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Về dashboard
-                </Link>
-              
-                <h1 className="max-w-3xl text-2xl font-black tracking-[-0.04em] text-[#fff4df] sm:text-[1.7rem] lg:text-3xl">Cài đặt tòa nhà</h1>
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">HỆ THỐNG</span>
+                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                  <Settings className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                  Cài đặt tòa nhà
+                </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Thiết lập thông tin chung, quy định và cấu hình vận hành tòa nhà.</p>
               </div>
               <button type="button" disabled={!hasManagedBuildings} onClick={openCreateForm} className="inline-flex w-fit self-end xl:self-auto h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55">
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm cài đặt

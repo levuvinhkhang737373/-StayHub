@@ -169,17 +169,12 @@ export function FinancialsScreen() {
           <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <Link to="/admin" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b] transition hover:text-[#ffd56f]">
-                <ArrowLeft className="h-3.5 w-3.5" /> Tổng quan
-              </Link>
-              <div className="mt-3 flex items-center gap-3">
-                <span className="inline-flex h-12 w-12 items-center justify-center rounded-[1.25rem] border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#f3c56b] shadow-xl shadow-black/15">
-                  <BarChart3 className="h-5 w-5" />
-                </span>
-                <div>
-                  <h1 className="text-2xl font-black tracking-[-0.055em] sm:text-3xl">Báo cáo Lợi nhuận</h1>
-                </div>
-              </div>
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">TÀI CHÍNH & BÁO CÁO</span>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                <BarChart3 className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                Báo cáo lợi nhuận
+              </h1>
+                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Báo cáo trực quan tình hình doanh thu, chi phí vận hành và lợi nhuận ròng.</p>
             </div>
             
             <div className="flex flex-wrap gap-3">

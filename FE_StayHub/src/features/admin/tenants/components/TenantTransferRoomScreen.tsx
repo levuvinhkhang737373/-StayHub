@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft,
   ArrowRightLeft,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock3,
-  FileSignature,
   Loader2,
+  Maximize2,
   Plus,
   ReceiptText,
   Search,
@@ -18,6 +16,9 @@ import {
   UserRound,
   Users,
   WalletCards,
+  Wifi,
+  Wind,
+  Bed,
 } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -104,12 +105,33 @@ export function TenantTransferRoomScreen() {
   const [isRoomsLoading, setIsRoomsLoading] = useState(false)
   const [roomKeyword, setRoomKeyword] = useState('')
   const [selectedRoom, setSelectedRoom] = useState<AdminRoomResource | null>(null)
+  const [selectedFloor, setSelectedFloor] = useState('')
+  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState('')
+  const [roomPage, setRoomPage] = useState(1)
+  const roomPerPage = 6
+
+  const floors = useMemo(() => {
+    const uniqueFloors = Array.from(new Set(rooms.map((room) => room.floor).filter((f) => f !== undefined && f !== null)))
+    uniqueFloors.sort((a, b) => Number(a) - Number(b))
+    return uniqueFloors
+  }, [rooms])
+
+  const roomTypes = useMemo(() => {
+    const typeMap = new Map<number, string>()
+    rooms.forEach((room) => {
+      if (room.room_type_id && room.room_type_name) {
+        typeMap.set(room.room_type_id, room.room_type_name)
+      }
+    })
+    return Array.from(typeMap.entries()).map(([id, name]) => ({ id, name }))
+  }, [rooms])
 
   const [selectedTenantIds, setSelectedTenantIds] = useState<number[]>(hasSelectedTenant ? [parsedTenantId] : [])
   const [depositDeductionAmount, setDepositDeductionAmount] = useState('0')
   const [transferFee, setTransferFee] = useState('0')
   const [newDepositAmount, setNewDepositAmount] = useState('')
   const [note, setNote] = useState('')
+  const [movementDate, setMovementDate] = useState(() => nextMonthStartDateString())
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -141,6 +163,10 @@ export function TenantTransferRoomScreen() {
         setLoadError(null)
         setSubmitError(null)
         setFieldErrors({})
+        setMovementDate(nextMonthStartDateString())
+        setSelectedFloor('')
+        setSelectedRoomTypeId('')
+        setRoomPage(1)
         return
       }
 
@@ -356,8 +382,15 @@ export function TenantTransferRoomScreen() {
     ? 0
     : Math.max(requiredNewDeposit - availableAfterCosts, 0)
   const settlementDueAmount = selectedRoom ? depositDueAmount + extraChargeAmount : 0
-  const effectiveMovementDate = nextMonthStartDateString()
-  const destinationRoomCapacity = selectedRoom ? Math.max(0, (selectedRoom.max_occupants || 0) - (selectedRoom.current_occupants || 0)) : 0
+  const effectiveMovementDate = movementDate
+
+  const showRepresentativeWarning = useMemo(() => {
+    const repId = currentContract?.representative_tenant_id
+    if (!repId) return false
+    const isRepSelected = selectedTenantIds.includes(repId)
+    const areSomeTenantsLeft = contractTenants.some((t) => !selectedTenantIds.includes(t.tenantId))
+    return isRepSelected && areSomeTenantsLeft
+  }, [currentContract?.representative_tenant_id, selectedTenantIds, contractTenants])
 
   const tenantBuildingOptions = useMemo(
     () => buildBuildingOptions(mergeBuildingResources(buildings, tenantsToBuildingResources(tenantOptions), roomsToBuildingResources(rooms)), 'Tất cả tòa nhà'),
@@ -369,6 +402,19 @@ export function TenantTransferRoomScreen() {
     [buildings, rooms],
   )
 
+  const floorOptions = useMemo(() => {
+    return [
+      { value: '', label: 'Tất cả các tầng', tone: 'default' as const },
+      ...floors.map((f) => ({ value: String(f), label: `Tầng ${f}`, tone: 'default' as const })),
+    ]
+  }, [floors])
+
+  const roomTypeOptions = useMemo(() => {
+    return [
+      { value: '', label: 'Tất cả loại phòng', tone: 'default' as const },
+      ...roomTypes.map((t) => ({ value: String(t.id), label: t.name, tone: 'default' as const })),
+    ]
+  }, [roomTypes])
   const roomCandidates = useMemo(() => {
     const keyword = roomKeyword.trim().toLowerCase()
 
@@ -376,6 +422,8 @@ export function TenantTransferRoomScreen() {
       .filter((room) => room.status === ROOM_STATUS_ACTIVE)
       .filter((room) => !currentRoomId || room.id !== currentRoomId)
       .filter((room) => !selectedBuildingId || Number(room.building_id) === Number(selectedBuildingId))
+      .filter((room) => !selectedFloor || Number(room.floor) === Number(selectedFloor))
+      .filter((room) => !selectedRoomTypeId || Number(room.room_type_id) === Number(selectedRoomTypeId))
       .filter((room) => !keyword || [room.room_number, room.slug, room.building_name, room.building?.name, room.floor?.toString()].some((value) => String(value ?? '').toLowerCase().includes(keyword)))
       .filter((room) => {
         if (selectedTenantIds.length === 0) return true
@@ -389,7 +437,32 @@ export function TenantTransferRoomScreen() {
         if (leftGap !== rightGap) return rightGap - leftGap
         return String(left.room_number || '').localeCompare(String(right.room_number || ''), 'vi')
       })
-  }, [currentRoomId, roomKeyword, rooms, selectedBuildingId, selectedTenantIds.length, selectedTenantsInfo])
+  }, [currentRoomId, roomKeyword, rooms, selectedBuildingId, selectedFloor, selectedRoomTypeId, selectedTenantIds.length, selectedTenantsInfo])
+
+  useEffect(() => {
+    setRoomPage(1)
+  }, [roomKeyword, selectedBuildingId, selectedFloor, selectedRoomTypeId])
+
+  const totalRoomsCount = roomCandidates.length
+  const totalRoomPages = Math.max(1, Math.ceil(totalRoomsCount / roomPerPage))
+  const roomPaginationStart = totalRoomsCount === 0 ? 0 : (roomPage - 1) * roomPerPage + 1
+  const roomPaginationEnd = Math.min(roomPage * roomPerPage, totalRoomsCount)
+
+  const paginatedRoomCandidates = useMemo(() => {
+    const startIndex = (roomPage - 1) * roomPerPage
+    return roomCandidates.slice(startIndex, startIndex + roomPerPage)
+  }, [roomCandidates, roomPage])
+
+  const visibleRoomPages = useMemo(() => {
+    const pages: number[] = []
+    const range = 2
+    for (let i = 1; i <= totalRoomPages; i++) {
+      if (i === 1 || i === totalRoomPages || Math.abs(i - roomPage) <= range) {
+        pages.push(i)
+      }
+    }
+    return pages
+  }, [totalRoomPages, roomPage])
 
   useEffect(() => {
     if (!selectedRoom) return
@@ -581,162 +654,193 @@ export function TenantTransferRoomScreen() {
 
   return (
     <section className="space-y-6 text-[#24170d] sm:space-y-8">
+      {/* Premium dark header banner */}
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
         <div className="relative overflow-hidden p-5 text-[#fff4df] sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.28),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_50%,#0f3f3b_100%)]" />
           <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/45 to-transparent" />
-          <div className="relative grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
+          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="space-y-4">
-              <Link to="/admin/room-movements" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b] transition hover:text-[#ffd56f]">
-                <ArrowLeft className="h-3.5 w-3.5" /> Lịch sử phòng & cọc
-              </Link>
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#f3c56b] shadow-xl shadow-black/15">
-                  <ArrowRightLeft className="h-6 w-6" />
-                </span>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Luồng chuyển phòng đầu tháng</p>
-                  <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Lên lịch chuyển phòng</h1>
-                </div>
-              </div>
-              <p className="max-w-2xl text-sm font-semibold leading-6 text-[#f8e8c8]/78">
-                {tenant?.full_name || tenant?.username || `Khách thuê #${tenant?.id ?? parsedTenantId}`} ·
-                {' '}
-                chuyển từ {currentRoomNumber ? `phòng ${currentRoomNumber}` : 'phòng hiện tại'}
-                {currentBuildingName ? ` · ${currentBuildingName}` : ''}.
-                {' '}
-                Mọi chuyển phòng chỉ được chốt vào ngày 01 của tháng kế tiếp.
-              </p>
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">KHÁCH THUÊ & HỢP ĐỒNG</span>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.055em] sm:text-4xl lg:text-[2.65rem] text-[#fff4df] flex items-center gap-3">
+                <ArrowRightLeft className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                Lên lịch chuyển phòng
+              </h1>
+              <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Lập kế hoạch di chuyển phòng, tính toán cọc chênh lệch và các chi phí phát sinh.</p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:justify-self-end">
+            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[28rem] xl:grid-cols-3 items-end">
               <MetricCard label="Khách chuyển" value={selectedTenantIds.length} icon={<Users className="h-4 w-4" />} />
               <MetricCard label="Cọc còn lại" value={oldDepositBalance} currency icon={<WalletCards className="h-4 w-4" />} />
-              <MetricCard label="Ngày chốt" value={1} suffix="/tháng" icon={<CalendarDays className="h-4 w-4" />} />
+              <button
+                type="button"
+                onClick={changeTenant}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-3xl border border-[#f3c56b]/25 bg-[#fffaf1]/10 px-4 text-xs font-black uppercase tracking-[0.16em] text-[#f3c56b] hover:bg-[#fffaf1]/18 hover:text-[#ffd56f] transition"
+              >
+                Đổi khách thuê
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      {/* Main 2-column layout */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_24rem] xl:grid-cols-[1fr_26rem]">
+        {/* Left Column (Main forms) */}
         <div className="space-y-6">
-          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Bước 1</p>
-                <h2 className="mt-1 text-xl font-black tracking-[-0.04em] sm:text-2xl">Chọn khách thuê tham gia chuyển phòng</h2>
-                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[#6f6254]">
-                  Có thể chuyển một người, người đại diện hoặc toàn bộ khách trong cùng hợp đồng. Chỉ những người đang ở lại hợp đồng cũ mới được chọn.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={selectAllContractTenants} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-white px-4 text-xs font-black uppercase tracking-[0.16em] text-[#24170d] transition hover:border-[#0f766e]/20 hover:bg-[#0f766e]/8">
-                  <CheckCircle2 className="h-4 w-4 text-[#0f5f59]" /> Chọn tất cả
-                </button>
-                <button type="button" onClick={clearOtherContractTenants} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-white px-4 text-xs font-black uppercase tracking-[0.16em] text-[#24170d] transition hover:border-[#d97706]/20 hover:bg-[#d97706]/8">
-                  <ShieldAlert className="h-4 w-4 text-[#a65f16]" /> Giữ người đang chọn
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {contractTenants.length > 0 ? contractTenants.map((contractTenant) => {
-                const checked = selectedTenantIds.includes(contractTenant.tenantId)
-
-                return (
-                  <button
-                    key={contractTenant.tenantId}
-                    type="button"
-                    onClick={() => toggleTenantSelection(contractTenant.tenantId)}
-                    className={cn(
-                      'group rounded-[1.4rem] border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15',
-                      checked
-                        ? 'border-[#0f766e]/20 bg-[#0f766e]/8 shadow-lg shadow-[#0f766e]/6'
-                        : 'border-[#3d2a18]/10 bg-white/70 hover:border-[#f3c56b]/25 hover:bg-white',
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-colors duration-200', checked ? 'border-[#0f766e]/20 bg-[#0f766e]/12 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/50 text-[#8b5e34] group-hover:bg-[#efe2cf]/85')}>
-                          <UserRound className="h-4 w-4" />
-                        </span>
-                        <div className="space-y-1">
-                          <p className="text-sm font-black text-[#24170d]">{contractTenant.fullName}</p>
-                          <p className="text-xs font-semibold text-[#6f6254]">{contractTenant.phone || contractTenant.email || `Khách thuê #${contractTenant.tenantId}`}</p>
-                        </div>
-                      </div>
-                      <span className={cn('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]', checked ? 'bg-[#0f766e]/12 text-[#0f5f59]' : 'bg-[#f3c56b]/18 text-[#8a4f18] transition-colors duration-200 group-hover:bg-[#f3c56b] group-hover:text-[#24170d]')}>
-                        {checked ? 'Đã chọn' : 'Chọn'}
-                      </span>
-                    </div>
-                  </button>
-                )
-              }) : (
-                <div className="rounded-[1.4rem] border border-dashed border-[#3d2a18]/12 bg-white/70 px-5 py-6 text-sm font-semibold text-[#6f6254]">
-                  Hợp đồng này chưa có danh sách khách thuê chi tiết. Hệ thống sẽ chuyển theo khách thuê hiện tại.
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 rounded-[1.4rem] border border-dashed border-[#3d2a18]/12 bg-white/60 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Card A: Current Tenant & Contract Info + Roommates Checklist */}
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cách chốt</p>
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Thông tin hiện tại</span>
+                  <h2 className="mt-1 text-xl font-black tracking-[-0.04em] text-[#24170d]">
+                    {tenant?.full_name || tenant?.username || `Khách thuê #${tenant?.id}`}
+                  </h2>
                   <p className="mt-1 text-sm font-semibold text-[#6f6254]">
-                    Ngày chuyển sẽ cố định là <span className="font-black text-[#24170d]">{effectiveMovementDate}</span>. Hệ thống chỉ ghi nhận lịch chờ và chạy execute vào ngày 01.
+                    {currentBuildingName ? `${currentBuildingName} · ` : ''}
+                    {currentRoomNumber ? `Phòng ${currentRoomNumber}` : 'Chưa rõ phòng'}
+                    {currentContractCode ? ` · Hợp đồng: ${currentContractCode}` : ''}
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-[#0f766e]/20 bg-[#0f766e]/8 px-3 py-1.5 text-xs font-black text-[#0f5f59]">
-                  <Clock3 className="h-3.5 w-3.5" /> Chờ ký & chờ thực thi
-                </span>
+                
+                <div className="flex flex-col gap-1 items-end text-right">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Ngày chuyển dự kiến</span>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#0f5f59] bg-[#0f766e]/10 border border-[#0f766e]/15 px-3 py-1.5 rounded-full">
+                    <CalendarDays className="h-4 w-4" /> {effectiveMovementDate}
+                  </span>
+                </div>
+              </div>
+
+              {/* Roommate checkboxes */}
+              <div className="border-t border-[#3d2a18]/10 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div>
+                    <h3 className="text-sm font-black text-[#24170d]">Khách cùng chuyển</h3>
+                    <p className="text-xs font-semibold text-[#6f6254]">Chọn người tham gia chuyển phòng trong cùng hợp đồng này.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={selectAllContractTenants} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-[#3d2a18]/10 bg-white px-3 text-[10px] font-black uppercase tracking-[0.14em] text-[#24170d] transition hover:bg-[#0f766e]/8">
+                      Chọn hết
+                    </button>
+                    <button type="button" onClick={clearOtherContractTenants} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-[#3d2a18]/10 bg-white px-3 text-[10px] font-black uppercase tracking-[0.14em] text-[#24170d] transition hover:bg-[#d97706]/8">
+                      Giữ một
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {contractTenants.length > 0 ? contractTenants.map((contractTenant) => {
+                    const checked = selectedTenantIds.includes(contractTenant.tenantId)
+
+                    return (
+                      <button
+                        key={contractTenant.tenantId}
+                        type="button"
+                        onClick={() => toggleTenantSelection(contractTenant.tenantId)}
+                        className={cn(
+                          'group rounded-2xl border p-3.5 text-left transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15',
+                          checked
+                            ? 'border-[#0f766e]/20 bg-[#0f766e]/8'
+                            : 'border-[#3d2a18]/10 bg-[#fffaf1]/40 hover:border-[#f3c56b]/25 hover:bg-white',
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-black transition-colors duration-200', checked ? 'border-[#0f766e]/20 bg-[#0f766e]/12 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/50 text-[#8b5e34]')}>
+                            <UserRound className="h-3.5 w-3.5" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-black text-[#24170d]">{contractTenant.fullName}</p>
+                            <p className="truncate text-[10px] font-semibold text-[#6f6254]">{contractTenant.phone || 'Không có sđt'}</p>
+                          </div>
+                          <span className={cn('shrink-0 inline-flex items-center justify-center rounded-full h-4 w-4 border transition-colors duration-200', checked ? 'border-[#0f766e]/25 bg-[#0f766e] text-white' : 'border-[#3d2a18]/20 bg-white')}>
+                            {checked && <CheckCircle2 className="h-3 w-3" />}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  }) : (
+                    <div className="col-span-full rounded-2xl border border-dashed border-[#3d2a18]/12 bg-[#fffaf1]/50 px-4 py-4 text-xs font-semibold text-[#6f6254]">
+                      Hợp đồng này chưa có danh sách khách thuê chi tiết. Hệ thống sẽ chuyển theo khách thuê hiện tại.
+                    </div>
+                  )}
+                </div>
+
+                {showRepresentativeWarning && (
+                  <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/50 p-4 text-xs font-semibold leading-5 text-[#8a4f18]">
+                    <ShieldAlert className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#a65f16]" />
+                    <div>
+                      <p className="font-black text-[#24170d]">Chú ý: Chuyển người đại diện hợp đồng</p>
+                      <p className="mt-1">Người đại diện hợp đồng cũ ({currentContract?.representative_tenant?.full_name || tenant?.full_name}) đang được chọn chuyển phòng, nhưng vẫn còn khách ở lại phòng cũ. Bạn cần chỉ định người đại diện mới cho hợp đồng cũ sau khi chuyển để tránh lỗi hóa đơn.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Bước 2</p>
-                <h2 className="mt-1 text-xl font-black tracking-[-0.04em] sm:text-2xl">Chọn phòng đích</h2>
-                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[#6f6254]">
-                  Phòng trống sẽ tạo hợp đồng pending-sign. Phòng đang có người ở sẽ ghép vào hợp đồng active nếu còn sức chứa.
-                </p>
-              </div>
-              <div className="grid w-full gap-3 sm:max-w-xl sm:grid-cols-[minmax(0,1fr)_minmax(12rem,14rem)]">
-                <label className="relative block">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
-                  <input
-                    type="text"
-                    value={roomKeyword}
-                    onChange={(event) => setRoomKeyword(event.target.value)}
-                    placeholder="Tìm số phòng, mã phòng..."
-                    className={cn(inputClass, 'pl-11')}
-                  />
-                </label>
-                <AdminSelect
-                  value={selectedBuildingId}
-                  options={destinationBuildingOptions}
-                  onChange={(value) => setSelectedBuildingId(String(value))}
-                  disabled={!isSuperAdmin && destinationBuildingOptions.length <= 1}
-                />
-              </div>
+          {/* Card B: Target Room Selection */}
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Phòng chuyển đến</span>
+              <h2 className="mt-1 text-xl font-black tracking-[-0.04em] text-[#24170d]">Chọn phòng đích</h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">
+                Phòng trống sẽ lập hợp đồng chờ ký mới. Phòng đang ghép sẽ thêm người vào hợp đồng hiện tại.
+              </p>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+            {/* Room filters grid */}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
+                <input
+                  type="text"
+                  value={roomKeyword}
+                  onChange={(event) => setRoomKeyword(event.target.value)}
+                  placeholder="Số phòng, tầng..."
+                  className={cn(inputClass, 'pl-9 pr-3 py-2 text-xs rounded-xl')}
+                />
+              </label>
+              <AdminSelect
+                value={selectedBuildingId}
+                options={destinationBuildingOptions}
+                onChange={(value) => setSelectedBuildingId(String(value))}
+                disabled={!isSuperAdmin && destinationBuildingOptions.length <= 1}
+                className="text-xs"
+              />
+              <AdminSelect
+                value={selectedRoomTypeId}
+                options={roomTypeOptions}
+                onChange={(value) => setSelectedRoomTypeId(String(value))}
+                className="text-xs"
+              />
+              <AdminSelect
+                value={selectedFloor}
+                options={floorOptions}
+                onChange={(value) => setSelectedFloor(String(value))}
+                className="text-xs"
+              />
+            </div>
+
+            {/* Rooms Grid list */}
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
               {isRoomsLoading && Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-32 animate-pulse rounded-[1.4rem] bg-stone-100" />
+                <div key={index} className="h-36 animate-pulse rounded-2xl bg-stone-100" />
               ))}
 
               {!isRoomsLoading && roomCandidates.length === 0 && (
-                <div className="col-span-full rounded-[1.4rem] border border-dashed border-[#3d2a18]/12 bg-white/65 px-6 py-10 text-center text-sm font-semibold text-[#6f6254]">
-                  Không có phòng phù hợp với số lượng khách, giới tính hoặc sức chứa hiện tại.
+                <div className="col-span-full rounded-2xl border border-dashed border-[#3d2a18]/12 bg-[#fffaf1]/40 px-6 py-12 text-center text-sm font-semibold text-[#6f6254]">
+                  Không tìm thấy phòng phù hợp với bộ lọc (hoặc do giới tính, sức chứa).
                 </div>
               )}
 
-              {!isRoomsLoading && roomCandidates.map((room) => {
+              {!isRoomsLoading && paginatedRoomCandidates.map((room) => {
                 const checked = selectedRoom?.id === room.id
                 const isOccupied = room.current_occupants > 0
-                const remainingCapacity = Math.max(0, (room.max_occupants || 0) - (room.current_occupants || 0))
+                const statusLabel = isOccupied ? 'Ghép phòng' : 'Phòng trống'
+                const statusColor = isOccupied 
+                  ? 'border-amber-200 bg-amber-50 text-amber-800' 
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
 
                 return (
                   <button
@@ -744,76 +848,197 @@ export function TenantTransferRoomScreen() {
                     type="button"
                     onClick={() => pickRoom(room)}
                     className={cn(
-                      'group rounded-[1.5rem] border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15',
+                      'group relative rounded-2xl border p-4 text-left transition duration-200 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15',
                       checked
-                        ? 'border-[#0f766e]/25 bg-[#0f766e]/8 shadow-lg shadow-[#0f766e]/8'
-                        : 'border-[#3d2a18]/10 bg-white/75 hover:border-[#f3c56b]/25 hover:bg-white',
+                        ? 'border-[#0f766e] bg-[#0f766e]/5 shadow-lg shadow-[#0f766e]/6'
+                        : 'border-[#3d2a18]/10 bg-[#fffaf1]/40 hover:border-[#f3c56b]/25 hover:bg-white',
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">
-                          {isOccupied ? 'Ghép vào hợp đồng active' : 'Tạo hợp đồng pending-sign'}
-                        </p>
-                        <h3 className="mt-1 text-lg font-black tracking-[-0.03em] text-[#24170d]">Phòng {room.room_number}</h3>
-                        <p className="mt-1 text-sm font-semibold text-[#6f6254]">
+                        <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]', statusColor)}>
+                          {statusLabel}
+                        </span>
+                        <h3 className="mt-2 text-base font-black tracking-tight text-[#24170d]">Phòng {room.room_number}</h3>
+                        <p className="text-xs font-semibold text-[#6f6254] truncate">
                           {room.building?.name || room.building_name || `Tòa nhà #${room.building_id}`}
                         </p>
                       </div>
-                      <span className={cn('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em]', checked ? 'bg-[#0f766e]/12 text-[#0f5f59]' : 'bg-[#f3c56b]/18 text-[#8a4f18] transition-colors duration-200 group-hover:bg-[#f3c56b] group-hover:text-[#24170d]')}>
-                        {checked ? 'Đang chọn' : 'Chọn'}
+                      
+                      <span className={cn('flex h-5 w-5 items-center justify-center rounded-full border transition-colors duration-200', checked ? 'border-[#0f766e] bg-[#0f766e] text-white' : 'border-[#3d2a18]/25 bg-white')}>
+                        {checked && <CheckCircle2 className="h-3 w-3" />}
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Sức chứa</p>
-                        <p className="mt-1 text-base font-black text-[#24170d]">{room.current_occupants}/{room.max_occupants || '∞'}</p>
+                    {/* Room features grid */}
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-xl border border-[#3d2a18]/10 bg-white/60 p-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/70">Sức chứa</p>
+                        <p className="mt-0.5 font-black text-[#24170d]">{room.current_occupants}/{room.max_occupants || '∞'} người</p>
                       </div>
-                      <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Còn trống</p>
-                        <p className="mt-1 text-base font-black text-[#24170d]">{remainingCapacity}</p>
+                      <div className="rounded-xl border border-[#3d2a18]/10 bg-white/60 p-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/70">Giá phòng</p>
+                        <p className="mt-0.5 font-black text-[#0f5f59] tabular-nums">{formatCurrency(room.base_price)}</p>
                       </div>
-                      <div className="col-span-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">Cọc yêu cầu</p>
-                        <p className="mt-1 text-base font-black tabular-nums text-[#0f5f59]">{formatCurrency(room.base_price)}</p>
-                      </div>
+                    </div>
+
+                    {/* Amenities list */}
+                    <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-semibold text-[#8b5e34]">
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#efe2cf]/40 px-2 py-1" title="Diện tích">
+                        <Maximize2 className="h-3 w-3" /> {room.area_m2 || 25} m²
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#efe2cf]/40 px-2 py-1" title="Wifi">
+                        <Wifi className="h-3 w-3" /> Wifi
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#efe2cf]/40 px-2 py-1" title="Điều hòa">
+                        <Wind className="h-3 w-3" /> Máy lạnh
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#efe2cf]/40 px-2 py-1" title="Giường ngủ">
+                        <Bed className="h-3 w-3" /> Giường
+                      </span>
                     </div>
                   </button>
                 )
               })}
             </div>
-          </section>
 
-          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34]"><FileSignature className="h-5 w-5" /></span>
-              <div>
-                <h2 className="text-xl font-black tracking-[-0.04em] sm:text-2xl">Điều chỉnh cọc và phí</h2>
-                <p className="mt-1 text-sm font-semibold text-[#6f6254]">Nhập số khấu trừ hư hao, phí chuyển phòng và cọc phòng mới nếu có.</p>
+            {/* Pagination Controls for Target Rooms */}
+            {totalRoomsCount > roomPerPage && (
+              <div className="mt-5 flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fffaf1]/50 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs font-black text-[#6f6254]">
+                  Hiển thị <span className="tabular-nums text-[#24170d]">{roomPaginationStart}</span>-<span className="tabular-nums text-[#24170d]">{roomPaginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalRoomsCount}</span> phòng
+                </p>
+                
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    disabled={roomPage <= 1}
+                    onClick={() => setRoomPage(roomPage - 1)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-white text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45"
+                    aria-label="Trang trước"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  
+                  {visibleRoomPages.map((page, index) => {
+                    const previousPage = visibleRoomPages[index - 1]
+                    const hasGap = previousPage && page - previousPage > 1
+
+                    return (
+                      <div key={page} className="flex items-center gap-1.5">
+                        {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
+                        <button
+                          type="button"
+                          onClick={() => setRoomPage(page)}
+                          className={cn(
+                            'inline-flex h-8 min-w-8 items-center justify-center rounded-xl border px-2.5 text-xs font-black transition',
+                            page === roomPage
+                              ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm'
+                              : 'border-[#3d2a18]/10 bg-white text-[#8b5e34] hover:bg-[#f3c56b]/15',
+                          )}
+                        >
+                          {page}
+                        </button>
+                      </div>
+                    )
+                  })}
+
+                  <button
+                    type="button"
+                    disabled={roomPage >= totalRoomPages}
+                    onClick={() => setRoomPage(roomPage + 1)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-white text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45"
+                    aria-label="Trang sau"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
+            )}
+          </section>
+        </div>
+
+        {/* Right Column (Sticky Summary Sidebar Panel) */}
+        <aside className="lg:sticky lg:top-6 lg:self-start">
+          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6">
+            <h3 className="text-lg font-black tracking-[-0.03em] text-[#24170d]">Tóm tắt & Thanh toán</h3>
+            <p className="mt-1 text-xs font-semibold text-[#6f6254]">
+              {selectedRoom
+                ? `${selectedRoom.building?.name || selectedRoom.building_name || `Tòa nhà #${selectedRoom.building_id}`} · Phòng ${selectedRoom.room_number}`
+                : 'Vui lòng chọn phòng đích.'}
+            </p>
+
+            {/* Calculations List */}
+            <div className="mt-5 space-y-3">
+              <SummaryLine label="Số khách chuyển" value={`${selectedTenantIds.length} người`} />
+              <SummaryLine label="Ngày thực thi" value={effectiveMovementDate} />
+              
+              <hr className="border-[#3d2a18]/8" />
+              
+              <SummaryLine label="Cọc gốc hiện tại" value={formatCurrency(oldDepositBalance)} />
+              
+              <div className="flex flex-col gap-2 rounded-2xl border border-[#3d2a18]/8 bg-[#fffaf1]/50 p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/65">Chi phí phát sinh</p>
+                <div className="mt-1 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-semibold text-[#6f6254]">Khấu trừ hư hao</span>
+                    <span className="font-bold text-rose-700">{formatCurrency(damageAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-semibold text-[#6f6254]">Phí chuyển phòng</span>
+                    <span className="font-bold text-rose-700">{formatCurrency(transferFeeAmount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <SummaryLine label="Cọc khả dụng còn lại" value={formatCurrency(availableAfterCosts)} accent={availableAfterCosts > 0} />
+              <SummaryLine label="Cọc áp dụng phòng mới" value={formatCurrency(depositAppliedToNewRoom)} />
+              
+              <hr className="border-[#3d2a18]/8" />
+
+              {/* Outstanding payment or Refund Highlight */}
+              {settlementDueAmount > 0 ? (
+                <div className="rounded-2xl border border-rose-200/60 bg-rose-50/50 p-4 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">Khách cần nộp thêm (QR code)</p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-rose-600">{formatCurrency(settlementDueAmount)}</p>
+                </div>
+              ) : manualRefundAmount > 0 ? (
+                <div className="rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/6 p-4 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Hoàn cọc cho khách (Thủ công)</p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-[#0f5f59]">{formatCurrency(manualRefundAmount)}</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-stone-600">Đối trừ cân bằng</p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-[#24170d]">{formatCurrency(0)}</p>
+                </div>
+              )}
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
-              <Field label="Khấu trừ hư hao / đồ dùng" error={fieldErrors.deposit_deduction_amount}>
-                <input
-                  type="text"
-                  value={depositDeductionAmount}
-                  onChange={(event) => setDepositDeductionAmount(formatMoneyInput(event.target.value))}
-                  placeholder="0"
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Phí chuyển phòng" error={fieldErrors.transfer_fee}>
-                <input
-                  type="text"
-                  value={transferFee}
-                  onChange={(event) => setTransferFee(formatMoneyInput(event.target.value))}
-                  placeholder="0"
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Cọc yêu cầu phòng đích" error={fieldErrors.new_deposit_amount}>
+            {/* Adjustments Inputs grouped inside summary */}
+            <div className="mt-6 space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-[0.18em] text-[#8b5e34]">Điều chỉnh cọc & phí</h4>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                <Field label="Khấu trừ hư hao" error={fieldErrors.deposit_deduction_amount}>
+                  <input
+                    type="text"
+                    value={depositDeductionAmount}
+                    onChange={(event) => setDepositDeductionAmount(formatMoneyInput(event.target.value))}
+                    placeholder="0"
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="Phí chuyển phòng" error={fieldErrors.transfer_fee}>
+                  <input
+                    type="text"
+                    value={transferFee}
+                    onChange={(event) => setTransferFee(formatMoneyInput(event.target.value))}
+                    placeholder="0"
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+              <Field label="Cọc yêu cầu phòng mới" error={fieldErrors.new_deposit_amount}>
                 <input
                   type="text"
                   value={newDepositAmount}
@@ -825,60 +1050,18 @@ export function TenantTransferRoomScreen() {
               </Field>
             </div>
 
-            <div className="mt-5 rounded-[1.6rem] border border-dashed border-[#3d2a18]/12 bg-white/65 p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <LedgerTile label="Cọc gốc" value={oldDepositBalance} tone="neutral" />
-                <LedgerTile label="Khấu trừ + phí" value={damageAmount + transferFeeAmount} tone="danger" />
-                <LedgerTile label="Khả dụng sau khấu trừ" value={availableAfterCosts} tone="success" />
-                <LedgerTile label="Hoàn tay / cần thu" value={destinationRoomHasContract ? manualRefundAmount : depositDueAmount + extraChargeAmount} tone="warning" />
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <SummaryStat label="Cọc chuyển sang phòng mới" value={depositAppliedToNewRoom} tone="success" />
-                <SummaryStat label="Còn thiếu phải thu QR" value={settlementDueAmount} tone="warning" />
-                <SummaryStat label="Hoàn cọc thủ công" value={manualRefundAmount} tone="neutral" />
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-[#0f766e]/15 bg-[#0f766e]/8 px-4 py-3 text-sm font-semibold leading-6 text-[#0f5f59]">
-                Nếu phòng đích đã có người ở, hệ thống không đổi cọc phòng mới. Nếu cọc còn dư sẽ để admin tự tạo phiếu chi; nếu thiếu sẽ sinh QR theo <span className="font-black">transfer_code</span> sau khi execute.
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur sm:p-5 lg:p-6">
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34]"><ReceiptText className="h-5 w-5" /></span>
-              <div>
-                <h2 className="text-xl font-black tracking-[-0.04em] sm:text-2xl">Ghi chú & lịch chốt</h2>
-                <p className="mt-1 text-sm font-semibold text-[#6f6254]">Hệ thống chỉ nhận chuyển phòng vào đúng ngày 01 của tháng kế tiếp.</p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_18rem]">
-              <Field label="Ngày chuyển" error={fieldErrors.movement_date}>
-                <input
-                  type="date"
-                  value={effectiveMovementDate}
-                  readOnly
-                  disabled
-                  className={cn(inputClass, 'cursor-not-allowed bg-[#f4eadc]')}
+            {/* Ghi chú */}
+            <div className="mt-6">
+              <Field label="Ghi chú chuyển phòng" error={fieldErrors.note}>
+                <textarea
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Lý do chuyển, hư hại phòng cũ..."
+                  rows={3}
+                  className={cn(inputClass, 'resize-none')}
                 />
               </Field>
-              <div className="rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/65 px-4 py-3 text-sm font-semibold leading-6 text-[#6f6254]">
-                <p className="font-black text-[#24170d]">Lịch thực thi</p>
-                <p className="mt-2">Command backend sẽ chạy tự động vào ngày 01 lúc 00:10. Nếu còn hóa đơn nợ cũ, chuyển phòng sẽ bị chặn cho đến khi thanh toán xong.</p>
-              </div>
             </div>
-
-            <Field label="Ghi chú" error={fieldErrors.note}>
-              <textarea
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="Nhập ghi chú vận hành, lý do chuyển hoặc phân bổ nội bộ..."
-                rows={4}
-                className={cn(inputClass, 'resize-none')}
-              />
-            </Field>
 
             {submitError && (
               <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700">
@@ -886,82 +1069,17 @@ export function TenantTransferRoomScreen() {
               </div>
             )}
 
-            <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <p className="text-xs font-semibold leading-6 text-[#6f6254]">
-                {selectedRoom
-                  ? `${destinationRoomHasContract ? 'Phòng đích đang có hợp đồng active.' : 'Phòng đích trống, sẽ tạo hợp đồng chờ ký.'} ${destinationRoomCapacity > 0 ? `Còn ${destinationRoomCapacity} chỗ trống.` : ''}`
-                  : 'Chọn phòng đích để hệ thống tính lại cọc và settlement.'}
-              </p>
+            {/* Action button inside Card C */}
+            <div className="mt-6">
               <button
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={!canSubmit}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#f3c56b]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#f3c56b]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
-                {isSubmitting ? 'Đang lên lịch...' : 'Lên lịch chuyển phòng'}
+                {isSubmitting ? 'Đang lên lịch...' : 'Xác nhận chuyển phòng'}
               </button>
-            </div>
-          </section>
-        </div>
-
-        <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/16">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Tóm tắt chuyển phòng</p>
-            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">{selectedRoom ? `Phòng ${selectedRoom.room_number}` : 'Chưa chọn phòng đích'}</h3>
-            <p className="mt-2 text-sm font-semibold leading-6 text-[#f8e8c8]/78">
-              {selectedRoom
-                ? `${selectedRoom.building?.name || selectedRoom.building_name || `Tòa nhà #${selectedRoom.building_id}`} · ${selectedRoom.current_occupants > 0 ? 'Ghép vào hợp đồng hiện tại' : 'Tạo hợp đồng mới chờ ký'}`
-                : 'Chọn một phòng trong danh sách để tính settlement chính xác.'}
-            </p>
-
-            <div className="mt-5 grid gap-3">
-              <SummaryLine label="Khách được chuyển" value={`${selectedTenantIds.length} người`} />
-              <SummaryLine label="Ngày thực thi" value={effectiveMovementDate} />
-              <SummaryLine label="Cọc khả dụng" value={formatCurrency(availableAfterCosts)} accent />
-              <SummaryLine label="Cọc cho phòng mới" value={formatCurrency(depositAppliedToNewRoom)} accent />
-              <SummaryLine label="Hoàn cọc thủ công" value={formatCurrency(manualRefundAmount)} />
-              <SummaryLine label="Thu QR còn thiếu" value={formatCurrency(settlementDueAmount)} />
-            </div>
-
-            <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-white/6 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Trạng thái phòng đích</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <StatusPill tone={selectedRoom ? (destinationRoomHasContract ? 'success' : 'warning') : 'neutral'}>
-                  {selectedRoom ? (destinationRoomHasContract ? 'Đã có hợp đồng active' : 'Phòng trống') : 'Chưa chọn phòng'}
-                </StatusPill>
-                {selectedRoom && (
-                  <StatusPill tone="neutral">{selectedRoom.current_occupants}/{selectedRoom.max_occupants || '∞'} chỗ</StatusPill>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-[1.5rem] border border-[#f3c56b]/20 bg-[#f3c56b]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
-              Nếu admin muốn hoàn cọc, hãy tạo phiếu chi thủ công sau khi hệ thống trả `manual_refund_amount`. Hệ thống không tự sinh expense hoàn tiền.
-            </div>
-          </section>
-
-          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Hợp đồng hiện tại</p>
-            <div className="mt-3 space-y-3">
-              <DetailRow label="Mã hợp đồng" value={currentContractCode || '—'} />
-              <DetailRow label="Phòng hiện tại" value={currentRoomNumber ? `Phòng ${currentRoomNumber}` : '—'} />
-              <DetailRow label="Tòa nhà" value={currentBuildingName || '—'} />
-              <DetailRow label="Đại diện" value={currentContract?.representative_tenant?.full_name || tenant?.full_name || '—'} />
-            </div>
-          </section>
-
-          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-5 shadow-xl shadow-[#6b3f1d]/8">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Khách trong hợp đồng</p>
-            <div className="mt-3 space-y-2">
-              {selectedTenantCards.length > 0 ? selectedTenantCards.map((card) => (
-                <div key={card.tenantId} className="rounded-2xl border border-[#3d2a18]/10 bg-white/75 px-4 py-3">
-                  <p className="text-sm font-black text-[#24170d]">{card.fullName}</p>
-                  <p className="mt-1 text-xs font-semibold text-[#6f6254]">{card.phone || card.email || `Tenant #${card.tenantId}`}</p>
-                </div>
-              )) : (
-                <div className="rounded-2xl border border-dashed border-[#3d2a18]/12 bg-white/75 px-4 py-3 text-sm font-semibold text-[#6f6254]">Chưa có khách nào được chọn.</div>
-              )}
             </div>
           </section>
         </aside>
@@ -978,19 +1096,12 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(243,197,107,0.28),transparent_30%),radial-gradient(circle_at_86%_6%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
           <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl space-y-4">
-              <Link to="/admin/room-movements" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b] transition hover:text-[#ffd56f]">
-                <ArrowLeft className="h-3.5 w-3.5" /> Lịch sử phòng & cọc
-              </Link>
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#f3c56b] shadow-xl shadow-black/15">
-                  <Users className="h-6 w-6" />
-                </span>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Chọn khách thuê</p>
-                  <h1 className="mt-1 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Bắt đầu lịch chuyển phòng</h1>
-                </div>
-              </div>
-
+              <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">KHÁCH THUÊ & HỢP ĐỒNG</span>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.055em] sm:text-4xl lg:text-[2.65rem] text-[#fff4df] flex items-center gap-3">
+                <Users className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                Bắt đầu lịch chuyển phòng
+              </h1>
+              <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Tìm kiếm và lựa chọn khách thuê có nhu cầu chuyển đổi sang phòng mới.</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[28rem] xl:grid-cols-2">
@@ -1227,9 +1338,9 @@ function MetricCard({ label, value, icon, currency = false, suffix, textValue }:
 
 function SummaryLine({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/6 px-4 py-3 text-sm">
-      <span className="font-semibold text-[#f8e8c8]/72">{label}</span>
-      <span className={cn('font-black tabular-nums text-right', accent ? 'text-[#f3c56b]' : 'text-[#fff4df]')}>{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#3d2a18]/8 bg-[#fffaf1]/50 px-4 py-3 text-sm">
+      <span className="font-semibold text-[#6f6254]">{label}</span>
+      <span className={cn('font-black tabular-nums text-right', accent ? 'text-[#0f5f59]' : 'text-[#24170d]')}>{value}</span>
     </div>
   )
 }
@@ -1243,47 +1354,6 @@ function ResultCard({ icon, title, children }: { icon: ReactNode; title: string;
       </div>
       <div className="mt-3">{children}</div>
     </section>
-  )
-}
-
-function StatusPill({ tone, children }: { tone: 'neutral' | 'warning' | 'success'; children: ReactNode }) {
-  const className = {
-    neutral: 'border-[#3d2a18]/10 bg-white/10 text-[#fff4df]',
-    warning: 'border-[#f3c56b]/20 bg-[#f3c56b]/12 text-[#ffd56f]',
-    success: 'border-[#0f766e]/20 bg-[#0f766e]/12 text-[#9be4db]',
-  }[tone]
-
-  return <span className={cn('inline-flex rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em]', className)}>{children}</span>
-}
-
-function SummaryStat({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'warning' | 'success' }) {
-  const toneClass = {
-    neutral: 'text-[#24170d]',
-    warning: 'text-[#8a4f18]',
-    success: 'text-[#0f5f59]',
-  }[tone]
-
-  return (
-    <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 shadow-sm">
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
-      <p className={cn('mt-1 text-lg font-black tabular-nums', toneClass)}>{formatCurrency(value)}</p>
-    </div>
-  )
-}
-
-function LedgerTile({ label, value, tone = 'neutral' }: { label: string; value: number; tone?: 'neutral' | 'success' | 'danger' | 'warning' }) {
-  const toneClass = {
-    neutral: 'text-[#24170d]',
-    success: 'text-[#0f5f59]',
-    danger: 'text-rose-700',
-    warning: 'text-[#8a4f18]',
-  }[tone]
-
-  return (
-    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/80 p-3 shadow-sm">
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60">{label}</p>
-      <p className={cn('mt-1 text-lg font-black tabular-nums', toneClass)}>{formatCurrency(value)}</p>
-    </div>
   )
 }
 
