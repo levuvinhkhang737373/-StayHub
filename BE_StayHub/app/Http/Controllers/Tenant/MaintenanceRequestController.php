@@ -118,13 +118,12 @@ class MaintenanceRequestController extends Controller
                     'note' => 'Khách thuê tạo yêu cầu sửa chữa.',
                 ]);
 
-                // 3. Tạo thông báo cho Tenant
+                // 3. Tạo thông báo cho toàn bộ khách thuê trong phòng (bao gồm người tạo)
                 $notification = \App\Models\Notification::query()->create([
                     'title' => 'Yêu cầu sửa chữa mới',
-                    'content' => "Yêu cầu sửa chữa '{$maintenance->title}' của bạn đã được gửi thành công và đang chờ tiếp nhận.",
+                    'content' => "Yêu cầu sửa chữa '{$maintenance->title}' của phòng bạn đã được gửi thành công bởi {$tenant->full_name} và đang chờ tiếp nhận.",
                     'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_MAINTENANCE,
-                    'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
-                    'tenant_id' => $tenant->id,
+                    'target_type' => \App\Models\Notification::TARGET_TYPE_ROOM,
                     'room_id' => $roomId,
                     'building_id' => $tenant->room?->building_id,
                     'status' => \App\Models\Notification::STATUS_SENT,

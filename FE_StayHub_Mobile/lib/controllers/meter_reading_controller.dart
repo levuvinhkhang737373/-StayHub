@@ -196,18 +196,76 @@ class UtilityPriceRecord {
   }
 }
 
+class UtilityReadingRecord {
+  final int id;
+  final int meterDeviceId;
+  final int meterType; // 1: Điện, 2: Nước
+  final String? meterCode;
+  final String serviceName;
+  final int billingMonth;
+  final int billingYear;
+  final double previousReading;
+  final double currentReading;
+  final double consumption;
+  final String? readingDate;
+  final String? imageUrl;
+  final String? note;
+  final int status;
+  final String statusLabel;
+
+  UtilityReadingRecord({
+    required this.id,
+    required this.meterDeviceId,
+    required this.meterType,
+    this.meterCode,
+    required this.serviceName,
+    required this.billingMonth,
+    required this.billingYear,
+    required this.previousReading,
+    required this.currentReading,
+    required this.consumption,
+    this.readingDate,
+    this.imageUrl,
+    this.note,
+    required this.status,
+    required this.statusLabel,
+  });
+
+  factory UtilityReadingRecord.fromJson(Map<String, dynamic> json) {
+    return UtilityReadingRecord(
+      id: json['id'] as int,
+      meterDeviceId: json['meter_device_id'] as int,
+      meterType: json['meter_type'] as int? ?? 1,
+      meterCode: json['meter_code'] as String?,
+      serviceName: json['service_name'] as String? ?? 'Dịch vụ',
+      billingMonth: json['billing_month'] as int,
+      billingYear: json['billing_year'] as int,
+      previousReading: (json['previous_reading'] as num? ?? 0).toDouble(),
+      currentReading: (json['current_reading'] as num? ?? 0).toDouble(),
+      consumption: (json['consumption'] as num? ?? 0).toDouble(),
+      readingDate: json['reading_date'] as String?,
+      imageUrl: json['image_url'] as String?,
+      note: json['note'] as String?,
+      status: json['status'] as int? ?? 1,
+      statusLabel: json['status_label'] as String? ?? '',
+    );
+  }
+}
+
 class MeterReadingController extends ChangeNotifier {
   final ApiService _apiService = ApiService();
 
   List<RoomReading> _rooms = [];
   List<ServicePriceInit> _servicePrices = [];
   List<UtilityPriceRecord> _tenantPriceHistory = [];
+  List<UtilityReadingRecord> _tenantReadings = [];
   bool _isLoading = false;
   String? _errorMessage;
 
   List<RoomReading> get rooms => _rooms;
   List<ServicePriceInit> get servicePrices => _servicePrices;
   List<UtilityPriceRecord> get tenantPriceHistory => _tenantPriceHistory;
+  List<UtilityReadingRecord> get tenantReadings => _tenantReadings;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -297,6 +355,32 @@ class MeterReadingController extends ChangeNotifier {
       }
     } catch (e) {
       _errorMessage = 'Không thể tải lịch sử đơn giá: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchTenantUtilityReadings() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get<List<dynamic>>(
+        '/tenant/utility-readings',
+        fromJsonT: (json) => json as List<dynamic>,
+      );
+
+      if (response.status && response.result != null) {
+        _tenantReadings = response.result!
+            .map((item) => UtilityReadingRecord.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = 'Không thể tải lịch sử chỉ số: $e';
     } finally {
       _isLoading = false;
       notifyListeners();

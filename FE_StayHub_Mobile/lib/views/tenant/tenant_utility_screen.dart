@@ -12,11 +12,16 @@ class TenantUtilityScreen extends StatefulWidget {
 }
 
 class _TenantUtilityScreenState extends State<TenantUtilityScreen> {
+  bool _showAllElectricPrices = false;
+  bool _showAllWaterPrices = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<MeterReadingController>().fetchTenantUtilityPriceHistory();
+      final controller = context.read<MeterReadingController>();
+      controller.fetchTenantUtilityPriceHistory();
+      controller.fetchTenantUtilityReadings();
     });
   }
 
@@ -28,13 +33,41 @@ class _TenantUtilityScreenState extends State<TenantUtilityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authController = context.watch<AuthController>();
-    final tenant = authController.currentTenant;
-    final roomNumber = tenant?.roomNumber ?? '101';
+    final controller = context.watch<MeterReadingController>();
+    final readings = controller.tenantReadings;
 
-    // Mock consumption history data based on room number
-    final List<Map<String, dynamic>> electricHistory = _getElectricHistoryForRoom(roomNumber);
-    final List<Map<String, dynamic>> waterHistory = _getWaterHistoryForRoom(roomNumber);
+    if (controller.isLoading && readings.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF7F6F0),
+        body: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFEAB308)))),
+      );
+    }
+
+    final List<Map<String, dynamic>> electricHistory = readings
+        .where((r) => r.meterType == 1)
+        .map((r) => {
+              'month': r.billingMonth,
+              'year': r.billingYear,
+              'oldValue': r.previousReading,
+              'newValue': r.currentReading,
+              'consumption': r.consumption,
+              'recordedAt': r.readingDate ?? '',
+              'imageUrl': r.imageUrl ?? 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&q=80&w=400',
+            })
+        .toList();
+
+    final List<Map<String, dynamic>> waterHistory = readings
+        .where((r) => r.meterType == 2)
+        .map((r) => {
+              'month': r.billingMonth,
+              'year': r.billingYear,
+              'oldValue': r.previousReading,
+              'newValue': r.currentReading,
+              'consumption': r.consumption,
+              'recordedAt': r.readingDate ?? '',
+              'imageUrl': r.imageUrl ?? 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=400',
+            })
+        .toList();
 
     return DefaultTabController(
       length: 2,
@@ -90,9 +123,12 @@ class _TenantUtilityScreenState extends State<TenantUtilityScreen> {
       }
     }).toList();
 
-    // Sort chronological for graph (ascending)
-    final graphPrices = filteredPrices.reversed.toList();
+    // Limit to latest 5 points for a clean trend graph
+    final graphPrices = filteredPrices.take(5).toList().reversed.toList();
     final latestPrice = filteredPrices.isNotEmpty ? filteredPrices.first.price : rate;
+
+    final showAll = isElectric ? _showAllElectricPrices : _showAllWaterPrices;
+    final displayPrices = showAll ? filteredPrices : filteredPrices.take(3).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -204,7 +240,11 @@ class _TenantUtilityScreenState extends State<TenantUtilityScreen> {
                 SizedBox(
                   height: 150,
                   child: graphPrices.isEmpty
-                      ? const Center(child: CircularProgressIndicator())
+                      ? Center(
+                          child: controller.isLoading
+                              ? const CircularProgressIndicator()
+                              : const Text('Không có dữ liệu xu hướng.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        )
                       : CustomPaint(
                           painter: PriceLineChartPainter(
                             records: graphPrices,
@@ -226,9 +266,9 @@ class _TenantUtilityScreenState extends State<TenantUtilityScreen> {
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: filteredPrices.length,
+            itemCount: displayPrices.length,
             itemBuilder: (context, index) {
-              final record = filteredPrices[index];
+              final record = displayPrices[index];
               final isCurrent = record.status == 1; // STATUS_ACTIVE
 
               return Container(
@@ -282,6 +322,36 @@ class _TenantUtilityScreenState extends State<TenantUtilityScreen> {
               );
             },
           ),
+          if (filteredPrices.length > 3) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.center,
+              child: TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    if (isElectric) {
+                      _showAllElectricPrices = !_showAllElectricPrices;
+                    } else {
+                      _showAllWaterPrices = !_showAllWaterPrices;
+                    }
+                  });
+                },
+                icon: Icon(
+                  showAll ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  size: 18,
+                  color: themeColor,
+                ),
+                label: Text(
+                  showAll ? 'Thu gọn lịch sử' : 'Xem thêm lịch sử (${filteredPrices.length - 3} đơn giá)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: themeColor,
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
 
           // Consumption History List Section
@@ -448,92 +518,6 @@ class _TenantUtilityScreenState extends State<TenantUtilityScreen> {
     );
   }
 
-  // Mock consumption history data generators
-  List<Map<String, dynamic>> _getElectricHistoryForRoom(String roomNumber) {
-    if (roomNumber == '101') {
-      return [
-        {
-          'month': 5,
-          'year': 2026,
-          'oldValue': 1100,
-          'newValue': 1240,
-          'consumption': 140,
-          'recordedAt': '28/05/2026',
-          'imageUrl': 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&q=80&w=400',
-        },
-        {
-          'month': 4,
-          'year': 2026,
-          'oldValue': 950,
-          'newValue': 1100,
-          'consumption': 150,
-          'recordedAt': '28/04/2026',
-          'imageUrl': 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&q=80&w=400',
-        },
-      ];
-    } else if (roomNumber == '102') {
-      return [
-        {
-          'month': 5,
-          'year': 2026,
-          'oldValue': 780,
-          'newValue': 890,
-          'consumption': 110,
-          'recordedAt': '28/05/2026',
-          'imageUrl': 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&q=80&w=400',
-        }
-      ];
-    } else {
-      return [
-        {
-          'month': 5,
-          'year': 2026,
-          'oldValue': 100,
-          'newValue': 220,
-          'consumption': 120,
-          'recordedAt': '28/05/2026',
-          'imageUrl': 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&q=80&w=400',
-        }
-      ];
-    }
-  }
-
-  List<Map<String, dynamic>> _getWaterHistoryForRoom(String roomNumber) {
-    if (roomNumber == '101') {
-      return [
-        {
-          'month': 5,
-          'year': 2026,
-          'oldValue': 320,
-          'newValue': 342,
-          'consumption': 22,
-          'recordedAt': '28/05/2026',
-          'imageUrl': 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=400',
-        },
-        {
-          'month': 4,
-          'year': 2026,
-          'oldValue': 302,
-          'newValue': 320,
-          'recordedAt': '28/04/2026',
-          'consumption': 18,
-          'imageUrl': 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=400',
-        },
-      ];
-    } else {
-      return [
-        {
-          'month': 5,
-          'year': 2026,
-          'oldValue': 50,
-          'newValue': 65,
-          'consumption': 15,
-          'recordedAt': '28/05/2026',
-          'imageUrl': 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=400',
-        }
-      ];
-    }
-  }
 }
 
 class PriceLineChartPainter extends CustomPainter {

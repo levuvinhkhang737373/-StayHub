@@ -180,6 +180,7 @@ Route::prefix('tenant')->group(function (): void {
         Route::patch('/profile', [TenantAuthController::class, 'updateProfile']);
         Route::post('/logout', [TenantAuthController::class, 'logout']);
         Route::get('utility-price-history', [TenantAuthController::class, 'utilityPriceHistory']);
+        Route::get('utility-readings', [TenantAuthController::class, 'utilityReadings']);
         Route::get('building-settings', [TenantAuthController::class, 'buildingSettings']);
 
         // =========================Maintenance=========================

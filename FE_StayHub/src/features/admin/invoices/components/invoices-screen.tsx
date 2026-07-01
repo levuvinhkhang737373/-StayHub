@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
-import { formatCurrency, formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
+import { formatCurrency, formatDate, formatDateTime, formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAvailableRooms, fetchAdminContracts } from '../../contracts/services/contracts.service'
 import type { AdminContractResource } from '../../contracts/types/contract-api.model'
@@ -642,7 +642,7 @@ function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { cont
 }
 
 function PaymentModal({ invoice, isSaving, onClose, onSubmit }: { invoice: AdminInvoiceResource; isSaving: boolean; onClose: () => void; onSubmit: (payload: { amount: string; payment_method: number; payment_date?: string | null; transaction_reference?: string | null; note?: string | null }) => Promise<void> }) {
-  const [amount, setAmount] = useState(invoice.remaining_amount || '')
+  const [amount, setAmount] = useState(formatMoneyInput(String(invoice.remaining_amount || '')))
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHOD_CASH)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
   const [reference, setReference] = useState('')
@@ -655,12 +655,12 @@ function PaymentModal({ invoice, isSaving, onClose, onSubmit }: { invoice: Admin
           <p>Tổng: <span className="font-black text-[#24170d]">{formatCurrency(invoice.total_amount)}</span></p>
           <p>Còn lại: <span className="font-black text-rose-600">{formatCurrency(invoice.remaining_amount)}</span></p>
         </div>
-        <input className={inputClass} value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Số tiền" />
+        <input className={inputClass} value={amount} onChange={(event) => setAmount(formatMoneyInput(event.target.value))} placeholder="Số tiền" />
         <AdminSelect value={paymentMethod} options={[{ value: PAYMENT_METHOD_CASH, label: 'Tiền mặt', tone: 'success' as const }, { value: PAYMENT_METHOD_BANK_TRANSFER, label: 'Chuyển khoản', tone: 'default' as const }]} onChange={(nextValue) => setPaymentMethod(Number(nextValue))} />
         <input className={inputClass} type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
         <input className={inputClass} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Mã tham chiếu giao dịch (nếu có)" />
         <textarea className={textAreaClass} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ghi chú" />
-        <button type="button" disabled={isSaving || !amount} onClick={() => onSubmit({ amount, payment_method: paymentMethod, payment_date: paymentDate, transaction_reference: reference.trim() || null, note: note.trim() || null })} className="h-12 w-full rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60">
+        <button type="button" disabled={isSaving || !amount} onClick={() => onSubmit({ amount: parseMoneyInput(amount), payment_method: paymentMethod, payment_date: paymentDate, transaction_reference: reference.trim() || null, note: note.trim() || null })} className="h-12 w-full rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60">
           {isSaving ? 'Đang ghi nhận...' : 'Xác nhận thanh toán'}
         </button>
       </div>
@@ -709,7 +709,7 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
       item_type: Number(item.item_type),
       description: item.description,
       quantity: String(item.quantity || '1'),
-      unit_price: absDecimal(item.unit_price),
+      unit_price: formatMoneyInput(absDecimal(item.unit_price)),
     })))
 
   const previewTotal = useMemo(() => {
@@ -723,7 +723,7 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
       .reduce((total, item) => total + (item.meter_reading_id && meterAmountById.has(Number(item.meter_reading_id)) ? meterAmountById.get(Number(item.meter_reading_id)) || 0 : Number(item.amount || 0)), 0)
 
     const adjustmentTotal = adjustments.reduce((total, adjustment) => {
-      const rawAmount = Number(adjustment.quantity || 1) * Number(adjustment.unit_price || 0)
+      const rawAmount = Number(adjustment.quantity || 1) * Number(parseMoneyInput(adjustment.unit_price || '0'))
       const signedAmount = [ITEM_TYPE_DISCOUNT, ITEM_TYPE_ADJUST_DECREASE].includes(Number(adjustment.item_type)) ? -rawAmount : rawAmount
       return total + signedAmount
     }, 0)
@@ -804,7 +804,7 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
                   <AdminSelect value={adjustment.item_type} options={adjustmentItemTypeOptions} onChange={(value) => updateAdjustment(adjustment.key, 'item_type', Number(value))} />
                   <input className={inputClass} value={adjustment.description} onChange={(event) => updateAdjustment(adjustment.key, 'description', event.target.value)} placeholder="Mô tả điều chỉnh" />
                   <input className={inputClass} value={adjustment.quantity} onChange={(event) => updateAdjustment(adjustment.key, 'quantity', event.target.value)} placeholder="SL" />
-                  <input className={inputClass} value={adjustment.unit_price} onChange={(event) => updateAdjustment(adjustment.key, 'unit_price', event.target.value)} placeholder="Đơn giá" />
+                  <input className={inputClass} value={adjustment.unit_price} onChange={(event) => updateAdjustment(adjustment.key, 'unit_price', formatMoneyInput(event.target.value))} placeholder="Đơn giá" />
                   <button type="button" onClick={() => removeAdjustment(adjustment.key)} className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700"><Trash2 className="h-4 w-4" /></button>
                 </div>
               ))}
@@ -821,7 +821,7 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
             reason: reason.trim(),
             due_date: dueDate || null,
             meter_readings: meterReadings.map((reading) => ({ meter_reading_id: reading.meter_reading_id, current_reading: reading.current_reading, reading_date: reading.reading_date || null })),
-            adjustments: adjustments.map((adjustment) => ({ item_type: Number(adjustment.item_type), description: adjustment.description || 'Điều chỉnh hóa đơn', quantity: adjustment.quantity || '1', unit_price: adjustment.unit_price || '0' })),
+            adjustments: adjustments.map((adjustment) => ({ item_type: Number(adjustment.item_type), description: adjustment.description || 'Điều chỉnh hóa đơn', quantity: adjustment.quantity || '1', unit_price: parseMoneyInput(adjustment.unit_price || '0') })),
           })} className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#0f766e] px-4 text-sm font-black text-white shadow-lg shadow-[#0f766e]/20 transition hover:bg-[#0c5f59] disabled:opacity-60">
             <RefreshCw className="h-4 w-4" /> {isSaving ? 'Đang phát hành lại...' : 'Cập nhật & gửi QR mới'}
           </button>

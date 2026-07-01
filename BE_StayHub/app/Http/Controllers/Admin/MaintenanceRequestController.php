@@ -188,13 +188,12 @@ class MaintenanceRequestController extends Controller
                 // Lấy nhãn trạng thái mới
                 $statusLabel = MaintenanceRequest::STATUS_LABELS[$newStatus] ?? 'Khác';
 
-                // Tạo thông báo cho Tenant
+                // Tạo thông báo cho toàn bộ khách thuê trong phòng
                 $notification = \App\Models\Notification::query()->create([
                     'title' => 'Cập nhật yêu cầu sửa chữa',
-                    'content' => "Yêu cầu sửa chữa '{$maintenance->title}' của bạn đã chuyển sang trạng thái: {$statusLabel}.",
+                    'content' => "Yêu cầu sửa chữa '{$maintenance->title}' của phòng bạn đã chuyển sang trạng thái: {$statusLabel}.",
                     'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_MAINTENANCE,
-                    'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
-                    'tenant_id' => $maintenance->tenant_id,
+                    'target_type' => \App\Models\Notification::TARGET_TYPE_ROOM,
                     'room_id' => $maintenance->room_id,
                     'building_id' => $maintenance->room?->building_id,
                     'status' => \App\Models\Notification::STATUS_SENT,
