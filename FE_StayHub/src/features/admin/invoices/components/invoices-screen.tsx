@@ -115,6 +115,43 @@ export function InvoicesScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
+  const [activeMessage, setActiveMessage] = useState<string | null>(null)
+  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [errorMessage])
+
+  useEffect(() => {
+    if (successMessage) {
+      setActiveMessage(successMessage)
+      setActiveType('success')
+    } else if (errorMessage) {
+      setActiveMessage(errorMessage)
+      setActiveType('error')
+    } else {
+      const timer = setTimeout(() => {
+        setActiveMessage(null)
+        setActiveType(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage, errorMessage])
+
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
   const filterBuildingOptions = useMemo(() => [{ value: '', label: isSuperAdmin ? 'Tất cả tòa nhà' : 'Tòa nhà được phân quyền', tone: 'default' as const }, ...buildingOptions], [buildingOptions, isSuperAdmin])
   const roomOptions = useMemo(
@@ -322,7 +359,6 @@ export function InvoicesScreen() {
                   <Receipt className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Hóa đơn
                 </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Lập hóa đơn thanh toán hàng tháng, ghi nhận công nợ và trạng thái thanh toán.</p>
             </div>
             <button
               type="button"
@@ -341,11 +377,19 @@ export function InvoicesScreen() {
         </div>
       </section>
 
-      {(errorMessage || successMessage) && (
-        <div className={cn('rounded-3xl border px-4 py-3 text-sm font-black shadow-sm', errorMessage ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
-          {errorMessage || successMessage}
-        </div>
-      )}
+      <div
+        className={cn(
+          'rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden',
+          (successMessage || errorMessage)
+            ? 'opacity-100 max-h-20 py-3 translate-y-0 scale-100'
+            : 'opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent',
+          (errorMessage || activeType === 'error')
+            ? 'border-rose-200 bg-rose-50 text-rose-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        )}
+      >
+        {activeMessage || errorMessage || successMessage}
+      </div>
 
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
         <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">

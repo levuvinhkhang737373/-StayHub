@@ -265,7 +265,6 @@ export function ActivityLogsScreen() {
                   <History className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Nhật ký admin
                 </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Ghi vết lịch sử thao tác của các tài khoản quản trị viên trên hệ thống.</p>
               </div>
 
             </div>

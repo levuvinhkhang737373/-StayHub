@@ -78,6 +78,43 @@ export function MaintenanceScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
+  const [activeMessage, setActiveMessage] = useState<string | null>(null)
+  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [errorMessage])
+
+  useEffect(() => {
+    if (successMessage) {
+      setActiveMessage(successMessage)
+      setActiveType('success')
+    } else if (errorMessage) {
+      setActiveMessage(errorMessage)
+      setActiveType('error')
+    } else {
+      const timer = setTimeout(() => {
+        setActiveMessage(null)
+        setActiveType(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage, errorMessage])
+
   // Modals state
   const [detailRequest, setDetailRequest] = useState<AdminMaintenanceRequestResource | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -207,10 +244,8 @@ export function MaintenanceScreen() {
   // Update status
   const handleStatusSubmit = async () => {
     if (!updatingRequest) return
-    if (newStatus === 4 && !afterImageFile) {
-      alert('Vui lòng tải lên ảnh minh chứng sau khi hoàn thành sửa chữa.')
+      setErrorMessage('Vui lòng tải lên ảnh minh chứng sau khi hoàn thành sửa chữa.')
       return
-    }
 
     setIsUpdatingStatus(true)
     setErrorMessage(null)
@@ -258,7 +293,6 @@ export function MaintenanceScreen() {
                   <Wrench className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Quản lý bảo trì
                 </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Tiếp nhận yêu cầu, phân công và giám sát tiến độ sửa chữa, bảo trì thiết bị.</p>
               </div>
               <button
                 type="button"
@@ -280,12 +314,19 @@ export function MaintenanceScreen() {
         </div>
 
         {/* Notifications and Alerts */}
-        {(errorMessage || successMessage) && (
-          <div className={cn('rounded-3xl border p-4 text-sm font-black flex items-center justify-between', errorMessage ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
-            <span>{errorMessage || successMessage}</span>
-            <button onClick={() => { setErrorMessage(null); setSuccessMessage(null) }} className="hover:opacity-70 text-xs font-bold px-2">Đóng</button>
-          </div>
-        )}
+        <div
+          className={cn(
+            'rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden',
+            (successMessage || errorMessage)
+              ? 'opacity-100 max-h-20 py-3 translate-y-0 scale-100'
+              : 'opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent',
+            (errorMessage || activeType === 'error')
+              ? 'border-rose-200 bg-rose-50 text-rose-700'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          )}
+        >
+          {activeMessage || errorMessage || successMessage}
+        </div>
 
         {/* Filters Panel */}
         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">

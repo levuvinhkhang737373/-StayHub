@@ -143,7 +143,7 @@ export function MetersScreen() {
     if (successMessage) {
       const timer = setTimeout(() => {
         setSuccessMessage(null)
-      }, 5000)
+      }, 3000)
       return () => clearTimeout(timer)
     }
   }, [successMessage])
@@ -152,7 +152,7 @@ export function MetersScreen() {
     if (errorMessage) {
       const timer = setTimeout(() => {
         setErrorMessage(null)
-      }, 5000)
+      }, 3000)
       return () => clearTimeout(timer)
     }
   }, [errorMessage])
@@ -567,7 +567,6 @@ export function MetersScreen() {
                     <Gauge className="h-8 w-8 text-[#f3c56b] shrink-0" />
                     Quản lý đồng hồ
                   </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Theo dõi, thiết lập chỉ số và cấu hình các loại đồng hồ đo điện nước.</p>
             </div>
             <div className="relative flex flex-wrap items-center gap-3 w-fit self-end lg:self-auto">
               <button type="button" onClick={openCreateForm} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">

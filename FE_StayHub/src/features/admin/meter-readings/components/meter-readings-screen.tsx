@@ -140,6 +140,9 @@ export function MeterReadingsScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const [activeMessage, setActiveMessage] = useState<string | null>(null)
+  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
   const [isGeneratingBulk, setIsGeneratingBulk] = useState(false)
   const [isGeneratingSingle, setIsGeneratingSingle] = useState<number | null>(null)
   const [previewInvoice, setPreviewInvoice] = useState<AdminInvoicePreviewResource | null>(null)
@@ -236,17 +239,37 @@ export function MeterReadingsScreen() {
 
   useEffect(() => {
     if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 5000)
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
       return () => clearTimeout(timer)
     }
   }, [successMessage])
 
   useEffect(() => {
     if (errorMessage) {
-      const timer = setTimeout(() => setErrorMessage(null), 6000)
+      const timer = setTimeout(() => {
+        setErrorMessage(null)
+      }, 3000)
       return () => clearTimeout(timer)
     }
   }, [errorMessage])
+
+  useEffect(() => {
+    if (successMessage) {
+      setActiveMessage(successMessage)
+      setActiveType('success')
+    } else if (errorMessage) {
+      setActiveMessage(errorMessage)
+      setActiveType('error')
+    } else {
+      const timer = setTimeout(() => {
+        setActiveMessage(null)
+        setActiveType(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage, errorMessage])
 
   const rates = useMemo(() => {
     const electricPrice = servicePrices.find(p => p.slug.includes('electric') || p.slug.includes('dien'))
@@ -852,7 +875,6 @@ export function MeterReadingsScreen() {
                   <Zap className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Chốt điện nước
                 </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Ghi nhận số điện nước tiêu thụ hàng tháng và tự động tính phí dịch vụ.</p>
               </div>
 
               {/* Filters / Cycle Selection */}
@@ -950,29 +972,19 @@ export function MeterReadingsScreen() {
         )}
 
         {/* Status Alerts */}
-        {(successMessage || errorMessage) && (
-          <div
-            className={cn(
-              'relative rounded-3xl border px-5 py-3.5 pr-12 text-sm font-black shadow-sm transition-all duration-300 flex items-center justify-between',
-              errorMessage ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-            )}
-          >
-            <span>{errorMessage || successMessage}</span>
-            <button
-              type="button"
-              onClick={() => {
-                setSuccessMessage(null)
-                setErrorMessage(null)
-              }}
-              className={cn(
-                'absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                errorMessage ? 'text-rose-400 hover:bg-rose-100 hover:text-rose-600' : 'text-emerald-400 hover:bg-emerald-100 hover:text-emerald-600'
-              )}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+        <div
+          className={cn(
+            'rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden',
+            (successMessage || errorMessage)
+              ? 'opacity-100 max-h-20 py-3 translate-y-0 scale-100'
+              : 'opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent',
+            (errorMessage || activeType === 'error')
+              ? 'border-rose-200 bg-rose-50 text-rose-700'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          )}
+        >
+          {activeMessage || errorMessage || successMessage}
+        </div>
 
         {/* Room Readings Sheets */}
         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">

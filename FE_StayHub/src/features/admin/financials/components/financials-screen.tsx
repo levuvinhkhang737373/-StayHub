@@ -306,7 +306,6 @@ export function FinancialsScreen() {
                 <BarChart3 className="h-8 w-8 text-[#f3c56b] shrink-0" />
                 Báo cáo lợi nhuận
               </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Báo cáo trực quan tình hình doanh thu, chi phí vận hành và lợi nhuận ròng.</p>
             </div>
             
             <div className="flex flex-wrap gap-3">

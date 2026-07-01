@@ -398,7 +398,11 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             if (isEditMode && resolvedBuildingId) await updateAdminBuilding(resolvedBuildingId, payload);
             else await createAdminBuilding(payload);
 
-            navigate("/admin/facilities");
+            navigate("/admin/facilities", {
+                state: {
+                    successMessage: isEditMode ? "Cập nhật tòa nhà thành công." : "Tạo tòa nhà thành công."
+                }
+            });
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : "Không thể lưu tòa nhà.");
         } finally {

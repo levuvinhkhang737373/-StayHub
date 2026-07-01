@@ -126,6 +126,44 @@ export function ExpensesScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const [activeMessage, setActiveMessage] = useState<string | null>(null)
+  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [errorMessage])
+
+  useEffect(() => {
+    if (successMessage) {
+      setActiveMessage(successMessage)
+      setActiveType('success')
+    } else if (errorMessage) {
+      setActiveMessage(errorMessage)
+      setActiveType('error')
+    } else {
+      const timer = setTimeout(() => {
+        setActiveMessage(null)
+        setActiveType(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage, errorMessage])
+
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingExpense, setEditingExpense] = useState<AdminExpenseResource | null>(null)
   const [form, setForm] = useState<ExpenseFormValues>(() => defaultForm())
@@ -430,7 +468,6 @@ export function ExpensesScreen() {
                     <CreditCard className="h-8 w-8 text-[#f3c56b] shrink-0" />
                     Quản lý phiếu chi
                   </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Ghi nhận, quản lý và theo dõi các khoản chi phí vận hành tòa nhà.</p>
               </div>
               <button type="button" onClick={openCreateForm} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 w-fit self-end lg:self-auto whitespace-nowrap rounded-xl bg-[#f3c56b] px-5 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Lập phiếu chi
@@ -446,11 +483,19 @@ export function ExpensesScreen() {
           </div>
         </section>
 
-        {(errorMessage || successMessage) && (
-          <div className={cn('rounded-3xl border px-4 py-3 text-sm font-black shadow-sm', errorMessage ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
-            {errorMessage || successMessage}
-          </div>
-        )}
+        <div
+          className={cn(
+            'rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden',
+            (successMessage || errorMessage)
+              ? 'opacity-100 max-h-20 py-3 translate-y-0 scale-100'
+              : 'opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent',
+            (errorMessage || activeType === 'error')
+              ? 'border-rose-200 bg-rose-50 text-rose-700'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          )}
+        >
+          {activeMessage || errorMessage || successMessage}
+        </div>
 
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
           <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">

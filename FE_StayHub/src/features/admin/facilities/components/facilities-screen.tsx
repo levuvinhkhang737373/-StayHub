@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Building2, ChevronLeft, ChevronRight, Eye, MapPin, Pencil, Plus, Power, Search, Trash2, X } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
 import { BuildingDetailModal } from "./building-detail-modal";
@@ -68,8 +68,58 @@ export function FacilitiesScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null);
     const navigate = useNavigate();
+    const location = useLocation();
     const { session } = useAdminSession();
     const isSuperAdmin = isSuperAdminRole(session?.admin.role);
+
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [activeMessage, setActiveMessage] = useState<string | null>(null);
+    const [activeType, setActiveType] = useState<"success" | "error" | null>(null);
+
+    // Read success message from navigation state (e.g. from create/edit building screens)
+    useEffect(() => {
+        if (location.state?.successMessage) {
+            setSuccessMessage(location.state.successMessage);
+            // Clear the router state to avoid displaying it again on refresh
+            navigate(location.pathname, { replace: true });
+        }
+    }, [location, navigate]);
+
+    // Handle auto-clear and transition logic
+    useEffect(() => {
+        if (successMessage) {
+            const timer = setTimeout(() => {
+                setSuccessMessage(null);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [successMessage]);
+
+    useEffect(() => {
+        if (errorMessage) {
+            const timer = setTimeout(() => {
+                setErrorMessage(null);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [errorMessage]);
+
+    useEffect(() => {
+        if (successMessage) {
+            setActiveMessage(successMessage);
+            setActiveType("success");
+        } else if (errorMessage) {
+            setActiveMessage(errorMessage);
+            setActiveType("error");
+        } else {
+            const timer = setTimeout(() => {
+                setActiveMessage(null);
+                setActiveType(null);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [successMessage, errorMessage]);
 
     // Region modal state and handlers
     const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
@@ -115,7 +165,7 @@ export function FacilitiesScreen() {
                     is_active: detail.status,
                 });
             } catch (error) {
-                window.alert(error instanceof Error ? error.message : "Không thể tải thông tin khu vực.");
+                setErrorMessage(error instanceof Error ? error.message : "Không thể tải thông tin khu vực.");
                 setIsRegionModalOpen(false);
                 setEditingRegionId(null);
             } finally {
@@ -137,9 +187,11 @@ export function FacilitiesScreen() {
     };
 
     const handleRegionSubmitSuccess = async () => {
+        const isEdit = editingRegionId !== null;
         setIsRegionModalOpen(false);
         setEditingRegionId(null);
         setRegionForm(defaultRegionForm);
+        setSuccessMessage(isEdit ? "Cập nhật khu vực thành công." : "Tạo khu vực thành công.");
         await loadFacilities();
     };
 
@@ -255,9 +307,10 @@ export function FacilitiesScreen() {
         try {
             setStatusChangingId(building.id);
             await updateAdminBuildingStatus(building.id, nextStatus);
+            setSuccessMessage(`Đã ${nextStatus === 2 ? "ngừng hoạt động" : "kích hoạt"} tòa nhà thành công.`);
             await loadFacilities();
         } catch {
-            window.alert("Không thể cập nhật trạng thái tòa nhà. Vui lòng thử lại sau.");
+            setErrorMessage("Không thể cập nhật trạng thái tòa nhà. Vui lòng thử lại sau.");
         } finally {
             setStatusChangingId(null);
         }
@@ -268,9 +321,10 @@ export function FacilitiesScreen() {
 
         try {
             await deleteAdminBuilding(building.id);
+            setSuccessMessage("Xóa tòa nhà thành công.");
             await loadFacilities();
         } catch {
-            window.alert("Không thể xóa tòa nhà. Vui lòng thử lại sau.");
+            setErrorMessage("Không thể xóa tòa nhà. Vui lòng thử lại sau.");
         }
     };
 
@@ -286,9 +340,10 @@ export function FacilitiesScreen() {
 
         try {
             await updateAdminRegionStatus(region.id, nextStatus);
+            setSuccessMessage(`${nextStatus ? "Mở hoạt động" : "Tạm ngưng"} khu vực thành công.`);
             await loadFacilities();
         } catch {
-            window.alert("Không thể cập nhật trạng thái khu vực. Vui lòng thử lại sau.");
+            setErrorMessage("Không thể cập nhật trạng thái khu vực. Vui lòng thử lại sau.");
         }
     };
 
@@ -299,9 +354,10 @@ export function FacilitiesScreen() {
             await deleteAdminRegion(region.id);
             setSelectedRegionId((current) => (current === region.id ? null : current));
             setExpandedIds((current) => current.filter((id) => id !== region.id));
+            setSuccessMessage("Xóa khu vực thành công.");
             await loadFacilities();
         } catch (error) {
-            window.alert(error instanceof Error ? error.message : "Không thể xóa khu vực. Vui lòng thử lại sau.");
+            setErrorMessage(error instanceof Error ? error.message : "Không thể xóa khu vực. Vui lòng thử lại sau.");
         }
     };
 
@@ -439,6 +495,20 @@ export function FacilitiesScreen() {
                                 <MetricCard label="Khu vực" value={activeRegions.length} tone="stone" />
                             </div>
                         </div>
+                    </div>
+
+                    <div
+                        className={cn(
+                            "rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden",
+                            successMessage || errorMessage
+                                ? "opacity-100 max-h-20 py-3 translate-y-0 scale-100"
+                                : "opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent",
+                            errorMessage || activeType === "error"
+                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        )}
+                    >
+                        {activeMessage || errorMessage || successMessage}
                     </div>
 
                     <div className="grid min-w-0 grid-cols-1 gap-4 lg:gap-6 2xl:grid-cols-[330px_minmax(0,1fr)]">

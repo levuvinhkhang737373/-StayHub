@@ -255,7 +255,6 @@ export function RoomMovementsScreen() {
                   <History className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Lịch sử phòng & cọc
                 </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Theo dõi biến động dòng tiền đặt cọc và nhật ký nhận/trả phòng của khách thuê.</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -519,7 +519,6 @@ export function FireSafetyScreen() {
                 <Camera className="h-8 w-8 text-[#f3c56b] shrink-0" />
                 AI Camera
               </h1>
-              <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Giám sát an ninh, phát hiện chuyển động và cảnh báo sự cố thời gian thực.</p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <button

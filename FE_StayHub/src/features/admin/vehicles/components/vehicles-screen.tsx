@@ -144,7 +144,7 @@ export function VehiclesScreen() {
     if (successMessage) {
       const timer = setTimeout(() => {
         setSuccessMessage(null)
-      }, 5000)
+      }, 3000)
       return () => clearTimeout(timer)
     }
   }, [successMessage])
@@ -153,7 +153,7 @@ export function VehiclesScreen() {
     if (errorMessage) {
       const timer = setTimeout(() => {
         setErrorMessage(null)
-      }, 5000)
+      }, 3000)
       return () => clearTimeout(timer)
     }
   }, [errorMessage])
@@ -392,7 +392,6 @@ export function VehiclesScreen() {
                     <Car className="h-8 w-8 text-[#f3c56b] shrink-0" />
                     Bãi xe & Phương tiện
                   </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Quản lý thông tin gửi xe, vé xe và phương tiện của khách thuê.</p>
               </div>
               <button type="button" onClick={openCreateForm} className="inline-flex h-9 w-fit self-end lg:self-auto items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm phương tiện

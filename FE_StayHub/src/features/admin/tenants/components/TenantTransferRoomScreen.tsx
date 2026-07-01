@@ -666,7 +666,6 @@ export function TenantTransferRoomScreen() {
                 <ArrowRightLeft className="h-8 w-8 text-[#f3c56b] shrink-0" />
                 Lên lịch chuyển phòng
               </h1>
-              <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Lập kế hoạch di chuyển phòng, tính toán cọc chênh lệch và các chi phí phát sinh.</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[28rem] xl:grid-cols-3 items-end">

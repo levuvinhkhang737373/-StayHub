@@ -84,6 +84,43 @@ export function NotificationsScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const [activeMessage, setActiveMessage] = useState<string | null>(null)
+  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [errorMessage])
+
+  useEffect(() => {
+    if (successMessage) {
+      setActiveMessage(successMessage)
+      setActiveType('success')
+    } else if (errorMessage) {
+      setActiveMessage(errorMessage)
+      setActiveType('error')
+    } else {
+      const timer = setTimeout(() => {
+        setActiveMessage(null)
+        setActiveType(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage, errorMessage])
  
   const defaultForm = useMemo<NotificationFormValues>(() => ({
     title: '',
@@ -192,10 +229,8 @@ export function NotificationsScreen() {
   }
 
   const openEditForm = (notif: AdminNotificationResource) => {
-    if (notif.status === 2) {
-      alert('Không thể chỉnh sửa thông báo đã gửi.')
+      setErrorMessage('Không thể chỉnh sửa thông báo đã gửi.')
       return
-    }
     setEditingNotificationId(notif.id)
     setForm({
       title: notif.title || '',
@@ -265,7 +300,6 @@ export function NotificationsScreen() {
                   <Bell className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Thông báo
                 </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Soạn thảo, quản lý và gửi thông báo chung đến toàn bộ cư dân hoặc cá nhân.</p>
               </div>
               <button 
                 type="button" 
@@ -287,12 +321,19 @@ export function NotificationsScreen() {
         </div>
 
         {/* Notifications and Alerts */}
-        {(errorMessage || successMessage) && (
-          <div className={cn('rounded-3xl border p-4 text-sm font-black flex items-center justify-between', errorMessage ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
-            <span>{errorMessage || successMessage}</span>
-            <button onClick={() => { setErrorMessage(null); setSuccessMessage(null) }} className="hover:opacity-70 text-xs font-bold px-2">Đóng</button>
-          </div>
-        )}
+        <div
+          className={cn(
+            'rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden',
+            (successMessage || errorMessage)
+              ? 'opacity-100 max-h-20 py-3 translate-y-0 scale-100'
+              : 'opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent',
+            (errorMessage || activeType === 'error')
+              ? 'border-rose-200 bg-rose-50 text-rose-700'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          )}
+        >
+          {activeMessage || errorMessage || successMessage}
+        </div>
 
         <div className="grid min-w-0 grid-cols-1 gap-4 xl:gap-6">
           {/* Main List */}

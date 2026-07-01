@@ -121,6 +121,44 @@ export function ContractsScreen() {
   const [statusForm, setStatusForm] = useState({ status: STATUS_ACTIVE, actual_end_date: '', note: '' })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const [activeMessage, setActiveMessage] = useState<string | null>(null)
+  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [errorMessage])
+
+  useEffect(() => {
+    if (successMessage) {
+      setActiveMessage(successMessage)
+      setActiveType('success')
+    } else if (errorMessage) {
+      setActiveMessage(errorMessage)
+      setActiveType('error')
+    } else {
+      const timer = setTimeout(() => {
+        setActiveMessage(null)
+        setActiveType(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage, errorMessage])
+
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
@@ -546,7 +584,6 @@ export function ContractsScreen() {
                   <FileText className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Quản lý hợp đồng
                 </h1>
-                <p className="mt-2.5 text-xs font-semibold text-[#f8e8c8]/70">Tạo mới, gia hạn và theo dõi các hợp đồng thuê phòng của khách hàng.</p>
             </div>
             <button
               type="button"
@@ -566,16 +603,19 @@ export function ContractsScreen() {
         </div>
       </section>
 
-      {(errorMessage || successMessage) && (
-        <div
-          className={cn(
-            'rounded-3xl border px-4 py-3 text-sm font-black shadow-sm',
-            errorMessage ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-          )}
-        >
-          {errorMessage || successMessage}
-        </div>
-      )}
+      <div
+        className={cn(
+          'rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden',
+          (successMessage || errorMessage)
+            ? 'opacity-100 max-h-20 py-3 translate-y-0 scale-100'
+            : 'opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent',
+          (errorMessage || activeType === 'error')
+            ? 'border-rose-200 bg-rose-50 text-rose-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        )}
+      >
+        {activeMessage || errorMessage || successMessage}
+      </div>
 
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:gap-6">
         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
@@ -859,7 +899,7 @@ export function ContractsScreen() {
               }
               await loadContracts()
             } catch (error) {
-              alert(getVisibleErrorMessage(error, 'Không thể ghi nhận giao dịch cọc.'))
+              setErrorMessage(getVisibleErrorMessage(error, 'Không thể ghi nhận giao dịch cọc.'))
             } finally {
               setIsConfirmingDeposit(false)
             }
