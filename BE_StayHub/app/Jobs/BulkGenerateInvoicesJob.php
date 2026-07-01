@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Admin;
 use App\Models\Contract;
+use App\Models\Invoice;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -45,7 +46,8 @@ class BulkGenerateInvoicesJob implements ShouldQueue
             ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
             ->whereDoesntHave('invoices', function ($q) {
                 $q->where('billing_month', $this->billingMonth)
-                  ->where('billing_year', $this->billingYear);
+                  ->where('billing_year', $this->billingYear)
+                  ->where('status', '!=', Invoice::STATUS_CANCELLED);
             })
             ->get();
 

@@ -216,7 +216,8 @@ class InvoiceController extends Controller
         $existingInvoiceQuery = Invoice::query()
             ->where('contract_id', $contract->id)
             ->where('billing_year', $periodStart->year)
-            ->where('billing_month', $periodStart->month);
+            ->where('billing_month', $periodStart->month)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED);
 
         $existingInvoice = $forIssue
             ? $existingInvoiceQuery->lockForUpdate()->first()
@@ -950,6 +951,9 @@ class InvoiceController extends Controller
     private function syncInvoiceItemsForMeterReading(MeterReading $reading): Collection
     {
         $items = InvoiceItem::query()
+            ->whereHas('invoice', function ($q) {
+                $q->where('status', '!=', Invoice::STATUS_CANCELLED);
+            })
             ->with('service:id,name')
             ->where('meter_reading_id', $reading->id)
             ->lockForUpdate()
@@ -1004,6 +1008,7 @@ class InvoiceController extends Controller
                             ->where('billing_month', '>', $invoice->billing_month);
                     });
             })
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
             ->whereHas('items', fn (Builder $query): Builder => $query->where('item_type', InvoiceItem::ITEM_TYPE_OLD_DEBT))
             ->pluck('id')
             ->map(fn ($invoiceId): int => (int) $invoiceId)

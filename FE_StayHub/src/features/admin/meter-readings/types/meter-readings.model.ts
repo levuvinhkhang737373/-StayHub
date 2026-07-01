@@ -50,12 +50,21 @@ export interface SaveMeterReadingPayload {
   image_path?: string
 }
 
+export interface MeterReadingUncertainDigit {
+  position: number | null
+  lower_digit: number | null
+  upper_digit: number | null
+  chosen_digit: number | null
+  note: string | null
+}
+
 export interface AnalyzeMeterImageResponse {
   success: boolean
   reading_value: number | null
   confidence: 'high' | 'medium' | 'low' | null
   warning: string | null
   anomaly_warning: string | null
+  uncertain_digits: MeterReadingUncertainDigit[]
   error: 'image_blurry' | 'image_too_dark' | 'image_glare' | 'no_meter_found' | 'meter_type_mismatch' | 'ai_service_unavailable' | 'invalid_response' | 'invalid_image' | string | null
   image_path: string | null
   image_url: string | null

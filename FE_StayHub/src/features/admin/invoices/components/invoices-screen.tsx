@@ -355,10 +355,10 @@ export function InvoicesScreen() {
           <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">TÀI CHÍNH & BÁO CÁO</span>
-                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
-                  <Receipt className="h-8 w-8 text-[#f3c56b] shrink-0" />
-                  Hóa đơn
-                </h1>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                <Receipt className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                Hóa đơn
+              </h1>
             </div>
             <button
               type="button"
@@ -477,7 +477,7 @@ export function InvoicesScreen() {
                     <div className="flex items-center justify-end gap-2">
                       <IconButton title="Xem chi tiết" success onClick={() => void viewInvoice(invoice)}><Eye className="h-5 w-5" /></IconButton>
                       {canReissueInvoice(invoice) && <IconButton title="Chỉnh sửa & phát hành lại" onClick={() => void openEditInvoice(invoice)}><Pencil className="h-5 w-5" /></IconButton>}
-                      
+
                       {[INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status)) && <IconButton title="Ghi nhận thanh toán" success onClick={() => { setPaymentInvoice(invoice); setIsPaymentOpen(true) }}><Banknote className="h-5 w-5" /></IconButton>}
                     </div>
                   </td>
@@ -505,7 +505,7 @@ export function InvoicesScreen() {
             <div className="w-full sm:w-36"><AdminSelect value={perPage} options={perPageOptions} onChange={(nextValue) => { setPerPage(Number(nextValue)); setCurrentPage(1) }} menuPlacement="top" /></div>
             <div className="flex items-center justify-end gap-1.5">
               <button type="button" disabled={safeCurrentPage <= 1} onClick={() => setCurrentPage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:opacity-45"><ChevronLeft className="h-4 w-4" /></button>
-               {visiblePages.map((page, index) => {
+              {visiblePages.map((page, index) => {
                 const previousPage = visiblePages[index - 1]
                 const hasGap = previousPage && page - previousPage > 1
 
@@ -625,13 +625,28 @@ function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { cont
   return (
     <ModalFrame title="Lập hóa đơn" onClose={onClose}>
       <div className="space-y-3">
-        <AdminSelect value={contractId} options={[{ value: '', label: 'Chọn hợp đồng', tone: 'default' as const }, ...contracts]} onChange={(nextValue) => setContractId(String(nextValue))} />
-        <div className="grid grid-cols-2 gap-3">
-          <input className={inputClass} type="number" min={1} max={12} value={month} onChange={(event) => setMonth(event.target.value)} />
-          <input className={inputClass} type="number" min={2020} max={2100} value={year} onChange={(event) => setYear(event.target.value)} />
+        <div>
+          <label className="mb-1.5 block text-xs font-black text-[#24170d]/70">Hợp đồng <span className="text-rose-500">*</span></label>
+          <AdminSelect value={contractId} options={[{ value: '', label: 'Chọn hợp đồng', tone: 'default' as const }, ...contracts]} onChange={(nextValue) => setContractId(String(nextValue))} />
         </div>
-        <input className={inputClass} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-        <textarea className={textAreaClass} value={adjustmentText} onChange={(event) => setAdjustmentText(event.target.value)} placeholder="Điều chỉnh tùy chọn, mỗi dòng: phu_thu|Mô tả|100000 hoặc giam_tru|Mô tả|50000" />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1.5 block text-xs font-black text-[#24170d]/70">Tháng <span className="text-rose-500">*</span></label>
+            <input className={inputClass} type="number" min={1} max={12} value={month} onChange={(event) => setMonth(event.target.value)} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-black text-[#24170d]/70">Năm <span className="text-rose-500">*</span></label>
+            <input className={inputClass} type="number" min={2020} max={2100} value={year} onChange={(event) => setYear(event.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-black text-[#24170d]/70">Hạn thanh toán</label>
+          <input className={inputClass} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-black text-[#24170d]/70">Điều chỉnh thêm</label>
+          <textarea className={textAreaClass} value={adjustmentText} onChange={(event) => setAdjustmentText(event.target.value)} placeholder="Mỗi dòng: phu_thu|Mô tả|100000 hoặc giam_tru|Mô tả|50000" />
+        </div>
         <p className="text-xs font-bold text-[#6f6254]">Hệ thống tự tính tiền phòng, điện nước, dịch vụ, xe và nợ cũ theo plan. Phần điều chỉnh dùng mã: phu_thu, giam_tru, tang, giam.</p>
         <button type="button" disabled={isSaving || !contractId} onClick={() => onSubmit({ contract_id: Number(contractId), billing_month: Number(month), billing_year: Number(year), due_date: dueDate || null, adjustments })} className="h-12 w-full rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60">
           {isSaving ? 'Đang xem trước...' : 'Xem trước hóa đơn'}
@@ -801,11 +816,25 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
               {adjustments.length === 0 && <p className="rounded-2xl bg-[#fffaf1] p-3 text-xs font-bold text-[#6f6254]">Chưa có dòng điều chỉnh.</p>}
               {adjustments.map((adjustment) => (
                 <div key={adjustment.key} className="grid gap-3 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 lg:grid-cols-[11rem_minmax(0,1fr)_7rem_9rem_2.5rem]">
-                  <AdminSelect value={adjustment.item_type} options={adjustmentItemTypeOptions} onChange={(value) => updateAdjustment(adjustment.key, 'item_type', Number(value))} />
-                  <input className={inputClass} value={adjustment.description} onChange={(event) => updateAdjustment(adjustment.key, 'description', event.target.value)} placeholder="Mô tả điều chỉnh" />
-                  <input className={inputClass} value={adjustment.quantity} onChange={(event) => updateAdjustment(adjustment.key, 'quantity', event.target.value)} placeholder="SL" />
-                  <input className={inputClass} value={adjustment.unit_price} onChange={(event) => updateAdjustment(adjustment.key, 'unit_price', formatMoneyInput(event.target.value))} placeholder="Đơn giá" />
-                  <button type="button" onClick={() => removeAdjustment(adjustment.key)} className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700"><Trash2 className="h-4 w-4" /></button>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-black text-[#24170d]/60">Loại điều chỉnh</label>
+                    <AdminSelect value={adjustment.item_type} options={adjustmentItemTypeOptions} onChange={(value) => updateAdjustment(adjustment.key, 'item_type', Number(value))} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-black text-[#24170d]/60">Mô tả</label>
+                    <input className={inputClass} value={adjustment.description} onChange={(event) => updateAdjustment(adjustment.key, 'description', event.target.value)} placeholder="Mô tả điều chỉnh" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-black text-[#24170d]/60">Số lượng</label>
+                    <input className={inputClass} value={adjustment.quantity} onChange={(event) => updateAdjustment(adjustment.key, 'quantity', event.target.value)} placeholder="SL" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-black text-[#24170d]/60">Đơn giá</label>
+                    <input className={inputClass} value={adjustment.unit_price} onChange={(event) => updateAdjustment(adjustment.key, 'unit_price', formatMoneyInput(event.target.value))} placeholder="Đơn giá" />
+                  </div>
+                  <div className="flex items-end">
+                    <button type="button" onClick={() => removeAdjustment(adjustment.key)} className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700"><Trash2 className="h-4 w-4" /></button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -815,7 +844,6 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
         <aside className="h-fit rounded-3xl border border-[#0f766e]/20 bg-[#0f766e]/8 p-4 lg:sticky lg:top-4">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Preview phát hành lại</p>
           <p className="mt-2 text-3xl font-black tracking-tight text-[#24170d]">{formatCurrency(previewTotal)}</p>
-          <p className="mt-2 text-xs font-bold leading-5 text-[#6f6254]">Sau khi lưu, hệ thống cập nhật bảng chỉ số, dòng hóa đơn, tổng tiền và gửi mã QR mới cho khách thuê qua realtime.</p>
           {previewTotal < 0 && <p className="mt-3 rounded-2xl bg-rose-50 p-3 text-xs font-black text-rose-700">Tổng tiền không được âm.</p>}
           <button type="button" disabled={isSaving || !canSubmit} onClick={() => onSubmit({
             reason: reason.trim(),

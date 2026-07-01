@@ -21,6 +21,7 @@ import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { ImageViewerModal } from '../../../../shared/components/ImageViewerModal'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import {
@@ -151,6 +152,7 @@ export function FireSafetyScreen() {
   const [scanStatuses, setScanStatuses] = useState<Record<number, { status: 'ok' | 'safe' | 'error'; message: string; at: string }>>({})
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null)
 
   const buildingOptions = useMemo(() => {
     if (isSuperAdmin) return buildings
@@ -505,7 +507,7 @@ export function FireSafetyScreen() {
     setAlertCurrentPage(1)
   }
 
-  const formTitle = editingCameraId ? 'Cập nhật camera' : 'Thêm camera thật'
+  const formTitle = editingCameraId ? 'Cập nhật camera' : 'Thêm camera'
 
   return (
     <section className="space-y-5 text-[#24170d] sm:space-y-6">
@@ -706,7 +708,18 @@ export function FireSafetyScreen() {
               ) : alerts.map((alert) => (
                 <article key={alert.id} className="grid gap-4 rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4 md:grid-cols-[8rem_minmax(0,1fr)_auto]">
                   <div className="overflow-hidden rounded-2xl border border-[#3d2a18]/10 bg-[#efe2cf]/45">
-                    {alert.snapshot_url ? <img src={alert.snapshot_url} alt="Snapshot cảnh báo" className="h-28 w-full object-cover md:h-full" /> : <div className="flex h-28 items-center justify-center text-[#8b5e34]/45"><Camera className="h-8 w-8" /></div>}
+                    {alert.snapshot_url ? (
+                      <img
+                        src={alert.snapshot_url}
+                        alt="Snapshot cảnh báo"
+                        className="h-28 w-full object-cover md:h-full cursor-pointer transition-opacity hover:opacity-90"
+                        onClick={() => setViewingImageSrc(alert.snapshot_url ?? null)}
+                      />
+                    ) : (
+                      <div className="flex h-28 items-center justify-center text-[#8b5e34]/45">
+                        <Camera className="h-8 w-8" />
+                      </div>
+                    )}
                   </div>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -774,6 +787,11 @@ export function FireSafetyScreen() {
           onAuthChange={setHasCameraAuth}
         />
       )}
+      <ImageViewerModal
+        isOpen={!!viewingImageSrc}
+        src={viewingImageSrc}
+        onClose={() => setViewingImageSrc(null)}
+      />
     </section>
   )
 }

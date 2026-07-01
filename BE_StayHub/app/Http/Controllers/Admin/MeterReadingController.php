@@ -369,7 +369,7 @@ class MeterReadingController extends Controller
                 ->timeout($timeout)
                 ->post($baseUrl . '/chat/completions', [
                     'model' => $model,
-                    'max_tokens' => 80,
+                    'max_tokens' => 180,
                     'response_format' => ['type' => 'json_object'],
                     'messages' => [[
                         'role' => 'user',
@@ -418,6 +418,13 @@ class MeterReadingController extends Controller
             $confidence = in_array($payload['confidence'] ?? null, ['high', 'medium', 'low'], true)
                 ? $payload['confidence']
                 : 'low';
+            $uncertainDigits = $this->normalizeUncertainDigits(
+                $payload['uncertain_digits'] ?? $payload['transition_digits'] ?? []
+            );
+
+            if ($uncertainDigits !== []) {
+                $confidence = 'low';
+            }
 
             return [
                 'success' => true,
@@ -425,6 +432,7 @@ class MeterReadingController extends Controller
                 'confidence' => $confidence,
                 'warning' => $payload['warning'] ?? null,
                 'anomaly_warning' => $this->meterAnomalyWarning($readingValue, $previousReading),
+                'uncertain_digits' => $uncertainDigits,
             ];
         } catch (JsonException) {
             return ['success' => false, 'error' => 'invalid_response'];
@@ -450,7 +458,7 @@ Bạn là hệ thống đọc chỉ số đồng hồ {$meterName} cho phòng tr
 Hãy phân tích ảnh và CHỈ trả về JSON thuần, không markdown, không giải thích thêm.
 
 Nếu đọc được chỉ số, trả đúng format:
-{"value": <số nguyên>, "confidence": "high|medium|low", "warning": null, "meter_kind": "electric|water"}
+{"value": <số nguyên>, "confidence": "high|medium|low", "warning": null, "meter_kind": "electric|water", "uncertain_digits": []}
 
 Nếu KHÔNG đọc được, trả đúng MỘT trong các lỗi:
 {"error": "image_blurry"} khi ảnh mờ, rung, mất nét.
@@ -467,7 +475,10 @@ Quy tắc đọc:
 - Ví dụ nếu dãy chính là 00480 và ô đỏ/phần lẻ là 7 thì value phải là 480, không phải 487 hoặc 490.
 - Nếu có 5 ô số nguyên chính, trả về đúng số tạo bởi 5 ô đó sau khi bỏ các số 0 ở đầu.
 - Với đồng hồ nước: chỉ đọc khi ảnh thật sự là đồng hồ nước, thường có đơn vị m³/m3; nếu thấy chữ kWh thì chắc chắn là sai loại.
-- Nếu số đang lửng lơ giữa hai giá trị, làm tròn xuống theo ô số nguyên chính và đặt confidence là low.
+- Với đồng hồ nước dạng ô số, chỉ lấy dãy số nguyên chính; bỏ kim nhỏ màu đỏ, vòng số đỏ, hoặc phần thập phân/lẻ.
+- Nếu một ô số đang lửng lơ/chuyển bánh răng giữa hai giá trị, lấy chữ số thấp hơn đã hoàn thành để tạo value, đặt confidence là low.
+- Khi có ô số đang lửng lơ/chuyển bánh răng, điền uncertain_digits theo format {"position": <vị trí từ trái sang phải, bắt đầu từ 1>, "lower_digit": <số thấp hơn>, "upper_digit": <số kế tiếp>, "chosen_digit": <số đã lấy>, "note": "Số đang chuyển từ X sang Y"}.
+- Nếu không có ô số lửng lơ/chuyển bánh răng, uncertain_digits phải là [].
 - Nếu có nhiều đồng hồ, đọc đồng hồ to nhất/rõ nhất và đặt confidence là medium.
 - Nếu mặt kính vỡ, số bị che một phần nhưng vẫn đoán được, trả value và confidence low.
 {$previousText}
@@ -499,6 +510,51 @@ PROMPT;
         $expectedKind = $meterType === MeterDevice::METER_TYPE_WATER ? 'water' : 'electric';
 
         return strtolower(trim($meterKind)) === $expectedKind;
+    }
+
+    private function normalizeUncertainDigits(mixed $uncertainDigits): array
+    {
+        if (! is_array($uncertainDigits)) {
+            return [];
+        }
+
+        return collect($uncertainDigits)
+            ->filter(fn (mixed $digit): bool => is_array($digit))
+            ->map(function (array $digit): array {
+                $note = isset($digit['note']) && is_string($digit['note'])
+                    ? mb_substr(trim($digit['note']), 0, 120)
+                    : null;
+
+                return [
+                    'position' => $this->normalizeDigitInteger($digit['position'] ?? null, 1),
+                    'lower_digit' => $this->normalizeDigitInteger($digit['lower_digit'] ?? $digit['from'] ?? null, 0, 9),
+                    'upper_digit' => $this->normalizeDigitInteger($digit['upper_digit'] ?? $digit['to'] ?? null, 0, 9),
+                    'chosen_digit' => $this->normalizeDigitInteger($digit['chosen_digit'] ?? $digit['chosen'] ?? null, 0, 9),
+                    'note' => $note !== '' ? $note : null,
+                ];
+            })
+            ->take(8)
+            ->values()
+            ->all();
+    }
+
+    private function normalizeDigitInteger(mixed $value, ?int $minimum = null, ?int $maximum = null): ?int
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $integerValue = (int) $value;
+
+        if ($minimum !== null && $integerValue < $minimum) {
+            return $minimum;
+        }
+
+        if ($maximum !== null && $integerValue > $maximum) {
+            return $maximum;
+        }
+
+        return $integerValue;
     }
 
     private function meterAnomalyWarning(int $readingValue, ?float $previousReading): ?string

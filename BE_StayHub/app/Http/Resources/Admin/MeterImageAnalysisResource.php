@@ -15,6 +15,7 @@ class MeterImageAnalysisResource extends JsonResource
             'confidence' => $this->resource['confidence'] ?? null,
             'warning' => $this->resource['warning'] ?? null,
             'anomaly_warning' => $this->resource['anomaly_warning'] ?? null,
+            'uncertain_digits' => $this->resource['uncertain_digits'] ?? [],
             'error' => $this->resource['error'] ?? null,
             'image_path' => $this->resource['image_path'] ?? null,
             'image_url' => $this->resource['image_url'] ?? null,

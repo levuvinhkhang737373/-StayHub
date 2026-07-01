@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { AlertTriangle, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, updateUtilityPrices, fetchUtilityPriceHistory } from '../services/meter-readings.service'
@@ -24,6 +23,7 @@ const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-
 // dynamic options are generated within the component
 
 type MeterKind = 'elec' | 'water'
+type MeterReadingUncertainDigit = NonNullable<AnalyzeMeterImageResponse['uncertain_digits']>[number]
 
 type MeterFormState = {
   id: number
@@ -39,6 +39,7 @@ type MeterFormState = {
   confidence: AnalyzeMeterImageResponse['confidence']
   warning: string | null
   anomalyWarning: string | null
+  uncertainDigits: AnalyzeMeterImageResponse['uncertain_digits']
   imageError: string | null
   isAnalyzing: boolean
 }
@@ -65,6 +66,16 @@ function getAiImageErrorMessage(error: string | null | undefined) {
   return imageErrorMessages[error] || 'Không thể đọc chỉ số từ ảnh, vui lòng nhập tay'
 }
 
+function formatUncertainDigit(digit: MeterReadingUncertainDigit, index: number) {
+  const positionText = digit.position ? `Ô số thứ ${digit.position}` : `Ô nghi ngờ ${index + 1}`
+  const transitionText = digit.lower_digit !== null && digit.upper_digit !== null
+    ? `đang chuyển từ ${digit.lower_digit} sang ${digit.upper_digit}`
+    : 'đang nằm giữa hai số'
+  const chosenText = digit.chosen_digit !== null ? `, AI tạm lấy ${digit.chosen_digit}` : ''
+
+  return digit.note || `${positionText} ${transitionText}${chosenText}`
+}
+
 function buildMeterFormState(args: {
   id: number
   prev: number
@@ -89,6 +100,7 @@ function buildMeterFormState(args: {
     confidence: null,
     warning: null,
     anomalyWarning: null,
+    uncertainDigits: [],
     imageError: null,
     isAnalyzing: false,
   }
@@ -420,6 +432,7 @@ export function MeterReadingsScreen() {
       imageError: null,
       warning: null,
       anomalyWarning: null,
+      uncertainDigits: [],
       isAnalyzing: true,
     }))
 
@@ -439,6 +452,7 @@ export function MeterReadingsScreen() {
           ...current,
           isAnalyzing: false,
           imageError: 'invalid_response',
+          uncertainDigits: [],
         }))
         return
       }
@@ -461,6 +475,7 @@ export function MeterReadingsScreen() {
           confidence: result.success ? result.confidence : null,
           warning: result.warning,
           anomalyWarning: result.anomaly_warning,
+          uncertainDigits: result.success ? (result.uncertain_digits || []) : [],
           imageError: result.success ? null : (result.error ?? 'invalid_response'),
           isAnalyzing: false,
         }
@@ -470,6 +485,7 @@ export function MeterReadingsScreen() {
         ...current,
         isAnalyzing: false,
         imageError: error instanceof ApiError && error.statusCode === 422 ? 'invalid_image' : 'ai_service_unavailable',
+        uncertainDigits: [],
       }))
     }
   }
@@ -643,6 +659,7 @@ export function MeterReadingsScreen() {
         usageUnit: 'm³',
       }
     const imageError = getAiImageErrorMessage(meter.imageError)
+    const uncertainDigitMessages = (meter.uncertainDigits || []).map(formatUncertainDigit)
     const hasValidReading = meter.curr && !isNaN(Number(meter.curr)) && Number(meter.curr) >= meter.prev
 
     return (
@@ -721,7 +738,18 @@ export function MeterReadingsScreen() {
             {imageError}
           </div>
         )}
-        {meter.confidence === 'low' && (
+        {uncertainDigitMessages.length > 0 && (
+          <div className="flex gap-2 rounded-xl border border-amber-300 bg-[linear-gradient(135deg,#fff8db,#fff1bd)] px-3 py-2 text-xs font-bold leading-5 text-amber-900 shadow-sm shadow-amber-200/40">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
+            <div>
+              <p className="font-black">Có chữ số đang chuyển, AI đã làm tròn xuống.</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                {uncertainDigitMessages.map((message, index) => <li key={`${message}-${index}`}>{message}</li>)}
+              </ul>
+            </div>
+          </div>
+        )}
+        {meter.confidence === 'low' && uncertainDigitMessages.length === 0 && (
           <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" /> AI không chắc chắn, vui lòng kiểm tra lại số
           </div>
