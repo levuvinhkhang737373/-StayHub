@@ -1,0 +1,12 @@
+networks:
+  laravel_network:
+    external: true
+    name: stayhub_laravel_network
+
+volumes:
+  dbdata_new:
+    external: true
+    name: stayhub_dbdata_new
+  meili_data:
+    external: true
+    name: stayhub_meili_data

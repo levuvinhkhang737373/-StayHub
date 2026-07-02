@@ -1,0 +1,18 @@
+Field	Type	Null	Key	Default	Extra
+id	bigint unsigned	NO	PRI	NULL	auto_increment
+username	varchar(255)	NO	UNI	NULL	
+full_name	varchar(150)	NO		NULL	
+email	varchar(150)	NO	UNI	NULL	
+phone	varchar(30)	NO		NULL	
+password	varchar(255)	NO		NULL	
+role	tinyint unsigned	NO		1	
+avatar_url	varchar(255)	YES		NULL	
+status	tinyint unsigned	NO		1	
+gender	tinyint unsigned	NO		1	
+date_of_birth	date	YES		NULL	
+address	varchar(500)	YES		NULL	
+image_path_faceid	varchar(500)	YES		NULL	
+created_faceid_at	timestamp	YES		NULL	
+updated_faceid_at	timestamp	YES		NULL	
+created_at	timestamp	YES		NULL	
+updated_at	timestamp	YES		NULL	
