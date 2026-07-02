@@ -14,6 +14,17 @@ export interface AdminRoomMovementPaginator<T> {
   meta?: AdminRoomMovementPaginationMeta
 }
 
+export interface AdminUpdateRoomMovementTransferDatePayload {
+  movement_date: string
+  note?: string
+}
+
+export interface AdminUpdateRoomMovementTransferDateResult {
+  transfer_code?: string | null
+  movement: AdminRoomMovementResource
+  movements: AdminRoomMovementResource[]
+}
+
 export interface AdminRoomMovementTenantResource {
   id: number
   username?: string | null

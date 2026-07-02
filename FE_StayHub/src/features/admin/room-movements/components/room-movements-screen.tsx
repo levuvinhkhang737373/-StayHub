@@ -298,129 +298,129 @@ export function RoomMovementsScreen() {
 
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left">
-            <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
-              <tr>
-                <th scope="col" className={cn(tableHeadCellClass, 'pl-5')}>Thời điểm</th>
-                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Mã lịch</th>
-                <th scope="col" className={tableHeadCellClass}>Khách thuê</th>
-                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Luồng phòng</th>
-                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Loại</th>
-                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Trạng thái</th>
-                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Quyết toán</th>
-                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Hợp đồng</th>
-                <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Người xử lý</th>
-                <th scope="col" className={cn(tableHeadCellClass, 'pr-5 text-right')}>Chi tiết</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
-              {isLoading && (
+              <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
-                  <td colSpan={10} className="px-5 py-16 text-center text-sm font-black text-[#8b5e34]">
-                    <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải lịch sử phòng và cọc...</span>
-                  </td>
+                  <th scope="col" className={cn(tableHeadCellClass, 'pl-5')}>Thời điểm</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Mã lịch</th>
+                  <th scope="col" className={tableHeadCellClass}>Khách thuê</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Luồng phòng</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Loại</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Trạng thái</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Quyết toán</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Hợp đồng</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Người xử lý</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'pr-5 text-right')}>Chi tiết</th>
                 </tr>
-              )}
+              </thead>
+              <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
+                {isLoading && (
+                  <tr>
+                    <td colSpan={10} className="px-5 py-16 text-center text-sm font-black text-[#8b5e34]">
+                      <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải lịch sử phòng và cọc...</span>
+                    </td>
+                  </tr>
+                )}
 
-              {!isLoading && movements.map((movement) => (
-                <tr key={movement.id} className="group transition hover:bg-[#f3c56b]/10">
-                  <td className={cn(tableBodyCellClass, 'pl-5 text-[13px] font-black text-[#24170d]')}>
-                    <div className="flex items-start gap-2">
-                      <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5e34]" />
-                      {(() => {
-                        const dateTimeStr = formatDateTime(movement.movement_date)
-                        if (dateTimeStr === '—') return <span className="whitespace-nowrap tabular-nums text-[13px] font-black text-[#24170d]">—</span>
-                        const parts = dateTimeStr.split(' ')
-                        const time = parts[0]
-                        const date = parts[1]
-                        return (
-                          <div className="flex flex-col leading-tight">
-                            <span className="whitespace-nowrap tabular-nums text-[13px] font-black text-[#24170d]">{date}</span>
-                            {time && <span className="mt-0.5 whitespace-nowrap tabular-nums text-[11px] font-bold text-[#8b5e34]">{time}</span>}
-                          </div>
-                        )
-                      })()}
+                {!isLoading && movements.map((movement) => (
+                  <tr key={movement.id} className="group transition hover:bg-[#f3c56b]/10">
+                    <td className={cn(tableBodyCellClass, 'pl-5 text-[13px] font-black text-[#24170d]')}>
+                      <div className="flex items-start gap-2">
+                        <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5e34]" />
+                        {(() => {
+                          const dateTimeStr = formatDateTime(movement.movement_date)
+                          if (dateTimeStr === '—') return <span className="whitespace-nowrap tabular-nums text-[13px] font-black text-[#24170d]">—</span>
+                          const parts = dateTimeStr.split(' ')
+                          const time = parts[0]
+                          const date = parts[1]
+                          return (
+                            <div className="flex flex-col leading-tight">
+                              <span className="whitespace-nowrap tabular-nums text-[13px] font-black text-[#24170d]">{date}</span>
+                              {time && <span className="mt-0.5 whitespace-nowrap tabular-nums text-[11px] font-bold text-[#8b5e34]">{time}</span>}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    </td>
+                    <td className={cn(tableBodyCellClass, 'text-center text-[12px] font-black text-[#24170d]')}>
+                      <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.transfer_code || '—'}</span>
+                    </td>
+                    <td className={tableBodyCellClass}>
+                      <p className="truncate text-[13px] font-black leading-5 text-[#24170d]" title={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}>{movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}</p>
+                      <p className="mt-1 truncate text-[11px] font-bold text-[#6f6254]" title={movement.tenant?.phone || movement.tenant?.email || '—'}>{movement.tenant?.phone || movement.tenant?.email || '—'}</p>
+                    </td>
+                    <td className={cn(tableBodyCellClass, 'text-center')}>
+                      <div className="inline-block text-left">
+                        <RoomFlow movement={movement} />
+                      </div>
+                    </td>
+                    <td className={cn(tableBodyCellClass, 'text-center')}><MovementBadge movement={movement} /></td>
+                    <td className={cn(tableBodyCellClass, 'text-center')}><StatusBadge movement={movement} /></td>
+                    <td className={cn(tableBodyCellClass, 'text-center')}><SettlementBadge movement={movement} /></td>
+                    <td className={cn(tableBodyCellClass, 'text-center text-[12px] font-black text-[#24170d]')}>
+                      <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')}</span>
+                    </td>
+                    <td className={cn(tableBodyCellClass, 'text-center truncate text-[12px] font-black leading-5 text-[#6f6254]')} title={movement.creator_name || '—'}>{movement.creator_name || '—'}</td>
+                    <td className={cn(tableBodyCellClass, 'pr-5 text-right')}>
+                      <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
+                        <Eye className="h-5 w-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+
+                {!isLoading && movements.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="px-5 py-20 text-center">
+                      <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-[#fffaf1]/70 px-6 py-8">
+                        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><History className="h-9 w-9" /></div>
+                        <p className="text-lg font-black tracking-tight text-[#24170d]">Chưa có lịch sử phù hợp</p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">Thử đổi bộ lọc hoặc kiểm tra lại nghiệp vụ chuyển/trả phòng.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <p className="text-xs font-black text-[#6f6254]">
+              Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalMovements}</span> bản ghi
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="w-full sm:w-36">
+                <AdminSelect value={perPage} options={perPageOptions} onChange={changePerPage} menuPlacement="top" />
+              </div>
+              <div className="flex items-center justify-end gap-1.5">
+                <button type="button" disabled={safeCurrentPage <= 1} onClick={() => changePage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                {visiblePages.map((page, index) => {
+                  const previousPage = visiblePages[index - 1]
+                  const hasGap = previousPage && page - previousPage > 1
+
+                  return (
+                    <div key={page} className="flex items-center gap-1.5">
+                      {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
+                      <button type="button" onClick={() => changePage(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === safeCurrentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')} aria-current={page === safeCurrentPage ? 'page' : undefined}>
+                        {page}
+                      </button>
                     </div>
-                  </td>
-                  <td className={cn(tableBodyCellClass, 'text-center text-[12px] font-black text-[#24170d]')}>
-                    <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.transfer_code || '—'}</span>
-                  </td>
-                  <td className={tableBodyCellClass}>
-                    <p className="truncate text-[13px] font-black leading-5 text-[#24170d]" title={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}>{movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}</p>
-                    <p className="mt-1 truncate text-[11px] font-bold text-[#6f6254]" title={movement.tenant?.phone || movement.tenant?.email || '—'}>{movement.tenant?.phone || movement.tenant?.email || '—'}</p>
-                  </td>
-                  <td className={cn(tableBodyCellClass, 'text-center')}>
-                    <div className="inline-block text-left">
-                      <RoomFlow movement={movement} />
-                    </div>
-                  </td>
-                  <td className={cn(tableBodyCellClass, 'text-center')}><MovementBadge movement={movement} /></td>
-                  <td className={cn(tableBodyCellClass, 'text-center')}><StatusBadge movement={movement} /></td>
-                  <td className={cn(tableBodyCellClass, 'text-center')}><SettlementBadge movement={movement} /></td>
-                  <td className={cn(tableBodyCellClass, 'text-center text-[12px] font-black text-[#24170d]')}>
-                    <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')}</span>
-                  </td>
-                  <td className={cn(tableBodyCellClass, 'text-center truncate text-[12px] font-black leading-5 text-[#6f6254]')} title={movement.creator_name || '—'}>{movement.creator_name || '—'}</td>
-                  <td className={cn(tableBodyCellClass, 'pr-5 text-right')}>
-                    <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
-                      <Eye className="h-5 w-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {!isLoading && movements.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="px-5 py-20 text-center">
-                    <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-dashed border-[#3d2a18]/12 bg-[#fffaf1]/70 px-6 py-8">
-                      <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-dashed border-[#f3c56b] bg-[#f3c56b]/15 text-[#a65f16]"><History className="h-9 w-9" /></div>
-                      <p className="text-lg font-black tracking-tight text-[#24170d]">Chưa có lịch sử phù hợp</p>
-                      <p className="mt-2 text-sm font-semibold leading-6 text-[#6f6254]">Thử đổi bộ lọc hoặc kiểm tra lại nghiệp vụ chuyển/trả phòng.</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <p className="text-xs font-black text-[#6f6254]">
-            Hiển thị <span className="tabular-nums text-[#24170d]">{paginationStart}</span>-<span className="tabular-nums text-[#24170d]">{paginationEnd}</span> / <span className="tabular-nums text-[#24170d]">{totalMovements}</span> bản ghi
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="w-full sm:w-36">
-              <AdminSelect value={perPage} options={perPageOptions} onChange={changePerPage} menuPlacement="top" />
-            </div>
-            <div className="flex items-center justify-end gap-1.5">
-              <button type="button" disabled={safeCurrentPage <= 1} onClick={() => changePage(safeCurrentPage - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang trước">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              {visiblePages.map((page, index) => {
-                const previousPage = visiblePages[index - 1]
-                const hasGap = previousPage && page - previousPage > 1
-
-                return (
-                  <div key={page} className="flex items-center gap-1.5">
-                    {hasGap && <span className="px-1 text-xs font-black text-[#8b5e34]/60">...</span>}
-                    <button type="button" onClick={() => changePage(page)} className={cn('inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-xs font-black transition', page === safeCurrentPage ? 'border-[#24170d] bg-[#24170d] text-[#fff4df] shadow-sm' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#f3c56b]/15')} aria-current={page === safeCurrentPage ? 'page' : undefined}>
-                      {page}
-                    </button>
-                  </div>
-                )
-              })}
-              <button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => changePage(safeCurrentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
-                <ChevronRight className="h-4 w-4" />
-              </button>
+                  )
+                })}
+                <button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => changePage(safeCurrentPage + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 disabled:cursor-not-allowed disabled:opacity-45" aria-label="Trang sau">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       </section>
-    </section>
 
-    {isDetailOpen && selectedMovement && (
-      <DetailModal movement={selectedMovement} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} />
-    )}
-  </>
+      {isDetailOpen && selectedMovement && (
+        <DetailModal movement={selectedMovement} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} />
+      )}
+    </>
   )
 }
 

@@ -24,6 +24,7 @@ use App\Http\Requests\Admin\Invoice\ConfirmPaymentRequest;
 use App\Http\Requests\Admin\Invoice\CancelRequest;
 use App\Models\Admin;
 use App\Models\Contract;
+use App\Models\ContractVehicle;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\MeterDevice;
@@ -194,8 +195,8 @@ class InvoiceController extends Controller
             return ApiResponse::responseJson(false, 'Bạn không có quyền lập hóa đơn cho phòng này', 403, null, 403);
         }
 
-        if (! in_array((int) $contract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
-            return ApiResponse::responseJson(false, 'Chỉ lập hóa đơn cho hợp đồng đang hiệu lực hoặc vừa hết hạn', 422, null, 422);
+        if (! in_array((int) $contract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED], true)) {
+            return ApiResponse::responseJson(false, 'Chỉ lập hóa đơn cho hợp đồng đang hiệu lực, vừa hết hạn hoặc đã thanh lý trong kỳ', 422, null, 422);
         }
 
         $periodStart = Carbon::create((int) $validated['billing_year'], (int) $validated['billing_month'], 1)->startOfDay();
@@ -684,12 +685,15 @@ class InvoiceController extends Controller
             ->first(fn (ServicePrice $price): bool => (int) $price->service?->charge_method === Service::CHARGE_METHOD_BY_VEHICLE)
             ?->service_id;
 
-        foreach ($contract->contractVehicles->filter(fn ($contractVehicle): bool => (bool) $contractVehicle->is_active) as $contractVehicle) {
+        foreach ($contract->contractVehicles as $contractVehicle) {
             if (DecimalMoney::compare($contractVehicle->monthly_fee, '0') <= 0) {
                 continue;
             }
 
-            $proratedAmount = $this->calculateProratedAmount($contractVehicle->monthly_fee, $contract, $periodStart, $periodEnd);
+            $proratedAmount = $this->calculateVehicleProratedAmount($contractVehicle, $periodStart, $periodEnd);
+            if (DecimalMoney::compare($proratedAmount, '0') <= 0) {
+                continue;
+            }
 
             $items[] = [
                 'service_id' => $vehicleServiceId,
@@ -745,6 +749,37 @@ class InvoiceController extends Controller
         }
 
         return DecimalMoney::prorateByDays($amount, $actualDays, $totalDays);
+    }
+
+    private function calculateVehicleProratedAmount(ContractVehicle $contractVehicle, Carbon $periodStart, Carbon $periodEnd): string
+    {
+        $vehicleBillingStart = $contractVehicle->billing_start_date ?: $contractVehicle->started_at;
+        $vehicleBillingEnd = $contractVehicle->billing_end_date ?: $contractVehicle->ended_at;
+
+        if (! $contractVehicle->is_active && ! $vehicleBillingEnd) {
+            return '0.00';
+        }
+
+        $chargeStart = $vehicleBillingStart && $vehicleBillingStart->copy()->startOfDay()->greaterThan($periodStart)
+            ? $vehicleBillingStart->copy()->startOfDay()
+            : $periodStart->copy();
+
+        $chargeEnd = $vehicleBillingEnd && $vehicleBillingEnd->copy()->startOfDay()->lessThan($periodEnd)
+            ? $vehicleBillingEnd->copy()->startOfDay()
+            : $periodEnd->copy();
+
+        if ($chargeStart->greaterThan($chargeEnd)) {
+            return '0.00';
+        }
+
+        $totalDays = (int) $periodEnd->daysInMonth;
+        $actualDays = ((int) $chargeStart->diffInDays($chargeEnd)) + 1;
+
+        if ($actualDays >= $totalDays) {
+            return DecimalMoney::normalize($contractVehicle->monthly_fee);
+        }
+
+        return DecimalMoney::prorateByDays($contractVehicle->monthly_fee, $actualDays, $totalDays);
     }
 
     private function calculateRoomAmount(Contract $contract, Carbon $periodStart, Carbon $periodEnd): string

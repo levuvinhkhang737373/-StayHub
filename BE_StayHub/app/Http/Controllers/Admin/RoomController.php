@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Console\Commands\ExecuteScheduledRoomTransfers;
 use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
@@ -331,8 +332,13 @@ class RoomController extends Controller
     {
         try {
             $result = DB::transaction(fn(): array => $this->scheduleRoomTransfer($request->validated(), $request->user(), $request));
+            $result = $this->executeTodayTransferIfNeeded($result);
 
-            return ApiResponse::responseJson(true, 'Lên lịch chuyển phòng thành công', 201, new RoomTransferResultResource($result), 201);
+            $message = $result['executed_immediately'] ?? false
+                ? 'Chuyển phòng trong ngày đã được xử lý thành công'
+                : 'Lên lịch chuyển phòng thành công';
+
+            return ApiResponse::responseJson(true, $message, 201, new RoomTransferResultResource($result), 201);
         } catch (ValidationException $e) {
             $firstError = collect($e->errors())->flatten()->first() ?? $e->getMessage();
             return ApiResponse::responseJson(false, $firstError, 422, $e->errors(), 422);
@@ -353,7 +359,7 @@ class RoomController extends Controller
         $fromRoom = $sourceContract->room;
         $toRoom = Room::query()->with('building')->lockForUpdate()->find((int) $validated['to_room_id']);
 
-        $this->assertScheduleIsAllowed($admin, $tenantIds, $sourceContract, $fromRoom, $toRoom);
+        $this->assertScheduleIsAllowed($admin, $tenantIds, $sourceContract, $fromRoom, $toRoom, $movementDate);
         $this->assertNoPendingTransfers($tenantIds);
 
         $transferCode = $this->generateTransferCode($movementDate);
@@ -380,6 +386,35 @@ class RoomController extends Controller
             'status' => RoomMovement::STATUS_PENDING,
             'scheduled_payload' => $payload,
         ];
+    }
+
+    private function executeTodayTransferIfNeeded(array $result): array
+    {
+        $movementDate = Carbon::parse($result['scheduled_payload']['movement_date'] ?? null)->startOfDay();
+
+        if (! $movementDate->isSameDay(now('Asia/Ho_Chi_Minh')->startOfDay())) {
+            return $result;
+        }
+
+        $executeResult = app(ExecuteScheduledRoomTransfers::class)->executeTransferCode((string) $result['transfer_code']);
+        $movements = RoomMovement::query()
+            ->where('transfer_code', $result['transfer_code'])
+            ->with($this->transferResultRelations())
+            ->orderBy('id')
+            ->get();
+
+        return array_merge($result, [
+            'movement' => $movements->first(),
+            'movements' => $movements,
+            'status' => $executeResult['status'] === 'executed' ? RoomMovement::STATUS_EXECUTED : RoomMovement::STATUS_BLOCKED,
+            'new_contract' => isset($executeResult['destination_contract_id'])
+                ? Contract::query()->with(['room.building'])->find($executeResult['destination_contract_id'])
+                : null,
+            'deposit' => $executeResult['settlement'] ?? null,
+            'execute_result' => $executeResult,
+            'executed_immediately' => $executeResult['status'] === 'executed',
+            'blocked_immediately' => $executeResult['status'] === 'blocked',
+        ]);
     }
 
     private function tenantIds(array $validated): array
@@ -428,7 +463,7 @@ class RoomController extends Controller
         return $contract;
     }
 
-    private function assertScheduleIsAllowed(Admin $admin, array $tenantIds, Contract $sourceContract, ?Room $fromRoom, ?Room $toRoom): void
+    private function assertScheduleIsAllowed(Admin $admin, array $tenantIds, Contract $sourceContract, ?Room $fromRoom, ?Room $toRoom, Carbon $movementDate): void
     {
         if (! $fromRoom || ! $toRoom) {
             throw ValidationException::withMessages(['to_room_id' => 'Không tìm thấy phòng cũ hoặc phòng đích.']);
@@ -447,7 +482,7 @@ class RoomController extends Controller
             throw ValidationException::withMessages(['to_room_id' => $message]);
         }
 
-        if ($this->hasUnpaidOldDebt($sourceContract)) {
+        if ($this->hasUnpaidOldDebt($sourceContract, $movementDate)) {
             throw ValidationException::withMessages(['invoice' => 'Hợp đồng/phòng cũ còn hóa đơn chưa thanh toán, vui lòng thanh toán hết nợ cũ trước khi lên lịch chuyển phòng.']);
         }
     }
@@ -488,11 +523,18 @@ class RoomController extends Controller
         }
     }
 
-    private function hasUnpaidOldDebt(Contract $contract): bool
+    private function hasUnpaidOldDebt(Contract $contract, Carbon $movementDate): bool
     {
         return Invoice::query()
             ->where('contract_id', $contract->id)
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE])
+            ->where(function ($query) use ($movementDate): void {
+                $query->where('billing_year', '<', $movementDate->year)
+                    ->orWhere(function ($sameYearQuery) use ($movementDate): void {
+                        $sameYearQuery->where('billing_year', $movementDate->year)
+                            ->where('billing_month', '<', $movementDate->month);
+                    });
+            })
             ->exists();
     }
 

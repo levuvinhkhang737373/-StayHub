@@ -10,6 +10,7 @@ use App\Http\Resources\Admin\DashboardOverviewResource;
 use App\Models\Admin;
 use App\Models\Building;
 use App\Models\Contract;
+use App\Models\ContractDepositTransaction;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\MaintenanceRequest;
@@ -17,6 +18,8 @@ use App\Models\MeterDevice;
 use App\Models\MeterReading;
 use App\Models\Payment;
 use App\Models\Room;
+use App\Models\RoomMovement;
+use App\Models\Service;
 use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -72,8 +75,10 @@ class DashboardController extends Controller
                 $profitLabel = 'Lợi nhuận kỳ đang xem';
             }
 
-            $currentFinancial = $this->financialTotals($buildingIds, $currentStart, $currentEnd, $isSystemWide);
-            $previousFinancial = $this->financialTotals($buildingIds, $previousStart, $previousEnd, $isSystemWide);
+            $roomMovements = $this->scopedRoomMovementExtraChargeQuery($buildingIds)->get();
+
+            $currentFinancial = $this->financialTotals($buildingIds, $currentStart, $currentEnd, $isSystemWide, $roomMovements);
+            $previousFinancial = $this->financialTotals($buildingIds, $previousStart, $previousEnd, $isSystemWide, $roomMovements);
             $occupancy = $this->occupancySummary($buildingIds, $isSystemWide, $selectedBuildingId);
             $debt = $this->debtSummary($buildingIds);
             $tenantCount = $this->tenantCount($buildingIds);
@@ -115,7 +120,7 @@ class DashboardController extends Controller
                     ]),
                     'open_maintenance' => $this->metric('Bảo trì đang mở', $openMaintenanceCount, null, 'count'),
                 ],
-                'revenue_chart' => $this->revenueChart($buildingIds, $monthRange, $isSystemWide),
+                'revenue_chart' => $this->revenueChart($buildingIds, $monthRange, $isSystemWide, $roomMovements),
                 'expense_chart' => $this->expenseChart($buildingIds, $monthRange, $isSystemWide),
                 'occupancy_chart' => $occupancy,
                 'invoice_status_chart' => $this->invoiceStatusChart($buildingIds),
@@ -252,11 +257,36 @@ class DashboardController extends Controller
         ], $extra);
     }
 
-    private function financialTotals(array $buildingIds, Carbon $start, Carbon $end, bool $includeGlobalExpenses = false): array
+    private function financialTotals(array $buildingIds, Carbon $start, Carbon $end, bool $includeGlobalExpenses = false, $roomMovements = null): array
     {
-        $revenue = (float) $this->scopedPaymentQuery($buildingIds)
+        $paymentRevenue = (float) $this->scopedPaymentQuery($buildingIds)
             ->whereBetween('payment_date', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
             ->sum('amount');
+
+        $deductionRevenue = (float) $this->scopedDepositDeductionQuery($buildingIds)
+            ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('amount');
+
+        $extraRevenue = 0.0;
+        if ($roomMovements === null) {
+            $roomMovements = $this->scopedRoomMovementExtraChargeQuery($buildingIds)->get();
+        }
+
+        foreach ($roomMovements as $rm) {
+            $refs = $rm->settlement_payment_references ?? [];
+            if (is_array($refs)) {
+                foreach ($refs as $ref) {
+                    if (!empty($ref['paid_at'])) {
+                        $paidDate = Carbon::parse($ref['paid_at']);
+                        if ($paidDate->between($start->copy()->startOfDay(), $end->copy()->endOfDay())) {
+                            $extraRevenue += (float) ($ref['extra_amount'] ?? 0);
+                        }
+                    }
+                }
+            }
+        }
+
+        $revenue = $paymentRevenue + $deductionRevenue + $extraRevenue;
 
         $expenses = (float) $this->scopedExpenseQuery($buildingIds, $includeGlobalExpenses)
             ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
@@ -269,10 +299,10 @@ class DashboardController extends Controller
         ];
     }
 
-    private function revenueChart(array $buildingIds, array $monthRange, bool $includeGlobalExpenses): array
+    private function revenueChart(array $buildingIds, array $monthRange, bool $includeGlobalExpenses, $roomMovements = null): array
     {
-        return collect($monthRange)->map(function (array $month) use ($buildingIds, $includeGlobalExpenses): array {
-            $totals = $this->financialTotals($buildingIds, $month['start'], $month['end'], $includeGlobalExpenses);
+        return collect($monthRange)->map(function (array $month) use ($buildingIds, $includeGlobalExpenses, $roomMovements): array {
+            $totals = $this->financialTotals($buildingIds, $month['start'], $month['end'], $includeGlobalExpenses, $roomMovements);
 
             return [
                 'month' => $month['label'],
@@ -753,8 +783,12 @@ class DashboardController extends Controller
         }
 
         return $query->where(function (Builder $scopeQuery) use ($buildingIds, $includeGlobalExpenses): void {
-            $scopeQuery->whereIn('building_id', $buildingIds)
-                ->orWhereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+            $scopeQuery->where(function($q) use ($buildingIds) {
+                $q->whereIn('building_id', $buildingIds)
+                  ->orWhereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+            })->whereHas('category', function(Builder $catQuery) {
+                $catQuery->where('name', '!=', 'Hoàn cọc hợp đồng');
+            });
 
             if ($includeGlobalExpenses) {
                 $scopeQuery->orWhere(function (Builder $globalQuery): void {
@@ -802,5 +836,30 @@ class DashboardController extends Controller
         }
 
         return $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+    }
+
+    private function scopedDepositDeductionQuery(array $buildingIds): Builder
+    {
+        $query = ContractDepositTransaction::query()
+            ->where('transaction_type', ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT);
+
+        if (empty($buildingIds)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('contract.room', fn(Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+    }
+
+    private function scopedRoomMovementExtraChargeQuery(array $buildingIds): Builder
+    {
+        $query = RoomMovement::query()
+            ->with(['toRoom.building'])
+            ->whereIn('settlement_payment_status', [RoomMovement::SETTLEMENT_PAYMENT_STATUS_PARTIAL, RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID]);
+
+        if (empty($buildingIds)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('toRoom', fn(Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 }

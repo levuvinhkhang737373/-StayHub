@@ -538,7 +538,7 @@ export function CreateContractScreen() {
       setErrorMessage(null)
       setSuccessMessage(null)
 
-      const payload = buildPayload(form, !isEditMode && !isRenewMode, isEditMode)
+      const payload = buildPayload(form, !isEditMode && !isRenewMode, false)
 
       if (isEditMode && editingContract) {
         await updateAdminContract(editingContract.id, payload)
@@ -690,16 +690,6 @@ export function CreateContractScreen() {
                   onChange={(event) => updateForm('billing_cycle_day', event.target.value)}
                 />
               </Field>
-              {isEditMode && (
-                <Field label="Ngày kết thúc thực tế" error={errors.actual_end_date}>
-                  <AdminDateInput
-                    className={cn(inputClass, errors.actual_end_date && inputErrorClass)}
-                    value={form.actual_end_date}
-                    onChange={(value: string) => updateForm('actual_end_date', value)}
-                    minDate={toDate(form.start_date)}
-                  />
-                </Field>
-              )}
               <Field label="Giá phòng" required error={errors.room_price}>
                 <input
                   className={cn(inputClass, errors.room_price && inputErrorClass)}

@@ -6,6 +6,7 @@ use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
+use App\Helpers\DepositRefundExpenseHelper;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Contract\AddTenantRequest;
@@ -22,6 +23,7 @@ use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
+use App\Models\Expense;
 use App\Models\Notification;
 use App\Models\Room;
 use App\Models\RoomMovement;
@@ -150,7 +152,7 @@ class ContractController extends Controller
                 $placeholderPath = public_path('upload/signatures/placeholder.png');
 
                 // Ensure signatures directory exists
-                if (!is_dir(dirname($fullFakePath))) {
+                if (! is_dir(dirname($fullFakePath))) {
                     mkdir(dirname($fullFakePath), 0777, true);
                 }
 
@@ -543,21 +545,26 @@ class ContractController extends Controller
             $contractModel = $this->accessibleQuery($admin)->findOrFail($contract);
 
             $updatedContract = DB::transaction(function () use ($validated, $contractModel, $admin, $request): Contract {
+                $contractModel = $this->accessibleQuery($admin)
+                    ->whereKey($contractModel->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
                 $currentStatus = (int) $contractModel->status;
                 $nextStatus = (int) $validated['status'];
 
+                if ($currentStatus !== Contract::STATUS_PENDING_SIGN) {
+                    $this->throwResponse('Chỉ được đổi trạng thái thủ công với hợp đồng chờ ký. Hợp đồng đang hiệu lực cần thanh lý bằng chức năng riêng; hợp đồng hết hạn do hệ thống tự cập nhật theo ngày kết thúc.', 422);
+                }
+
                 $this->assertStatusTransition($currentStatus, $nextStatus);
-
-                if ($currentStatus !== Contract::STATUS_PENDING_SIGN && in_array($nextStatus, [Contract::STATUS_LIQUIDATED, Contract::STATUS_CANCELLED], true) && blank($validated['actual_end_date'] ?? null)) {
-                    $this->throwResponse('Vui lòng nhập ngày kết thúc thực tế khi thanh lý hoặc hủy hợp đồng.', 422);
-                }
-
-                if (filled($validated['actual_end_date'] ?? null) && $validated['actual_end_date'] < $contractModel->start_date?->toDateString()) {
-                    $this->throwResponse('Ngày kết thúc thực tế phải lớn hơn hoặc bằng ngày bắt đầu hợp đồng.', 422);
-                }
 
                 if ($nextStatus === Contract::STATUS_ACTIVE) {
                     $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $contractModel->room_id);
+                    if (! $room) {
+                        $this->throwResponse('Không tìm thấy phòng ký hợp đồng.', 404);
+                    }
+
                     $this->assertRoomCanBeUsed($admin, $room);
                     $tenantPayloads = $this->currentTenantPayloads($contractModel);
                     $vehiclePayloads = $this->currentVehiclePayloads($contractModel);
@@ -575,10 +582,6 @@ class ContractController extends Controller
                     $payload['payment_status'] = Contract::PAYMENT_STATUS_CANCELLED;
                 }
 
-                if (array_key_exists('actual_end_date', $validated)) {
-                    $payload['actual_end_date'] = $validated['actual_end_date'];
-                }
-
                 if (filled($validated['note'] ?? null)) {
                     $payload['note'] = trim((string) $validated['note']);
                 }
@@ -586,9 +589,8 @@ class ContractController extends Controller
                 $oldData = $contractModel->toArray();
                 $contractModel->forceFill($payload)->save();
 
-                if (in_array($nextStatus, [Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED, Contract::STATUS_CANCELLED], true)) {
-                    $endDate = $validated['actual_end_date'] ?? now()->toDateString();
-                    $this->closeActiveContractRows($contractModel, $endDate);
+                if ($nextStatus === Contract::STATUS_CANCELLED) {
+                    $this->deactivatePendingContractRows($contractModel);
                 }
 
                 $this->refreshRoomOccupants((int) $contractModel->room_id);
@@ -633,7 +635,7 @@ class ContractController extends Controller
                     $this->throwResponse('Chỉ được thanh lý hợp đồng đang hiệu lực hoặc đã hết hạn.', 422);
                 }
 
-                $this->assertStatusTransition($currentStatus, Contract::STATUS_LIQUIDATED);
+                $this->assertTerminationTransition($currentStatus);
 
                 $actualEndDate = Carbon::parse($validated['actual_end_date'])->startOfDay();
                 if ($contractModel->start_date && $actualEndDate->lt($contractModel->start_date->copy()->startOfDay())) {
@@ -879,6 +881,28 @@ class ContractController extends Controller
                     ]);
                 }
 
+                if ($oldBalanceCents > $newDepositAmountCents) {
+                    $surplusAmount = $this->centsToDecimal($oldBalanceCents - $newDepositAmountCents);
+
+                    $oldContract->depositTransactions()->create([
+                        'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
+                        'amount' => $surplusAmount,
+                        'transaction_date' => now()->toDateString(),
+                        'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_CASH,
+                        'note' => "Hoàn cọc dư khi gia hạn hợp đồng sang ID #{$contract->id}.",
+                        'created_by' => $admin->id,
+                    ]);
+
+                    DepositRefundExpenseHelper::createRefundExpense(
+                        contract: $oldContract,
+                        amount: $surplusAmount,
+                        date: now()->toDateString(),
+                        paymentMethod: Expense::PAYMENT_METHOD_CASH,
+                        reason: 'Hoàn cọc dư khi gia hạn hợp đồng',
+                        createdBy: $admin->id,
+                    );
+                }
+
                 $this->refreshRoomOccupants($room->id);
                 $this->refreshRoomOccupants((int) $oldContract->room_id);
                 $this->loadDetailRelations($contract);
@@ -918,7 +942,7 @@ class ContractController extends Controller
 
                 $this->assertDepositTransactions([$validated], $currentBalanceCents, $depositLimitCents);
 
-                return $contractModel->depositTransactions()->create([
+                $transaction = $contractModel->depositTransactions()->create([
                     'transaction_type' => (int) $validated['transaction_type'],
                     'amount' => $this->normalizeDecimal($validated['amount']),
                     'transaction_date' => $validated['transaction_date'],
@@ -927,6 +951,19 @@ class ContractController extends Controller
                     'note' => $validated['note'] ?? null,
                     'created_by' => $admin->id,
                 ]);
+
+                if ((int) $validated['transaction_type'] === ContractDepositTransaction::TRANSACTION_TYPE_REFUND) {
+                    DepositRefundExpenseHelper::createRefundExpense(
+                        contract: $contractModel,
+                        amount: $this->normalizeDecimal($validated['amount']),
+                        date: $validated['transaction_date'],
+                        paymentMethod: (int) $validated['payment_method'],
+                        reason: $validated['note'] ?? 'Hoàn cọc thủ công',
+                        createdBy: $admin->id,
+                    );
+                }
+
+                return $transaction;
             });
 
             $contractModel->unsetRelations();
@@ -1571,6 +1608,19 @@ class ContractController extends Controller
             ])->save());
     }
 
+    private function deactivatePendingContractRows(Contract $contract): void
+    {
+        $contract->contractTenants()
+            ->where('is_staying', true)
+            ->lockForUpdate()
+            ->update(['is_staying' => false]);
+
+        $contract->contractVehicles()
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->update(['is_active' => false]);
+    }
+
     private function createTerminationDepositTransactions(Contract $contract, Admin $admin, array $validated, int $deductionCents, int $refundCents, string $transactionDate): void
     {
         $note = trim((string) ($validated['note'] ?? ''));
@@ -1596,6 +1646,15 @@ class ContractController extends Controller
                 'note' => $this->terminationTransactionNote('Hoàn cọc khi thanh lý hợp đồng', $note),
                 'created_by' => $admin->id,
             ]);
+
+            DepositRefundExpenseHelper::createRefundExpense(
+                contract: $contract,
+                amount: $this->centsToDecimal($refundCents),
+                date: $transactionDate,
+                paymentMethod: $paymentMethod,
+                reason: 'Thanh lý hợp đồng',
+                createdBy: $admin->id,
+            );
         }
     }
 
@@ -1746,18 +1805,34 @@ class ContractController extends Controller
 
         $allowedTransitions = [
             Contract::STATUS_PENDING_SIGN => [Contract::STATUS_ACTIVE, Contract::STATUS_CANCELLED],
-            Contract::STATUS_ACTIVE => [Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED, Contract::STATUS_CANCELLED],
-            Contract::STATUS_EXPIRED => [Contract::STATUS_LIQUIDATED],
+            Contract::STATUS_ACTIVE => [],
+            Contract::STATUS_EXPIRED => [],
             Contract::STATUS_LIQUIDATED => [],
             Contract::STATUS_CANCELLED => [],
         ];
 
         if (! in_array($nextStatus, $allowedTransitions[$currentStatus] ?? [], true)) {
+            if ($currentStatus === Contract::STATUS_ACTIVE) {
+                $this->throwResponse('Hợp đồng đang hiệu lực không được đổi trạng thái thủ công. Vui lòng dùng chức năng thanh lý; trạng thái hết hạn sẽ do hệ thống tự cập nhật theo ngày kết thúc.', 422);
+            }
+
             $currentLabel = Contract::STATUS_LABELS[$currentStatus] ?? 'không xác định';
             $nextLabel = Contract::STATUS_LABELS[$nextStatus] ?? 'không xác định';
 
             $this->throwResponse("Không thể chuyển hợp đồng từ trạng thái {$currentLabel} sang {$nextLabel}.", 422);
         }
+    }
+
+    private function assertTerminationTransition(int $currentStatus): void
+    {
+        if (in_array($currentStatus, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
+            return;
+        }
+
+        $currentLabel = Contract::STATUS_LABELS[$currentStatus] ?? 'không xác định';
+        $nextLabel = Contract::STATUS_LABELS[Contract::STATUS_LIQUIDATED];
+
+        $this->throwResponse("Không thể chuyển hợp đồng từ trạng thái {$currentLabel} sang {$nextLabel}.", 422);
     }
 
     private function storeContractFiles(Request $request, Contract $contract, array &$uploadedPaths): array
@@ -1977,37 +2052,37 @@ class ContractController extends Controller
             $contract->loadMissing(['room.building']);
             $tenants = Tenant::query()->whereIn('id', $tenantIds)->get();
             foreach ($tenants as $tenant) {
-                $isMissingInfo = blank($tenant->identity_number) 
-                    || blank($tenant->identity_date) 
-                    || blank($tenant->identity_place) 
+                $isMissingInfo = blank($tenant->identity_number)
+                    || blank($tenant->identity_date)
+                    || blank($tenant->identity_place)
                     || blank($tenant->permanent_address);
 
                 $title = $isMissingInfo ? 'Bổ sung thông tin & ký hợp đồng' : 'Bạn đã được thêm vào hợp đồng';
-                $content = "Bạn đã được thêm vào hợp đồng {$contract->contract_code} tại phòng " . ($contract->room?->room_number ?? 'không rõ') . ".";
+                $content = "Bạn đã được thêm vào hợp đồng {$contract->contract_code} tại phòng ".($contract->room?->room_number ?? 'không rõ').'.';
                 if ($isMissingInfo) {
-                    $content .= " Vui lòng bổ sung thông tin định danh và thực hiện ký hợp đồng.";
+                    $content .= ' Vui lòng bổ sung thông tin định danh và thực hiện ký hợp đồng.';
                 } else {
-                    $content .= " Vui lòng thực hiện ký hợp đồng.";
+                    $content .= ' Vui lòng thực hiện ký hợp đồng.';
                 }
 
-                $tenantNotification = \App\Models\Notification::create([
+                $tenantNotification = Notification::create([
                     'title' => $title,
                     'content' => $content,
-                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
-                    'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+                    'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => Notification::TARGET_TYPE_TENANT,
                     'building_id' => $contract->room?->building_id,
                     'room_id' => $contract->room_id,
                     'tenant_id' => $tenant->id,
                     'published_at' => now(),
-                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'status' => Notification::STATUS_SENT,
                     'created_by' => $adminId,
                 ]);
 
                 // Broadcast real-time notification to the tenant
-                broadcast(new \App\Events\NotificationSent($tenantNotification));
+                broadcast(new NotificationSent($tenantNotification));
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error notifying newly added tenants: ' . $e->getMessage());
+            Log::error('Error notifying newly added tenants: '.$e->getMessage());
         }
     }
 }

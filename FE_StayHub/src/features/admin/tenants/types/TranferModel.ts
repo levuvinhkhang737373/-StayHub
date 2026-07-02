@@ -59,6 +59,9 @@ export interface TransferRoomResultResource {
   scheduled_payload?: Record<string, unknown> | null
   status?: number | null
   status_label?: string | null
+  execute_result?: Record<string, unknown> | null
+  executed_immediately?: boolean
+  blocked_immediately?: boolean
 }
 
 export interface RoomMovementResource {

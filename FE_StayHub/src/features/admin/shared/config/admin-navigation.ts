@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Tags,
   Users,
+  WalletCards,
   Wrench,
   Zap,
 } from 'lucide-react'
@@ -52,6 +53,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'meters', label: 'Quản lý đồng hồ', icon: Gauge, group: 'Dịch vụ & Điện nước', href: '/admin/meters', access: 'all' },
   { id: 'meter_readings', label: 'Chốt điện nước', icon: Zap, group: 'Dịch vụ & Điện nước', href: '/admin/meter-readings', access: 'all' },
   { id: 'invoices', label: 'Hóa đơn', icon: Receipt, group: 'Tài chính & Báo cáo', href: '/admin/invoices', access: 'all' },
+  { id: 'payment_history', label: 'Lịch sử thanh toán', icon: WalletCards, group: 'Tài chính & Báo cáo', href: '/admin/payment-history', access: 'all' },
   { id: 'expenses', label: 'Phiếu chi', icon: CreditCard, group: 'Tài chính & Báo cáo', href: '/admin/expenses', access: 'all' },
   { id: 'expense_categories', label: 'Danh mục chi phí', icon: Tags, group: 'Tài chính & Báo cáo', href: '/admin/expense-categories', access: 'all', readOnlyForAdmin: true },
   { id: 'financials', label: 'Báo cáo lợi nhuận', icon: BarChart3, group: 'Tài chính & Báo cáo', href: '/admin/financials', access: 'all' },

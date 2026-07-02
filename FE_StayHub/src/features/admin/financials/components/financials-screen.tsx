@@ -39,14 +39,14 @@ export function FinancialsScreen() {
   const [monthFrom, setMonthFrom] = useState<number>(1)
   const [monthTo, setMonthTo] = useState<number>(CURRENT_MONTH)
   const [buildingId, setBuildingId] = useState<string | number>('')
-  
+
   const [buildings, setBuildings] = useState<BuildingResource[]>([])
   const [isBuildingsLoading, setIsBuildingsLoading] = useState(true)
-  
+
   const [reportData, setReportData] = useState<FinancialReportData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  
+
   const [hoveredChartIndex, setHoveredChartIndex] = useState<number | null>(null)
 
   // 1. Tải danh sách tòa nhà
@@ -100,8 +100,8 @@ export function FinancialsScreen() {
   const handleExportExcel = () => {
     if (!reportData) return
 
-    const selectedBuildingName = buildingId 
-      ? (buildings.find((b) => Number(b.id) === Number(buildingId))?.name || 'Tòa nhà ' + buildingId) 
+    const selectedBuildingName = buildingId
+      ? (buildings.find((b) => Number(b.id) === Number(buildingId))?.name || 'Tòa nhà ' + buildingId)
       : 'Tất cả tòa nhà'
 
     // Tạo file Excel dưới dạng tài liệu HTML có chứa các thuộc tính XML dành riêng cho Excel.
@@ -279,11 +279,11 @@ export function FinancialsScreen() {
 
     // Sử dụng kiểu mime của Excel và mã hóa UTF-8
     const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' })
-    
+
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    
+
     const filename = `bao_cao_tai_chinh_T${monthFrom}_T${monthTo}_${year}.xls`
     link.setAttribute('download', filename)
     link.style.visibility = 'hidden'
@@ -307,7 +307,7 @@ export function FinancialsScreen() {
                 Báo cáo lợi nhuận
               </h1>
             </div>
-            
+
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleExportExcel}
@@ -422,7 +422,6 @@ export function FinancialsScreen() {
               <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-lg font-black tracking-tight text-[#24170d] sm:text-xl">Biểu đồ Lợi nhuận</h2>
-                  <p className="text-xs font-semibold leading-5 text-[#6f6254]">Doanh thu (Cột vàng), Chi phí (Cột xanh), Lợi nhuận ròng (Cột nâu)</p>
                 </div>
               </div>
               <FinancialTrendChart
@@ -626,7 +625,7 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
           {/* Cột dữ liệu */}
           {data.map((d, index) => {
             const slotCenterX = paddingLeft + slotWidth * index + slotWidth / 2
-            
+
             // Cột Doanh Thu (Vàng - nằm bên trái)
             const revBarHeight = (d.revenue / range) * chartHeight
             const revX = slotCenterX - 1.5 * barWidth - 2
@@ -721,7 +720,7 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
           <h3 className="text-xs font-black uppercase tracking-[0.14em] text-[#8b5e34]">
             {hoveredIndex !== null ? `Chi tiết: ${data[hoveredIndex].month}` : 'Thông số chung'}
           </h3>
-          
+
           <div className="mt-4 space-y-3.5">
             <div className="flex items-center justify-between border-b border-[#3d2a18]/5 pb-1.5">
               <span className="text-xs font-bold text-[#6f6254] flex items-center gap-1.5">
@@ -747,8 +746,8 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
               </span>
               <span className={cn(
                 "text-xs font-black",
-                (hoveredIndex !== null ? data[hoveredIndex].profit : data.reduce((sum, item) => sum + item.profit, 0)) >= 0 
-                  ? "text-emerald-700" 
+                (hoveredIndex !== null ? data[hoveredIndex].profit : data.reduce((sum, item) => sum + item.profit, 0)) >= 0
+                  ? "text-emerald-700"
                   : "text-rose-700"
               )}>
                 {formatCurrency(hoveredIndex !== null ? data[hoveredIndex].profit : data.reduce((sum, item) => sum + item.profit, 0))}
@@ -800,7 +799,7 @@ function BreakdownCard({ title, subtitle, items, total, barColor }: BreakdownCar
                   <span className="text-[#24170d] font-black">{formatCurrency(item.amount)}</span>
                 </div>
               </div>
-              
+
               {/* Progress bar */}
               <div className="h-2 w-full rounded-full bg-[#3d2a18]/5 overflow-hidden">
                 <div
@@ -858,7 +857,7 @@ function TopBuildingsCard({ title, subtitle, items = [], total }: TopBuildingsCa
                   <span className="text-[#24170d] font-black">{formatCurrency(item.revenue)}</span>
                 </div>
               </div>
-              
+
               {/* Progress bar */}
               <div className="h-2 w-full rounded-full bg-[#3d2a18]/5 overflow-hidden">
                 <div

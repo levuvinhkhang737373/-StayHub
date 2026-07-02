@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\MaintenanceRequestController as AdminMaintenanceC
 use App\Http\Controllers\Admin\MeterController;
 use App\Http\Controllers\Admin\MeterReadingController;
 use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
+use App\Http\Controllers\Admin\PaymentHistoryController;
 use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\RoomMovementController;
@@ -143,10 +144,14 @@ Route::prefix('admin')->group(function (): void {
         Route::patch('invoices/{invoice}/cancel', [AdminInvoiceController::class, 'cancel']);
         Route::apiResource('invoices', AdminInvoiceController::class)->only(['index', 'show', 'update']);
 
+        // =========================Payment History=========================
+        Route::get('payment-history', [PaymentHistoryController::class, 'index']);
+
         // ==========================Rooms===================================
         Route::apiResource('rooms', RoomController::class);
         Route::patch('rooms/{id}/status', [RoomController::class, 'updateStatus']);
         Route::get('room-movements', [RoomMovementController::class, 'index']);
+        Route::patch('room-movements/{roomMovement}/transfer-date', [RoomMovementController::class, 'updateTransferDate']);
         Route::get('room-movements/{roomMovement}', [RoomMovementController::class, 'show']);
         Route::post('room-transfers/tenant', [RoomController::class, 'transferTenant']);
 

@@ -19,7 +19,7 @@ class CheckExpiredContracts extends Command
 
     public function handle()
     {
-        $today = now()->toDateString();
+        $today = now('Asia/Ho_Chi_Minh')->toDateString();
 
         // Tìm các hợp đồng ở trạng thái Đang hiệu lực (1) và có ngày kết thúc nhỏ hơn ngày hôm nay
         $expiredContracts = Contract::query()
