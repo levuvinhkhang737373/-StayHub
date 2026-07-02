@@ -31,7 +31,7 @@ class AuthController extends Controller
             // Bước 2: Tương tác Database, dùng with để nạp quan hệ tránh N+1
             $tenant = Tenant::query()
                 ->where('username', $validated['username'])
-                ->with(['room.building'])
+                ->with(['currentContractTenant.contract.room.building'])
                 ->first();
 
             if (! $tenant) {
@@ -81,8 +81,8 @@ class AuthController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
             }
 
-            // Nạp quan hệ phòng và tòa nhà
-            $tenant->loadMissing(['room.building']);
+            // Nạp phòng hiện tại thông qua hợp đồng đang ở của khách thuê.
+            $tenant->loadMissing(['currentContractTenant.contract.room.building']);
 
             return ApiResponse::responseJson(true, 'Lấy thông tin khách thuê thành công', 200, new TenantAuthResource($tenant), 200);
 
@@ -119,9 +119,9 @@ class AuthController extends Controller
             ]);
 
             $tenant->update($validated);
-            $tenant->loadMissing(['room.building']);
+            $tenant->loadMissing(['currentContractTenant.contract.room.building']);
 
-            return ApiResponse::responseJson(true, 'Cập nhật thông tin thành công', 200, new TenantAuthResource($tenant->fresh()), 200);
+            return ApiResponse::responseJson(true, 'Cập nhật thông tin thành công', 200, new TenantAuthResource($tenant), 200);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::responseJson(false, $e->validator->errors()->first(), 422, $e->validator->errors(), 422);

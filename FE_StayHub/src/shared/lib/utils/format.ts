@@ -28,7 +28,7 @@ function parseUtcDate(value: string | Date): Date {
     const trimmed = value.trim()
     // Matches YYYY-MM-DD HH:mm:ss or YYYY-MM-DDTHH:mm:ss without timezone offset (e.g. from Laravel DB)
     if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(trimmed)) {
-      return new Date(`${trimmed.replace(' ', 'T')}Z`)
+      return new Date(`${trimmed.replace(' ', 'T')}+07:00`)
     }
   }
 

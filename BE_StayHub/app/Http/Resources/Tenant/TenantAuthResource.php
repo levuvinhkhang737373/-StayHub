@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Tenant;
 
+use App\Models\Room;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,10 +10,12 @@ class TenantAuthResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $room = $this->currentRoom();
+
         // Trả về định dạng giống với đối tượng Tenant trong Flutter auth_controller
         return [
             'id' => $this->id,
-            'building_id' => $this->room?->building_id,
+            'building_id' => $room?->building_id,
             'full_name' => $this->full_name,
             'gender' => $this->gender,
             'phone' => $this->phone,
@@ -21,13 +24,30 @@ class TenantAuthResource extends JsonResource
             'permanent_address' => $this->permanent_address,
             'current_address' => $this->current_address,
             'status' => $this->status,
-            'room_number' => $this->room?->room_number ?? '101',
-            'building_name' => $this->room?->building?->name ?? 'StayHub Building',
+            'room_number' => $room?->room_number ?? '101',
+            'building_name' => $room?->building?->name ?? 'StayHub Building',
             'identity_type' => $this->identity_type,
             'identity_number' => $this->identity_number,
             'identity_date' => $this->identity_date ? $this->identity_date->toDateString() : null,
             'identity_place' => $this->identity_place,
             'avatar_url' => $this->avatar_url,
         ];
+    }
+
+    private function currentRoom(): ?Room
+    {
+        if (! $this->resource->relationLoaded('currentContractTenant')) {
+            return null;
+        }
+
+        $contractTenant = $this->resource->currentContractTenant;
+
+        if (! $contractTenant || ! $contractTenant->relationLoaded('contract')) {
+            return null;
+        }
+
+        $contract = $contractTenant->contract;
+
+        return $contract?->relationLoaded('room') ? $contract->room : null;
     }
 }

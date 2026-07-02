@@ -64,7 +64,8 @@ class MaintenanceRequestController extends Controller
             }
 
             // Lấy thông tin phòng của khách thuê
-            $roomId = $tenant->room_id;
+            $currentRoom = $tenant->currentContractTenant?->contract?->room;
+            $roomId = $currentRoom?->id;
             if (! $roomId) {
                 return ApiResponse::responseJson(false, 'Tài khoản của bạn chưa được liên kết với phòng nào', 422, null, 422);
             }
@@ -125,7 +126,7 @@ class MaintenanceRequestController extends Controller
                     'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_MAINTENANCE,
                     'target_type' => \App\Models\Notification::TARGET_TYPE_ROOM,
                     'room_id' => $roomId,
-                    'building_id' => $tenant->room?->building_id,
+                    'building_id' => $currentRoom->building_id,
                     'status' => \App\Models\Notification::STATUS_SENT,
                     'published_at' => now(),
                 ]);
