@@ -8,6 +8,7 @@ x-backend-build: &backend-build
     uid: ${DOCKER_UID:-1000}
 
 x-backend-environment: &backend-environment
+  TZ: "Asia/Ho_Chi_Minh" 
   APP_USER: ${DOCKER_USER:-khang}
   APP_UID: ${DOCKER_UID:-1000}
   COMPOSER_CACHE_DIR: /tmp/composer-cache
@@ -34,11 +35,12 @@ services:
     container_name: laravel_db
     restart: unless-stopped
     environment:
+      TZ: "Asia/Ho_Chi_Minh" 
       MYSQL_DATABASE: ${DB_DATABASE:-stay_hub}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-12345678}
       MYSQL_USER: ${DB_USERNAME:-stay_hub}
       MYSQL_PASSWORD: ${DB_PASSWORD:-12345678}
-    command: --default-authentication-plugin=mysql_native_password --max_connections=500
+    command: --default-authentication-plugin=mysql_native_password --max_connections=500 --default-time-zone="+07:00"
     ports:
       - '${DB_FORWARD_PORT:-3308}:3306'
     volumes:
@@ -55,7 +57,6 @@ services:
       laravel_network:
         aliases:
           - db
-
 
   redis:
     image: redis:7-alpine
@@ -91,7 +92,6 @@ services:
         condition: service_healthy
     networks:
       - laravel_network
-
 
   meilisearch:
     image: getmeili/meilisearch:latest
@@ -182,8 +182,7 @@ services:
     ports:
       - '${AI_SERVICE_PORT:-8001}:8000'
     environment:
-      PYTHONDONTWRITEBYTECODE: '1'
-      PYTHONUNBUFFERED: '1'
+      TZ: "Asia/Ho_Chi_Minh"
     volumes:
       - type: bind
         source: ./ai-service
@@ -281,6 +280,7 @@ services:
     restart: unless-stopped
     working_dir: /app
     environment:
+      TZ: "Asia/Ho_Chi_Minh" 
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api/v1/}
       CHOKIDAR_USEPOLLING: 'true'
       WATCHPACK_POLLING: 'true'
@@ -346,7 +346,6 @@ services:
     networks:
       - laravel_network
 
-
   cloudflared:
     build:
       context: .
@@ -380,24 +379,17 @@ secrets:
 
 volumes:
   backend_vendor:
-    name: stayhub_backend_vendor
   backend_composer_cache:
-    name: stayhub_backend_composer_cache
   frontend_node_modules:
   frontend_npm_cache:
-    name: stayhub_frontend_npm_cache
   ai_deepface_cache:
-    name: stayhub_ai_deepface_cache
   dbdata_new:
-    external: true
     name: repokytucxaphongtro_dbdata_new
-
   redis_data:
     name: repokytucxaphongtro_redis_data
   meili_data:
-    external: true
     name: repokytucxaphongtro_meili_data
   minio_data:
-    name: stayhub_minio_data
+    name: repokytucxaphongtro_minio_data
   qdrant_data:
-    name: stayhub_qdrant_data
+    name: repokytucxaphongtro_qdrant_data

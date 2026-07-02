@@ -67,7 +67,6 @@ export const statusOptions = [
 ]
 
 export const createStatusOptions = statusOptions.filter((option) => [STATUS_ACTIVE, STATUS_PENDING_SIGN].includes(Number(option.value)))
-export const statusChangeOptions = statusOptions.filter((option) => option.value !== '')
 
 export const chargePolicyOptions = [
   { value: CHARGE_MONTHLY, label: 'Tính theo tháng', tone: 'default' as const },
@@ -220,11 +219,6 @@ export function getStatusChangeOptions(currentStatus: number) {
       { value: STATUS_CANCELLED, label: 'Hủy hợp đồng', tone: 'danger' as const },
     ]
   }
-  if (Number(currentStatus) === STATUS_ACTIVE) {
-    return [
-      { value: STATUS_EXPIRED, label: 'Hết hạn', tone: 'warning' as const },
-      { value: STATUS_CANCELLED, label: 'Đã hủy', tone: 'danger' as const },
-    ]
-  }
+
   return []
 }

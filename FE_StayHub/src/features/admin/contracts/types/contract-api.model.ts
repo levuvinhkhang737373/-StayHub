@@ -282,7 +282,6 @@ export interface AdminContractPayload {
 
 export interface AdminContractStatusPayload {
   status: number
-  actual_end_date?: string | null
   note?: string | null
 }
 

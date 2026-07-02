@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
+import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { AdminSelect, type AdminSelectOption } from '../../shared/components/AdminSelect'
 import { buildingAllowsTenantGender } from '../../shared/config/gender-policy'
 import { fetchAdminTenantDetail, fetchAdminTenants } from '../services/tenants.service'
@@ -49,6 +50,14 @@ interface TenantCardState {
   email?: string | null
   gender?: number | null
   isStaying?: boolean | null
+}
+
+interface VehicleBillingPreview {
+  vehicleCount: number
+  oldAmount: number
+  newAmount: number
+  oldRange: string
+  newRange: string
 }
 
 interface TenantPickerProps {
@@ -131,7 +140,7 @@ export function TenantTransferRoomScreen() {
   const [transferFee, setTransferFee] = useState('0')
   const [newDepositAmount, setNewDepositAmount] = useState('')
   const [note, setNote] = useState('')
-  const [movementDate, setMovementDate] = useState(() => nextMonthStartDateString())
+  const [movementDate, setMovementDate] = useState(() => todayDateString())
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -163,7 +172,7 @@ export function TenantTransferRoomScreen() {
         setLoadError(null)
         setSubmitError(null)
         setFieldErrors({})
-        setMovementDate(nextMonthStartDateString())
+        setMovementDate(todayDateString())
         setSelectedFloor('')
         setSelectedRoomTypeId('')
         setRoomPage(1)
@@ -383,6 +392,12 @@ export function TenantTransferRoomScreen() {
     : Math.max(requiredNewDeposit - availableAfterCosts, 0)
   const settlementDueAmount = selectedRoom ? depositDueAmount + extraChargeAmount : 0
   const effectiveMovementDate = movementDate
+  const today = useMemo(() => todayDateString(), [])
+  const minimumMovementDate = useMemo(() => parseDateInput(today), [today])
+  const vehicleBillingPreview = useMemo(
+    () => buildVehicleBillingPreview(currentContract, selectedTenantIds, effectiveMovementDate),
+    [currentContract, selectedTenantIds, effectiveMovementDate],
+  )
 
   const showRepresentativeWarning = useMemo(() => {
     const repId = currentContract?.representative_tenant_id
@@ -970,7 +985,42 @@ export function TenantTransferRoomScreen() {
             {/* Calculations List */}
             <div className="mt-5 space-y-3">
               <SummaryLine label="Số khách chuyển" value={`${selectedTenantIds.length} người`} />
-              <SummaryLine label="Ngày thực thi" value={effectiveMovementDate} />
+              <Field label="Ngày chuyển phòng" error={fieldErrors.movement_date}>
+                <AdminDateInput
+                  value={movementDate}
+                  onChange={setMovementDate}
+                  minDate={minimumMovementDate ?? undefined}
+                  placeholder="Chọn ngày chuyển"
+                  className={cn(inputClass, fieldErrors.movement_date && 'border-rose-300 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-200')}
+                />
+              </Field>
+
+              <div className="rounded-2xl border border-[#0f766e]/15 bg-[#0f766e]/6 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Preview tiền xe theo ngày</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-[#6f6254]">
+                      Tiền xe sẽ tách theo ngày chuyển. Xe cũ ngừng active khi lịch chuyển được thực thi.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-[#0f766e]/15 bg-white px-3 py-1 text-[10px] font-black text-[#0f5f59]">
+                    {vehicleBillingPreview.vehicleCount} xe
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <div className="rounded-xl border border-[#3d2a18]/8 bg-white/80 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/60">HĐ cũ</p>
+                    <p className="mt-1 text-lg font-black tabular-nums text-[#24170d]">{formatCurrency(vehicleBillingPreview.oldAmount)}</p>
+                    <p className="mt-1 text-[11px] font-semibold text-[#6f6254]">{vehicleBillingPreview.oldRange}</p>
+                  </div>
+                  <div className="rounded-xl border border-[#3d2a18]/8 bg-white/80 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/60">HĐ mới</p>
+                    <p className="mt-1 text-lg font-black tabular-nums text-[#0f5f59]">{formatCurrency(vehicleBillingPreview.newAmount)}</p>
+                    <p className="mt-1 text-[11px] font-semibold text-[#6f6254]">{vehicleBillingPreview.newRange}</p>
+                  </div>
+                </div>
+              </div>
 
               <hr className="border-[#3d2a18]/8" />
 
@@ -1212,6 +1262,12 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
   const scheduledDate = result.movement.movement_date || String(result.scheduled_payload?.movement_date ?? '—')
   const movementStatus = result.status_label || result.movement.status_label || 'Chờ xử lý'
   const movementCount = result.movements?.length || 1
+  const titleText = result.executed_immediately ? 'Đã chuyển phòng trong ngày' : result.blocked_immediately ? 'Lịch chuyển phòng đang bị chặn' : 'Đã lên lịch chuyển phòng'
+  const descriptionText = result.executed_immediately
+    ? `${tenant.full_name || tenant.username} đã được chuyển phòng ngay vì ngày chuyển là hôm nay. Mã chuyển này vẫn dùng cho QR settlement và lịch sử room movement.`
+    : result.blocked_immediately
+      ? `${tenant.full_name || tenant.username} đã được tạo lịch hôm nay nhưng chưa thể xử lý. Kiểm tra lý do bị chặn trong lịch sử room movement.`
+      : `${tenant.full_name || tenant.username} đã được gắn lịch chuyển phòng. Mã chuyển này sẽ được dùng cho QR settlement và lịch sử room movement.`
 
   return (
     <section className="space-y-6 text-[#24170d] sm:space-y-8">
@@ -1220,10 +1276,10 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(243,197,107,0.28),transparent_30%),radial-gradient(circle_at_86%_6%,rgba(15,118,110,0.32),transparent_30%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
           <div className="relative grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Đã lên lịch chuyển phòng</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">{titleText}</p>
               <h1 className="mt-2 text-3xl font-black tracking-[-0.055em] sm:text-4xl">{transferCode || 'TRF-...'}</h1>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#f8e8c8]/78">
-                {tenant.full_name || tenant.username} đã được gắn lịch chuyển phòng. Mã chuyển này sẽ được dùng cho QR settlement và lịch sử room movement.
+                {descriptionText}
               </p>
             </div>
 
@@ -1495,12 +1551,98 @@ function formatCurrency(value: number): string {
   }).format(Math.round(value))
 }
 
-function nextMonthStartDateString(reference = new Date()) {
-  const next = new Date(reference.getFullYear(), reference.getMonth() + 1, 1)
-  const year = next.getFullYear()
-  const month = String(next.getMonth() + 1).padStart(2, '0')
-  const day = String(next.getDate()).padStart(2, '0')
+function todayDateString(reference = new Date()) {
+  return dateToInputString(reference)
+}
+
+function dateToInputString(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function parseDateInput(value?: string | null): Date | null {
+  if (!value) return null
+
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+
+  return new Date(year, month - 1, day)
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function formatDisplayDate(date: Date): string {
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+}
+
+function buildVehicleBillingPreview(contract: AdminContractResource | null, tenantIds: number[], movementDate: string): VehicleBillingPreview {
+  const movement = parseDateInput(movementDate)
+  if (!contract || !movement) {
+    return emptyVehicleBillingPreview()
+  }
+
+  const periodStart = new Date(movement.getFullYear(), movement.getMonth(), 1)
+  const periodEnd = new Date(movement.getFullYear(), movement.getMonth() + 1, 0)
+  const oldWindowEnd = addDays(movement, -1)
+  const selectedTenantIds = new Set(tenantIds)
+  const movingVehicles = (contract.contract_vehicles ?? []).filter((contractVehicle) => {
+    const tenantId = Number(contractVehicle.vehicle?.tenant_id)
+
+    return contractVehicle.is_active !== false && selectedTenantIds.has(tenantId)
+  })
+
+  const oldAmount = movingVehicles.reduce((total, contractVehicle) => {
+    const configuredEndDate = parseDateInput(contractVehicle.billing_end_date || contractVehicle.ended_at)
+    const oldChargeEnd = configuredEndDate && configuredEndDate < oldWindowEnd ? configuredEndDate : oldWindowEnd
+
+    return total + calculateVehicleWindowAmount(contractVehicle.monthly_fee, contractVehicle.billing_start_date || contractVehicle.started_at || dateToInputString(periodStart), dateToInputString(oldChargeEnd), periodStart, periodEnd)
+  }, 0)
+
+  const newAmount = movingVehicles.reduce((total, contractVehicle) => {
+    return total + calculateVehicleWindowAmount(contractVehicle.monthly_fee, movementDate, dateToInputString(periodEnd), periodStart, periodEnd)
+  }, 0)
+
+  return {
+    vehicleCount: movingVehicles.length,
+    oldAmount,
+    newAmount,
+    oldRange: oldWindowEnd < periodStart ? 'Không phát sinh' : `${formatDisplayDate(periodStart)} – ${formatDisplayDate(oldWindowEnd)}`,
+    newRange: `${formatDisplayDate(movement)} – ${formatDisplayDate(periodEnd)}`,
+  }
+}
+
+function emptyVehicleBillingPreview(): VehicleBillingPreview {
+  return {
+    vehicleCount: 0,
+    oldAmount: 0,
+    newAmount: 0,
+    oldRange: '—',
+    newRange: '—',
+  }
+}
+
+function calculateVehicleWindowAmount(monthlyFee: string | number | null | undefined, startDate: string, endDate: string, periodStart: Date, periodEnd: Date): number {
+  const amount = moneyNumber(monthlyFee)
+  const chargeStartDate = parseDateInput(startDate)
+  const chargeEndDate = parseDateInput(endDate)
+
+  if (amount <= 0 || !chargeStartDate || !chargeEndDate) return 0
+
+  const chargeStart = chargeStartDate > periodStart ? chargeStartDate : periodStart
+  const chargeEnd = chargeEndDate < periodEnd ? chargeEndDate : periodEnd
+
+  if (chargeStart > chargeEnd) return 0
+
+  const actualDays = Math.floor((chargeEnd.getTime() - chargeStart.getTime()) / 86_400_000) + 1
+  const totalDays = periodEnd.getDate()
+
+  return Math.round((amount * actualDays) / totalDays)
 }
 
 function getTenantRoomText(tenant: AdminTenantResource): ReactNode {

@@ -17,6 +17,7 @@ import { ExpensesScreen } from '../features/admin/expenses'
 import { CreateTenantScreen } from '../features/admin/tenants/components/create-tenant-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
 import { FinancialsScreen } from '../features/admin/financials/components/financials-screen'
+import { PaymentHistoryScreen } from '../features/admin/payment-history'
 import { AdminRouteGuard } from '../features/admin/shared/components/AdminRouteGuard'
 import { AdminLayout } from '../layouts/admin/AdminLayout'
 import { RoomsScreen } from '../features/admin/rooms/components/rooms-screen'
@@ -146,6 +147,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'expenses',
         element: <AdminRouteGuard access="all"><ExpensesScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'payment-history',
+        element: <AdminRouteGuard access="all"><PaymentHistoryScreen /></AdminRouteGuard>,
       },
       {
         path: 'financials',

@@ -20,6 +20,9 @@ class RoomTransferResultResource extends JsonResource
             'new_contract' => $this->newContractPayload(),
             'deposit' => $this->resource['deposit'] ?? null,
             'scheduled_payload' => $this->resource['scheduled_payload'] ?? null,
+            'execute_result' => $this->resource['execute_result'] ?? null,
+            'executed_immediately' => $this->resource['executed_immediately'] ?? false,
+            'blocked_immediately' => $this->resource['blocked_immediately'] ?? false,
         ]);
     }
 

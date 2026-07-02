@@ -4,11 +4,13 @@ namespace App\Console\Commands;
 
 use App\Events\NotificationSent;
 use App\Helpers\DecimalMoney;
+use App\Helpers\DepositRefundExpenseHelper;
 use App\Models\Admin;
 use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
+use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\Notification;
 use App\Models\Room;
@@ -25,7 +27,7 @@ class ExecuteScheduledRoomTransfers extends Command
 {
     protected $signature = 'room-transfers:execute-scheduled {--date=} {--code=}';
 
-    protected $description = 'Thực hiện các lịch chuyển phòng đến hạn theo ngày 01 hằng tháng.';
+    protected $description = 'Thực hiện các lịch chuyển phòng đến hạn hằng ngày.';
 
     public function handle(): int
     {
@@ -106,7 +108,7 @@ class ExecuteScheduledRoomTransfers extends Command
                 return $this->blockTransfer($movements, 'Không tìm thấy phòng đích để thực hiện chuyển phòng.');
             }
 
-            if ($this->hasUnpaidOldDebt($sourceContract)) {
+            if ($this->hasUnpaidOldDebt($sourceContract, $movementDate)) {
                 return $this->blockTransfer($movements, 'Hợp đồng/phòng cũ còn hóa đơn chưa thanh toán, vui lòng thanh toán hết nợ cũ trước khi chuyển phòng.');
             }
 
@@ -475,6 +477,26 @@ class ExecuteScheduledRoomTransfers extends Command
             ]);
         }
 
+        if (DecimalMoney::isPositive($settlement['manual_refund_amount'])) {
+            $sourceContract->depositTransactions()->create([
+                'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
+                'amount' => $settlement['manual_refund_amount'],
+                'transaction_date' => $movementDate->toDateString(),
+                'payment_method' => null,
+                'note' => "Hoàn cọc dư khi chuyển phòng sang hợp đồng #{$destinationContract->id}.",
+                'created_by' => $admin->id,
+            ]);
+
+            DepositRefundExpenseHelper::createRefundExpense(
+                contract: $sourceContract,
+                amount: $settlement['manual_refund_amount'],
+                date: $movementDate->toDateString(),
+                paymentMethod: Expense::PAYMENT_METHOD_CASH,
+                reason: 'Hoàn cọc dư khi chuyển phòng',
+                createdBy: $admin->id,
+            );
+        }
+
         $destinationContract->refresh()->updatePaymentStatus();
     }
 
@@ -520,11 +542,18 @@ class ExecuteScheduledRoomTransfers extends Command
         ];
     }
 
-    private function hasUnpaidOldDebt(Contract $contract): bool
+    private function hasUnpaidOldDebt(Contract $contract, Carbon $movementDate): bool
     {
         return Invoice::query()
             ->where('contract_id', $contract->id)
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE])
+            ->where(function ($query) use ($movementDate): void {
+                $query->where('billing_year', '<', $movementDate->year)
+                    ->orWhere(function ($sameYearQuery) use ($movementDate): void {
+                        $sameYearQuery->where('billing_year', $movementDate->year)
+                            ->where('billing_month', '<', $movementDate->month);
+                    });
+            })
             ->exists();
     }
 
@@ -614,5 +643,4 @@ class ExecuteScheduledRoomTransfers extends Command
 
         return $code;
     }
-
 }

@@ -522,6 +522,111 @@ class InvoiceControllerTest extends TestCase
         ]);
     }
 
+    public function test_vehicle_fee_uses_contract_vehicle_billing_window_for_mid_month_transfer(): void
+    {
+        $this->electricityService->update(['is_active' => false]);
+        $this->waterService->update(['is_active' => false]);
+
+        $parkingService = Service::create([
+            'name' => 'Gửi xe',
+            'slug' => 'parking-transfer',
+            'charge_method' => Service::CHARGE_METHOD_BY_VEHICLE,
+            'unit_name' => 'Xe',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $parkingService->id,
+            'building_id' => $this->building->id,
+            'price' => '0.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $oldContract = Contract::create([
+            'contract_code' => 'HD-OLD-VEHICLE-INVOICE',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'actual_end_date' => '2026-07-14',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_LIQUIDATED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $newContract = Contract::create([
+            'contract_code' => 'HD-NEW-VEHICLE-INVOICE',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-07-15',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $vehicle = Vehicle::create([
+            'tenant_id' => $this->tenant->id,
+            'vehicle_type' => Vehicle::VEHICLE_TYPE_MOTORBIKE,
+            'license_plate' => '31-A1 888.88',
+            'brand' => 'Honda',
+            'color' => 'Black',
+            'is_active' => true,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $oldContract->id,
+            'vehicle_id' => $vehicle->id,
+            'started_at' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'ended_at' => '2026-07-14',
+            'billing_end_date' => '2026-07-14',
+            'monthly_fee' => '310000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => false,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $newContract->id,
+            'vehicle_id' => $vehicle->id,
+            'started_at' => '2026-07-15',
+            'billing_start_date' => '2026-07-15',
+            'monthly_fee' => '310000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => true,
+        ]);
+
+        $oldResponse = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/generate', [
+            'contract_id' => $oldContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ]);
+
+        $newResponse = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/generate', [
+            'contract_id' => $newContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ]);
+
+        $oldResponse->assertStatus(201);
+        $newResponse->assertStatus(201);
+
+        $this->assertDatabaseHas('invoice_items', [
+            'invoice_id' => $oldResponse->json('result.id'),
+            'item_type' => InvoiceItem::ITEM_TYPE_PARKING,
+            'amount' => '140000.00',
+        ]);
+
+        $this->assertDatabaseHas('invoice_items', [
+            'invoice_id' => $newResponse->json('result.id'),
+            'item_type' => InvoiceItem::ITEM_TYPE_PARKING,
+            'amount' => '170000.00',
+        ]);
+    }
+
 
     public function test_admin_can_record_payment_manually(): void
     {

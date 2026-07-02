@@ -2,12 +2,15 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Events\NotificationSent;
 use App\Models\Admin;
 use App\Models\Building;
 use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
+use App\Models\Expense;
+use App\Models\Notification;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
@@ -15,6 +18,7 @@ use App\Models\RoomType;
 use App\Models\Tenant;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class ContractControllerTest extends TestCase
@@ -22,10 +26,15 @@ class ContractControllerTest extends TestCase
     use RefreshDatabase;
 
     private Admin $superAdmin;
+
     private Building $building;
+
     private Room $room;
+
     private Tenant $tenant1;
+
     private Tenant $tenant2;
+
     private Vehicle $vehicle;
 
     protected function setUp(): void
@@ -157,7 +166,7 @@ class ContractControllerTest extends TestCase
                     'tenant_id' => $this->tenant2->id,
                     'join_date' => '2026-06-01',
                     'is_staying' => true,
-                ]
+                ],
             ],
             'vehicles' => [
                 [
@@ -166,8 +175,8 @@ class ContractControllerTest extends TestCase
                     'charge_policy' => 1,
                     'monthly_fee' => '100000.00',
                     'is_active' => true,
-                ]
-            ]
+                ],
+            ],
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
@@ -191,7 +200,7 @@ class ContractControllerTest extends TestCase
             'amount' => '4000000.00',
         ]);
 
-        $contractVehicle = \App\Models\ContractVehicle::where([
+        $contractVehicle = ContractVehicle::where([
             'contract_id' => $data['id'],
             'vehicle_id' => $this->vehicle->id,
         ])->first();
@@ -215,7 +224,7 @@ class ContractControllerTest extends TestCase
                     'join_date' => '2026-06-01',
                     'leave_date' => '2026-07-01',
                     'is_staying' => false,
-                ]
+                ],
             ],
             'vehicles' => [
                 [
@@ -225,8 +234,8 @@ class ContractControllerTest extends TestCase
                     'charge_policy' => 1,
                     'monthly_fee' => '100000.00',
                     'is_active' => false,
-                ]
-            ]
+                ],
+            ],
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
@@ -235,7 +244,7 @@ class ContractControllerTest extends TestCase
         $response->assertStatus(201);
         $data = $response->json('result');
 
-        $contractTenant = \App\Models\ContractTenant::where([
+        $contractTenant = ContractTenant::where([
             'contract_id' => $data['id'],
             'tenant_id' => $this->tenant1->id,
         ])->first();
@@ -243,9 +252,9 @@ class ContractControllerTest extends TestCase
         $this->assertNotNull($contractTenant);
         $this->assertNull($contractTenant->leave_date);
         $this->assertNull($contractTenant->billing_end_date);
-        $this->assertTrue((bool)$contractTenant->is_staying);
+        $this->assertTrue((bool) $contractTenant->is_staying);
 
-        $contractVehicle = \App\Models\ContractVehicle::where([
+        $contractVehicle = ContractVehicle::where([
             'contract_id' => $data['id'],
             'vehicle_id' => $this->vehicle->id,
         ])->first();
@@ -253,7 +262,33 @@ class ContractControllerTest extends TestCase
         $this->assertNotNull($contractVehicle);
         $this->assertNull($contractVehicle->ended_at);
         $this->assertNull($contractVehicle->billing_end_date);
-        $this->assertTrue((bool)$contractVehicle->is_active);
+        $this->assertTrue((bool) $contractVehicle->is_active);
+    }
+
+    public function test_create_contract_cannot_start_with_expired_status()
+    {
+        $payload = [
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_EXPIRED,
+            'tenants' => [
+                [
+                    'tenant_id' => $this->tenant1->id,
+                    'join_date' => '2026-06-01',
+                    'is_staying' => true,
+                ],
+            ],
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/contracts', $payload);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Khi tạo hợp đồng chỉ được chọn Chờ ký hoặc Đang hiệu lực.');
     }
 
     public function test_room_with_active_contract_is_not_available_for_new_contracts()
@@ -305,8 +340,8 @@ class ContractControllerTest extends TestCase
                     'tenant_id' => $this->tenant2->id,
                     'join_date' => '2026-06-01',
                     'is_staying' => true,
-                ]
-            ]
+                ],
+            ],
         ];
 
         $createResponse = $this->actingAs($this->superAdmin, 'admin')
@@ -338,8 +373,8 @@ class ContractControllerTest extends TestCase
                     'tenant_id' => $this->tenant2->id,
                     'join_date' => '2026-06-01',
                     'is_staying' => true,
-                ]
-            ]
+                ],
+            ],
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
@@ -350,7 +385,7 @@ class ContractControllerTest extends TestCase
         $response->assertJsonPath('message', 'Số khách thuê đang ở vượt quá sức chứa tối đa của phòng.');
     }
 
-    public function test_liquidate_contract_syncs_tenant_leave_and_vehicle_ended_dates()
+    public function test_terminate_contract_syncs_tenant_leave_and_vehicle_ended_dates()
     {
         $contract = Contract::create([
             'contract_code' => 'HD-TEST',
@@ -382,9 +417,9 @@ class ContractControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->superAdmin, 'admin')
-            ->patchJson("/api/v1/admin/contracts/{$contract->id}/status", [
-                'status' => Contract::STATUS_LIQUIDATED,
-                'actual_end_date' => '2026-10-15',
+            ->postJson("/api/v1/admin/contracts/{$contract->id}/terminate", [
+                'actual_end_date' => now()->toDateString(),
+                'deduction_amount' => '0.00',
                 'note' => 'Liquidation test',
             ]);
 
@@ -392,25 +427,153 @@ class ContractControllerTest extends TestCase
 
         $updatedContract = Contract::find($contract->id);
         $this->assertEquals(Contract::STATUS_LIQUIDATED, $updatedContract->status);
-        $this->assertEquals('2026-10-15', $updatedContract->actual_end_date->toDateString());
+        $this->assertEquals(now()->toDateString(), $updatedContract->actual_end_date->toDateString());
 
-        $contractTenant = \App\Models\ContractTenant::where([
+        $contractTenant = ContractTenant::where([
             'contract_id' => $contract->id,
             'tenant_id' => $this->tenant1->id,
         ])->first();
         $this->assertNotNull($contractTenant);
-        $this->assertEquals('2026-10-15', $contractTenant->leave_date->toDateString());
-        $this->assertEquals('2026-10-15', $contractTenant->billing_end_date->toDateString());
+        $this->assertEquals(now()->toDateString(), $contractTenant->leave_date->toDateString());
+        $this->assertEquals(now()->toDateString(), $contractTenant->billing_end_date->toDateString());
         $this->assertFalse((bool) $contractTenant->is_staying);
 
-        $contractVehicle = \App\Models\ContractVehicle::where([
+        $contractVehicle = ContractVehicle::where([
             'contract_id' => $contract->id,
             'vehicle_id' => $this->vehicle->id,
         ])->first();
         $this->assertNotNull($contractVehicle);
-        $this->assertEquals('2026-10-15', $contractVehicle->ended_at->toDateString());
-        $this->assertEquals('2026-10-15', $contractVehicle->billing_end_date->toDateString());
+        $this->assertEquals(now()->toDateString(), $contractVehicle->ended_at->toDateString());
+        $this->assertEquals(now()->toDateString(), $contractVehicle->billing_end_date->toDateString());
         $this->assertFalse((bool) $contractVehicle->is_active);
+    }
+
+    public function test_active_contract_cannot_be_manually_changed_status()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-NO-MANUAL-EXPIRED',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->patchJson("/api/v1/admin/contracts/{$contract->id}/status", [
+                'status' => Contract::STATUS_CANCELLED,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Chỉ được đổi trạng thái thủ công với hợp đồng chờ ký. Hợp đồng đang hiệu lực cần thanh lý bằng chức năng riêng; hợp đồng hết hạn do hệ thống tự cập nhật theo ngày kết thúc.');
+
+        $this->assertEquals(Contract::STATUS_ACTIVE, $contract->fresh()->status);
+    }
+
+    public function test_expired_status_is_not_allowed_in_manual_status_api()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-NO-EXPIRED-OPTION',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_PENDING_SIGN,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->patchJson("/api/v1/admin/contracts/{$contract->id}/status", [
+                'status' => Contract::STATUS_EXPIRED,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Chỉ được kích hoạt hoặc hủy hợp đồng chờ ký. Hợp đồng hết hạn do hệ thống tự cập nhật, hợp đồng đang hiệu lực cần thanh lý bằng chức năng riêng.');
+
+        $this->assertEquals(Contract::STATUS_PENDING_SIGN, $contract->fresh()->status);
+    }
+
+    public function test_update_contract_cannot_set_actual_end_date_directly()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-NO-ACTUAL-END-UPDATE',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/contracts/{$contract->id}", [
+                'actual_end_date' => '2026-10-15',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Ngày kết thúc thực tế chỉ được cập nhật bằng chức năng thanh lý hoặc hệ thống tự xử lý hết hạn.');
+
+        $this->assertNull($contract->fresh()->actual_end_date);
+    }
+
+    public function test_cancel_pending_contract_deactivates_rows_without_fake_end_dates()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-CANCEL-PENDING',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-08-01',
+            'end_date' => '2027-07-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_PENDING_SIGN,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant1->id,
+            'join_date' => '2026-08-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $contract->id,
+            'vehicle_id' => $this->vehicle->id,
+            'started_at' => '2026-08-01',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => 1,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->patchJson("/api/v1/admin/contracts/{$contract->id}/status", [
+                'status' => Contract::STATUS_CANCELLED,
+            ]);
+
+        $response->assertStatus(200);
+
+        $updatedContract = $contract->fresh();
+        $this->assertEquals(Contract::STATUS_CANCELLED, $updatedContract->status);
+        $this->assertEquals(Contract::PAYMENT_STATUS_CANCELLED, $updatedContract->payment_status);
+
+        $contractTenant = ContractTenant::where('contract_id', $contract->id)->where('tenant_id', $this->tenant1->id)->first();
+        $this->assertFalse((bool) $contractTenant->is_staying);
+        $this->assertNull($contractTenant->leave_date);
+        $this->assertNull($contractTenant->billing_end_date);
+
+        $contractVehicle = ContractVehicle::where('contract_id', $contract->id)->where('vehicle_id', $this->vehicle->id)->first();
+        $this->assertFalse((bool) $contractVehicle->is_active);
+        $this->assertNull($contractVehicle->ended_at);
+        $this->assertNull($contractVehicle->billing_end_date);
     }
 
     public function test_terminate_contract_settles_deposit_and_creates_checkout_movement()
@@ -490,6 +653,16 @@ class ContractControllerTest extends TestCase
             'amount' => '3500000.00',
         ]);
 
+        $this->assertDatabaseHas('expenses', [
+            'building_id' => $this->building->id,
+            'room_id' => $this->room->id,
+            'title' => 'Hoàn cọc HD-TERMINATE — Thanh lý hợp đồng',
+            'amount' => '3500000.00',
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+            'status' => Expense::STATUS_RECORDED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
         $contractTenant = ContractTenant::where('contract_id', $contract->id)->where('tenant_id', $this->tenant1->id)->first();
         $this->assertEquals($actualEndDate, $contractTenant->leave_date->toDateString());
         $this->assertEquals($actualEndDate, $contractTenant->billing_end_date->toDateString());
@@ -556,8 +729,8 @@ class ContractControllerTest extends TestCase
                     'tenant_id' => $this->tenant1->id,
                     'join_date' => '2026-07-01',
                     'is_staying' => true,
-                ]
-            ]
+                ],
+            ],
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
@@ -640,10 +813,64 @@ class ContractControllerTest extends TestCase
         ]);
     }
 
+    public function test_add_refund_deposit_transaction_creates_expense()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-TEST-REFUND',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $contract->depositTransactions()->create([
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => '2000000.00',
+            'transaction_date' => '2026-06-01',
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_CASH,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $payload = [
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
+            'amount' => '500000.00',
+            'transaction_date' => '2026-06-03',
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+            'note' => 'Hoàn trả một phần',
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson("/api/v1/admin/contracts/{$contract->id}/deposit-transactions", $payload);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('contract_deposit_transactions', [
+            'contract_id' => $contract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
+            'amount' => '500000.00',
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+            'note' => 'Hoàn trả một phần',
+        ]);
+
+        $this->assertDatabaseHas('expenses', [
+            'building_id' => $this->building->id,
+            'room_id' => $this->room->id,
+            'title' => 'Hoàn cọc HD-TEST-REFUND — Hoàn trả một phần',
+            'amount' => '500000.00',
+            'payment_method' => Expense::PAYMENT_METHOD_BANK_TRANSFER,
+            'status' => Expense::STATUS_RECORDED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+    }
+
     public function test_expired_contract_notification_triggers_for_active_tenants()
     {
-        \Illuminate\Support\Facades\Event::fake([
-            \App\Events\NotificationSent::class
+        Event::fake([
+            NotificationSent::class,
         ]);
 
         $contract = Contract::create([
@@ -679,20 +906,20 @@ class ContractControllerTest extends TestCase
 
         $this->assertDatabaseHas('notifications', [
             'tenant_id' => $this->tenant1->id,
-            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
-            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
             'room_id' => $this->room->id,
             'title' => 'Hợp đồng hết hạn',
         ]);
 
         $this->assertDatabaseMissing('notifications', [
             'tenant_id' => $this->tenant2->id,
-            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
-            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
             'title' => 'Hợp đồng hết hạn',
         ]);
 
-        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+        Event::assertDispatched(NotificationSent::class, function ($event) {
             return $event->notification->tenant_id === $this->tenant1->id &&
                    $event->notification->title === 'Hợp đồng hết hạn';
         });
@@ -700,8 +927,8 @@ class ContractControllerTest extends TestCase
 
     public function test_create_contract_sends_notification_to_tenants()
     {
-        \Illuminate\Support\Facades\Event::fake([
-            \App\Events\NotificationSent::class
+        Event::fake([
+            NotificationSent::class,
         ]);
 
         $payload = [
@@ -722,8 +949,8 @@ class ContractControllerTest extends TestCase
                     'tenant_id' => $this->tenant2->id,
                     'join_date' => '2026-06-01',
                     'is_staying' => true,
-                ]
-            ]
+                ],
+            ],
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
@@ -733,24 +960,24 @@ class ContractControllerTest extends TestCase
 
         $this->assertDatabaseHas('notifications', [
             'tenant_id' => $this->tenant1->id,
-            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
-            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
             'title' => 'Hợp đồng mới được tạo',
         ]);
 
         $this->assertDatabaseHas('notifications', [
             'tenant_id' => $this->tenant2->id,
-            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
-            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
             'title' => 'Hợp đồng mới được tạo',
         ]);
 
-        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+        Event::assertDispatched(NotificationSent::class, function ($event) {
             return $event->notification->tenant_id === $this->tenant1->id &&
                    $event->notification->title === 'Hợp đồng mới được tạo';
         });
 
-        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+        Event::assertDispatched(NotificationSent::class, function ($event) {
             return $event->notification->tenant_id === $this->tenant2->id &&
                    $event->notification->title === 'Hợp đồng mới được tạo';
         });
@@ -758,8 +985,8 @@ class ContractControllerTest extends TestCase
 
     public function test_renew_contract_sends_notification_to_tenants()
     {
-        \Illuminate\Support\Facades\Event::fake([
-            \App\Events\NotificationSent::class
+        Event::fake([
+            NotificationSent::class,
         ]);
 
         $oldContract = Contract::create([
@@ -800,8 +1027,8 @@ class ContractControllerTest extends TestCase
                     'tenant_id' => $this->tenant2->id,
                     'join_date' => '2026-06-02',
                     'is_staying' => true,
-                ]
-            ]
+                ],
+            ],
         ];
 
         $response = $this->actingAs($this->superAdmin, 'admin')
@@ -811,24 +1038,24 @@ class ContractControllerTest extends TestCase
 
         $this->assertDatabaseHas('notifications', [
             'tenant_id' => $this->tenant1->id,
-            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
-            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
             'title' => 'Hợp đồng mới được tạo',
         ]);
 
         $this->assertDatabaseHas('notifications', [
             'tenant_id' => $this->tenant2->id,
-            'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
-            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
             'title' => 'Hợp đồng mới được tạo',
         ]);
 
-        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+        Event::assertDispatched(NotificationSent::class, function ($event) {
             return $event->notification->tenant_id === $this->tenant1->id &&
                    $event->notification->title === 'Hợp đồng mới được tạo';
         });
 
-        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\NotificationSent::class, function ($event) {
+        Event::assertDispatched(NotificationSent::class, function ($event) {
             return $event->notification->tenant_id === $this->tenant2->id &&
                    $event->notification->title === 'Hợp đồng mới được tạo';
         });

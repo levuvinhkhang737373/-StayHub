@@ -9,6 +9,8 @@ use App\Models\Admin;
 use App\Models\Building;
 use App\Models\Expense;
 use App\Models\Invoice;
+use App\Models\RoomMovement;
+use App\Models\ContractDepositTransaction;
 use App\Models\Payment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -87,11 +89,37 @@ class FinancialReportController extends Controller
             $totalExpenses = 0.0;
             $isSystemWide = AdminScope::isSuperAdmin($admin) && $selectedBuildingId === null;
 
+            $roomMovements = $this->scopedRoomMovementExtraChargeQuery($buildingIds)->get();
+
             // 2. Tính toán tổng quan từng tháng (Dùng cho Chart)
             foreach ($monthRange as $month) {
-                $revenue = (float) $this->scopedPaymentQuery($buildingIds)
-                    ->whereBetween('payment_date', [$month['start']->copy()->startOfDay(), $month['end']->copy()->endOfDay()])
+                $monthStart = $month['start']->copy()->startOfDay();
+                $monthEnd = $month['end']->copy()->endOfDay();
+
+                $paymentRevenue = (float) $this->scopedPaymentQuery($buildingIds)
+                    ->whereBetween('payment_date', [$monthStart, $monthEnd])
                     ->sum('amount');
+
+                $deductionRevenue = (float) $this->scopedDepositDeductionQuery($buildingIds)
+                    ->whereBetween('transaction_date', [$month['start']->toDateString(), $month['end']->toDateString()])
+                    ->sum('amount');
+
+                $extraRevenue = 0.0;
+                foreach ($roomMovements as $rm) {
+                    $refs = $rm->settlement_payment_references ?? [];
+                    if (is_array($refs)) {
+                        foreach ($refs as $ref) {
+                            if (!empty($ref['paid_at'])) {
+                                $paidDate = Carbon::parse($ref['paid_at']);
+                                if ($paidDate->between($monthStart, $monthEnd)) {
+                                    $extraRevenue += (float) ($ref['extra_amount'] ?? 0);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                $revenue = $paymentRevenue + $deductionRevenue + $extraRevenue;
 
                 $expenses = (float) $this->scopedExpenseQuery($buildingIds, $isSystemWide)
                     ->whereBetween('expense_date', [$month['start']->toDateString(), $month['end']->toDateString()])
@@ -150,8 +178,37 @@ class FinancialReportController extends Controller
                 }
             }
 
+            // Cộng thêm doanh thu từ phạt cọc và phụ thu vào breakdown
+            $totalDeductions = (float) $this->scopedDepositDeductionQuery($buildingIds)
+                ->whereBetween('transaction_date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->sum('amount');
+            if ($totalDeductions > 0) {
+                $itemRevenueMap['Khấu trừ cọc'] = ($itemRevenueMap['Khấu trừ cọc'] ?? 0) + $totalDeductions;
+            }
+
+            $totalExtraRevenue = 0.0;
+            foreach ($roomMovements as $rm) {
+                $refs = $rm->settlement_payment_references ?? [];
+                if (is_array($refs)) {
+                    foreach ($refs as $ref) {
+                        if (!empty($ref['paid_at'])) {
+                            $paidDate = Carbon::parse($ref['paid_at']);
+                            if ($paidDate->between($startDate->copy()->startOfDay(), $endDate->copy()->endOfDay())) {
+                                $totalExtraRevenue += (float) ($ref['extra_amount'] ?? 0);
+                            }
+                        }
+                    }
+                }
+            }
+            if ($totalExtraRevenue > 0) {
+                $itemRevenueMap['Phí chuyển phòng'] = ($itemRevenueMap['Phí chuyển phòng'] ?? 0) + $totalExtraRevenue;
+            }
+
             $revenueBreakdown = [];
-            $itemLabels = \App\Models\InvoiceItem::ITEM_TYPE_LABELS;
+            $itemLabels = array_merge(\App\Models\InvoiceItem::ITEM_TYPE_LABELS, [
+                'Khấu trừ cọc' => 'Khấu trừ cọc',
+                'Phí chuyển phòng' => 'Phí chuyển phòng'
+            ]);
 
             foreach ($itemRevenueMap as $type => $amount) {
                 if ($amount == 0) continue;
@@ -203,6 +260,7 @@ class FinancialReportController extends Controller
             usort($expenseBreakdown, fn($a, $b) => $b['amount'] <=> $a['amount']);
             
             // 4.5. Cơ cấu doanh thu theo từng tòa nhà (chỉ lọc trong buildingIds)
+            // Lấy từ Payment
             $buildingRevenues = Payment::query()
                 ->where('payments.status', Payment::STATUS_CONFIRMED)
                 ->whereBetween('payments.payment_date', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
@@ -212,16 +270,59 @@ class FinancialReportController extends Controller
                 ->whereIn('buildings.id', $buildingIds)
                 ->select('buildings.id', 'buildings.name', DB::raw('SUM(payments.amount) as revenue'))
                 ->groupBy('buildings.id', 'buildings.name')
-                ->orderByDesc('revenue')
+                ->get()
+                ->keyBy('id')
+                ->toArray();
+
+            // Lấy từ Khấu trừ cọc
+            $buildingDeductions = ContractDepositTransaction::query()
+                ->where('transaction_type', ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT)
+                ->whereBetween('transaction_date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->join('contracts', 'contract_deposit_transactions.contract_id', '=', 'contracts.id')
+                ->join('rooms', 'contracts.room_id', '=', 'rooms.id')
+                ->join('buildings', 'rooms.building_id', '=', 'buildings.id')
+                ->whereIn('buildings.id', $buildingIds)
+                ->select('buildings.id', 'buildings.name', DB::raw('SUM(contract_deposit_transactions.amount) as revenue'))
+                ->groupBy('buildings.id', 'buildings.name')
                 ->get();
+
+            foreach ($buildingDeductions as $bd) {
+                if (!isset($buildingRevenues[$bd->id])) {
+                    $buildingRevenues[$bd->id] = ['id' => $bd->id, 'name' => $bd->name, 'revenue' => 0];
+                }
+                $buildingRevenues[$bd->id]['revenue'] += (float) $bd->revenue;
+            }
+
+            // (Không gom Phí chuyển phòng vào biểu đồ tòa nhà vì RoomMovement có thể liên quan tới 2 tòa nhà, ta gom vào tòa nhà đích)
+            foreach ($roomMovements as $rm) {
+                $refs = $rm->settlement_payment_references ?? [];
+                if (is_array($refs)) {
+                    foreach ($refs as $ref) {
+                        if (!empty($ref['paid_at'])) {
+                            $paidDate = Carbon::parse($ref['paid_at']);
+                            if ($paidDate->between($startDate->copy()->startOfDay(), $endDate->copy()->endOfDay())) {
+                                $bId = $rm->toRoom?->building_id;
+                                if ($bId && in_array($bId, $buildingIds)) {
+                                    if (!isset($buildingRevenues[$bId])) {
+                                        $buildingRevenues[$bId] = ['id' => $bId, 'name' => $rm->toRoom->building->name ?? 'Tòa #'.$bId, 'revenue' => 0];
+                                    }
+                                    $buildingRevenues[$bId]['revenue'] += (float) ($ref['extra_amount'] ?? 0);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            usort($buildingRevenues, fn($a, $b) => $b['revenue'] <=> $a['revenue']);
 
             $topBuildings = [];
             foreach ($buildingRevenues as $br) {
                 $topBuildings[] = [
-                    'id' => (int) $br->id,
-                    'name' => $br->name,
-                    'revenue' => round((float) $br->revenue, 2),
-                    'percentage' => $totalRevenue > 0 ? round(($br->revenue / $totalRevenue) * 100, 1) : 0.0,
+                    'id' => (int) $br['id'],
+                    'name' => $br['name'],
+                    'revenue' => round((float) $br['revenue'], 2),
+                    'percentage' => $totalRevenue > 0 ? round(($br['revenue'] / $totalRevenue) * 100, 1) : 0.0,
                 ];
             }
 
@@ -274,8 +375,12 @@ class FinancialReportController extends Controller
         }
 
         return $query->where(function(Builder $scopeQuery) use ($buildingIds, $includeGlobalExpenses): void {
-            $scopeQuery->whereIn('building_id', $buildingIds)
-                ->orWhereHas('room', fn(Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+            $scopeQuery->where(function($q) use ($buildingIds) {
+                $q->whereIn('building_id', $buildingIds)
+                  ->orWhereHas('room', fn(Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+            })->whereHas('category', function(Builder $catQuery) {
+                $catQuery->where('name', '!=', 'Hoàn cọc hợp đồng');
+            });
 
             if ($includeGlobalExpenses) {
                 $scopeQuery->orWhere(function(Builder $globalQuery): void {
@@ -283,5 +388,30 @@ class FinancialReportController extends Controller
                 });
             }
         });
+    }
+
+    private function scopedDepositDeductionQuery(array $buildingIds): Builder
+    {
+        $query = ContractDepositTransaction::query()
+            ->where('transaction_type', ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT);
+
+        if (empty($buildingIds)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('contract.room', fn(Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+    }
+
+    private function scopedRoomMovementExtraChargeQuery(array $buildingIds): Builder
+    {
+        $query = RoomMovement::query()
+            ->with(['toRoom.building'])
+            ->whereIn('settlement_payment_status', [RoomMovement::SETTLEMENT_PAYMENT_STATUS_PARTIAL, RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID]);
+
+        if (empty($buildingIds)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('toRoom', fn(Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 }

@@ -118,7 +118,7 @@ export function ContractsScreen() {
   const [rooms, setRooms] = useState<ContractRoomOption[]>([])
   const [detailContract, setDetailContract] = useState<AdminContractResource | null>(null)
   const [statusContract, setStatusContract] = useState<AdminContractResource | null>(null)
-  const [statusForm, setStatusForm] = useState({ status: STATUS_ACTIVE, actual_end_date: '', note: '' })
+  const [statusForm, setStatusForm] = useState({ status: STATUS_ACTIVE, note: '' })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -429,24 +429,12 @@ export function ContractsScreen() {
   }
 
   const openStatusModal = (contract: AdminContractResource) => {
-    const currentStatus = Number(contract.status)
-    const nextStatus = currentStatus === STATUS_PENDING_SIGN ? STATUS_CANCELLED : STATUS_LIQUIDATED
     setStatusContract(contract)
-    setStatusForm({ status: nextStatus, actual_end_date: '', note: '' })
+    setStatusForm({ status: STATUS_CANCELLED, note: '' })
   }
 
   const submitStatus = async () => {
     if (!statusContract || isStatusSaving) return
-
-    const currentStatus = Number(statusContract.status)
-    if (
-      currentStatus !== STATUS_PENDING_SIGN &&
-      [STATUS_LIQUIDATED, STATUS_CANCELLED].includes(Number(statusForm.status)) &&
-      !statusForm.actual_end_date
-    ) {
-      setErrorMessage('Vui lòng nhập ngày kết thúc thực tế khi thanh lý hoặc hủy hợp đồng.')
-      return
-    }
 
     try {
       setIsStatusSaving(true)
@@ -454,7 +442,6 @@ export function ContractsScreen() {
       setSuccessMessage(null)
       await updateAdminContractStatus(statusContract.id, {
         status: Number(statusForm.status),
-        actual_end_date: statusForm.actual_end_date || undefined,
         note: statusForm.note.trim() || undefined,
       })
       setSuccessMessage('Cập nhật trạng thái hợp đồng thành công.')
@@ -754,7 +741,7 @@ export function ContractsScreen() {
                           <IconButton title="Chỉnh sửa" onClick={() => navigate(`/admin/contracts/${contract.id}/edit`)}>
                             <Edit3 className="h-5 w-5" />
                           </IconButton>
-                          {![STATUS_EXPIRED, STATUS_LIQUIDATED, STATUS_CANCELLED].includes(Number(contract.status)) && (
+                          {Number(contract.status) === STATUS_PENDING_SIGN && (
                             <IconButton title="Đổi trạng thái" onClick={() => openStatusModal(contract)}>
                               <Power className="h-5 w-5" />
                             </IconButton>

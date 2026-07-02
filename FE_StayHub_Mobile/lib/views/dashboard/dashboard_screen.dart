@@ -119,8 +119,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         } else if (event['type'] == 'admin_notification_sent') {
           if (mounted) {
+            final data = event['data'] as Map<String, dynamic>?;
             context.read<NotificationController>().fetchNotifications(isAdmin: true);
             context.read<DashboardController>().fetchDashboardStats();
+
+            if (_isTransferDateChangedNotification(data)) {
+              final content = data?['content']?.toString() ?? 'Một lịch chuyển phòng vừa đổi ngày.';
+              _showAdminRealtimeSnackBar(Icons.event_repeat_rounded, content, const Color(0xFF92400E));
+            }
           }
         } else if (event['type'] == 'chat_message_sent') {
           final data = event['data'] as Map<String, dynamic>?;
@@ -131,32 +137,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final room = conversation['room_number']?.toString() ?? '—';
             final tenant = conversation['tenant_name']?.toString() ?? 'Khách thuê';
             final body = message['body']?.toString() ?? 'Bạn có tin nhắn mới.';
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Phòng $room - $tenant: $body',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-                duration: const Duration(seconds: 5),
-                backgroundColor: const Color(0xFF0F766E),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            );
+            _showAdminRealtimeSnackBar(Icons.chat_bubble_rounded, 'Phòng $room - $tenant: $body', const Color(0xFF0F766E));
           }
         }
       });
     });
+  }
+
+  bool _isTransferDateChangedNotification(Map<String, dynamic>? data) {
+    if (data == null) return false;
+
+    final title = data['title']?.toString().toLowerCase() ?? '';
+    final content = data['content']?.toString().toLowerCase() ?? '';
+    final text = '$title $content';
+
+    return text.contains('chuyển phòng') && text.contains('đổi') && text.contains('ngày');
+  }
+
+  void _showAdminRealtimeSnackBar(IconData icon, String message, Color backgroundColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 6),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override

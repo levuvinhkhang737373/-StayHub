@@ -39,11 +39,30 @@ class BulkGenerateInvoicesJob implements ShouldQueue
         $admin = Admin::find($this->adminId);
         if (!$admin) return;
 
+        $periodStart = Carbon::create($this->billingYear, $this->billingMonth, 1)->startOfDay();
+        $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
+
         $contracts = Contract::query()
             ->whereHas('room', function ($q) {
                 $q->where('building_id', $this->buildingId);
             })
-            ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
+            ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED])
+            ->where(function ($query) use ($periodStart, $periodEnd): void {
+                $query->whereNull('start_date')
+                    ->orWhereDate('start_date', '<=', $periodEnd->toDateString());
+            })
+            ->where(function ($query) use ($periodStart): void {
+                $query->where(function ($actualEndQuery) use ($periodStart): void {
+                    $actualEndQuery->whereNotNull('actual_end_date')
+                        ->whereDate('actual_end_date', '>=', $periodStart->toDateString());
+                })->orWhere(function ($contractEndQuery) use ($periodStart): void {
+                    $contractEndQuery->whereNull('actual_end_date')
+                        ->where(function ($endDateQuery) use ($periodStart): void {
+                            $endDateQuery->whereNull('end_date')
+                                ->orWhereDate('end_date', '>=', $periodStart->toDateString());
+                        });
+                });
+            })
             ->whereDoesntHave('invoices', function ($q) {
                 $q->where('billing_month', $this->billingMonth)
                   ->where('billing_year', $this->billingYear)

@@ -1,5 +1,5 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
-import type { AdminRoomMovementFilters, AdminRoomMovementPaginator, AdminRoomMovementResource } from '../types/room-movement-api.model'
+import type { AdminRoomMovementFilters, AdminRoomMovementPaginator, AdminRoomMovementResource, AdminUpdateRoomMovementTransferDatePayload, AdminUpdateRoomMovementTransferDateResult } from '../types/room-movement-api.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
   const query = new URLSearchParams()
@@ -24,5 +24,13 @@ export async function fetchAdminRoomMovementDetail(roomMovementId: number) {
   return apiRequest<AdminRoomMovementResource>({
     url: `admin/room-movements/${roomMovementId}`,
     method: 'GET',
+  })
+}
+
+export async function updateAdminRoomMovementTransferDate(roomMovementId: number, payload: AdminUpdateRoomMovementTransferDatePayload) {
+  return apiRequest<AdminUpdateRoomMovementTransferDateResult>({
+    url: `admin/room-movements/${roomMovementId}/transfer-date`,
+    method: 'PATCH',
+    data: payload,
   })
 }

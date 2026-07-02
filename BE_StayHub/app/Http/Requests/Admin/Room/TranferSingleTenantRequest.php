@@ -64,10 +64,10 @@ class TranferSingleTenantRequest extends FormRequest
                 return;
             }
 
-            $expectedDate = now('Asia/Ho_Chi_Minh')->startOfDay()->addMonthNoOverflow()->startOfMonth();
+            $minimumDate = now('Asia/Ho_Chi_Minh')->startOfDay();
 
-            if ($movementDate->toDateString() !== $expectedDate->toDateString()) {
-                $validator->errors()->add('movement_date', 'Ngày chuyển phòng chỉ được là ngày 01 của tháng kế tiếp.');
+            if ($movementDate->lt($minimumDate)) {
+                $validator->errors()->add('movement_date', 'Ngày chuyển phòng không được nhỏ hơn ngày hiện tại.');
             }
         });
     }

@@ -55,7 +55,20 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
           },
         );
         _chatNotificationSubscription ??= context.read<WebSocketService>().notificationsStream.listen((event) {
-          if (!mounted || event['type'] != 'chat_message_sent') return;
+          if (!mounted) return;
+
+          if (event['type'] == 'notification_sent') {
+            final data = event['data'] as Map<String, dynamic>?;
+            context.read<NotificationController>().fetchNotifications(isAdmin: false);
+
+            if (_isTransferDateChangedNotification(data)) {
+              final content = data?['content']?.toString() ?? 'Ngày chuyển phòng của bạn vừa được cập nhật.';
+              _showRealtimeSnackBar(Icons.event_repeat_rounded, 'Lịch chuyển phòng: $content', const Color(0xFF92400E));
+            }
+            return;
+          }
+
+          if (event['type'] != 'chat_message_sent') return;
 
           final data = event['data'] as Map<String, dynamic>?;
           final message = data?['message'] as Map<String, dynamic>?;
@@ -63,31 +76,45 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
 
           context.read<NotificationController>().fetchNotifications(isAdmin: false);
           final body = message['body']?.toString() ?? 'Bạn có tin nhắn mới từ quản lý.';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Quản lý: $body',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-              duration: const Duration(seconds: 5),
-              backgroundColor: const Color(0xFF0F766E),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          );
+          _showRealtimeSnackBar(Icons.chat_bubble_rounded, 'Quản lý: $body', const Color(0xFF0F766E));
         });
       }
     });
+  }
+
+  bool _isTransferDateChangedNotification(Map<String, dynamic>? data) {
+    if (data == null) return false;
+
+    final title = data['title']?.toString().toLowerCase() ?? '';
+    final content = data['content']?.toString().toLowerCase() ?? '';
+    final text = '$title $content';
+
+    return text.contains('ngày chuyển phòng') && (text.contains('thay đổi') || text.contains('đổi'));
+  }
+
+  void _showRealtimeSnackBar(IconData icon, String message, Color backgroundColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 6),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
