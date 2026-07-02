@@ -84,6 +84,8 @@ export function UpdateRoomScreen() {
     description: '',
   });
 
+  const isBuildingSelected = !!formData.building_id;
+
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssetItem[]>([]);
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -321,6 +323,13 @@ export function UpdateRoomScreen() {
         </div>
       )}
 
+      {!isBuildingSelected && (
+        <div className="rounded-[1.5rem] border border-[#f3c56b] bg-[#fffcf5] p-5 text-sm font-bold text-[#8a4f18] flex items-center gap-3 shadow-md shadow-[#f3c56b]/5 animate-pulse">
+          <span className="text-xl">⚠️</span>
+          <span>Vui lòng chọn Tòa nhà đầu tiên trước khi điền các thông tin khác của phòng trọ.</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left column - Basic Information */}
         <div className="lg:col-span-2 space-y-6">
@@ -357,6 +366,7 @@ export function UpdateRoomScreen() {
                   options={roomTypes.map((rt) => ({ value: rt.id, label: rt.name }))}
                   onChange={(val) => setFormData((prev) => ({ ...prev, room_type_id: String(val) }))}
                   placeholder="Chọn loại phòng"
+                  disabled={!isBuildingSelected}
                 />
               </div>
 
@@ -365,6 +375,7 @@ export function UpdateRoomScreen() {
                 <input 
                   name="room_number" value={formData.room_number} onChange={handleInputChange} required placeholder="VD: A101" 
                   className={inputClass} 
+                  disabled={!isBuildingSelected}
                 />
               </div>
 
@@ -373,6 +384,7 @@ export function UpdateRoomScreen() {
                 <input 
                   type="number" name="floor" value={formData.floor} onChange={handleInputChange} required
                   className={`${inputClass} ${floorError ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' : ''}`} 
+                  disabled={!isBuildingSelected}
                 />
                 {floorError && (
                   <p className="mt-1.5 text-xs font-bold text-rose-600">{floorError}</p>
@@ -384,6 +396,7 @@ export function UpdateRoomScreen() {
                 <input 
                   type="number" step="0.01" name="area_m2" value={formData.area_m2} onChange={handleInputChange} required
                   className={`${inputClass} ${areaError ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' : ''}`} 
+                  disabled={!isBuildingSelected}
                 />
                 {areaError && (
                   <p className="mt-1.5 text-xs font-bold text-rose-600">{areaError}</p>
@@ -395,6 +408,7 @@ export function UpdateRoomScreen() {
                 <input 
                   type="number" name="max_occupants" value={formData.max_occupants} onChange={handleInputChange} required
                   className={inputClass} 
+                  disabled={!isBuildingSelected}
                 />
               </div>
 
@@ -404,6 +418,7 @@ export function UpdateRoomScreen() {
                   <input 
                     type="text" name="base_price" value={formData.base_price} onChange={handleInputChange} required
                     className={inputClass} 
+                    disabled={!isBuildingSelected}
                   />
                   <span className="absolute top-1/2 right-4 -translate-y-1/2 text-xs font-black text-[#8b5e34]">VNĐ</span>
                 </div>
@@ -420,6 +435,7 @@ export function UpdateRoomScreen() {
                   ]}
                   onChange={(val) => setFormData((prev) => ({ ...prev, status: Number(val) }))}
                   placeholder="Chọn trạng thái"
+                  disabled={!isBuildingSelected}
                 />
               </div>
 
@@ -428,6 +444,7 @@ export function UpdateRoomScreen() {
                 <textarea 
                   name="description" value={formData.description} onChange={handleInputChange} rows={3} 
                   className={inputClass} 
+                  disabled={!isBuildingSelected}
                 />
               </div>
             </div>
@@ -455,11 +472,12 @@ export function UpdateRoomScreen() {
                       type="button"
                       key={asset.id}
                       onClick={() => handleToggleAsset(asset)}
+                      disabled={!isBuildingSelected}
                       className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
                         isChecked 
                           ? 'border-[#f3c56b] bg-[#f3c56b] text-[#24170d]' 
                           : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] hover:bg-[#efe2cf]'
-                      }`}
+                      } ${!isBuildingSelected ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                       {isChecked ? '✓ ' : '+ '} {asset.name}
                     </button>
@@ -540,8 +558,8 @@ export function UpdateRoomScreen() {
             </div>
 
             <div>
-              <label className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#3d2a18]/15 bg-[#efe2cf]/25 py-6 px-4 text-center cursor-pointer transition hover:bg-[#efe2cf]/45 hover:border-[#f3c56b] group">
-                <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageChange} />
+              <label className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#3d2a18]/15 bg-[#efe2cf]/25 py-6 px-4 text-center transition group ${!isBuildingSelected ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'cursor-pointer hover:bg-[#efe2cf]/45 hover:border-[#f3c56b]'}`}>
+                <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageChange} disabled={!isBuildingSelected} />
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#24170d] text-[#fff4df] transition group-hover:scale-110">
                   <Plus size={20} className="text-[#f3c56b]" />
                 </div>
