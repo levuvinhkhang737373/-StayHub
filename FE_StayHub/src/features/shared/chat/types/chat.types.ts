@@ -8,6 +8,7 @@ export interface ChatMessageResource {
   sender_name?: string | null
   sender_avatar_url?: string | null
   body: string
+  attachments?: string[]
   queued_at?: string | null
   sent_at?: string | null
   read_at?: string | null

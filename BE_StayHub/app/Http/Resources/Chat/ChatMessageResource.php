@@ -22,6 +22,7 @@ class ChatMessageResource extends JsonResource
             'sender_name' => $this->senderName($sender),
             'sender_avatar_url' => $this->senderAvatar($sender),
             'body' => $this->body,
+            'attachments' => is_array($this->attachments) ? array_map(fn($path) => \App\Helpers\ImageHelper::load($path), $this->attachments) : [],
             'queued_at' => optional($this->queued_at)->toDateTimeString(),
             'sent_at' => optional($this->sent_at)->toDateTimeString(),
             'read_at' => optional($this->read_at)->toDateTimeString(),

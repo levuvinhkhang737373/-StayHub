@@ -35,11 +35,18 @@ export async function fetchAdminChatMessages(conversationId: number, params: Cha
   })
 }
 
-export async function sendAdminChatMessage(conversationId: number, body: string) {
+export async function sendAdminChatMessage(conversationId: number, body: string, images?: File[]) {
+  const formData = new FormData()
+  if (body) formData.append('body', body)
+  if (images && images.length > 0) {
+    images.forEach((img) => formData.append('images[]', img))
+  }
+
   return apiRequest<ChatSendResult>({
     url: `admin/chat/conversations/${conversationId}/messages`,
     method: 'POST',
-    data: { body },
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
 
@@ -65,11 +72,18 @@ export async function fetchTenantChatMessages(params: ChatMessageFilters = {}) {
   })
 }
 
-export async function sendTenantChatMessage(body: string) {
+export async function sendTenantChatMessage(body: string, images?: File[]) {
+  const formData = new FormData()
+  if (body) formData.append('body', body)
+  if (images && images.length > 0) {
+    images.forEach((img) => formData.append('images[]', img))
+  }
+
   return apiRequest<ChatSendResult>({
     url: 'tenant/chat/messages',
     method: 'POST',
-    data: { body },
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
 

@@ -92,7 +92,15 @@ class ChatController extends Controller
             }
 
             $validatedData = $request->validated();
-            $message = DB::transaction(function () use ($tenant, $conversation, $validatedData): ChatMessage {
+            $attachments = null;
+            if ($request->hasFile('images')) {
+                $attachments = [];
+                foreach ($request->file('images') as $image) {
+                    $attachments[] = \App\Helpers\ImageHelper::create($image, 'chats');
+                }
+            }
+
+            $message = DB::transaction(function () use ($tenant, $conversation, $validatedData, $attachments): ChatMessage {
                 $lockedConversation = ChatConversation::query()
                     ->whereKey($conversation->id)
                     ->lockForUpdate()
@@ -102,7 +110,8 @@ class ChatController extends Controller
                     'sender_type' => 'tenant',
                     'sender_id' => $tenant->id,
                     'sender_role' => ChatMessage::SENDER_TENANT,
-                    'body' => trim((string) $validatedData['body']),
+                    'body' => trim((string) ($validatedData['body'] ?? '')),
+                    'attachments' => $attachments,
                     'queued_at' => now(),
                     'sent_at' => now(),
                 ]);

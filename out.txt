@@ -1,3 +1,0 @@
-cp437: Lê Hoàng An
-cp850: Lê Hoàng An
-cp1252: L Hong An

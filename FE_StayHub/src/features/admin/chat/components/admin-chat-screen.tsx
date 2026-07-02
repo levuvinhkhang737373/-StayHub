@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, MessageCircle, Search, Send, Users } from 'lucide-react'
+import { Image as ImageIcon, Loader2, MessageCircle, Search, Send, Users, X } from 'lucide-react'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { useAdminSession } from '../../auth/hooks/use-admin-session'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -37,7 +37,9 @@ export function AdminChatScreen() {
   const [isSending, setIsSending] = useState(false)
   const [input, setInput] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [selectedImages, setSelectedImages] = useState<File[]>([])
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -246,8 +248,9 @@ export function AdminChatScreen() {
 
   async function handleSendMessage() {
     const body = input.trim()
-    if (!body || !activeConversation || isSending) return
+    if ((!body && selectedImages.length === 0) || !activeConversation || isSending) return
 
+    const optimisticImages = selectedImages.map(file => URL.createObjectURL(file))
     const optimisticMessage: ChatMessageResource = {
       id: Date.now() * -1,
       conversation_id: activeConversation.id,
@@ -257,11 +260,13 @@ export function AdminChatScreen() {
       sender_role_label: 'Quản lý',
       sender_name: session?.admin?.full_name || 'Quản lý',
       body,
+      attachments: optimisticImages,
       created_at: new Date().toISOString(),
       optimistic: true,
     }
 
     setInput('')
+    setSelectedImages([])
     setMessages((current) => [...current, optimisticMessage])
     window.requestAnimationFrame(() => {
       if (scrollContainerRef.current) {
@@ -270,7 +275,7 @@ export function AdminChatScreen() {
     })
     setIsSending(true)
     try {
-      const response = await sendAdminChatMessage(activeConversation.id, body)
+      const response = await sendAdminChatMessage(activeConversation.id, body, selectedImages)
       if (response.result) {
         setMessages((current) => [...current.filter((item) => item.id !== optimisticMessage.id), response.result.message])
         upsertConversation(response.result.conversation)
@@ -286,6 +291,7 @@ export function AdminChatScreen() {
       setInput(body)
     } finally {
       setIsSending(false)
+      optimisticImages.forEach(url => URL.revokeObjectURL(url))
     }
   }
 
@@ -394,7 +400,14 @@ export function AdminChatScreen() {
                       return (
                         <div key={message.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
                           <div className={cn('max-w-[78%] rounded-[1.45rem] px-4 py-3 shadow-sm', isMine ? 'bg-[#24170d] text-white' : 'border border-[#3d2a18]/10 bg-white text-[#24170d]')}>
-                            <p className="whitespace-pre-wrap text-sm font-bold leading-6">{message.body}</p>
+                            {message.body && <p className="whitespace-pre-wrap text-sm font-bold leading-6">{message.body}</p>}
+                            {message.attachments && message.attachments.length > 0 && (
+                              <div className={cn("mt-2 grid gap-1", message.attachments.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+                                {message.attachments.map((url, i) => (
+                                  <img key={i} src={url} alt="Attachment" className="h-24 w-full rounded-xl object-cover border border-white/20 bg-black/5" />
+                                ))}
+                              </div>
+                            )}
                             <p className={cn('mt-1 text-[10px] font-black uppercase tracking-[0.14em]', isMine ? 'text-white/45' : 'text-[#8b5e34]/70')}>{message.optimistic ? 'Đang gửi...' : formatDateTime(message.created_at)}</p>
                           </div>
                         </div>
@@ -408,21 +421,46 @@ export function AdminChatScreen() {
               {errorMessage && <div className="mx-5 mb-3 rounded-2xl border border-rose-900/10 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{errorMessage}</div>}
 
               <form className="border-t border-[#3d2a18]/10 bg-white/70 p-4 backdrop-blur-md" onSubmit={(event) => { event.preventDefault(); void handleSendMessage() }}>
-                <div className="flex items-end gap-3 rounded-[1.6rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-2 shadow-inner">
-                  <textarea
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault()
-                        void handleSendMessage()
-                      }
-                    }}
-                    placeholder="Nhập tin nhắn cho khách thuê..."
-                    className="max-h-32 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 text-sm font-bold text-[#24170d] outline-none placeholder:text-[#8b5e34]/50"
-                  />
-                  <button type="submit" disabled={!input.trim() || isSending} className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-[#0f766e] text-white shadow-lg shadow-[#0f766e]/20 transition hover:bg-[#0b5f59] disabled:cursor-not-allowed disabled:opacity-45">
-                    <Send className="h-5 w-5" />
+                {selectedImages.length > 0 && (
+                  <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                    {selectedImages.map((file, index) => (
+                      <div key={index} className="relative h-16 w-16 shrink-0">
+                        <img src={URL.createObjectURL(file)} alt="Preview" className="h-full w-full rounded-xl object-cover border border-[#3d2a18]/10" />
+                        <button type="button" onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== index))} className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-white shadow-sm">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-end gap-2 px-1 pb-1">
+                  <input type="file" multiple accept="image/jpeg,image/png,image/jpg,image/webp" className="hidden" ref={fileInputRef} onChange={(e) => {
+                    if (e.target.files) {
+                      setSelectedImages(prev => [...prev, ...Array.from(e.target.files!)].slice(0, 5))
+                      e.target.value = ''
+                    }
+                  }} />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="mb-0.5 flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-full text-[#0f766e] transition hover:bg-[#0f766e]/10">
+                    <ImageIcon className="h-6 w-6" />
+                  </button>
+                  
+                  <div className="flex flex-1 items-end rounded-3xl bg-[#f0f2f5] px-4 py-2">
+                    <textarea
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault()
+                          void handleSendMessage()
+                        }
+                      }}
+                      placeholder="Aa"
+                      className="max-h-32 min-h-6 flex-1 resize-none bg-transparent py-0.5 text-[15px] font-medium text-[#24170d] outline-none placeholder:text-gray-500"
+                    />
+                  </div>
+
+                  <button type="submit" disabled={(!input.trim() && selectedImages.length === 0) || isSending} className="mb-0.5 flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-full text-[#0f766e] transition hover:bg-[#0f766e]/10 disabled:cursor-not-allowed disabled:opacity-45">
+                    <Send className="h-6 w-6" />
                   </button>
                 </div>
               </form>

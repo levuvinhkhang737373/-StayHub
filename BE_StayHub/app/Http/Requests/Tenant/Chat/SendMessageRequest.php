@@ -17,16 +17,22 @@ class SendMessageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'body' => ['required', 'string', 'max:5000'],
+            'body' => ['required_without:images', 'string', 'max:5000', 'nullable'],
+            'images' => ['nullable', 'array', 'max:5'],
+            'images.*' => ['image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'body.required' => 'Nội dung tin nhắn là bắt buộc.',
+            'body.required_without' => 'Vui lòng nhập nội dung hoặc đính kèm ảnh.',
             'body.string' => 'Nội dung tin nhắn phải là chuỗi ký tự.',
             'body.max' => 'Nội dung tin nhắn không được vượt quá 5000 ký tự.',
+            'images.max' => 'Bạn chỉ được gửi tối đa 5 ảnh cùng lúc.',
+            'images.*.image' => 'File đính kèm phải là ảnh.',
+            'images.*.mimes' => 'Ảnh phải có định dạng: jpeg, png, jpg, webp.',
+            'images.*.max' => 'Kích thước mỗi ảnh không được vượt quá 5MB.',
         ];
     }
 

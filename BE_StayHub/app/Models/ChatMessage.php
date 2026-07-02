@@ -25,6 +25,7 @@ class ChatMessage extends Model
         'sender_id',
         'sender_role',
         'body',
+        'attachments',
         'queued_at',
         'sent_at',
         'read_at',
@@ -34,6 +35,7 @@ class ChatMessage extends Model
     {
         return [
             'sender_role' => 'integer',
+            'attachments' => 'array',
             'queued_at' => 'datetime',
             'sent_at' => 'datetime',
             'read_at' => 'datetime',

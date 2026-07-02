@@ -1,3 +1,0 @@
-cp1252: L Thu H
-cp437: Lê Thu Hà
-cp850: Lê Thu Hà
