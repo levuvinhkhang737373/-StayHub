@@ -1433,6 +1433,9 @@ class StayHubDemoSeeder extends Seeder
         $tenantIds = array_values($tenants);
 
         for ($i = 1; $i <= 10; $i++) {
+            if ($i === 4 || $i === 8) {
+                continue;
+            }
             $type = [Notification::NOTIFICATION_TYPE_INVOICE, Notification::NOTIFICATION_TYPE_MAINTENANCE, Notification::NOTIFICATION_TYPE_SYSTEM, Notification::NOTIFICATION_TYPE_WARNING][$i % 4];
             $target = [Notification::TARGET_TYPE_ALL, Notification::TARGET_TYPE_BUILDING, Notification::TARGET_TYPE_ROOM, Notification::TARGET_TYPE_TENANT][$i % 4];
             $notificationId = $this->upsertAndGetId('notifications', ['title' => 'Thông báo mở rộng #' . $i], [

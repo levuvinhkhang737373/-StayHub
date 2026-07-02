@@ -133,9 +133,28 @@ class SendInvoiceDebtReminders extends Command
     private function activeTenants(Invoice $invoice): Collection
     {
         $contractTenants = $invoice->contract?->contractTenants ?? collect();
+        $periodEnd = $invoice->period_end ? Carbon::parse($invoice->period_end)->endOfDay() : null;
 
         return $contractTenants
-            ->filter(fn ($contractTenant): bool => (bool) $contractTenant->is_staying && $contractTenant->leave_date === null && $contractTenant->tenant instanceof Tenant)
+            ->filter(function ($contractTenant) use ($periodEnd): bool {
+                if (! ((bool) $contractTenant->is_staying && $contractTenant->leave_date === null && $contractTenant->tenant instanceof Tenant)) {
+                    return false;
+                }
+
+                if ($periodEnd !== null) {
+                    $joinDate = $contractTenant->join_date ? Carbon::parse($contractTenant->join_date)->startOfDay() : null;
+                    $billingStart = $contractTenant->billing_start_date ? Carbon::parse($contractTenant->billing_start_date)->startOfDay() : null;
+
+                    if ($joinDate && $joinDate->gt($periodEnd)) {
+                        return false;
+                    }
+                    if ($billingStart && $billingStart->gt($periodEnd)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
             ->pluck('tenant')
             ->unique('id')
             ->values();

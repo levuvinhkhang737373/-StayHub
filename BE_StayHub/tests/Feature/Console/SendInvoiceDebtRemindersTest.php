@@ -83,7 +83,7 @@ class SendInvoiceDebtRemindersTest extends TestCase
         $contract = Contract::query()->create([
             'contract_code' => 'HD-REMINDER-001',
             'room_id' => $room->id,
-            'start_date' => '2026-06-01',
+            'start_date' => '2026-05-01',
             'end_date' => '2026-12-01',
             'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
@@ -97,7 +97,7 @@ class SendInvoiceDebtRemindersTest extends TestCase
             ContractTenant::query()->create([
                 'contract_id' => $contract->id,
                 'tenant_id' => $tenant->id,
-                'join_date' => '2026-06-01',
+                'join_date' => '2026-05-01',
                 'is_staying' => true,
                 'created_by' => $admin->id,
             ]);
@@ -164,6 +164,52 @@ class SendInvoiceDebtRemindersTest extends TestCase
         ]);
         Mail::assertNothingQueued();
         Event::assertNotDispatched(NotificationSent::class);
+    }
+
+    public function test_command_does_not_notify_newly_joined_tenant_about_past_invoices(): void
+    {
+        Mail::fake();
+        Event::fake([NotificationSent::class]);
+
+        // Add a new tenant who joins after the May invoice period end (e.g. joins on 2026-06-01)
+        $newTenant = Tenant::query()->create([
+            'username' => 'new_tenant_june',
+            'full_name' => 'June Tenant',
+            'email' => 'june@stayhub.local',
+            'phone' => '0910000099',
+            'password' => bcrypt('password'),
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '999999999999',
+            'date_of_birth' => '2000-01-01',
+            'created_by' => $this->invoice->created_by,
+            'building_id' => $this->invoice->room->building_id,
+        ]);
+
+        ContractTenant::query()->create([
+            'contract_id' => $this->invoice->contract_id,
+            'tenant_id' => $newTenant->id,
+            'join_date' => '2026-06-01', // Joined in June
+            'billing_start_date' => '2026-06-01',
+            'is_staying' => true,
+            'created_by' => $this->invoice->created_by,
+        ]);
+
+        $this->artisan('invoices:send-debt-reminders', ['--date' => '2026-06-07'])->assertExitCode(0);
+
+        // Should log and remind, but tenant_count should only be 2 (the 2 original tenants)
+        // and NOT the new tenant who joined in June.
+        $this->assertDatabaseHas('invoice_reminder_logs', [
+            'invoice_id' => $this->invoice->id,
+            'tenant_count' => 2, // Only the 2 original tenants, new tenant excluded
+            'mail_queued_count' => 1,
+        ]);
+
+        // Mail should NOT be sent to the new June tenant
+        Mail::assertNotQueued(InvoiceDebtReminderMail::class, function (InvoiceDebtReminderMail $mail) use ($newTenant): bool {
+            return $mail->hasTo($newTenant->email);
+        });
     }
 
     private function createTenant(Admin $admin, Building $building, string $username, ?string $email, string $phone, string $identityNumber): Tenant
