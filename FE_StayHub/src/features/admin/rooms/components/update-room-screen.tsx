@@ -44,6 +44,7 @@ export function UpdateRoomScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [areaError, setAreaError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<LocalFormState>({
     building_id: '',
@@ -128,6 +129,14 @@ export function UpdateRoomScreen() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (name === 'area_m2') {
+      const numVal = parseFloat(value);
+      if (value !== '' && (isNaN(numVal) || numVal < 4)) {
+        setAreaError('Diện tích phải lớn hơn hoặc bằng 4 m²');
+      } else {
+        setAreaError(null);
+      }
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: name === 'status' 
@@ -176,6 +185,11 @@ export function UpdateRoomScreen() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    const numArea = parseFloat(formData.area_m2);
+    if (isNaN(numArea) || numArea < 4) {
+      setAreaError('Diện tích phải lớn hơn hoặc bằng 4 m²');
+      return;
+    }
     setIsSaving(true);
     setErrorMessage(null);
 
@@ -329,9 +343,12 @@ export function UpdateRoomScreen() {
               <div>
                 <label className={labelClass}>Diện tích (m²)</label>
                 <input 
-                  type="number" step="0.01" min="4" name="area_m2" value={formData.area_m2} onChange={handleInputChange} required
-                  className={inputClass} 
+                  type="number" step="0.01" name="area_m2" value={formData.area_m2} onChange={handleInputChange} required
+                  className={`${inputClass} ${areaError ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' : ''}`} 
                 />
+                {areaError && (
+                  <p className="mt-1.5 text-xs font-bold text-rose-600">{areaError}</p>
+                )}
               </div>
 
               <div>
