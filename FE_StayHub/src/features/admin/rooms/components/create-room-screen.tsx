@@ -261,7 +261,7 @@ export function CreateRoomScreen() {
               <div>
                 <label className={labelClass}>Diện tích (m²)</label>
                 <input 
-                  type="number" step="0.01" name="area_m2" value={formData.area_m2} onChange={handleInputChange} required
+                  type="number" step="0.01" min="4" name="area_m2" value={formData.area_m2} onChange={handleInputChange} required
                   className={inputClass} 
                 />
               </div>

@@ -38,7 +38,7 @@ class RoomRequest extends FormRequest
                     ->ignore($this->route('room')),
             ],
             'floor'                => 'required|integer|min:0',
-            'area_m2'              => 'required|numeric|min:0',
+            'area_m2'              => 'required|numeric|min:4',
             'base_price'           => 'required|numeric|min:0',
             'max_occupants'        => 'required|integer|min:1',
             'description'          => 'nullable|string',
@@ -78,7 +78,7 @@ class RoomRequest extends FormRequest
 
             'area_m2.required'              => 'Vui lòng nhập diện tích phòng.',
             'area_m2.numeric'               => 'Diện tích phòng phải là một số hợp lệ.',
-            'area_m2.min'                   => 'Diện tích phòng không được nhỏ hơn 0 m².',
+            'area_m2.min'                   => 'Diện tích phòng không được nhỏ hơn 4 m².',
 
             'base_price.required'           => 'Vui lòng nhập giá phòng cơ bản.',
             'base_price.numeric'            => 'Giá phòng phải là một số tiền hợp lệ.',

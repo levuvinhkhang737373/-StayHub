@@ -154,30 +154,30 @@ class FinancialReportController extends Controller
                 ->whereBetween('payment_date', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
                 ->with(['invoice.items'])
                 ->get();
-
+ 
             $itemRevenueMap = [];
             foreach ($payments as $payment) {
                 $invoice = $payment->invoice;
                 if (!$invoice) continue;
-
+ 
                 $totalInvoiceAmount = (float) $invoice->total_amount;
                 if ($totalInvoiceAmount <= 0) continue;
-
+ 
                 $paymentAmount = (float) $payment->amount;
                 $ratio = $paymentAmount / $totalInvoiceAmount;
-
+ 
                 foreach ($invoice->items as $item) {
                     $itemType = (int) $item->item_type;
                     $itemAmount = (float) $item->amount;
                     $allocatedRevenue = $itemAmount * $ratio;
-
+ 
                     if (!isset($itemRevenueMap[$itemType])) {
                         $itemRevenueMap[$itemType] = 0.0;
                     }
                     $itemRevenueMap[$itemType] += $allocatedRevenue;
                 }
             }
-
+ 
             // Cộng thêm doanh thu từ phạt cọc và phụ thu vào breakdown
             $totalDeductions = (float) $this->scopedDepositDeductionQuery($buildingIds)
                 ->whereBetween('transaction_date', [$startDate->toDateString(), $endDate->toDateString()])
@@ -185,7 +185,7 @@ class FinancialReportController extends Controller
             if ($totalDeductions > 0) {
                 $itemRevenueMap['Khấu trừ cọc'] = ($itemRevenueMap['Khấu trừ cọc'] ?? 0) + $totalDeductions;
             }
-
+ 
             $totalExtraRevenue = 0.0;
             foreach ($roomMovements as $rm) {
                 $refs = $rm->settlement_payment_references ?? [];
@@ -203,12 +203,12 @@ class FinancialReportController extends Controller
             if ($totalExtraRevenue > 0) {
                 $itemRevenueMap['Phí chuyển phòng'] = ($itemRevenueMap['Phí chuyển phòng'] ?? 0) + $totalExtraRevenue;
             }
-
+ 
             $revenueBreakdown = [];
-            $itemLabels = array_merge(\App\Models\InvoiceItem::ITEM_TYPE_LABELS, [
+            $itemLabels = \App\Models\InvoiceItem::ITEM_TYPE_LABELS + [
                 'Khấu trừ cọc' => 'Khấu trừ cọc',
                 'Phí chuyển phòng' => 'Phí chuyển phòng'
-            ]);
+            ];
 
             foreach ($itemRevenueMap as $type => $amount) {
                 if ($amount == 0) continue;
