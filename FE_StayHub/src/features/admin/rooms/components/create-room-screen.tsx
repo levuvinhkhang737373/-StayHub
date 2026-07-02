@@ -38,6 +38,32 @@ export function CreateRoomScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [areaError, setAreaError] = useState<string | null>(null);
+  const [floorError, setFloorError] = useState<string | null>(null);
+
+  const validateFloor = (buildingId: string, floorVal: string) => {
+    if (!buildingId) {
+      setFloorError('Vui lòng chọn tòa nhà trước');
+      return false;
+    }
+    if (floorVal === '') {
+      setFloorError(null);
+      return true;
+    }
+    const floorNum = parseInt(floorVal, 10);
+    if (isNaN(floorNum) || floorNum < 0) {
+      setFloorError('Số tầng không hợp lệ');
+      return false;
+    }
+    const selectedBuilding = buildings.find(b => String(b.id) === String(buildingId));
+    if (selectedBuilding && selectedBuilding.total_floors !== undefined && selectedBuilding.total_floors !== null) {
+      if (floorNum > selectedBuilding.total_floors) {
+        setFloorError(`Số tầng không được vượt quá tổng số tầng của tòa nhà này (Tối đa: ${selectedBuilding.total_floors} tầng)`);
+        return false;
+      }
+    }
+    setFloorError(null);
+    return true;
+  };
 
   const [formData, setFormData] = useState<LocalFormState>({
     building_id: '',
@@ -81,6 +107,9 @@ export function CreateRoomScreen() {
       } else {
         setAreaError(null);
       }
+    }
+    if (name === 'floor') {
+      validateFloor(formData.building_id, value);
     }
     setFormData((prev) => ({
       ...prev,
@@ -127,6 +156,9 @@ export function CreateRoomScreen() {
     const numArea = parseFloat(formData.area_m2);
     if (isNaN(numArea) || numArea < 4) {
       setAreaError('Diện tích phải lớn hơn hoặc bằng 4 m²');
+      return;
+    }
+    if (!validateFloor(formData.building_id, formData.floor)) {
       return;
     }
     setIsSaving(true);
@@ -241,7 +273,11 @@ export function CreateRoomScreen() {
                 <AdminSelect
                   value={formData.building_id}
                   options={buildings.map((b) => ({ value: b.id, label: b.name }))}
-                  onChange={(val) => setFormData((prev) => ({ ...prev, building_id: String(val) }))}
+                  onChange={(val) => {
+                    const bId = String(val);
+                    setFormData((prev) => ({ ...prev, building_id: bId }));
+                    validateFloor(bId, formData.floor);
+                  }}
                   placeholder="Chọn tòa nhà"
                 />
               </div>
@@ -268,8 +304,11 @@ export function CreateRoomScreen() {
                 <label className={labelClass}>Tầng *</label>
                 <input 
                   type="number" name="floor" value={formData.floor} onChange={handleInputChange} required
-                  className={inputClass} 
+                  className={`${inputClass} ${floorError ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' : ''}`} 
                 />
+                {floorError && (
+                  <p className="mt-1.5 text-xs font-bold text-rose-600">{floorError}</p>
+                )}
               </div>
 
               <div>
