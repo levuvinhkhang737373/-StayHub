@@ -1,0 +1,14 @@
+NAME                      IMAGE                                   COMMAND                  SERVICE           CREATED         STATUS                        PORTS
+laravel_app               be_stayhub-app                          "docker-php-entrypoi…"   app               3 minutes ago   Up 41 seconds (healthy)       0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+laravel_db                mysql:8.0                               "docker-entrypoint.s…"   db                3 minutes ago   Up 3 minutes (healthy)        0.0.0.0:3308->3306/tcp, [::]:3308->3306/tcp
+laravel_horizon           be_stayhub-horizon                      "docker-php-entrypoi…"   horizon           3 minutes ago   Up 43 seconds (healthy)       
+laravel_meilisearch       getmeili/meilisearch:latest             "tini -- /bin/sh -c …"   meilisearch       3 minutes ago   Up 3 minutes (healthy)        0.0.0.0:7700->7700/tcp, [::]:7700->7700/tcp
+laravel_minio             minio/minio:latest                      "/usr/bin/docker-ent…"   minio             3 minutes ago   Up 3 minutes (healthy)        0.0.0.0:9000-9001->9000-9001/tcp, [::]:9000-9001->9000-9001/tcp
+laravel_phpmyadmin        phpmyadmin:latest                       "/docker-entrypoint.…"   phpmyadmin        3 minutes ago   Up 2 minutes                  0.0.0.0:8082->80/tcp, [::]:8082->80/tcp
+laravel_qdrant            qdrant/qdrant:latest                    "./entrypoint.sh"        qdrant            3 minutes ago   Up 3 minutes                  0.0.0.0:6333->6333/tcp, [::]:6333->6333/tcp
+laravel_redis             redis:7-alpine                          "docker-entrypoint.s…"   redis             3 minutes ago   Up 3 minutes (healthy)        0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+laravel_redis_commander   rediscommander/redis-commander:latest   "/usr/bin/dumb-init …"   redis-commander   3 minutes ago   Up 2 minutes (healthy)        0.0.0.0:8083->8081/tcp, [::]:8083->8081/tcp
+laravel_reverb            be_stayhub-reverb                       "docker-php-entrypoi…"   reverb            3 minutes ago   Up 42 seconds                 0.0.0.0:8009->8009/tcp, [::]:8009->8009/tcp
+laravel_webserver         stayhub-nginx:latest                    "/docker-entrypoint.…"   webserver         3 minutes ago   Up About a minute (healthy)   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+stayhub_ai_service        be_stayhub-ai-service                   "uvicorn main:app --…"   ai-service        3 minutes ago   Up 3 minutes (healthy)        0.0.0.0:8001->8000/tcp, [::]:8001->8000/tcp
+stayhub_frontend          node:22-alpine                          "docker-entrypoint.s…"   frontend          3 minutes ago   Up 2 minutes (healthy)        80/tcp
