@@ -604,7 +604,23 @@ class InvoiceController extends Controller
                 continue;
             }
 
-            $unitPrice = DecimalMoney::normalize($price->price);
+            $priceAmount = $price->price;
+
+            // Kiểm tra dịch vụ có phải điện/nước (hoặc tính theo chỉ số) không
+            $isMetered = (int) $service->charge_method === Service::CHARGE_METHOD_BY_METER ||
+                         in_array($service->slug, ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat'], true);
+
+            // Nếu không phải điện nước thì ưu tiên lấy giá dịch vụ đã thương lượng/cấu hình riêng của phòng
+            if (! $isMetered) {
+                $roomService = \App\Models\RoomService::where('room_id', $contract->room_id)
+                    ->where('service_id', $service->id)
+                    ->first();
+                if ($roomService) {
+                    $priceAmount = $roomService->price;
+                }
+            }
+
+            $unitPrice = DecimalMoney::normalize($priceAmount);
 
             if ((int) $service->charge_method === Service::CHARGE_METHOD_BY_METER) {
                 $meterDevice = $meterDevices->get($service->id);

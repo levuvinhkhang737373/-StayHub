@@ -1958,12 +1958,12 @@ class ContractController extends Controller
 
     private function listColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at', 'negotiation_status', 'proposed_room_price', 'proposed_services'];
     }
 
     private function detailColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url', 'negotiation_status', 'proposed_room_price', 'proposed_services'];
     }
 
     private function listRelations(): array
@@ -1982,6 +1982,7 @@ class ContractController extends Controller
     {
         return [
             'room:id,building_id,room_type_id,room_number,slug,floor,area_m2,base_price,max_occupants,current_occupants,status,description,created_by,created_at,updated_at',
+            'room.services',
             'room.building:id,name,slug,manager_admin_id,status,address,gender_policy',
             'room.roomType:id,name,slug,status',
             'creator:id,username,full_name,email,phone,role,status',
@@ -2087,6 +2088,117 @@ class ContractController extends Controller
             }
         } catch (\Exception $e) {
             Log::error('Error notifying newly added tenants: '.$e->getMessage());
+        }
+    }
+
+    public function respondToNegotiation(Request $request, int $id): JsonResponse
+    {
+        try {
+            $admin = $request->user('admin');
+            if (! $admin || ! $this->canManageContracts($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền quản lý hợp đồng', 403, null, 403);
+            }
+
+            $contract = Contract::query()->with(['room'])->find($id);
+            if (! $contract) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy hợp đồng', 404, null, 404);
+            }
+
+            if ($contract->negotiation_status !== Contract::NEGOTIATION_STATUS_PENDING) {
+                return ApiResponse::responseJson(false, 'Hợp đồng này không có yêu cầu thương lượng đang chờ xử lý.', 400, null, 400);
+            }
+
+            $validated = $request->validate([
+                'action' => 'required|in:approve,reject',
+            ]);
+
+            DB::transaction(function () use ($contract, $validated, $admin, $request) {
+                $oldData = $contract->toArray();
+                if ($validated['action'] === 'approve') {
+                    // Update contract room price
+                    $contract->room_price = $contract->proposed_room_price;
+                    $contract->negotiation_status = Contract::NEGOTIATION_STATUS_APPROVED;
+                    $contract->save();
+
+                    // Update room service prices
+                    $dealServices = $contract->proposed_services ?? [];
+                    foreach ($dealServices as $dealService) {
+                        \App\Models\RoomService::updateOrCreate(
+                            [
+                                'room_id' => $contract->room_id,
+                                'service_id' => $dealService['service_id']
+                            ],
+                            [
+                                'price' => $dealService['price']
+                            ]
+                        );
+                    }
+
+                    // Create notification for tenant
+                    try {
+                        $activeTenants = $contract->contractTenants()
+                            ->where('is_staying', true)
+                            ->get();
+
+                        foreach ($activeTenants as $ct) {
+                            $tenantNotification = Notification::create([
+                                'title' => 'Thương lượng giá hợp đồng được đồng ý',
+                                'content' => "Yêu cầu thương lượng giá hợp đồng {$contract->contract_code} của bạn đã được quản lý chấp thuận. Vui lòng ký hợp đồng.",
+                                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                                'target_type' => Notification::TARGET_TYPE_TENANT,
+                                'building_id' => $contract->room?->building_id,
+                                'room_id' => $contract->room_id,
+                                'tenant_id' => $ct->tenant_id,
+                                'published_at' => now(),
+                                'status' => Notification::STATUS_SENT,
+                                'created_by' => $admin->id,
+                            ]);
+                            broadcast(new NotificationSent($tenantNotification));
+                        }
+                    } catch (\Exception $e) {
+                        Log::error('Error notifying tenant on negotiation approval: '.$e->getMessage());
+                    }
+
+                    AdminActivityLogger::write($admin, 'Đồng ý thương lượng hợp đồng', Contract::class, $contract->id, $oldData, $contract->fresh()->toArray(), $request);
+                } else {
+                    // Reject
+                    $contract->negotiation_status = Contract::NEGOTIATION_STATUS_REJECTED;
+                    $contract->save();
+
+                    // Create notification for tenant
+                    try {
+                        $activeTenants = $contract->contractTenants()
+                            ->where('is_staying', true)
+                            ->get();
+
+                        foreach ($activeTenants as $ct) {
+                            $tenantNotification = Notification::create([
+                                'title' => 'Thương lượng giá hợp đồng bị từ chối',
+                                'content' => "Yêu cầu thương lượng giá hợp đồng {$contract->contract_code} của bạn đã bị từ chối.",
+                                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                                'target_type' => Notification::TARGET_TYPE_TENANT,
+                                'building_id' => $contract->room?->building_id,
+                                'room_id' => $contract->room_id,
+                                'tenant_id' => $ct->tenant_id,
+                                'published_at' => now(),
+                                'status' => Notification::STATUS_SENT,
+                                'created_by' => $admin->id,
+                            ]);
+                            broadcast(new NotificationSent($tenantNotification));
+                        }
+                    } catch (\Exception $e) {
+                        Log::error('Error notifying tenant on negotiation rejection: '.$e->getMessage());
+                    }
+
+                    AdminActivityLogger::write($admin, 'Từ chối thương lượng hợp đồng', Contract::class, $contract->id, $oldData, $contract->fresh()->toArray(), $request);
+                }
+            });
+
+            $contract->load($this->detailRelations());
+
+            return ApiResponse::responseJson(true, 'Xử lý thương lượng thành công', 200, new ContractDetailResource($contract), 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 }

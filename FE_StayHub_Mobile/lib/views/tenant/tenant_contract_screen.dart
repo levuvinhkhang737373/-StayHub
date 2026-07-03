@@ -669,33 +669,78 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     top: BorderSide(color: Color(0xFFE4E2D7), width: 1),
                   ),
                 ),
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final signed = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SignContractScreen(contract: contract),
+                child: contract.negotiationStatus == 1
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        width: double.infinity,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.hourglass_empty_rounded, color: Color(0xFFD97706), size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Thương lượng giá đang chờ duyệt. Không thể ký lúc này.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFD97706),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Row(
+                        children: [
+                          if (contract.negotiationStatus == null || contract.negotiationStatus == 0 || contract.negotiationStatus == 3) ...[
+                            OutlinedButton.icon(
+                              onPressed: () => _showNegotiationDialog(context, contract, contractController),
+                              icon: const Icon(Icons.handshake_rounded),
+                              label: const Text('Thương lượng'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF1C1917),
+                                side: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                          ],
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                final signed = await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SignContractScreen(contract: contract),
+                                  ),
+                                );
+                                if (signed == true) {
+                                  contractController.fetchContracts('tenant');
+                                }
+                              },
+                              icon: const Icon(Icons.draw_rounded),
+                              label: const Text(
+                                'KÝ HỢP ĐỒNG THUÊ PHÒNG',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1C1917),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                    if (signed == true) {
-                      contractController.fetchContracts('tenant');
-                    }
-                  },
-                  icon: const Icon(Icons.draw_rounded),
-                  label: const Text(
-                    'KÝ HỢP ĐỒNG THUÊ PHÒNG',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1C1917),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
-                  ),
-                ),
               ),
             )
           : null,
@@ -713,6 +758,129 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                 children: [
                   if (contractController.errorMessage != null) ...[
                     _buildErrorDisplay(contractController),
+                    const SizedBox(height: 16),
+                  ],
+                  if (contract.status == Contract.STATUS_DRAFT && contract.negotiationStatus == 1) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.hourglass_empty_rounded, color: Color(0xFFD97706), size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Yêu cầu thương lượng đang chờ phê duyệt',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF92400E),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Bạn đã gửi yêu cầu thương lượng giá phòng thành ${_formatCurrency(contract.proposedRoomPrice ?? 0)}. Yêu cầu đang được quản lý xem xét. Bạn không thể ký hợp đồng cho đến khi quản lý phản hồi.',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFFB45309),
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (contract.status == Contract.STATUS_DRAFT && contract.negotiationStatus == 2) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.check_circle_outline_rounded, color: Color(0xFF059669), size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Thương lượng giá thành công',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF065F46),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Quản lý đã chấp nhận mức giá thương lượng của bạn. Các mức giá mới đã được áp dụng vào hợp đồng.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFF047857),
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (contract.status == Contract.STATUS_DRAFT && contract.negotiationStatus == 3) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.cancel_outlined, color: Color(0xFFDC2626), size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Yêu cầu thương lượng bị từ chối',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF991B1B),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Yêu cầu thương lượng giá trước đó của bạn đã bị quản lý từ chối. Bạn có thể ký hợp đồng theo giá cũ hoặc tiếp tục đề xuất mức thương lượng khác.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFFB91C1C),
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 16),
                   ],
                   if (contract.status == Contract.STATUS_DRAFT && isProfileIncomplete) ...[
@@ -1328,6 +1496,49 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                   valueColor: depositPaid ? const Color(0xFF16A34A) : const Color(0xFFD97706),
                 ),
               ],
+              if (contract.roomServices != null && contract.roomServices!.isNotEmpty) ...[
+                const Divider(height: 20, color: Color(0xFFF1F0EA)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.room_service_rounded, size: 16, color: Color(0xFF78716C)),
+                        SizedBox(width: 8),
+                        Text(
+                          'CÁC DỊCH VỤ CỦA PHÒNG',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF78716C),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...contract.roomServices!.map((svc) {
+                      final priceVal = svc['price'] != null ? double.tryParse(svc['price'].toString()) ?? 0.0 : 0.0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              svc['name']?.toString() ?? '',
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF44403C)),
+                            ),
+                            Text(
+                              '${_formatCurrency(priceVal)} / ${svc['unit_name'] ?? 'tháng'}',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -1504,6 +1715,217 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
         label,
         style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
       ),
+    );
+  }
+
+  void _showNegotiationDialog(BuildContext context, Contract contract, ContractController controller) {
+    final roomPriceController = TextEditingController(text: contract.roomPrice.toStringAsFixed(0));
+    
+    // Maintain a list of controllers for service prices
+    final serviceControllers = <int, TextEditingController>{};
+    final serviceNames = <int, String>{};
+    final serviceMetered = <int, bool>{};
+
+    final servicesList = contract.roomServices ?? [];
+    for (var svc in servicesList) {
+      final sId = svc['id'] as int;
+      final chargeMethod = svc['charge_method'] as int? ?? 0;
+      
+      // Determine if service is electricity/water (metered)
+      final slug = svc['slug']?.toString()?.toLowerCase() ?? '';
+      final isMetered = chargeMethod == 2 || // CHARGE_METHOD_BY_METER
+                        ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat'].contains(slug);
+
+      serviceNames[sId] = svc['name']?.toString() ?? '';
+      serviceMetered[sId] = isMetered;
+
+      final priceVal = svc['price'] != null ? double.tryParse(svc['price'].toString()) ?? 0.0 : 0.0;
+      serviceControllers[sId] = TextEditingController(text: priceVal.toStringAsFixed(0));
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            top: 24,
+            left: 24,
+            right: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Thương lượng giá',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1C1917),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Vui lòng nhập giá thuê phòng và giá các dịch vụ mong muốn để gửi đề xuất thương lượng tới quản lý. Lưu ý giá điện và nước tính theo chỉ số tòa nhà nên không thể thay đổi.',
+                  style: TextStyle(fontSize: 12.5, color: Color(0xFF78716C), height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                
+                // Room Price Input
+                const Text(
+                  'GIÁ THUÊ PHÒNG ĐỀ XUẤT',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: roomPriceController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'Nhập giá phòng...',
+                    suffixText: 'đ',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Services Price Inputs
+                if (servicesList.isNotEmpty) ...[
+                  const Text(
+                    'ĐỀ XUẤT GIÁ CÁC DỊCH VỤ',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 0.5),
+                  ),
+                  const SizedBox(height: 8),
+                  ...servicesList.map((svc) {
+                    final sId = svc['id'] as int;
+                    final isMetered = serviceMetered[sId] ?? false;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              serviceNames[sId] ?? '',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: isMetered ? const Color(0xFF78716C) : const Color(0xFF1C1917),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: serviceControllers[sId],
+                              keyboardType: TextInputType.number,
+                              enabled: !isMetered,
+                              decoration: InputDecoration(
+                                suffixText: 'đ',
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                ),
+                                disabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Color(0xFFF5F5F4)),
+                                ),
+                              ),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isMetered ? const Color(0xFF78716C) : const Color(0xFF1C1917),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 20),
+                ],
+
+                ElevatedButton(
+                  onPressed: () async {
+                    final roomPrice = double.tryParse(roomPriceController.text) ?? 0.0;
+                    if (roomPrice <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vui lòng nhập giá phòng hợp lệ')),
+                      );
+                      return;
+                    }
+
+                    final proposedServices = <Map<String, dynamic>>[];
+                    for (var entry in serviceControllers.entries) {
+                      final sId = entry.key;
+                      final price = double.tryParse(entry.value.text) ?? 0.0;
+                      proposedServices.add({
+                        'service_id': sId,
+                        'price': price,
+                      });
+                    }
+
+                    Navigator.pop(context);
+                    
+                    final success = await controller.negotiateContract(contract.id, roomPrice, proposedServices);
+                    if (success) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Gửi yêu cầu thương lượng thành công!'),
+                          backgroundColor: Color(0xFF16A34A),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(controller.errorMessage ?? 'Không thể gửi yêu cầu thương lượng.'),
+                          backgroundColor: const Color(0xFFDC2626),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1C1917),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'GỬI ĐỀ XUẤT THƯƠNG LƯỢNG',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
