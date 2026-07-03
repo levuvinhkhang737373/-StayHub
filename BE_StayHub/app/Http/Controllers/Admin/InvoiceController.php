@@ -64,6 +64,8 @@ class InvoiceController extends Controller
                 ? $this->searchInvoices($keyword, $validated, $admin)
                 : $this->queryInvoices($validated, $admin)->paginate($validated['per_page'] ?? 10);
 
+            $stats = $this->calculateStats($validated, $admin, $keyword);
+
             return ApiResponse::responseJson(true, 'Danh sách hóa đơn', 200, [
                 'data' => InvoiceResource::collection($invoices->items())->resolve(),
                 'pagination' => [
@@ -72,10 +74,60 @@ class InvoiceController extends Controller
                     'total' => $invoices->total(),
                     'last_page' => $invoices->lastPage(),
                 ],
+                'stats' => $stats,
             ], 200);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
+    }
+
+    private function calculateStats(array $validated, Admin $admin, string $keyword): array
+    {
+        $query = $this->accessibleInvoiceQuery($admin);
+
+        if (isset($validated['status'])) {
+            $query->where('status', $validated['status']);
+        }
+
+        if (isset($validated['building_id'])) {
+            $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->where('building_id', $validated['building_id']));
+        }
+
+        if (isset($validated['room_id'])) {
+            $query->where('room_id', $validated['room_id']);
+        }
+
+        if (isset($validated['contract_id'])) {
+            $query->where('contract_id', $validated['contract_id']);
+        }
+
+        if (isset($validated['billing_month'])) {
+            $query->where('billing_month', $validated['billing_month']);
+        }
+
+        if (isset($validated['billing_year'])) {
+            $query->where('billing_year', $validated['billing_year']);
+        }
+
+        if ($keyword !== '') {
+            $query->where(function (Builder $q) use ($keyword): void {
+                $q->where('invoice_code', 'like', "%{$keyword}%")
+                  ->orWhereHas('room', fn (Builder $roomQ): Builder => $roomQ->where('room_number', 'like', "%{$keyword}%"))
+                  ->orWhereHas('contract.contractTenants.tenant', fn (Builder $tenantQ): Builder => $tenantQ->where('full_name', 'like', "%{$keyword}%"));
+            });
+        }
+
+        $stats = $query->selectRaw('
+            COUNT(CASE WHEN status IN (2, 3, 5) THEN 1 END) as total_unpaid,
+            COUNT(CASE WHEN status = 4 THEN 1 END) as total_paid,
+            COUNT(*) as total_count
+        ')->first();
+
+        return [
+            'total_unpaid' => $stats ? (int) $stats->total_unpaid : 0,
+            'total_paid' => $stats ? (int) $stats->total_paid : 0,
+            'total_count' => $stats ? (int) $stats->total_count : 0,
+        ];
     }
 
     public function show(ShowRequest $request, int $invoice): JsonResponse
