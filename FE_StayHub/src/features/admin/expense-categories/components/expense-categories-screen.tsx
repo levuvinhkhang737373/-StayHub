@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import type { ReactNode } from 'react'
 import { Database, Edit3, Eye, Plus, Power, ReceiptText, Search, Tags, Trash2, X } from 'lucide-react'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
@@ -46,6 +48,7 @@ export function ExpenseCategoriesScreen() {
   const [form, setForm] = useState<ExpenseCategoryFormValues>(defaultForm)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -202,39 +205,64 @@ export function ExpenseCategoriesScreen() {
     void loadExpenseCategories()
   }
 
-  const toggleExpenseCategoryStatus = async (expenseCategory: AdminExpenseCategoryResource) => {
+  const toggleExpenseCategoryStatus = (expenseCategory: AdminExpenseCategoryResource) => {
     if (!isSuperAdmin) return
 
     const nextStatus = !expenseCategory.is_active
 
-    if (!nextStatus && !window.confirm(`Bạn có chắc muốn chuyển danh mục ${expenseCategory.name} sang hết sử dụng?`)) return
+    const doToggle = async () => {
+      try {
+        setIsConfirmLoading(true)
+        setStatusChangingId(expenseCategory.id)
+        setErrorMessage(null)
+        setSuccessMessage(null)
+        await updateAdminExpenseCategoryStatus(expenseCategory.id, nextStatus)
+        setSuccessMessage(`${nextStatus ? 'Kích hoạt' : 'Ngừng sử dụng'} danh mục chi phí thành công.`)
+        await loadExpenseCategories()
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái danh mục chi phí.')
+      } finally {
+        setIsConfirmLoading(false)
+        setStatusChangingId(null)
+        closeConfirm()
+      }
+    }
 
-    try {
-      setStatusChangingId(expenseCategory.id)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-      await updateAdminExpenseCategoryStatus(expenseCategory.id, nextStatus)
-      setSuccessMessage(`${nextStatus ? 'Kích hoạt' : 'Ngừng sử dụng'} danh mục chi phí thành công.`)
-      await loadExpenseCategories()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái danh mục chi phí.')
-    } finally {
-      setStatusChangingId(null)
+    if (!nextStatus) {
+      showConfirm({
+        title: 'Ngừng sử dụng danh mục',
+        message: `Bạn có chắc muốn chuyển danh mục ${expenseCategory.name} sang hết sử dụng?`,
+        confirmLabel: 'Ngừng sử dụng',
+        onConfirm: doToggle,
+        variant: 'warning',
+      })
+    } else {
+      void doToggle()
     }
   }
 
-  const removeExpenseCategory = async (expenseCategory: AdminExpenseCategoryResource) => {
+  const removeExpenseCategory = (expenseCategory: AdminExpenseCategoryResource) => {
     if (!isSuperAdmin) return
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa danh mục ${expenseCategory.name}? Danh mục đã phát sinh phiếu chi sẽ không thể xóa.`)) return
-
-    try {
-      setErrorMessage(null)
-      await deleteAdminExpenseCategory(expenseCategory.id)
-      setSuccessMessage('Xóa danh mục chi phí thành công.')
-      await loadExpenseCategories()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa danh mục chi phí.')
-    }
+    showConfirm({
+      title: 'Xóa danh mục chi phí',
+      message: `Bạn có chắc chắn muốn xóa danh mục ${expenseCategory.name}? Danh mục đã phát sinh phiếu chi sẽ không thể xóa.`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setErrorMessage(null)
+          await deleteAdminExpenseCategory(expenseCategory.id)
+          setSuccessMessage('Xóa danh mục chi phí thành công.')
+          await loadExpenseCategories()
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa danh mục chi phí.')
+        } finally {
+          setIsConfirmLoading(false)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -402,6 +430,8 @@ export function ExpenseCategoriesScreen() {
           )}
         </div>
       </section>
+
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
 
       {isDetailOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="expense-category-detail-title">

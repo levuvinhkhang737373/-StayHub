@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { Boxes, ChevronLeft, ChevronRight, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
 import { AssetTemplateModal } from './asset-template-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -53,6 +55,7 @@ export function AssetTemplatesScreen() {
   const [form, setForm] = useState<AssetTemplateFormValues>(defaultForm)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -221,38 +224,63 @@ export function AssetTemplatesScreen() {
     void loadAllAssetTemplates()
   }
 
-  const toggleAssetTemplateStatus = async (assetTemplate: AdminAssetTemplateResource) => {
+  const toggleAssetTemplateStatus = (assetTemplate: AdminAssetTemplateResource) => {
     const nextStatus = Number(assetTemplate.status) === 1 ? 2 : 1
 
-    if (nextStatus === 2 && !window.confirm(`Bạn có chắc muốn tắt hoạt động mẫu tài sản ${assetTemplate.name}?`)) return
+    const doToggle = async () => {
+      try {
+        setIsConfirmLoading(true)
+        setStatusChangingId(assetTemplate.id)
+        setErrorMessage(null)
+        setSuccessMessage(null)
+        await updateAdminAssetTemplateStatus(assetTemplate.id, nextStatus)
+        setSuccessMessage(`${nextStatus === 1 ? 'Kích hoạt' : 'Ngừng hoạt động'} mẫu tài sản thành công.`)
+        await loadAssetTemplates()
+        await loadAllAssetTemplates()
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái mẫu tài sản.')
+      } finally {
+        setIsConfirmLoading(false)
+        setStatusChangingId(null)
+        closeConfirm()
+      }
+    }
 
-    try {
-      setStatusChangingId(assetTemplate.id)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-      await updateAdminAssetTemplateStatus(assetTemplate.id, nextStatus)
-      setSuccessMessage(`${nextStatus === 1 ? 'Kích hoạt' : 'Ngừng hoạt động'} mẫu tài sản thành công.`)
-      await loadAssetTemplates()
-      await loadAllAssetTemplates()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái mẫu tài sản.')
-    } finally {
-      setStatusChangingId(null)
+    if (nextStatus === 2) {
+      showConfirm({
+        title: 'Tắt hoạt động mẫu tài sản',
+        message: `Bạn có chắc muốn tắt hoạt động mẫu tài sản ${assetTemplate.name}?`,
+        confirmLabel: 'Tắt hoạt động',
+        onConfirm: doToggle,
+        variant: 'warning',
+      })
+    } else {
+      void doToggle()
     }
   }
 
-  const removeAssetTemplate = async (assetTemplate: AdminAssetTemplateResource) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa mẫu tài sản ${assetTemplate.name}?`)) return
-
-    try {
-      setErrorMessage(null)
-      await deleteAdminAssetTemplate(assetTemplate.id)
-      setSuccessMessage('Xóa mẫu tài sản thành công.')
-      await loadAssetTemplates()
-      await loadAllAssetTemplates()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa mẫu tài sản.')
-    }
+  const removeAssetTemplate = (assetTemplate: AdminAssetTemplateResource) => {
+    showConfirm({
+      title: 'Xóa mẫu tài sản',
+      message: `Bạn có chắc chắn muốn xóa mẫu tài sản ${assetTemplate.name}?`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setErrorMessage(null)
+          await deleteAdminAssetTemplate(assetTemplate.id)
+          setSuccessMessage('Xóa mẫu tài sản thành công.')
+          await loadAssetTemplates()
+          await loadAllAssetTemplates()
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa mẫu tài sản.')
+        } finally {
+          setIsConfirmLoading(false)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -481,6 +509,7 @@ export function AssetTemplatesScreen() {
           </div>
         )}
       </>
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

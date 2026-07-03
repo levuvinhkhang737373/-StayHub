@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { Link } from 'react-router-dom'
 import { Edit3, Eye, Plus, RefreshCw, Search, Settings, Trash2, X, Power } from 'lucide-react'
 import { formatDate } from '../../../../shared/lib/utils/format'
@@ -77,6 +79,7 @@ export function SettingsScreen() {
   const [errors, setErrors] = useState<SettingFormErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -310,21 +313,30 @@ export function SettingsScreen() {
     }
   }
 
-  const removeSetting = async (setting: AdminSettingResource) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa cài đặt ${setting.setting_label}?`)) return
-
-    try {
-      setDeletingId(setting.id)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-      await deleteAdminSetting(setting.id)
-      setSuccessMessage('Xóa cài đặt thành công.')
-      await loadSettings()
-    } catch (error) {
-      setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể xóa cài đặt.'))
-    } finally {
-      setDeletingId(null)
-    }
+  const removeSetting = (setting: AdminSettingResource) => {
+    showConfirm({
+      title: 'Xóa cài đặt',
+      message: `Bạn có chắc chắn muốn xóa cài đặt ${setting.setting_label}?`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setDeletingId(setting.id)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+          await deleteAdminSetting(setting.id)
+          setSuccessMessage('Xóa cài đặt thành công.')
+          await loadSettings()
+        } catch (error) {
+          setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể xóa cài đặt.'))
+        } finally {
+          setIsConfirmLoading(false)
+          setDeletingId(null)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -568,6 +580,7 @@ export function SettingsScreen() {
         </div>
       )}
     </>
+    <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

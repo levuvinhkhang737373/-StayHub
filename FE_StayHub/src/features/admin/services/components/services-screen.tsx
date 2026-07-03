@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { Link } from 'react-router-dom'
 import { Database, Edit3, Eye, Plus, Power, Search, Trash2, X, Zap, Settings } from 'lucide-react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
@@ -66,6 +68,7 @@ export function ServicesScreen() {
   const [form, setForm] = useState<ServiceFormValues>(defaultForm)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -211,39 +214,64 @@ export function ServicesScreen() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
 
-  const toggleServiceStatus = async (service: AdminServiceResource) => {
+  const toggleServiceStatus = (service: AdminServiceResource) => {
     if (!isSuperAdmin) return
 
     const nextStatus = !service.is_active
 
-    if (!nextStatus && !window.confirm(`Bạn có chắc muốn ngừng hoạt động dịch vụ ${service.name}?`)) return
+    const doToggle = async () => {
+      try {
+        setIsConfirmLoading(true)
+        setStatusChangingId(service.id)
+        setErrorMessage(null)
+        setSuccessMessage(null)
+        await updateAdminServiceStatus(service.id, nextStatus)
+        setSuccessMessage(`${nextStatus ? 'Kích hoạt' : 'Ngừng hoạt động'} dịch vụ thành công.`)
+        await loadServices()
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái dịch vụ.')
+      } finally {
+        setIsConfirmLoading(false)
+        setStatusChangingId(null)
+        closeConfirm()
+      }
+    }
 
-    try {
-      setStatusChangingId(service.id)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-      await updateAdminServiceStatus(service.id, nextStatus)
-      setSuccessMessage(`${nextStatus ? 'Kích hoạt' : 'Ngừng hoạt động'} dịch vụ thành công.`)
-      await loadServices()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái dịch vụ.')
-    } finally {
-      setStatusChangingId(null)
+    if (!nextStatus) {
+      showConfirm({
+        title: 'Ngừng hoạt động dịch vụ',
+        message: `Bạn có chắc muốn ngừng hoạt động dịch vụ ${service.name}?`,
+        confirmLabel: 'Ngừng hoạt động',
+        onConfirm: doToggle,
+        variant: 'warning',
+      })
+    } else {
+      void doToggle()
     }
   }
 
-  const removeService = async (service: AdminServiceResource) => {
+  const removeService = (service: AdminServiceResource) => {
     if (!isSuperAdmin) return
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa dịch vụ ${service.name}? Dịch vụ đã phát sinh dữ liệu sẽ không thể xóa.`)) return
-
-    try {
-      setErrorMessage(null)
-      await deleteAdminService(service.id)
-      setSuccessMessage('Xóa dịch vụ thành công.')
-      await loadServices()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa dịch vụ.')
-    }
+    showConfirm({
+      title: 'Xóa dịch vụ',
+      message: `Bạn có chắc chắn muốn xóa dịch vụ ${service.name}? Dịch vụ đã phát sinh dữ liệu sẽ không thể xóa.`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setErrorMessage(null)
+          await deleteAdminService(service.id)
+          setSuccessMessage('Xóa dịch vụ thành công.')
+          await loadServices()
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa dịch vụ.')
+        } finally {
+          setIsConfirmLoading(false)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -480,6 +508,7 @@ export function ServicesScreen() {
           </div>
         </div>
       )}
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

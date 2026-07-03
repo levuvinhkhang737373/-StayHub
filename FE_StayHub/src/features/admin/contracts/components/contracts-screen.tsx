@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Building2,
@@ -124,6 +126,7 @@ export function ContractsScreen() {
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   useEffect(() => {
     if (successMessage) {
@@ -517,29 +520,33 @@ export function ContractsScreen() {
     }
   }
 
-  const removeContract = async (contract: AdminContractResource) => {
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn xóa hợp đồng ${contract.contract_code}? Chỉ hợp đồng nháp hoặc đã hủy và chưa phát sinh dữ liệu liên quan mới có thể xóa.`
-      )
-    )
-      return
-
-    try {
-      setDeletingId(contract.id)
-      setErrorMessage(null)
-      await deleteAdminContract(contract.id)
-      setSuccessMessage('Xóa hợp đồng thành công.')
-      if (contracts.length === 1 && currentPage > 1) {
-        setCurrentPage((page) => Math.max(1, page - 1))
-      } else {
-        await loadContracts()
-      }
-    } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa hợp đồng.'))
-    } finally {
-      setDeletingId(null)
-    }
+  const removeContract = (contract: AdminContractResource) => {
+    showConfirm({
+      title: 'Xóa hợp đồng',
+      message: `Bạn có chắc chắn muốn xóa hợp đồng ${contract.contract_code}? Chỉ hợp đồng nháp hoặc đã hủy và chưa phát sinh dữ liệu liên quan mới có thể xóa.`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setDeletingId(contract.id)
+          setErrorMessage(null)
+          await deleteAdminContract(contract.id)
+          setSuccessMessage('Xóa hợp đồng thành công.')
+          if (contracts.length === 1 && currentPage > 1) {
+            setCurrentPage((page) => Math.max(1, page - 1))
+          } else {
+            await loadContracts()
+          }
+        } catch (error) {
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa hợp đồng.'))
+        } finally {
+          setIsConfirmLoading(false)
+          setDeletingId(null)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -925,6 +932,7 @@ export function ContractsScreen() {
           onSubmit={() => void submitTerminate()}
         />
       )}
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </section>
   )
 }

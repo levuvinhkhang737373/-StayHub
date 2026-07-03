@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState, useMemo, Fragment } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import {
   CheckCircle,
   CreditCard,
@@ -58,6 +60,7 @@ export function TenantInvoicesScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, showAlert, closeConfirm } = useConfirmModal()
 
   // Payment proof form state
   const [proofAmount, setProofAmount] = useState('')
@@ -234,7 +237,7 @@ export function TenantInvoicesScreen() {
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text)
-    alert(`Đã sao chép ${label}: ${text}`)
+    showAlert('Đã sao chép', `Đã sao chép ${label}: ${text}`, 'info')
   }
 
   const getStatusBadge = (status: number, label: string) => {
@@ -866,6 +869,7 @@ export function TenantInvoicesScreen() {
           </form>
         </div>
       )}
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </div>
   )
 }

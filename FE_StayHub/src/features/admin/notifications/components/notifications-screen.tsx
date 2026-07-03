@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { useNavigate } from 'react-router-dom'
 import { 
   Bell, 
@@ -84,6 +86,7 @@ export function NotificationsScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -266,17 +269,28 @@ export function NotificationsScreen() {
   }
 
   // Delete notification
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return
-    setErrorMessage(null)
-    setSuccessMessage(null)
-    try {
-      await deleteAdminNotification(id)
-      setSuccessMessage('Xóa thông báo thành công.')
-      void loadNotifications()
-    } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : 'Không thể xóa thông báo.')
-    }
+  const handleDelete = (id: number) => {
+    showConfirm({
+      title: 'Xóa thông báo',
+      message: 'Bạn có chắc chắn muốn xóa thông báo này?',
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+          await deleteAdminNotification(id)
+          setSuccessMessage('Xóa thông báo thành công.')
+          void loadNotifications()
+        } catch (e) {
+          setErrorMessage(e instanceof Error ? e.message : 'Không thể xóa thông báo.')
+        } finally {
+          setIsConfirmLoading(false)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -475,6 +489,7 @@ export function NotificationsScreen() {
         </div>
       </section>
     </>
+    <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

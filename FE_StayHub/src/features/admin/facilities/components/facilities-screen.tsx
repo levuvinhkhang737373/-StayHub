@@ -11,6 +11,7 @@ import { cn } from "../../../../shared/lib/utils/cn";
 import { AdminSelect } from "../../shared/components/AdminSelect";
 import { mapBuildingResourceToBuilding } from "../lib/data-utils";
 import { ImageViewerModal } from "../../../../shared/components/ImageViewerModal";
+import { ConfirmModal } from "../../../../shared/components/ConfirmModal";
 
 type BuildingStatusFilter = "all" | BuildingStatus;
 
@@ -71,6 +72,30 @@ export function FacilitiesScreen() {
     const location = useLocation();
     const { session } = useAdminSession();
     const isSuperAdmin = isSuperAdminRole(session?.admin.role);
+
+    const [isConfirmLoading, setIsConfirmLoading] = useState(false);
+    const [confirmState, setConfirmState] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        confirmLabel?: string;
+        cancelLabel?: string;
+        onConfirm: () => void | Promise<void>;
+        variant?: "danger" | "warning" | "info";
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+    });
+
+    const showConfirm = (options: Omit<typeof confirmState, "isOpen">) => {
+        setConfirmState({ ...options, isOpen: true });
+    };
+
+    const closeConfirm = () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+    };
 
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -302,12 +327,35 @@ export function FacilitiesScreen() {
     const toggleBuildingStatus = async (building: Building) => {
         const nextStatus = building.status === "active" ? 2 : 1;
 
-        if (nextStatus === 2 && !window.confirm(`Bạn có chắc muốn tắt hoạt động tòa nhà ${building.name}?`)) return;
+        if (nextStatus === 2) {
+            showConfirm({
+                title: "Ngừng hoạt động tòa nhà",
+                message: `Bạn có chắc muốn tắt hoạt động tòa nhà ${building.name}?`,
+                confirmLabel: "Xác nhận",
+                variant: "warning",
+                onConfirm: async () => {
+                    setIsConfirmLoading(true);
+                    try {
+                        setStatusChangingId(building.id);
+                        await updateAdminBuildingStatus(building.id, nextStatus);
+                        setSuccessMessage("Đã ngừng hoạt động tòa nhà thành công.");
+                        await loadFacilities();
+                    } catch {
+                        setErrorMessage("Không thể cập nhật trạng thái tòa nhà. Vui lòng thử lại sau.");
+                    } finally {
+                        setStatusChangingId(null);
+                        setIsConfirmLoading(false);
+                        closeConfirm();
+                    }
+                },
+            });
+            return;
+        }
 
         try {
             setStatusChangingId(building.id);
             await updateAdminBuildingStatus(building.id, nextStatus);
-            setSuccessMessage(`Đã ${nextStatus === 2 ? "ngừng hoạt động" : "kích hoạt"} tòa nhà thành công.`);
+            setSuccessMessage("Đã kích hoạt tòa nhà thành công.");
             await loadFacilities();
         } catch {
             setErrorMessage("Không thể cập nhật trạng thái tòa nhà. Vui lòng thử lại sau.");
@@ -316,49 +364,79 @@ export function FacilitiesScreen() {
         }
     };
 
-    const deleteBuilding = async (building: Building) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn xóa tòa nhà ${building.name}?`)) return;
-
-        try {
-            await deleteAdminBuilding(building.id);
-            setSuccessMessage("Xóa tòa nhà thành công.");
-            await loadFacilities();
-        } catch {
-            setErrorMessage("Không thể xóa tòa nhà. Vui lòng thử lại sau.");
-        }
+    const deleteBuilding = (building: Building) => {
+        showConfirm({
+            title: "Xóa tòa nhà",
+            message: `Bạn có chắc chắn muốn xóa tòa nhà ${building.name}?`,
+            confirmLabel: "Xóa",
+            variant: "danger",
+            onConfirm: async () => {
+                setIsConfirmLoading(true);
+                try {
+                    await deleteAdminBuilding(building.id);
+                    setSuccessMessage("Xóa tòa nhà thành công.");
+                    await loadFacilities();
+                } catch (error: any) {
+                    setErrorMessage(error instanceof Error ? error.message : "Không thể xóa tòa nhà. Vui lòng thử lại sau.");
+                } finally {
+                    setIsConfirmLoading(false);
+                    closeConfirm();
+                }
+            },
+        });
     };
 
     const editRegion = (region: AdminRegionResource) => {
         void openEditRegionModal(region);
     };
 
-    const toggleRegionStatus = async (region: AdminRegionResource) => {
+    const toggleRegionStatus = (region: AdminRegionResource) => {
         const nextStatus = !region.status;
         const actionLabel = nextStatus ? "mở hoạt động" : "tạm ngưng";
 
-        if (!window.confirm(`Bạn có chắc chắn muốn ${actionLabel} khu vực ${region.name}?`)) return;
-
-        try {
-            await updateAdminRegionStatus(region.id, nextStatus);
-            setSuccessMessage(`${nextStatus ? "Mở hoạt động" : "Tạm ngưng"} khu vực thành công.`);
-            await loadFacilities();
-        } catch {
-            setErrorMessage("Không thể cập nhật trạng thái khu vực. Vui lòng thử lại sau.");
-        }
+        showConfirm({
+            title: nextStatus ? "Mở hoạt động khu vực" : "Tạm ngưng khu vực",
+            message: `Bạn có chắc chắn muốn ${actionLabel} khu vực ${region.name}?`,
+            confirmLabel: "Xác nhận",
+            variant: "warning",
+            onConfirm: async () => {
+                setIsConfirmLoading(true);
+                try {
+                    await updateAdminRegionStatus(region.id, nextStatus);
+                    setSuccessMessage(`${nextStatus ? "Mở hoạt động" : "Tạm ngưng"} khu vực thành công.`);
+                    await loadFacilities();
+                } catch {
+                    setErrorMessage("Không thể cập nhật trạng thái khu vực. Vui lòng thử lại sau.");
+                } finally {
+                    setIsConfirmLoading(false);
+                    closeConfirm();
+                }
+            },
+        });
     };
 
-    const deleteRegion = async (region: AdminRegionResource) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn xóa khu vực ${region.name}?`)) return;
-
-        try {
-            await deleteAdminRegion(region.id);
-            setSelectedRegionId((current) => (current === region.id ? null : current));
-            setExpandedIds((current) => current.filter((id) => id !== region.id));
-            setSuccessMessage("Xóa khu vực thành công.");
-            await loadFacilities();
-        } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể xóa khu vực. Vui lòng thử lại sau.");
-        }
+    const deleteRegion = (region: AdminRegionResource) => {
+        showConfirm({
+            title: "Xóa khu vực",
+            message: `Bạn có chắc chắn muốn xóa khu vực ${region.name}?`,
+            confirmLabel: "Xóa",
+            variant: "danger",
+            onConfirm: async () => {
+                setIsConfirmLoading(true);
+                try {
+                    await deleteAdminRegion(region.id);
+                    setSelectedRegionId((current) => (current === region.id ? null : current));
+                    setExpandedIds((current) => current.filter((id) => id !== region.id));
+                    setSuccessMessage("Xóa khu vực thành công.");
+                    await loadFacilities();
+                } catch (error) {
+                    setErrorMessage(error instanceof Error ? error.message : "Không thể xóa khu vực. Vui lòng thử lại sau.");
+                } finally {
+                    setIsConfirmLoading(false);
+                    closeConfirm();
+                }
+            },
+        });
     };
 
     const clearFilters = () => {
@@ -705,6 +783,18 @@ export function FacilitiesScreen() {
                         onCancel={handleCancelRegionModal}
                         onSubmitSuccess={handleRegionSubmitSuccess}
                         isFormLoading={isRegionFormLoading}
+                    />
+
+                    <ConfirmModal
+                        isOpen={confirmState.isOpen}
+                        title={confirmState.title}
+                        message={confirmState.message}
+                        confirmLabel={confirmState.confirmLabel}
+                        cancelLabel={confirmState.cancelLabel}
+                        onConfirm={confirmState.onConfirm}
+                        onCancel={closeConfirm}
+                        variant={confirmState.variant}
+                        isLoading={isConfirmLoading}
                     />
                 </section>
             </>
