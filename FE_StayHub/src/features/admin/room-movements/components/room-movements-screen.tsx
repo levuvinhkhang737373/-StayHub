@@ -489,6 +489,7 @@ function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
 
 function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement: AdminRoomMovementResource; isLoading: boolean; errorMessage: string | null; onClose: () => void }) {
   const hasMeterReadings = Boolean(movement.final_electric_reading || movement.final_water_reading)
+  const settlementBreakdown = useMemo(() => makeSettlementBreakdown(movement), [movement])
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
@@ -538,28 +539,66 @@ function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement:
             </div>
           </section>
 
-          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cọc & settlement</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <MoneyTile label="Cọc bàn giao" value={movement.old_room_final_amount} tone="neutral" />
-              <MoneyTile label="Cọc chuyển sang" value={movement.deposit_transfer_amount} tone="success" />
-              <MoneyTile label="Hoàn cọc cũ" value={movement.deposit_refund_amount} tone="warning" />
-              <MoneyTile label="Hoàn thủ công" value={movement.manual_refund_amount} tone="warning" />
-              <MoneyTile label="Khấu trừ hư hao" value={movement.deduction_amount} tone="danger" />
-              <MoneyTile label="Phí chuyển phòng" value={movement.transfer_fee} tone="neutral" />
-              <MoneyTile label="Cọc còn thiếu" value={movement.deposit_due_amount} tone="danger" />
-              <MoneyTile label="Phí thu thêm" value={movement.extra_charge_amount} tone="danger" />
-              <MoneyTile label="Settlement phải thu" value={movement.settlement_due_amount} tone="warning" />
-              <MoneyTile label="Đã thanh toán" value={movement.settlement_paid_amount} tone="success" />
-              <MoneyTile label="Còn lại" value={movement.settlement_remaining_amount} tone="warning" />
+          <section className="overflow-hidden rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/70 shadow-sm">
+            <div className="border-b border-[#3d2a18]/10 bg-[#24170d] px-4 py-3 text-[#fff4df]">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Cọc & thanh toán chuyển phòng</p>
+              <p className="mt-1 text-xs font-bold text-[#f8e8c8]/75">Hiển thị theo đúng settlement backend: cọc mới và phí phát sinh thu chung một QR nhưng được tách riêng khi ghi nhận.</p>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <DetailTile label="Trạng thái QR" value={movement.settlement_payment_status_label || '—'} />
-              <DetailTile
-                label="QR settlement"
-                value={movement.settlement_qr_url ? <a href={movement.settlement_qr_url} target="_blank" rel="noreferrer" className="text-[#0f5f59] underline decoration-[#0f766e]/30 underline-offset-4">Mở mã QR</a> : '—'}
-              />
+            <div className="grid gap-4 p-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-3">
+                <div className="rounded-[1.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cọc hợp đồng cũ</p>
+                      <h3 className="mt-1 text-lg font-black text-[#24170d]">{settlementBreakdown.oldDepositTitle}</h3>
+                    </div>
+                    <span className={cn('rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]', settlementBreakdown.usesOldDeposit ? 'bg-[#0f766e]/10 text-[#0f5f59]' : 'bg-[#8b5e34]/10 text-[#8b5e34]')}>
+                      {settlementBreakdown.usesOldDeposit ? 'Có dùng cọc cũ' : 'Không dùng cọc cũ'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-bold leading-5 text-[#6f6254]">{settlementBreakdown.oldDepositDescription}</p>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <MoneyTile label="Số dư cọc cũ" value={movement.old_room_final_amount} tone="neutral" compact />
+                    <MoneyTile label="Cọc chuyển sang" value={movement.deposit_transfer_amount} tone="success" compact />
+                    <MoneyTile label="Hoàn cọc dư" value={settlementBreakdown.refundAmount} tone="warning" compact />
+                  </div>
+                </div>
+
+                <div className="rounded-[1.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Khoản cần thu từ khách</p>
+                  <div className="mt-3 space-y-2">
+                    <SettlementLine label="Cọc mới còn thiếu" value={movement.deposit_due_amount} tone="danger" helper="Phần được ghi nhận vào sổ cọc hợp đồng đích khi khách thanh toán." />
+                    <SettlementLine label="Phí/khấu trừ thu thêm" value={movement.extra_charge_amount} tone="danger" helper="Phần không ghi vào cọc mới; bao gồm khấu trừ và phí chuyển phòng còn phải thu." />
+                    <SettlementLine label="Khấu trừ admin nhập" value={settlementBreakdown.deductionInputAmount} tone="muted" />
+                    <SettlementLine label="Phí chuyển phòng admin nhập" value={movement.transfer_fee} tone="muted" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-[#f3c56b]/30 bg-[#2b1a0f] p-4 text-[#fff4df] shadow-xl shadow-[#24170d]/15">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">QR settlement</p>
+                <p className="mt-3 text-4xl font-black tabular-nums tracking-tight text-white">{formatCurrency(movement.settlement_remaining_amount)}</p>
+                <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Còn phải thanh toán trên tổng {formatCurrency(movement.settlement_due_amount)}</p>
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <MiniMetric label="Đã thanh toán" value={movement.settlement_paid_amount} tone="success" />
+                  <MiniMetric label="Trạng thái" value={movement.settlement_payment_status_label || '—'} />
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/8 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]/55">Sau khi SePay ghi nhận</p>
+                  <p className="mt-2 text-xs font-bold leading-5 text-[#f8e8c8]/78">Tiền thanh toán được ưu tiên ghi vào cọc mới còn thiếu, phần dư của giao dịch mới ghi vào phí/khấu trừ chuyển phòng.</p>
+                </div>
+
+                {movement.settlement_qr_url ? (
+                  <a href={movement.settlement_qr_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-[#f3c56b] px-4 py-3 text-sm font-black text-[#24170d] transition hover:bg-[#ffd783] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/30">
+                    Mở mã QR thanh toán
+                  </a>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-center text-sm font-black text-[#f8e8c8]/65">Không phát sinh QR</div>
+                )}
+              </div>
             </div>
           </section>
 
@@ -567,15 +606,6 @@ function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement:
             <section className="rounded-[1.5rem] border border-rose-200 bg-rose-50 p-4">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-700/70">Lý do bị chặn / lỗi</p>
               <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-rose-700">{movement.failure_reason}</p>
-            </section>
-          )}
-
-          {movement.scheduled_payload && (
-            <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Payload đã lên lịch</p>
-              <pre className="mt-3 max-h-72 overflow-auto rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-4 text-xs font-bold leading-5 text-[#3d2a18]">
-                {JSON.stringify(movement.scheduled_payload, null, 2)}
-              </pre>
             </section>
           )}
 
@@ -610,20 +640,108 @@ function DetailTile({ label, value }: { label: string; value?: ReactNode }) {
   )
 }
 
-function MoneyTile({ label, value, tone }: { label: string; value?: string | null; tone: 'neutral' | 'success' | 'warning' | 'danger' }) {
+function MoneyTile({ label, value, tone, compact = false }: { label: string; value?: string | null; tone: MoneyTone; compact?: boolean }) {
   const toneClassName = {
     neutral: 'text-[#24170d]',
     success: 'text-[#0f5f59]',
     warning: 'text-[#8a4f18]',
     danger: 'text-rose-700',
+    muted: 'text-[#6f6254]',
   }[tone]
 
   return (
     <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 shadow-sm">
       <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60"><Banknote className="h-3.5 w-3.5" /> {label}</p>
-      <p className={cn('mt-1 text-lg font-black tabular-nums', toneClassName)}>{formatCurrency(value)}</p>
+      <p className={cn('mt-1 font-black tabular-nums', compact ? 'text-base' : 'text-lg', toneClassName)}>{formatCurrency(value)}</p>
     </div>
   )
+}
+
+type MoneyTone = 'neutral' | 'success' | 'warning' | 'danger' | 'muted'
+
+function SettlementLine({ label, value, tone, helper }: { label: string; value?: string | null; tone: MoneyTone; helper?: string }) {
+  const toneClassName = {
+    neutral: 'text-[#24170d]',
+    success: 'text-[#0f5f59]',
+    warning: 'text-[#8a4f18]',
+    danger: 'text-rose-700',
+    muted: 'text-[#6f6254]',
+  }[tone]
+
+  return (
+    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/65 px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black text-[#24170d]">{label}</p>
+          {helper && <p className="mt-0.5 text-[11px] font-bold leading-4 text-[#6f6254]">{helper}</p>}
+        </div>
+        <p className={cn('shrink-0 text-sm font-black tabular-nums', toneClassName)}>{formatCurrency(value)}</p>
+      </div>
+    </div>
+  )
+}
+
+function MiniMetric({ label, value, tone = 'neutral' }: { label: string; value?: string | null; tone?: MoneyTone }) {
+  const toneClassName = {
+    neutral: 'text-white',
+    success: 'text-[#7ddfd3]',
+    warning: 'text-[#f3c56b]',
+    danger: 'text-rose-200',
+    muted: 'text-[#f8e8c8]/70',
+  }[tone]
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/8 p-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#f8e8c8]/50">{label}</p>
+      <p className={cn('mt-1 text-sm font-black tabular-nums', toneClassName)}>{isMoneyLike(value) ? formatCurrency(value) : value || '—'}</p>
+    </div>
+  )
+}
+
+function makeSettlementBreakdown(movement: AdminRoomMovementResource) {
+  const oldDepositAmount = moneyNumber(movement.old_room_final_amount)
+  const transferredDepositAmount = moneyNumber(movement.deposit_transfer_amount)
+  const manualRefundAmount = moneyNumber(movement.manual_refund_amount)
+  const legacyRefundAmount = moneyNumber(movement.deposit_refund_amount)
+  const extraChargeAmount = moneyNumber(movement.extra_charge_amount)
+  const transferFeeAmount = moneyNumber(movement.transfer_fee)
+  const deductionInputAmount = stringMoneyFromPayload(movement.scheduled_payload?.deposit_deduction_amount, movement.deduction_amount)
+  const scheduledDeductionAmount = moneyNumber(deductionInputAmount)
+  const expectedExtraChargeAmount = scheduledDeductionAmount + transferFeeAmount
+  const usesOldDeposit = transferredDepositAmount > 0 || manualRefundAmount > 0 || (oldDepositAmount > 0 && extraChargeAmount < expectedExtraChargeAmount)
+
+  return {
+    deductionInputAmount,
+    refundAmount: manualRefundAmount > 0 ? movement.manual_refund_amount : movement.deposit_refund_amount,
+    usesOldDeposit,
+    oldDepositTitle: usesOldDeposit ? 'Cọc cũ được quyết toán' : 'Cọc cũ giữ tại hợp đồng nguồn',
+    oldDepositDescription: usesOldDeposit
+      ? 'Backend dùng số dư cọc cũ để trừ phí/khấu trừ trước, sau đó mới chuyển sang hợp đồng đích hoặc hoàn phần dư.'
+      : 'Đây là luồng chuyển một phần hoặc sang hợp đồng đích đã có cọc: cọc cũ không đem bù cọc mới, khoản phát sinh được thu riêng trong settlement.',
+    legacyRefundAmount,
+  }
+}
+
+function moneyNumber(value?: string | number | null): number {
+  const normalizedValue = Number(String(value ?? '0').replace(/,/g, ''))
+
+  return Number.isFinite(normalizedValue) ? normalizedValue : 0
+}
+
+function stringMoneyFromPayload(value: unknown, fallback?: string | null): string | null {
+  if (value === null || value === undefined || value === '') {
+    return fallback ?? null
+  }
+
+  return String(value)
+}
+
+function isMoneyLike(value?: string | null): boolean {
+  if (value === null || value === undefined || value === '') {
+    return false
+  }
+
+  return Number.isFinite(Number(String(value).replace(/,/g, '')))
 }
 
 function roomLabel(room: AdminRoomMovementResource['from_room'], fallback: string) {

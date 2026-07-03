@@ -62,6 +62,7 @@ class InvoicePreviewResource extends JsonResource
             'payment_qr_url' => null,
             'items' => $this->previewItems(),
             'payments' => [],
+            'transfer_cutoffs' => $this->resource['transfer_cutoffs'] ?? [],
             'items_count' => count($this->resource['items']),
             'payments_count' => 0,
             'created_at' => null,

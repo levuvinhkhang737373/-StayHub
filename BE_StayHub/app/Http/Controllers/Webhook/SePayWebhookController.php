@@ -479,28 +479,11 @@ class SePayWebhookController extends Controller
                 }
 
                 $appliedAmount = DecimalMoney::min($amount, $remainingAmount);
-                $destinationContract = $firstMovement->destination_contract_id
-                    ? Contract::query()->lockForUpdate()->find($firstMovement->destination_contract_id)
-                    : null;
-                $depositPaidByTransfer = DecimalMoney::add($references->pluck('deposit_amount')->all());
-                $depositRemainingForTransfer = DecimalMoney::maxZero(DecimalMoney::subtract($firstMovement->deposit_due_amount, $depositPaidByTransfer));
-                $depositAmount = $destinationContract
-                    ? DecimalMoney::min($appliedAmount, $depositRemainingForTransfer)
-                    : '0.00';
+                $destinationContract = $this->destinationContractForTransferSettlement($firstMovement);
+                $allocation = $this->allocateTransferSettlementPayment($firstMovement, $references, $appliedAmount, $destinationContract);
 
-                if ($destinationContract && DecimalMoney::isPositive($depositAmount)) {
-                    $destinationContract->depositTransactions()->create([
-                        'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
-                        'amount' => $depositAmount,
-                        'transaction_date' => now()->toDateString(),
-                        'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
-                        'transaction_reference' => $transactionReference,
-                        'note' => 'Hệ thống tự động ghi nhận cọc chuyển phòng qua SePay. Nội dung gốc: '.$content,
-                        'created_by' => null,
-                    ]);
-                }
+                $this->recordTransferDepositPayment($destinationContract, $allocation['deposit_amount'], $transactionReference, $content);
 
-                $extraAmount = DecimalMoney::maxZero(DecimalMoney::subtract($appliedAmount, $depositAmount));
                 $paidAmount = DecimalMoney::add([$firstMovement->settlement_paid_amount, $appliedAmount]);
                 $paymentStatus = DecimalMoney::compare($paidAmount, $firstMovement->settlement_due_amount) >= 0
                     ? RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID
@@ -509,8 +492,8 @@ class SePayWebhookController extends Controller
                 $newReference = [
                     'reference' => $transactionReference,
                     'amount' => $appliedAmount,
-                    'deposit_amount' => $depositAmount,
-                    'extra_amount' => $extraAmount,
+                    'deposit_amount' => $allocation['deposit_amount'],
+                    'extra_amount' => $allocation['extra_amount'],
                     'paid_at' => now()->toDateTimeString(),
                 ];
 
@@ -536,6 +519,49 @@ class SePayWebhookController extends Controller
         }
 
         return $response;
+    }
+
+    /**
+     * Tách tiền settlement chuyển phòng: ưu tiên bù cọc mới, phần còn lại là phí/khấu trừ.
+     */
+    private function allocateTransferSettlementPayment(RoomMovement $movement, Collection $references, string $appliedAmount, ?Contract $destinationContract): array
+    {
+        $depositPaidByTransfer = DecimalMoney::add($references->pluck('deposit_amount')->all());
+        $depositRemainingForTransfer = DecimalMoney::maxZero(DecimalMoney::subtract($movement->deposit_due_amount, $depositPaidByTransfer));
+        $depositAmount = $destinationContract
+            ? DecimalMoney::min($appliedAmount, $depositRemainingForTransfer)
+            : '0.00';
+
+        return [
+            'deposit_amount' => $depositAmount,
+            'extra_amount' => DecimalMoney::maxZero(DecimalMoney::subtract($appliedAmount, $depositAmount)),
+        ];
+    }
+
+    private function destinationContractForTransferSettlement(RoomMovement $movement): ?Contract
+    {
+        if (! $movement->destination_contract_id) {
+            return null;
+        }
+
+        return Contract::query()->lockForUpdate()->find($movement->destination_contract_id);
+    }
+
+    private function recordTransferDepositPayment(?Contract $destinationContract, string $depositAmount, string $transactionReference, string $content): void
+    {
+        if (! $destinationContract || ! DecimalMoney::isPositive($depositAmount)) {
+            return;
+        }
+
+        $destinationContract->depositTransactions()->create([
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => $depositAmount,
+            'transaction_date' => now()->toDateString(),
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+            'transaction_reference' => $transactionReference,
+            'note' => 'Hệ thống tự động ghi nhận cọc chuyển phòng qua SePay. Nội dung gốc: '.$content,
+            'created_by' => null,
+        ]);
     }
 
     private function applyConfirmedPayment(Invoice $invoice, string $amount): void

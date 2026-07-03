@@ -9,18 +9,19 @@ import 'api_service.dart';
 class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   PusherChannelsClient? _client;
   StreamSubscription? _statusSubscription;
-  
+
   // Track active channel subscriptions and event streams
   final Map<String, dynamic> _activeChannels = {};
   final Map<String, dynamic> _eventSubscriptions = {};
-  
+
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
   // Registered subscription callbacks for reconnection/lazy connection
   VoidCallback? _onAdminMaintenanceCallback;
   Function(Map<String, dynamic>)? _onTenantNotificationCallback;
-  final Map<String, Function(Map<String, dynamic>)> _onChatMessageCallbacks = {};
+  final Map<String, Function(Map<String, dynamic>)> _onChatMessageCallbacks =
+      {};
   final Map<String, Function(Map<String, dynamic>)> _onChatReadCallbacks = {};
   int? _tenantId;
   int? _adminChatId;
@@ -32,11 +33,14 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   // Stream for broadcasting notification events to the application
-  final StreamController<Map<String, dynamic>> _notificationStreamController = StreamController<Map<String, dynamic>>.broadcast();
-  Stream<Map<String, dynamic>> get notificationsStream => _notificationStreamController.stream;
+  final StreamController<Map<String, dynamic>> _notificationStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get notificationsStream =>
+      _notificationStreamController.stream;
 
   // Stream for debugging logs to the UI
-  final StreamController<String> _debugStreamController = StreamController<String>.broadcast();
+  final StreamController<String> _debugStreamController =
+      StreamController<String>.broadcast();
   Stream<String> get debugStream => _debugStreamController.stream;
 
   /// Connect to the Laravel Reverb WebSocket server
@@ -95,7 +99,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _subscribeToAdminMaintenanceChannel() async {
     if (_client == null || !_isConnected) return;
-    
+
     const channelName = 'admin-maintenance';
     if (_activeChannels.containsKey(channelName)) return;
 
@@ -107,7 +111,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _debugStreamController.add('Lỗi xác thực kênh $channelName: $exception');
+            _debugStreamController.add(
+              'Lỗi xác thực kênh $channelName: $exception',
+            );
           },
         ),
       );
@@ -120,7 +126,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         _debugStreamController.add('Đăng ký kênh $channelName thành công!');
         successSubscription?.cancel();
       });
-      
+
       // Bind to all relevant maintenance events broadcast by backend
       final List<StreamSubscription> subscriptions = [];
       final maintenanceEvents = [
@@ -137,7 +143,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
           if (_onAdminMaintenanceCallback != null) {
             _onAdminMaintenanceCallback!();
           }
-          
+
           Map<String, dynamic>? parsedData;
           try {
             final rawData = event.data;
@@ -162,7 +168,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       // Bind to ContractDepositPaid event on admin channel
-      final depositSubscription = channel.bind('ContractDepositPaid').listen((event) {
+      final depositSubscription = channel.bind('ContractDepositPaid').listen((
+        event,
+      ) {
         debugPrint('WS Event: ContractDepositPaid (Admin) -> ${event.data}');
         Map<String, dynamic>? parsedData;
         try {
@@ -187,32 +195,36 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       subscriptions.add(depositSubscription);
 
       // Bind to NotificationSent event on admin channel
-      final adminNotificationSubscription = channel.bind('NotificationSent').listen((event) {
-        debugPrint('WS Event: NotificationSent (Admin) -> ${event.data}');
-        Map<String, dynamic>? parsedData;
-        try {
-          final rawData = event.data;
-          if (rawData != null) {
-            if (rawData is String) {
-              parsedData = jsonDecode(rawData) as Map<String, dynamic>;
-            } else if (rawData is Map) {
-              parsedData = Map<String, dynamic>.from(rawData);
+      final adminNotificationSubscription = channel
+          .bind('NotificationSent')
+          .listen((event) {
+            debugPrint('WS Event: NotificationSent (Admin) -> ${event.data}');
+            Map<String, dynamic>? parsedData;
+            try {
+              final rawData = event.data;
+              if (rawData != null) {
+                if (rawData is String) {
+                  parsedData = jsonDecode(rawData) as Map<String, dynamic>;
+                } else if (rawData is Map) {
+                  parsedData = Map<String, dynamic>.from(rawData);
+                }
+              }
+            } catch (e) {
+              debugPrint('WS Error decoding JSON: $e');
             }
-          }
-        } catch (e) {
-          debugPrint('WS Error decoding JSON: $e');
-        }
 
-        // Broadcast event locally
-        _notificationStreamController.add({
-          'type': 'admin_notification_sent',
-          'data': parsedData ?? event.data,
-        });
-      });
+            // Broadcast event locally
+            _notificationStreamController.add({
+              'type': 'admin_notification_sent',
+              'data': parsedData ?? event.data,
+            });
+          });
       subscriptions.add(adminNotificationSubscription);
 
       // Bind to InvoicePaid event on admin channel
-      final adminInvoicePaidSubscription = channel.bind('InvoicePaid').listen((event) {
+      final adminInvoicePaidSubscription = channel.bind('InvoicePaid').listen((
+        event,
+      ) {
         debugPrint('WS Event: InvoicePaid (Admin) -> ${event.data}');
         try {
           final rawData = event.data;
@@ -236,42 +248,56 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       });
       subscriptions.add(adminInvoicePaidSubscription);
 
-      final adminInvoiceReissuedSubscription = channel.bind('InvoiceReissued').listen((event) {
-        debugPrint('WS Event: InvoiceReissued (Admin) -> ${event.data}');
-        try {
-          final rawData = event.data;
-          if (rawData != null) {
-            Map<String, dynamic> decoded;
-            if (rawData is String) {
-              decoded = jsonDecode(rawData) as Map<String, dynamic>;
-            } else if (rawData is Map) {
-              decoded = Map<String, dynamic>.from(rawData);
-            } else {
-              throw Exception('Unexpected data format');
+      final adminInvoiceReissuedSubscription = channel
+          .bind('InvoiceReissued')
+          .listen((event) {
+            debugPrint('WS Event: InvoiceReissued (Admin) -> ${event.data}');
+            try {
+              final rawData = event.data;
+              if (rawData != null) {
+                Map<String, dynamic> decoded;
+                if (rawData is String) {
+                  decoded = jsonDecode(rawData) as Map<String, dynamic>;
+                } else if (rawData is Map) {
+                  decoded = Map<String, dynamic>.from(rawData);
+                } else {
+                  throw Exception('Unexpected data format');
+                }
+                _notificationStreamController.add({
+                  'type': 'admin_invoice_reissued',
+                  'data': decoded['invoice'] ?? decoded,
+                });
+              }
+            } catch (e) {
+              debugPrint('WS Error handling InvoiceReissued (Admin): $e');
             }
-            _notificationStreamController.add({
-              'type': 'admin_invoice_reissued',
-              'data': decoded['invoice'] ?? decoded,
-            });
-          }
-        } catch (e) {
-          debugPrint('WS Error handling InvoiceReissued (Admin): $e');
-        }
-      });
+          });
       subscriptions.add(adminInvoiceReissuedSubscription);
 
       _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
-      debugPrint('WS: Subscribed to private channel $channelName successfully!');
+      debugPrint(
+        'WS: Subscribed to private channel $channelName successfully!',
+      );
     } catch (e) {
       debugPrint('WS Subscription Error ($channelName): $e');
     }
   }
 
   /// Subscribe to private channel 'tenant.{id}' (public registration)
-  void subscribeToTenantNotifications(int tenantId, Function(Map<String, dynamic> notification) onNotificationReceived) {
+  void subscribeToTenantNotifications(
+    int tenantId,
+    Function(Map<String, dynamic> notification) onNotificationReceived,
+  ) {
     _tenantId = tenantId;
     _onTenantNotificationCallback = onNotificationReceived;
+    if (_isConnected) {
+      _subscribeToTenantChannel(tenantId);
+    }
+  }
+
+  void ensureTenantNotificationChannel(int tenantId) {
+    _tenantId = tenantId;
     if (_isConnected) {
       _subscribeToTenantChannel(tenantId);
     }
@@ -291,7 +317,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _debugStreamController.add('Lỗi xác thực kênh $channelName: $exception');
+            _debugStreamController.add(
+              'Lỗi xác thực kênh $channelName: $exception',
+            );
           },
         ),
       );
@@ -312,7 +340,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         debugPrint('WS Event: NotificationSent -> ${event.data}');
         try {
           final rawData = event.data;
-          if (rawData != null && _onTenantNotificationCallback != null) {
+          if (rawData != null) {
             Map<String, dynamic> decoded;
             if (rawData is String) {
               decoded = jsonDecode(rawData) as Map<String, dynamic>;
@@ -322,9 +350,10 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
               throw Exception('Unexpected data format: ${rawData.runtimeType}');
             }
             if (decoded['notification'] != null) {
-              final notificationData = decoded['notification'] as Map<String, dynamic>;
-              _onTenantNotificationCallback!(notificationData);
-              
+              final notificationData =
+                  decoded['notification'] as Map<String, dynamic>;
+              _onTenantNotificationCallback?.call(notificationData);
+
               // Broadcast event locally to other screens
               _notificationStreamController.add({
                 'type': 'notification_sent',
@@ -414,7 +443,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       });
       subscriptions.add(invoiceIssuedSub);
 
-      final invoiceReissuedSub = channel.bind('InvoiceReissued').listen((event) {
+      final invoiceReissuedSub = channel.bind('InvoiceReissued').listen((
+        event,
+      ) {
         debugPrint('WS Event: InvoiceReissued -> ${event.data}');
         try {
           final rawData = event.data;
@@ -440,7 +471,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
       _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
-      debugPrint('WS: Subscribed to private channel $channelName successfully!');
+      debugPrint(
+        'WS: Subscribed to private channel $channelName successfully!',
+      );
     } catch (e) {
       debugPrint('WS Subscription Error ($channelName): $e');
     }
@@ -451,7 +484,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     if (_onAdminMaintenanceCallback != null) {
       _subscribeToAdminMaintenanceChannel();
     }
-    if (_tenantId != null && _onTenantNotificationCallback != null) {
+    if (_tenantId != null) {
       _subscribeToTenantChannel(_tenantId!);
     }
     if (_adminChatId != null && _onChatMessageCallbacks.isNotEmpty) {
@@ -465,7 +498,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  void subscribeToAdminChat(int adminId, {
+  void subscribeToAdminChat(
+    int adminId, {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
   }) {
@@ -480,7 +514,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  void subscribeToTenantChat(int tenantId, {
+  void subscribeToTenantChat(
+    int tenantId, {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
   }) {
@@ -495,7 +530,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  void subscribeToChatConversation(int conversationId, {
+  void subscribeToChatConversation(
+    int conversationId, {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
   }) {
@@ -528,31 +564,45 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _debugStreamController.add('Lỗi xác thực kênh $channelName: $exception');
+            _debugStreamController.add(
+              'Lỗi xác thực kênh $channelName: $exception',
+            );
           },
         ),
       );
       _activeChannels[channelName] = channel;
 
       final List<StreamSubscription> subscriptions = [];
-      subscriptions.add(channel.bind('ChatMessageSent').listen((event) {
-        final decoded = _decodeEventData(event.data);
-        if (decoded != null) {
-          _onChatMessageCallbacks[channelName]?.call(decoded);
-          _notificationStreamController.add({'type': 'chat_message_sent', 'data': decoded});
-        }
-      }));
-      subscriptions.add(channel.bind('ChatConversationRead').listen((event) {
-        final decoded = _decodeEventData(event.data);
-        if (decoded != null) {
-          _onChatReadCallbacks[channelName]?.call(decoded);
-          _notificationStreamController.add({'type': 'chat_conversation_read', 'data': decoded});
-        }
-      }));
+      subscriptions.add(
+        channel.bind('ChatMessageSent').listen((event) {
+          final decoded = _decodeEventData(event.data);
+          if (decoded != null) {
+            _onChatMessageCallbacks[channelName]?.call(decoded);
+            _notificationStreamController.add({
+              'type': 'chat_message_sent',
+              'data': decoded,
+            });
+          }
+        }),
+      );
+      subscriptions.add(
+        channel.bind('ChatConversationRead').listen((event) {
+          final decoded = _decodeEventData(event.data);
+          if (decoded != null) {
+            _onChatReadCallbacks[channelName]?.call(decoded);
+            _notificationStreamController.add({
+              'type': 'chat_conversation_read',
+              'data': decoded,
+            });
+          }
+        }),
+      );
 
       _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
-      debugPrint('WS: Subscribed to private channel $channelName successfully!');
+      debugPrint(
+        'WS: Subscribed to private channel $channelName successfully!',
+      );
     } catch (e) {
       debugPrint('WS Subscription Error ($channelName): $e');
     }
@@ -606,7 +656,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> unsubscribe(String channelName) async {
     final channel = _activeChannels.remove(channelName);
     final subscription = _eventSubscriptions.remove(channelName);
-    
+
     if (subscription != null) {
       if (subscription is List) {
         for (final sub in subscription) {
@@ -618,7 +668,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         await subscription.cancel();
       }
     }
-    
+
     if (channel != null && _client != null) {
       await channel.unsubscribe();
       debugPrint('WS: Unsubscribed from channel $channelName');
@@ -628,7 +678,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   /// Disconnect the socket client
   Future<void> disconnect() async {
     debugPrint('WS: Closing Reverb WebSocket connection...');
-    
+
     _onAdminMaintenanceCallback = null;
     _onTenantNotificationCallback = null;
     _onChatMessageCallbacks.clear();
@@ -662,15 +712,15 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       await _client!.disconnect();
       _client = null;
     }
-    
+
     _isConnected = false;
     notifyListeners();
   }
-  
+
   /// Closes the current connection and cleans up active subscriptions/channels, but preserves callbacks/configs.
   Future<void> _closeConnectionOnly() async {
     debugPrint('WS: Closing connection only, keeping callbacks...');
-    
+
     // Cancel subscriptions
     for (final sub in _eventSubscriptions.values) {
       if (sub is List) {
@@ -695,7 +745,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       await _client!.disconnect();
       _client = null;
     }
-    
+
     _isConnected = false;
     notifyListeners();
   }
@@ -703,21 +753,27 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     debugPrint('WS AppLifecycleState changed to: $state');
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       debugPrint('WS: App backgrounded, closing connection to save battery...');
       _closeConnectionOnly();
     } else if (state == AppLifecycleState.resumed) {
       debugPrint('WS: App resumed, checking connection status...');
-      
-      final bool hasActiveSubscriptions = _onAdminMaintenanceCallback != null ||
+
+      final bool hasActiveSubscriptions =
+          _onAdminMaintenanceCallback != null ||
           _tenantId != null ||
           _adminChatId != null ||
           _tenantChatId != null ||
           _conversationId != null;
 
       if (hasActiveSubscriptions) {
-        debugPrint('WS: App resumed with active subscriptions. Reconnecting...');
-        _debugStreamController.add('Ứng dụng hoạt động trở lại, đang kết nối lại WebSocket...');
+        debugPrint(
+          'WS: App resumed with active subscriptions. Reconnecting...',
+        );
+        _debugStreamController.add(
+          'Ứng dụng hoạt động trở lại, đang kết nối lại WebSocket...',
+        );
         connect();
       }
     }
@@ -736,7 +792,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 class DioPrivateChannelAuthorizationDelegate
     implements
         EndpointAuthorizableChannelAuthorizationDelegate<
-            PrivateChannelAuthorizationData> {
+          PrivateChannelAuthorizationData
+        > {
   final ApiService _apiService = ApiService();
 
   @override
@@ -756,10 +813,7 @@ class DioPrivateChannelAuthorizationDelegate
 
       final response = await _apiService.client.post<Map<String, dynamic>>(
         '${AppConfig.apiOrigin}/broadcasting/auth',
-        data: {
-          'socket_id': socketId,
-          'channel_name': channelName,
-        },
+        data: {'socket_id': socketId, 'channel_name': channelName},
         options: Options(
           headers: authHeaders,
           contentType: Headers.formUrlEncodedContentType,
@@ -773,9 +827,7 @@ class DioPrivateChannelAuthorizationDelegate
 
       debugPrint('WS Auth: Authorized $channelName');
 
-      return PrivateChannelAuthorizationData(
-        authKey: data['auth'] as String,
-      );
+      return PrivateChannelAuthorizationData(authKey: data['auth'] as String);
     } catch (e, stack) {
       String errMsg = e.toString();
       if (e is DioException) {

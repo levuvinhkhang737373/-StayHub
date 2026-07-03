@@ -60,6 +60,11 @@ interface VehicleBillingPreview {
   newRange: string
 }
 
+interface VehicleWindowPreview {
+  amount: number
+  range: string
+}
+
 interface TenantPickerProps {
   keyword: string
   buildingFilter: string
@@ -377,19 +382,26 @@ export function TenantTransferRoomScreen() {
   const oldDepositBalance = moneyNumber(currentContract?.deposit_balance ?? tenant?.current_contract?.deposit_balance)
   const damageAmount = moneyNumber(depositDeductionAmount)
   const transferFeeAmount = moneyNumber(transferFee)
-  const availableAfterCosts = Math.max(0, oldDepositBalance - damageAmount - transferFeeAmount)
-  const extraChargeAmount = Math.max(0, damageAmount + transferFeeAmount - oldDepositBalance)
+  const transferChargesAmount = damageAmount + transferFeeAmount
   const destinationRoomHasContract = Boolean(selectedRoom && selectedRoom.current_occupants > 0)
+  const movingAllTenants = contractTenants.length > 0 && selectedTenantIds.length >= contractTenants.length
+  const usesOldDepositSettlement = Boolean(selectedRoom && movingAllTenants)
+  const availableAfterCosts = usesOldDepositSettlement ? Math.max(0, oldDepositBalance - transferChargesAmount) : oldDepositBalance
+  const extraChargeAmount = usesOldDepositSettlement ? Math.max(0, transferChargesAmount - oldDepositBalance) : transferChargesAmount
   const requiredNewDeposit = !selectedRoom || destinationRoomHasContract ? 0 : moneyNumber(newDepositAmount || selectedRoom.base_price)
-  const depositAppliedToNewRoom = !selectedRoom || destinationRoomHasContract ? 0 : Math.min(availableAfterCosts, requiredNewDeposit)
+  const depositAppliedToNewRoom = !selectedRoom || destinationRoomHasContract || !usesOldDepositSettlement ? 0 : Math.min(availableAfterCosts, requiredNewDeposit)
   const manualRefundAmount = !selectedRoom
     ? 0
-    : destinationRoomHasContract
+    : !usesOldDepositSettlement
+      ? 0
+      : destinationRoomHasContract
       ? availableAfterCosts
       : Math.max(availableAfterCosts - requiredNewDeposit, 0)
   const depositDueAmount = !selectedRoom || destinationRoomHasContract
     ? 0
-    : Math.max(requiredNewDeposit - availableAfterCosts, 0)
+    : usesOldDepositSettlement
+      ? Math.max(requiredNewDeposit - availableAfterCosts, 0)
+      : requiredNewDeposit
   const settlementDueAmount = selectedRoom ? depositDueAmount + extraChargeAmount : 0
   const effectiveMovementDate = movementDate
   const today = useMemo(() => todayDateString(), [])
@@ -998,9 +1010,9 @@ export function TenantTransferRoomScreen() {
               <div className="rounded-2xl border border-[#0f766e]/15 bg-[#0f766e]/6 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Preview tiền xe theo ngày</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Preview phân bổ tiền xe</p>
                     <p className="mt-1 text-xs font-semibold leading-5 text-[#6f6254]">
-                      Tiền xe sẽ tách theo ngày chuyển. Xe cũ ngừng active khi lịch chuyển được thực thi.
+                      Dựa theo cách lập hóa đơn: HĐ cũ tính đến trước ngày chuyển, HĐ mới tính từ ngày chuyển.
                     </p>
                   </div>
                   <span className="rounded-full border border-[#0f766e]/15 bg-white px-3 py-1 text-[10px] font-black text-[#0f5f59]">
@@ -1025,6 +1037,12 @@ export function TenantTransferRoomScreen() {
               <hr className="border-[#3d2a18]/8" />
 
               <SummaryLine label="Cọc gốc hiện tại" value={formatCurrency(oldDepositBalance)} />
+              <SummaryLine label="Cách xử lý cọc cũ" value={usesOldDepositSettlement ? 'Dùng cọc cũ để quyết toán' : 'Giữ nguyên ở HĐ nguồn'} accent={usesOldDepositSettlement} />
+              <div className={cn('rounded-2xl border p-3 text-xs font-bold leading-5', usesOldDepositSettlement ? 'border-[#0f766e]/15 bg-[#0f766e]/6 text-[#0f5f59]' : 'border-[#f3c56b]/40 bg-[#fff7df] text-[#8a4f18]')}>
+                {usesOldDepositSettlement
+                  ? 'Chuyển hết khách trong hợp đồng nguồn: backend dùng cọc cũ để trừ phí/khấu trừ, sau đó chuyển sang cọc phòng mới hoặc hoàn dư.'
+                  : 'Chuyển một phần khách: backend không đem cọc cũ bù cọc mới. Cọc mới và phí/khấu trừ sẽ thu qua settlement QR.'}
+              </div>
 
               <div className="flex flex-col gap-2 rounded-2xl border border-[#3d2a18]/8 bg-[#fffaf1]/50 p-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/65">Chi phí phát sinh</p>
@@ -1040,8 +1058,10 @@ export function TenantTransferRoomScreen() {
                 </div>
               </div>
 
-              <SummaryLine label="Cọc khả dụng còn lại" value={formatCurrency(availableAfterCosts)} accent={availableAfterCosts > 0} />
-              <SummaryLine label="Cọc áp dụng phòng mới" value={formatCurrency(depositAppliedToNewRoom)} />
+              <SummaryLine label={usesOldDepositSettlement ? 'Cọc khả dụng sau phí' : 'Cọc cũ giữ lại'} value={formatCurrency(availableAfterCosts)} accent={usesOldDepositSettlement && availableAfterCosts > 0} />
+              <SummaryLine label="Cọc chuyển sang phòng mới" value={formatCurrency(depositAppliedToNewRoom)} />
+              <SummaryLine label="Cọc mới còn thiếu" value={formatCurrency(depositDueAmount)} accent={depositDueAmount > 0} />
+              <SummaryLine label="Phí/khấu trừ thu thêm" value={formatCurrency(extraChargeAmount)} accent={extraChargeAmount > 0} />
 
               <hr className="border-[#3d2a18]/8" />
 
@@ -1597,23 +1617,32 @@ function buildVehicleBillingPreview(contract: AdminContractResource | null, tena
     return contractVehicle.is_active !== false && selectedTenantIds.has(tenantId)
   })
 
-  const oldAmount = movingVehicles.reduce((total, contractVehicle) => {
+  const oldWindows = movingVehicles.map((contractVehicle) => {
     const configuredEndDate = parseDateInput(contractVehicle.billing_end_date || contractVehicle.ended_at)
     const oldChargeEnd = configuredEndDate && configuredEndDate < oldWindowEnd ? configuredEndDate : oldWindowEnd
 
-    return total + calculateVehicleWindowAmount(contractVehicle.monthly_fee, contractVehicle.billing_start_date || contractVehicle.started_at || dateToInputString(periodStart), dateToInputString(oldChargeEnd), periodStart, periodEnd)
-  }, 0)
-
-  const newAmount = movingVehicles.reduce((total, contractVehicle) => {
-    return total + calculateVehicleWindowAmount(contractVehicle.monthly_fee, movementDate, dateToInputString(periodEnd), periodStart, periodEnd)
-  }, 0)
+    return calculateVehicleWindowPreview(
+      contractVehicle.monthly_fee,
+      contractVehicle.billing_start_date || contractVehicle.started_at || dateToInputString(periodStart),
+      dateToInputString(oldChargeEnd),
+      periodStart,
+      periodEnd,
+    )
+  })
+  const newWindows = movingVehicles.map((contractVehicle) => calculateVehicleWindowPreview(
+    contractVehicle.monthly_fee,
+    movementDate,
+    dateToInputString(periodEnd),
+    periodStart,
+    periodEnd,
+  ))
 
   return {
     vehicleCount: movingVehicles.length,
-    oldAmount,
-    newAmount,
-    oldRange: oldWindowEnd < periodStart ? 'Không phát sinh' : `${formatDisplayDate(periodStart)} – ${formatDisplayDate(oldWindowEnd)}`,
-    newRange: `${formatDisplayDate(movement)} – ${formatDisplayDate(periodEnd)}`,
+    oldAmount: sumVehicleWindows(oldWindows),
+    newAmount: sumVehicleWindows(newWindows),
+    oldRange: summarizeVehicleWindows(oldWindows),
+    newRange: summarizeVehicleWindows(newWindows),
   }
 }
 
@@ -1627,22 +1656,41 @@ function emptyVehicleBillingPreview(): VehicleBillingPreview {
   }
 }
 
-function calculateVehicleWindowAmount(monthlyFee: string | number | null | undefined, startDate: string, endDate: string, periodStart: Date, periodEnd: Date): number {
+function calculateVehicleWindowPreview(monthlyFee: string | number | null | undefined, startDate: string, endDate: string, periodStart: Date, periodEnd: Date): VehicleWindowPreview {
   const amount = moneyNumber(monthlyFee)
   const chargeStartDate = parseDateInput(startDate)
   const chargeEndDate = parseDateInput(endDate)
 
-  if (amount <= 0 || !chargeStartDate || !chargeEndDate) return 0
+  if (amount <= 0 || !chargeStartDate || !chargeEndDate) {
+    return { amount: 0, range: 'Không phát sinh' }
+  }
 
   const chargeStart = chargeStartDate > periodStart ? chargeStartDate : periodStart
   const chargeEnd = chargeEndDate < periodEnd ? chargeEndDate : periodEnd
 
-  if (chargeStart > chargeEnd) return 0
+  if (chargeStart > chargeEnd) {
+    return { amount: 0, range: 'Không phát sinh' }
+  }
 
   const actualDays = Math.floor((chargeEnd.getTime() - chargeStart.getTime()) / 86_400_000) + 1
   const totalDays = periodEnd.getDate()
 
-  return Math.round((amount * actualDays) / totalDays)
+  return {
+    amount: Math.round((amount * actualDays) / totalDays),
+    range: `${formatDisplayDate(chargeStart)} – ${formatDisplayDate(chargeEnd)}`,
+  }
+}
+
+function sumVehicleWindows(windows: VehicleWindowPreview[]): number {
+  return windows.reduce((total, window) => total + window.amount, 0)
+}
+
+function summarizeVehicleWindows(windows: VehicleWindowPreview[]): string {
+  const chargedRanges = windows.filter((window) => window.amount > 0).map((window) => window.range)
+
+  if (chargedRanges.length === 0) return 'Không phát sinh'
+
+  return Array.from(new Set(chargedRanges)).join(', ')
 }
 
 function getTenantRoomText(tenant: AdminTenantResource): ReactNode {
