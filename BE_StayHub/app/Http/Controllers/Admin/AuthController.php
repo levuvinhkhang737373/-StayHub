@@ -53,7 +53,7 @@ class AuthController extends Controller
                 'admin' => new AdminAuthResource($this->authProfile($admin->refresh())),
             ], 200);
         } catch (\Exception $e) {
-            report($e);
+            \Illuminate\Support\Facades\Log::error("Login Error: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine()); report($e);
 
             return ApiResponse::responseJson(false, 'Hiện tại tôi không thể xử lí yêu cầu của bạn', 500, null, 500);
         }
@@ -134,7 +134,7 @@ class AuthController extends Controller
 
             return ApiResponse::responseJson(true, 'Lấy thông tin admin hiện tại thành công', 200, new AdminAuthResource($this->authProfile($admin)), 200);
         } catch (\Exception $e) {
-            report($e);
+            \Illuminate\Support\Facades\Log::error("Login Error: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine()); report($e);
 
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
@@ -247,7 +247,7 @@ class AuthController extends Controller
                 'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
             ], 200);
         } catch (\Exception $e) {
-            report($e);
+            \Illuminate\Support\Facades\Log::error("Login Error: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine()); report($e);
 
             return ApiResponse::responseJson(false, $e->getMessage() ?: 'Không thể xóa FaceID', 500, null, 500);
         }
@@ -303,7 +303,7 @@ class AuthController extends Controller
                 'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
             ], 200);
         } catch (\Exception $e) {
-            report($e);
+            \Illuminate\Support\Facades\Log::error("Login Error: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine()); report($e);
 
             return ApiResponse::responseJson(false, 'Hiện tại tôi không thể xử lí yêu cầu của bạn', 500, null, 500);
         }
@@ -346,7 +346,7 @@ class AuthController extends Controller
                 'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
             ], 200);
         } catch (\Exception $e) {
-            report($e);
+            \Illuminate\Support\Facades\Log::error("Login Error: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine()); report($e);
             return ApiResponse::responseJson(false, 'Không thể cập nhật thông tin cá nhân', 500, null, 500);
         }
     }

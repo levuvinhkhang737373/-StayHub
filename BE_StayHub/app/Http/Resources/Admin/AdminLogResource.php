@@ -156,7 +156,7 @@ class AdminLogResource extends JsonResource
         'installed_at' => 'Ngày lắp đặt',
         'invoice' => 'Hóa đơn',
         'invoice_code' => 'Mã hóa đơn',
-        'is_ai_enabled' => 'Bật trí tuệ nhân tạo',
+        'is_ai_enabled' => 'Giám sát AI 24/24',
         'is_active' => 'Trạng thái sử dụng',
         'is_primary' => 'Ảnh chính',
         'is_public' => 'Hiển thị công khai',

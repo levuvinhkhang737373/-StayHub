@@ -124,6 +124,19 @@ class RoomController extends Controller
                 }
             }
 
+            // Đồng bộ dịch vụ hoạt động của tòa nhà sang room_services cho phòng mới tạo
+            $activeBuildingServices = \App\Models\ServicePrice::query()
+                ->where('building_id', $room->building_id)
+                ->where('status', \App\Models\ServicePrice::STATUS_ACTIVE)
+                ->get();
+            foreach ($activeBuildingServices as $buildingPrice) {
+                \App\Models\RoomService::create([
+                    'room_id' => $room->id,
+                    'service_id' => $buildingPrice->service_id,
+                    'price' => $buildingPrice->price,
+                ]);
+            }
+
             AdminActivityLogger::write($admin, 'Tạo phòng', Room::class, $room->id, null, $room->fresh()->toArray(), $request);
 
             DB::commit();

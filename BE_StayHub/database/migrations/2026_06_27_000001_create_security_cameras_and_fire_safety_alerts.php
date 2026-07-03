@@ -17,7 +17,7 @@ return new class extends Migration
             $table->text('stream_url')->nullable();
             $table->string('username', 120)->nullable();
             $table->string('password', 255)->nullable();
-            $table->boolean('is_ai_enabled')->default(true);
+            $table->boolean('is_ai_enabled')->default(false);
             $table->unsignedSmallInteger('frame_interval_seconds')->default(2);
             $table->unsignedTinyInteger('frames_per_batch')->default(3);
             $table->unsignedSmallInteger('alert_cooldown_seconds')->default(60);

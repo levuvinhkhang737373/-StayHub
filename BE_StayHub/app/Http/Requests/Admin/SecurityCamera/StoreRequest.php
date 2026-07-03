@@ -32,7 +32,13 @@ class StoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'building_id' => ['required', 'integer', 'exists:buildings,id'],
+            'building_id' => [
+                'required',
+                'integer',
+                Rule::exists('buildings', 'id')->where(function ($query) {
+                    $query->where('status', \App\Models\Building::STATUS_ACTIVE);
+                })
+            ],
             'name' => ['required', 'string', 'max:120'],
             'location' => ['nullable', 'string', 'max:160'],
             'source_type' => ['required', 'integer', Rule::in(array_keys(SecurityCamera::SOURCE_TYPE_LABELS))],
@@ -51,7 +57,7 @@ class StoreRequest extends FormRequest
     {
         return [
             'building_id.required' => 'Vui lòng chọn tòa nhà cho camera.',
-            'building_id.exists' => 'Tòa nhà không tồn tại.',
+            'building_id.exists' => 'Tòa nhà không tồn tại hoặc không ở trạng thái hoạt động.',
             'name.required' => 'Tên camera là bắt buộc.',
             'name.max' => 'Tên camera không được vượt quá 120 ký tự.',
             'location.max' => 'Vị trí camera không được vượt quá 160 ký tự.',
@@ -62,7 +68,7 @@ class StoreRequest extends FormRequest
             'stream_url.max' => 'URL camera không được vượt quá 1000 ký tự.',
             'username.max' => 'Tên đăng nhập camera không được vượt quá 120 ký tự.',
             'password.max' => 'Mật khẩu camera không được vượt quá 255 ký tự.',
-            'is_ai_enabled.boolean' => 'Trạng thái AI không hợp lệ.',
+            'is_ai_enabled.boolean' => 'Trạng thái giám sát AI 24/24 không hợp lệ.',
             'frame_interval_seconds.min' => 'Khoảng cách quét tối thiểu là 1 giây.',
             'frame_interval_seconds.max' => 'Khoảng cách quét tối đa là 60 giây.',
             'frames_per_batch.min' => 'Số frame mỗi lần quét tối thiểu là 1.',

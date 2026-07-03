@@ -24,11 +24,19 @@ export interface SecurityCameraResource {
   username?: string | null
   has_password?: boolean
   is_ai_enabled: boolean
+  is_monitoring_active?: boolean
   frame_interval_seconds: number
   frames_per_batch: number
   alert_cooldown_seconds: number
   status: number
   status_label?: string | null
+  monitoring_started_at?: string | null
+  monitoring_stopped_at?: string | null
+  last_scanned_at?: string | null
+  next_scan_at?: string | null
+  last_scan_status?: 'safe' | 'alert' | 'error' | string | null
+  last_scan_message?: string | null
+  monitoring_error_count?: number
   alerts_count?: number
   latest_alert?: FireSafetyAlertResource | null
   created_at?: string | null
@@ -105,6 +113,11 @@ export interface FireSafetyStreamTestResult {
     resolved_stream_url?: string
     snapshot_base64?: string
   }
+}
+
+export interface SecurityCameraMonitoringResult {
+  updated_count: number
+  skipped_count: number
 }
 
 export interface SecurityCameraFilters {

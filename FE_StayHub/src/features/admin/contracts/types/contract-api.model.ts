@@ -166,6 +166,11 @@ export interface AdminContractResource {
   deposit_due_amount?: string | null
   status: number
   status_label?: string | null
+  negotiation_status?: number
+  negotiation_status_label?: string | null
+  proposed_room_price?: string | null
+  proposed_services?: Array<{ service_id: number; price: string }> | null
+  room_services?: Array<{ id: number; name: string; charge_method: number; charge_method_label: string; unit_name: string; price: string; is_required: boolean }> | null
   payment_status?: number
   payment_status_label?: string | null
   is_deposit_paid?: boolean

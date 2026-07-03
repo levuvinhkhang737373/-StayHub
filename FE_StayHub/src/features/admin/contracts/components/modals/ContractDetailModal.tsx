@@ -1,4 +1,5 @@
-import { FileText, X } from 'lucide-react'
+import { useState } from 'react'
+import { FileText, X, Check, AlertTriangle, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ConfirmModal } from '../../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../../shared/lib/hooks/use-confirm-modal'
@@ -7,29 +8,30 @@ import type { AdminContractResource } from '../../types/contract-api.model'
 import { getStatusLabel } from '../../utils/contract.helpers'
 import { labelClass } from '../form/form-elements'
 import { DetailTile } from '../ui/ui-elements'
+import { respondToNegotiation } from '../../services/contracts.service'
 
 function docSoTien(so: number): string {
   if (so === 0) return 'Không đồng'
   const units = ['', 'nghìn', 'triệu', 'tỷ', 'nghìn tỷ', 'triệu tỷ']
   const digits = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín']
-  
+
   const docBlock = (n: number, full: boolean) => {
     let result = ''
     const tram = Math.floor(n / 100)
     const chuc = Math.floor((n % 100) / 10)
     const donvi = n % 10
-    
+
     if (full || tram > 0) {
       result += digits[tram] + ' trăm '
     }
-    
+
     if (chuc > 0) {
       if (chuc === 1) result += 'mười '
       else result += digits[chuc] + ' mươi '
     } else if (donvi > 0 && (full || tram > 0)) {
       result += 'lẻ '
     }
-    
+
     if (donvi > 0) {
       if (donvi === 1 && chuc > 1) result += 'mốt'
       else if (donvi === 5 && chuc > 0) result += 'lăm'
@@ -40,13 +42,13 @@ function docSoTien(so: number): string {
 
   let str = ''
   let temp = so
-  
+
   const blocks: number[] = []
   while (temp > 0) {
     blocks.push(temp % 1000)
     temp = Math.floor(temp / 1000)
   }
-  
+
   for (let idx = blocks.length - 1; idx >= 0; idx--) {
     const b = blocks[idx]
     if (b > 0) {
@@ -56,10 +58,10 @@ function docSoTien(so: number): string {
       }
     }
   }
-  
+
   str = str.trim()
   if (!str) return 'Không đồng'
-  
+
   str = str.charAt(0).toUpperCase() + str.slice(1)
   return str.trim() + ' đồng'
 }
@@ -70,14 +72,34 @@ export function ContractDetailModal({
   errorMessage,
   onClose,
   onPayDeposit,
+  onNegotiationProcessed,
 }: {
   contract: AdminContractResource
   isLoading: boolean
   errorMessage: string | null
   onClose: () => void
   onPayDeposit: (contract: AdminContractResource) => void
+  onNegotiationProcessed?: (updated: AdminContractResource) => void
 }) {
-  const { confirmState, isConfirmLoading, showAlert, closeConfirm } = useConfirmModal()
+  const [isResponding, setIsResponding] = useState(false)
+  const [respondError, setRespondError] = useState<string | null>(null)
+
+  const handleNegotiation = async (action: 'approve' | 'reject') => {
+    setIsResponding(true)
+    setRespondError(null)
+    try {
+      const res = await respondToNegotiation(contract.id, action)
+      if (res.status && res.result) {
+        onNegotiationProcessed?.(res.result)
+      } else {
+        setRespondError(res.message || 'Không thể thực hiện hành động này.')
+      }
+    } catch (err: any) {
+      setRespondError(err?.message || err?.data?.message || 'Có lỗi xảy ra khi gửi yêu cầu.')
+    } finally {
+      setIsResponding(false)
+    }
+  }
   const calculateMonths = (start?: string | null, end?: string | null) => {
     if (!start || !end) return '...'
     const s = new Date(start)
@@ -117,7 +139,7 @@ export function ContractDetailModal({
 
     const roomNumber = contract.room?.room_number || contract.room_number || '...'
     const buildingAddress = contract.building_address || '...'
-    
+
     let day = '...'
     let month = '...'
     let year = '...'
@@ -129,11 +151,11 @@ export function ContractDetailModal({
         day = String(Number(parts[2]))
       }
     }
-    
+
     const monthsDiff = calculateMonths(contract.start_date, contract.end_date)
     const roomPriceNum = Number(contract.room_price || 0)
     const depositAmountNum = Number(contract.deposit_amount || 0)
-    
+
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
       showAlert('Thông báo', 'Vui lòng cho phép trình duyệt mở popup để xuất PDF.', 'warning')
@@ -379,6 +401,87 @@ export function ContractDetailModal({
         <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-5">
           {isLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết hợp đồng...</div>}
           {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
+
+          {respondError && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">
+              Lỗi xử lý thương lượng: {respondError}
+            </div>
+          )}
+
+          {contract.negotiation_status === 1 && (
+            <div className="rounded-3xl border border-amber-200 bg-amber-50/50 p-6 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <h3 className="text-lg font-black text-[#24170d]">Yêu cầu thương lượng giá từ khách thuê</h3>
+                    <p className="text-sm text-stone-600">Khách thuê đã đề xuất mức giá mới cho hợp đồng này. Vui lòng xem xét và duyệt:</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white p-4">
+                      <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Giá thuê phòng</p>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-sm text-stone-400 line-through">{formatCurrency(Number(contract.room_price || 0))}</span>
+                        <span className="text-lg font-black text-emerald-600">{formatCurrency(Number(contract.proposed_room_price || 0))}</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white p-4">
+                      <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Đề xuất giá dịch vụ</p>
+                      <div className="mt-2 space-y-1.5">
+                        {contract.proposed_services && contract.proposed_services.length > 0 ? (
+                          contract.proposed_services.map((proposed) => {
+                            const currentSvc = contract.room_services?.find(
+                              (s) => s.id === proposed.service_id
+                            )
+                            return (
+                              <div key={proposed.service_id} className="flex justify-between items-center text-sm font-bold">
+                                <span className="text-stone-700">{currentSvc?.name || `Dịch vụ #${proposed.service_id}`}:</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-stone-400 line-through">
+                                    {formatCurrency(Number(currentSvc?.price || 0))}
+                                  </span>
+                                  <span className="text-stone-900 font-black text-emerald-600">
+                                    {formatCurrency(Number(proposed.price || 0))}
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          })
+                        ) : (
+                          <span className="text-stone-500 text-xs italic">Không đề xuất thay đổi giá dịch vụ.</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={() => handleNegotiation('approve')}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {isResponding ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      Đồng ý
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={() => handleNegotiation('reject')}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-rose-600 px-5 text-sm font-black text-white transition hover:bg-rose-700 disabled:opacity-50"
+                    >
+                      <X className="h-4 w-4" />
+                      Từ chối
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
             <DetailTile label="Trạng thái" value={contract.status_label || getStatusLabel(contract.status)} />
