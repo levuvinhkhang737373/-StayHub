@@ -1146,9 +1146,24 @@ class InvoiceController extends Controller
     private function createInvoiceIssuedNotifications(Invoice $invoice, Admin $admin): Collection
     {
         $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
+        $periodEnd = $invoice->period_end ? Carbon::parse($invoice->period_end)->endOfDay() : null;
 
         return $invoice->contract->contractTenants
             ->filter(fn ($contractTenant): bool => (bool) $contractTenant->is_staying)
+            ->filter(function ($contractTenant) use ($periodEnd): bool {
+                if ($periodEnd !== null) {
+                    $joinDate = $contractTenant->join_date ? Carbon::parse($contractTenant->join_date)->startOfDay() : null;
+                    $billingStart = $contractTenant->billing_start_date ? Carbon::parse($contractTenant->billing_start_date)->startOfDay() : null;
+
+                    if ($joinDate && $joinDate->gt($periodEnd)) {
+                        return false;
+                    }
+                    if ($billingStart && $billingStart->gt($periodEnd)) {
+                        return false;
+                    }
+                }
+                return true;
+            })
             ->map(fn ($contractTenant): Notification => Notification::query()->create([
                 'title' => 'Hóa đơn mới đã được phát hành',
                 'content' => "Hóa đơn {$invoice->invoice_code} tháng ".str_pad((string) $invoice->billing_month, 2, '0', STR_PAD_LEFT)."/{$invoice->billing_year} của phòng ".($invoice->room?->room_number ?? 'chưa rõ').' đã được phát hành. Số tiền: '.number_format(DecimalMoney::toIntegerAmount($invoice->total_amount), 0, ',', '.').' VND.',
@@ -1172,9 +1187,24 @@ class InvoiceController extends Controller
         $contentPrefix = $isCascade
             ? "Hóa đơn {$invoice->invoice_code} được cập nhật do thay đổi chỉ số kỳ trước."
             : "Hóa đơn {$invoice->invoice_code} đã được ban quản lý cập nhật và phát hành lại.";
+        $periodEnd = $invoice->period_end ? Carbon::parse($invoice->period_end)->endOfDay() : null;
 
         return $invoice->contract->contractTenants
             ->filter(fn ($contractTenant): bool => (bool) $contractTenant->is_staying)
+            ->filter(function ($contractTenant) use ($periodEnd): bool {
+                if ($periodEnd !== null) {
+                    $joinDate = $contractTenant->join_date ? Carbon::parse($contractTenant->join_date)->startOfDay() : null;
+                    $billingStart = $contractTenant->billing_start_date ? Carbon::parse($contractTenant->billing_start_date)->startOfDay() : null;
+
+                    if ($joinDate && $joinDate->gt($periodEnd)) {
+                        return false;
+                    }
+                    if ($billingStart && $billingStart->gt($periodEnd)) {
+                        return false;
+                    }
+                }
+                return true;
+            })
             ->map(fn ($contractTenant): Notification => Notification::query()->create([
                 'title' => $title,
                 'content' => $contentPrefix.' Số tiền còn lại: '.$amountText.'. Mã QR thanh toán đã được cập nhật theo số tiền mới.',
@@ -1194,8 +1224,24 @@ class InvoiceController extends Controller
     {
         $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
         $amountText = number_format(DecimalMoney::toIntegerAmount($payment->amount), 0, ',', '.').' VND';
+        $periodEnd = $invoice->period_end ? Carbon::parse($invoice->period_end)->endOfDay() : null;
+
         $tenantNotifications = $invoice->contract->contractTenants
             ->filter(fn ($contractTenant): bool => (bool) $contractTenant->is_staying)
+            ->filter(function ($contractTenant) use ($periodEnd): bool {
+                if ($periodEnd !== null) {
+                    $joinDate = $contractTenant->join_date ? Carbon::parse($contractTenant->join_date)->startOfDay() : null;
+                    $billingStart = $contractTenant->billing_start_date ? Carbon::parse($contractTenant->billing_start_date)->startOfDay() : null;
+
+                    if ($joinDate && $joinDate->gt($periodEnd)) {
+                        return false;
+                    }
+                    if ($billingStart && $billingStart->gt($periodEnd)) {
+                        return false;
+                    }
+                }
+                return true;
+            })
             ->map(fn ($contractTenant): Notification => Notification::query()->create([
                 'title' => 'Thanh toán hóa đơn thành công',
                 'content' => "Hệ thống đã ghi nhận thanh toán {$amountText} cho hóa đơn {$invoice->invoice_code}. Trạng thái hiện tại: ".(Invoice::STATUS_LABELS[$invoice->status] ?? 'Đã cập nhật').'.',

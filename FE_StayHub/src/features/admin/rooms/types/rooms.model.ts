@@ -71,7 +71,7 @@ export interface BuildingResource {
   id: number
   name: string
   gender_policy?: number | null
-
+  total_floors?: number | null
 }
 
 export interface RoomTypeResource{
