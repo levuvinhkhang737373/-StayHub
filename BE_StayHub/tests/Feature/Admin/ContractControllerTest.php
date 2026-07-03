@@ -769,6 +769,98 @@ class ContractControllerTest extends TestCase
         ]);
     }
 
+    public function test_add_tenant_blocks_tenant_with_pending_room_transfer()
+    {
+        $sourceContract = Contract::create([
+            'contract_code' => 'HD-SOURCE-TRANSFER',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $sourceContract->id,
+            'tenant_id' => $this->tenant1->id,
+            'join_date' => '2026-06-01',
+            'billing_start_date' => '2026-06-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $targetRoom = Room::create([
+            'building_id' => $this->building->id,
+            'room_type_id' => $this->room->room_type_id,
+            'room_number' => '102',
+            'slug' => '102',
+            'floor' => 1,
+            'base_price' => '3500000.00',
+            'max_occupants' => 5,
+            'current_occupants' => 0,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $targetContract = Contract::create([
+            'contract_code' => 'HD-TARGET-TRANSFER',
+            'room_id' => $targetRoom->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomMovement::create([
+            'transfer_code' => 'TRF-2026-06-0001',
+            'tenant_id' => $this->tenant1->id,
+            'contract_id' => $sourceContract->id,
+            'source_contract_id' => $sourceContract->id,
+            'destination_contract_id' => null,
+            'from_room_id' => $this->room->id,
+            'to_room_id' => $targetRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_PENDING,
+            'movement_date' => '2026-06-15 00:00:00',
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => '0.00',
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '0.00',
+            'manual_refund_amount' => '0.00',
+            'deposit_due_amount' => '0.00',
+            'extra_charge_amount' => '0.00',
+            'settlement_due_amount' => '0.00',
+            'settlement_paid_amount' => '0.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+            'settlement_payment_references' => [],
+            'scheduled_payload' => [],
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson("/api/v1/admin/contracts/{$targetContract->id}/tenants", [
+                'tenant_id' => $this->tenant1->id,
+                'join_date' => '2026-06-16',
+                'billing_start_date' => '2026-06-16',
+            ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Khách thuê đang có lịch chuyển phòng chưa hoàn tất, không thể thêm vào hợp đồng khác.');
+
+        $this->assertDatabaseMissing('contract_tenants', [
+            'contract_id' => $targetContract->id,
+            'tenant_id' => $this->tenant1->id,
+        ]);
+    }
+
     public function test_add_deposit_transaction_successfully()
     {
         $contract = Contract::create([

@@ -1138,6 +1138,7 @@ class ContractController extends Controller
             ->where('building_id', (int) $room->building_id)
             ->where('status', Tenant::STATUS_RENTING)
             ->whereNotIn('id', $excludedTenantIds)
+            ->whereDoesntHave('roomMovements', fn (Builder $query): Builder => $this->pendingTransferQuery($query))
             ->when($building, fn (Builder $query): Builder => $this->applyBuildingGenderPolicy($query, (int) $building->gender_policy))
             ->when($status === Contract::STATUS_ACTIVE, function (Builder $query) use ($contract): Builder {
                 return $query->whereDoesntHave('contractTenants', function (Builder $contractTenantQuery) use ($contract): void {
@@ -1331,6 +1332,10 @@ class ContractController extends Controller
             if ($hasInvalidGenderTenant) {
                 $this->throwResponse('Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.', 422);
             }
+        }
+
+        if ($stayingTenantIds !== [] && $this->hasPendingTransferConflict($stayingTenantIds, $contractId)) {
+            $this->throwResponse('Khách thuê đang có lịch chuyển phòng chưa hoàn tất, không thể thêm vào hợp đồng khác.', 422);
         }
 
         if ($status === Contract::STATUS_ACTIVE) {
@@ -1771,6 +1776,29 @@ class ContractController extends Controller
                     ->when($ignoreContractId !== null, fn (Builder $contractQuery): Builder => $contractQuery->whereKeyNot($ignoreContractId));
             })
             ->exists();
+    }
+
+    private function hasPendingTransferConflict(array $tenantIds, ?int $contractId): bool
+    {
+        return RoomMovement::query()
+            ->whereIn('tenant_id', $tenantIds)
+            ->where(fn (Builder $query): Builder => $this->pendingTransferQuery($query))
+            ->when($contractId !== null, function (Builder $query) use ($contractId): Builder {
+                return $query->where(function (Builder $transferQuery) use ($contractId): void {
+                    $transferQuery
+                        ->where(fn (Builder $sourceQuery): Builder => $sourceQuery->whereNull('source_contract_id')->orWhere('source_contract_id', '<>', $contractId))
+                        ->where(fn (Builder $contractQuery): Builder => $contractQuery->whereNull('contract_id')->orWhere('contract_id', '<>', $contractId))
+                        ->where(fn (Builder $destinationQuery): Builder => $destinationQuery->whereNull('destination_contract_id')->orWhere('destination_contract_id', '<>', $contractId));
+                });
+            })
+            ->exists();
+    }
+
+    private function pendingTransferQuery(Builder $query): Builder
+    {
+        return $query
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED]);
     }
 
     private function hasActiveVehicleConflict(array $vehicleIds, ?int $ignoreContractId): bool
