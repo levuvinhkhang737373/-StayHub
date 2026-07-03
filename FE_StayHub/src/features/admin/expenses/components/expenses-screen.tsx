@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Banknote, Building2, CalendarDays, DoorOpen, Edit3, Eye, ImageIcon, Plus, ReceiptText, Search, Trash2, UploadCloud, WalletCards, X, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
@@ -126,6 +128,7 @@ export function ExpensesScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -425,22 +428,31 @@ export function ExpensesScreen() {
     }
   }
 
-  const cancelExpense = async (expense: AdminExpenseResource) => {
+  const cancelExpense = (expense: AdminExpenseResource) => {
     if (Number(expense.status) === 2) return
-    if (!window.confirm(`Bạn có chắc muốn hủy phiếu chi ${expense.expense_code}? Dữ liệu sẽ được giữ lại để đối soát.`)) return
-
-    try {
-      setCancellingId(expense.id)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-      await cancelAdminExpense(expense.id)
-      setSuccessMessage('Hủy phiếu chi thành công.')
-      await loadExpenses()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể hủy phiếu chi.')
-    } finally {
-      setCancellingId(null)
-    }
+    showConfirm({
+      title: 'Hủy phiếu chi',
+      message: `Bạn có chắc muốn hủy phiếu chi ${expense.expense_code}? Dữ liệu sẽ được giữ lại để đối soát.`,
+      confirmLabel: 'Hủy phiếu chi',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setCancellingId(expense.id)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+          await cancelAdminExpense(expense.id)
+          setSuccessMessage('Hủy phiếu chi thành công.')
+          await loadExpenses()
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'Không thể hủy phiếu chi.')
+        } finally {
+          setIsConfirmLoading(false)
+          setCancellingId(null)
+          closeConfirm()
+        }
+      },
+      variant: 'warning',
+    })
   }
 
   const changePage = (nextPage: number) => {
@@ -703,6 +715,8 @@ export function ExpensesScreen() {
           )}
         </ModalFrame>
       )}
+
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

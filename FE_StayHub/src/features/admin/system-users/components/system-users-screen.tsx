@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { useNavigate } from 'react-router-dom'
 import { Building2, ChevronLeft, ChevronRight, Edit3, Eye, Mail, Phone, Plus, Power, Search, ShieldCheck, Trash2, UserCog, X } from 'lucide-react'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
@@ -75,6 +77,7 @@ export function SystemUsersScreen() {
   const [accounts, setAccounts] = useState<AdminAccountResource[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -213,49 +216,73 @@ export function SystemUsersScreen() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
 
-  const toggleAccountStatus = async (account: AdminAccountResource) => {
+  const toggleAccountStatus = (account: AdminAccountResource) => {
     if (!isSuperAdmin || account.id === currentAdminId) return
 
     const nextStatus = isAccountActive(account) ? STATUS_INACTIVE : STATUS_ACTIVE
 
-    if (nextStatus === STATUS_INACTIVE && !window.confirm(`Bạn có chắc muốn ngừng hoạt động tài khoản ${account.full_name || account.username}?.`)) return
+    const doToggle = async () => {
+      try {
+        setIsConfirmLoading(true)
+        setStatusChangingId(account.id)
+        setErrorMessage(null)
+        setSuccessMessage(null)
+        await updateAdminAccountStatus(account.id, {
+          status: nextStatus,
+          reason: nextStatus === STATUS_INACTIVE ? 'Ngừng hoạt động từ màn quản lý tài khoản admin' : 'Kích hoạt lại từ màn quản lý tài khoản admin',
+        })
+        setSuccessMessage(`${nextStatus === STATUS_ACTIVE ? 'Kích hoạt' : 'Ngừng hoạt động'} tài khoản admin thành công.`)
+        await loadAccounts()
+      } catch (error) {
+        setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái tài khoản admin.'))
+      } finally {
+        setIsConfirmLoading(false)
+        setStatusChangingId(null)
+        closeConfirm()
+      }
+    }
 
-    try {
-      setStatusChangingId(account.id)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-      await updateAdminAccountStatus(account.id, {
-        status: nextStatus,
-        reason: nextStatus === STATUS_INACTIVE ? 'Ngừng hoạt động từ màn quản lý tài khoản admin' : 'Kích hoạt lại từ màn quản lý tài khoản admin',
+    if (nextStatus === STATUS_INACTIVE) {
+      showConfirm({
+        title: 'Ngừng hoạt động tài khoản',
+        message: `Bạn có chắc muốn ngừng hoạt động tài khoản ${account.full_name || account.username}?.`,
+        confirmLabel: 'Ngừng hoạt động',
+        onConfirm: doToggle,
+        variant: 'warning',
       })
-      setSuccessMessage(`${nextStatus === STATUS_ACTIVE ? 'Kích hoạt' : 'Ngừng hoạt động'} tài khoản admin thành công.`)
-      await loadAccounts()
-    } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái tài khoản admin.'))
-    } finally {
-      setStatusChangingId(null)
+    } else {
+      void doToggle()
     }
   }
 
-  const removeAccount = async (account: AdminAccountResource) => {
+  const removeAccount = (account: AdminAccountResource) => {
     if (!isSuperAdmin || account.id === currentAdminId) return
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa tài khoản ${account.full_name || account.username}? Chỉ tài khoản đã ngừng hoạt động và chưa phát sinh dữ liệu mới có thể xóa.`)) return
-
-    try {
-      setDeletingId(account.id)
-      setErrorMessage(null)
-      await deleteAdminAccount(account.id)
-      setSuccessMessage('Xóa tài khoản admin thành công.')
-      if (accounts.length === 1 && currentPage > 1) {
-        setCurrentPage((page) => Math.max(1, page - 1))
-      } else {
-        await loadAccounts()
-      }
-    } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa tài khoản admin.'))
-    } finally {
-      setDeletingId(null)
-    }
+    showConfirm({
+      title: 'Xóa tài khoản admin',
+      message: `Bạn có chắc chắn muốn xóa tài khoản ${account.full_name || account.username}? Chỉ tài khoản đã ngừng hoạt động và chưa phát sinh dữ liệu mới có thể xóa.`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setDeletingId(account.id)
+          setErrorMessage(null)
+          await deleteAdminAccount(account.id)
+          setSuccessMessage('Xóa tài khoản admin thành công.')
+          if (accounts.length === 1 && currentPage > 1) {
+            setCurrentPage((page) => Math.max(1, page - 1))
+          } else {
+            await loadAccounts()
+          }
+        } catch (error) {
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa tài khoản admin.'))
+        } finally {
+          setIsConfirmLoading(false)
+          setDeletingId(null)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -533,6 +560,7 @@ export function SystemUsersScreen() {
           </div>
         </div>
       )}
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

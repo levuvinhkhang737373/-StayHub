@@ -75,8 +75,6 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
           if (message == null || message['sender_role'] != 2) return;
 
           context.read<NotificationController>().fetchNotifications(isAdmin: false);
-          final body = message['body']?.toString() ?? 'Bạn có tin nhắn mới từ quản lý.';
-          _showRealtimeSnackBar(Icons.chat_bubble_rounded, 'Quản lý: $body', const Color(0xFF0F766E));
         });
       }
     });

@@ -1,6 +1,8 @@
 import { ArrowLeft, Building2, ImageIcon, Plus, Save, X, PackageOpen } from 'lucide-react';
 import { fetchAssets, fetchBuilding, fetchRoomType, fetchAdminRoomDetail, updateAdminRoom } from '../services/rooms.service';
 import { useEffect, useState } from 'react';
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal';
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal';
 import type { AssetResource, BuildingResource, RoomTypeResource, AdminRoomResource } from '../types/rooms.model';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AdminSelect } from '../../shared/components/AdminSelect';
@@ -46,6 +48,7 @@ export function UpdateRoomScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [areaError, setAreaError] = useState<string | null>(null);
   const [floorError, setFloorError] = useState<string | null>(null);
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal();
 
   const validateFloor = (buildingId: string, floorVal: string) => {
     if (!buildingId) {
@@ -141,8 +144,17 @@ export function UpdateRoomScreen() {
 
     } catch (error) {
       console.error("Lỗi tải chi tiết phòng:", error);
-      alert("Không tìm thấy dữ liệu phòng cần chỉnh sửa.");
-      navigate('/admin/rooms');
+      showConfirm({
+        title: 'Lỗi',
+        message: 'Không tìm thấy dữ liệu phòng cần chỉnh sửa.',
+        confirmLabel: 'Đồng ý',
+        hideCancel: true,
+        onConfirm: () => {
+          closeConfirm();
+          navigate('/admin/rooms');
+        },
+        variant: 'danger',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -255,8 +267,17 @@ export function UpdateRoomScreen() {
 
     try {
       await updateAdminRoom(Number(id), data);
-      alert('Cập nhật thông tin phòng thành công!');
-      navigate('/admin/rooms');
+      showConfirm({
+        title: 'Thành công',
+        message: 'Cập nhật thông tin phòng thành công!',
+        confirmLabel: 'Đồng ý',
+        hideCancel: true,
+        onConfirm: () => {
+          closeConfirm();
+          navigate('/admin/rooms');
+        },
+        variant: 'info',
+      });
     } catch (error: any) {
       console.error(error);
       const msg = error?.response?.data?.message || error?.message || 'Đã xảy ra lỗi khi cập nhật phòng.';
@@ -613,6 +634,7 @@ export function UpdateRoomScreen() {
           </section>
         </div>
       </div>
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </form>
   );
 }

@@ -20,8 +20,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   // Registered subscription callbacks for reconnection/lazy connection
   VoidCallback? _onAdminMaintenanceCallback;
   Function(Map<String, dynamic>)? _onTenantNotificationCallback;
-  Function(Map<String, dynamic>)? _onChatMessageCallback;
-  Function(Map<String, dynamic>)? _onChatReadCallback;
+  final Map<String, Function(Map<String, dynamic>)> _onChatMessageCallbacks = {};
+  final Map<String, Function(Map<String, dynamic>)> _onChatReadCallbacks = {};
   int? _tenantId;
   int? _adminChatId;
   int? _tenantChatId;
@@ -96,7 +96,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _subscribeToAdminMaintenanceChannel() async {
     if (_client == null || !_isConnected) return;
     
-    const channelName = 'private-admin-maintenance';
+    const channelName = 'admin-maintenance';
     if (_activeChannels.containsKey(channelName)) return;
 
     _debugStreamController.add('Đang đăng ký kênh $channelName...');
@@ -280,7 +280,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _subscribeToTenantChannel(int tenantId) async {
     if (_client == null || !_isConnected) return;
 
-    final channelName = 'private-tenant.$tenantId';
+    final channelName = 'tenant.$tenantId';
     if (_activeChannels.containsKey(channelName)) return;
 
     _debugStreamController.add('Đang đăng ký kênh $channelName...');
@@ -454,13 +454,13 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     if (_tenantId != null && _onTenantNotificationCallback != null) {
       _subscribeToTenantChannel(_tenantId!);
     }
-    if (_adminChatId != null && _onChatMessageCallback != null) {
-      _subscribeToChatInboxChannel('private-chat.admin.$_adminChatId');
+    if (_adminChatId != null && _onChatMessageCallbacks.isNotEmpty) {
+      _subscribeToChatInboxChannel('chat.admin.$_adminChatId');
     }
-    if (_tenantChatId != null && _onChatMessageCallback != null) {
-      _subscribeToChatInboxChannel('private-chat.tenant.$_tenantChatId');
+    if (_tenantChatId != null && _onChatMessageCallbacks.isNotEmpty) {
+      _subscribeToChatInboxChannel('chat.tenant.$_tenantChatId');
     }
-    if (_conversationId != null && _onChatMessageCallback != null) {
+    if (_conversationId != null && _onChatMessageCallbacks.isNotEmpty) {
       _subscribeToChatConversationChannel(_conversationId!);
     }
   }
@@ -469,11 +469,14 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
   }) {
+    final channelName = 'chat.admin.$adminId';
     _adminChatId = adminId;
-    _onChatMessageCallback = onMessage;
-    _onChatReadCallback = onRead;
+    _onChatMessageCallbacks[channelName] = onMessage;
+    if (onRead != null) {
+      _onChatReadCallbacks[channelName] = onRead;
+    }
     if (_isConnected) {
-      _subscribeToChatInboxChannel('private-chat.admin.$adminId');
+      _subscribeToChatInboxChannel(channelName);
     }
   }
 
@@ -481,11 +484,14 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
   }) {
+    final channelName = 'chat.tenant.$tenantId';
     _tenantChatId = tenantId;
-    _onChatMessageCallback = onMessage;
-    _onChatReadCallback = onRead;
+    _onChatMessageCallbacks[channelName] = onMessage;
+    if (onRead != null) {
+      _onChatReadCallbacks[channelName] = onRead;
+    }
     if (_isConnected) {
-      _subscribeToChatInboxChannel('private-chat.tenant.$tenantId');
+      _subscribeToChatInboxChannel(channelName);
     }
   }
 
@@ -493,16 +499,19 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
   }) {
+    final channelName = 'chat.conversation.$conversationId';
     _conversationId = conversationId;
-    _onChatMessageCallback = onMessage;
-    _onChatReadCallback = onRead;
+    _onChatMessageCallbacks[channelName] = onMessage;
+    if (onRead != null) {
+      _onChatReadCallbacks[channelName] = onRead;
+    }
     if (_isConnected) {
       _subscribeToChatConversationChannel(conversationId);
     }
   }
 
   Future<void> _subscribeToChatConversationChannel(int conversationId) async {
-    await _subscribeToChatChannel('private-chat.conversation.$conversationId');
+    await _subscribeToChatChannel('chat.conversation.$conversationId');
   }
 
   Future<void> _subscribeToChatInboxChannel(String channelName) async {
@@ -529,22 +538,53 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       subscriptions.add(channel.bind('ChatMessageSent').listen((event) {
         final decoded = _decodeEventData(event.data);
         if (decoded != null) {
-          _onChatMessageCallback?.call(decoded);
+          _onChatMessageCallbacks[channelName]?.call(decoded);
           _notificationStreamController.add({'type': 'chat_message_sent', 'data': decoded});
         }
       }));
       subscriptions.add(channel.bind('ChatConversationRead').listen((event) {
         final decoded = _decodeEventData(event.data);
         if (decoded != null) {
-          _onChatReadCallback?.call(decoded);
+          _onChatReadCallbacks[channelName]?.call(decoded);
           _notificationStreamController.add({'type': 'chat_conversation_read', 'data': decoded});
         }
       }));
 
       _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
+      debugPrint('WS: Subscribed to private channel $channelName successfully!');
     } catch (e) {
-      debugPrint('WS Chat subscription error ($channelName): $e');
+      debugPrint('WS Subscription Error ($channelName): $e');
+    }
+  }
+
+  void unsubscribeFromChatConversation(int conversationId) {
+    final channelName = 'chat.conversation.$conversationId';
+    _onChatMessageCallbacks.remove(channelName);
+    _onChatReadCallbacks.remove(channelName);
+    unsubscribe(channelName);
+    if (_conversationId == conversationId) {
+      _conversationId = null;
+    }
+  }
+
+  void unsubscribeFromTenantChat(int tenantId) {
+    final channelName = 'chat.tenant.$tenantId';
+    _onChatMessageCallbacks.remove(channelName);
+    _onChatReadCallbacks.remove(channelName);
+    unsubscribe(channelName);
+    if (_tenantChatId == tenantId) {
+      _tenantChatId = null;
+    }
+  }
+
+  void unsubscribeFromAdminChat(int adminId) {
+    final channelName = 'chat.admin.$adminId';
+    _onChatMessageCallbacks.remove(channelName);
+    _onChatReadCallbacks.remove(channelName);
+    unsubscribe(channelName);
+    if (_adminChatId == adminId) {
+      _adminChatId = null;
     }
   }
 
@@ -591,8 +631,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     
     _onAdminMaintenanceCallback = null;
     _onTenantNotificationCallback = null;
-    _onChatMessageCallback = null;
-    _onChatReadCallback = null;
+    _onChatMessageCallbacks.clear();
+    _onChatReadCallbacks.clear();
     _tenantId = null;
     _adminChatId = null;
     _tenantChatId = null;

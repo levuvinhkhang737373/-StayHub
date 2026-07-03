@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { BedDouble, ChevronLeft, ChevronRight, Edit3, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react'
 import { RoomTypeModal } from './room-type-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -46,6 +48,7 @@ export function RoomTypesScreen() {
   const [form, setForm] = useState<RoomTypeFormValues>(defaultForm)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -231,18 +234,28 @@ export function RoomTypesScreen() {
     }
   }
 
-  const removeRoomType = async (roomType: AdminRoomTypeResource) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa loại phòng ${roomType.name}?`)) return
-
-    try {
-      setErrorMessage(null)
-      await deleteAdminRoomType(roomType.id)
-      setSuccessMessage('Xóa loại phòng thành công.')
-      await loadRoomTypes()
-      await loadAllRoomTypes()
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa loại phòng.')
-    }
+  const removeRoomType = (roomType: AdminRoomTypeResource) => {
+    showConfirm({
+      title: 'Xóa loại phòng',
+      message: `Bạn có chắc chắn muốn xóa loại phòng ${roomType.name}?`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setErrorMessage(null)
+          await deleteAdminRoomType(roomType.id)
+          setSuccessMessage('Xóa loại phòng thành công.')
+          await loadRoomTypes()
+          await loadAllRoomTypes()
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa loại phòng.')
+        } finally {
+          setIsConfirmLoading(false)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -477,6 +490,7 @@ export function RoomTypesScreen() {
           </div>
         )}
       </>
+    <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

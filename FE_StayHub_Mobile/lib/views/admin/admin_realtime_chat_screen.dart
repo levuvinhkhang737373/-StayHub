@@ -62,6 +62,16 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   @override
   void dispose() {
+    final ws = context.read<WebSocketService>();
+    final active = context.read<ChatController>().activeConversation;
+    if (active != null) {
+      ws.unsubscribeFromChatConversation(active.id);
+    }
+    final adminId = context.read<AuthController>().currentAdmin?.id;
+    if (adminId != null) {
+      ws.unsubscribeFromAdminChat(adminId);
+    }
+
     _searchController.dispose();
     _messageController.dispose();
     _scrollController.dispose();
@@ -126,10 +136,14 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                         padding: const EdgeInsets.only(right: 10),
                         child: InkWell(
                           onTap: () async {
-                            await context.read<ChatController>().selectAdminConversation(item);
-                            _subscribeConversation(item.id);
-                            _scrollToBottom();
-                          },
+                             final oldActive = context.read<ChatController>().activeConversation;
+                             if (oldActive != null) {
+                               context.read<WebSocketService>().unsubscribeFromChatConversation(oldActive.id);
+                             }
+                             await context.read<ChatController>().selectAdminConversation(item);
+                             _subscribeConversation(item.id);
+                             _scrollToBottom();
+                           },
                           borderRadius: BorderRadius.circular(18),
                           child: Container(
                             width: 220,

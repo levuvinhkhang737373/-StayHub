@@ -134,10 +134,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final conversation = data?['conversation'] as Map<String, dynamic>?;
           if (message != null && conversation != null && mounted && message['sender_role'] == 1) {
             context.read<NotificationController>().fetchNotifications(isAdmin: true);
-            final room = conversation['room_number']?.toString() ?? '—';
-            final tenant = conversation['tenant_name']?.toString() ?? 'Khách thuê';
-            final body = message['body']?.toString() ?? 'Bạn có tin nhắn mới.';
-            _showAdminRealtimeSnackBar(Icons.chat_bubble_rounded, 'Phòng $room - $tenant: $body', const Color(0xFF0F766E));
           }
         }
       });

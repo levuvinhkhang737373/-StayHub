@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { Link } from 'react-router-dom'
 import { Car, Bike, Fuel, Zap, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
@@ -74,6 +76,7 @@ export function VehiclesScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
 
@@ -348,18 +351,28 @@ export function VehiclesScreen() {
   }
 
 
-  const handleDelete = async (vehicle: AdminVehicleResource) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa phương tiện ${vehicle.license_plate}? Phương tiện đã liên kết với hợp đồng thuê sẽ không thể xóa.`)) return
-
-    try {
-      setErrorMessage(null)
-      setSuccessMessage(null)
-      await deleteAdminVehicle(vehicle.id)
-      setSuccessMessage('Xóa phương tiện thành công.')
-      await loadVehicles()
-    } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa phương tiện.'))
-    }
+  const handleDelete = (vehicle: AdminVehicleResource) => {
+    showConfirm({
+      title: 'Xóa phương tiện',
+      message: `Bạn có chắc chắn muốn xóa phương tiện ${vehicle.license_plate}? Phương tiện đã liên kết với hợp đồng thuê sẽ không thể xóa.`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+          await deleteAdminVehicle(vehicle.id)
+          setSuccessMessage('Xóa phương tiện thành công.')
+          await loadVehicles()
+        } catch (error) {
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa phương tiện.'))
+        } finally {
+          setIsConfirmLoading(false)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const getVehicleIcon = (type: number) => {
@@ -683,6 +696,8 @@ export function VehiclesScreen() {
           </div>
         </div>
       )}
+
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

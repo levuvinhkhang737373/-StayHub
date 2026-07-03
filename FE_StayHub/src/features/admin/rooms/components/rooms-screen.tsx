@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo, Fragment } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import type { AdminRoomResource } from '../types/rooms.model'
 import { createPortal } from 'react-dom'
@@ -42,6 +44,7 @@ export function RoomsScreen() {
   const [statusRoom, setStatusRoom] = useState<AdminRoomResource | null>(null)
   const [newStatus, setNewStatus] = useState<number>(1)
   const [isStatusSaving, setIsStatusSaving] = useState(false)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, showAlert, closeConfirm } = useConfirmModal()
   const { session } = useAdminSession()
 
   const [keyword, setKeyword] = useState('')
@@ -128,34 +131,44 @@ export function RoomsScreen() {
           setRoom(detailRes.result)
         }
       } else {
-        alert(res?.message || "Cập nhật trạng thái thất bại.")
+        showAlert("Lỗi", res?.message || "Cập nhật trạng thái thất bại.", "danger")
       }
     } catch (error: any) {
       console.error("Lỗi cập nhật trạng thái:", error)
       const errorMessage = error?.response?.data?.message || error?.message || "Đã xảy ra lỗi hệ thống."
-      alert("Thất bại: " + errorMessage)
+      showAlert("Lỗi", "Thất bại: " + errorMessage, "danger")
     } finally {
       setIsStatusSaving(false)
     }
   }
 
-  const deleteRoom = async (id: any) => {
-    try {
-      if (confirm("Bạn có muốn xóa phòng này không?")) {
-        const res = await deleteAdminRoom(id);
+  const deleteRoom = (id: any) => {
+    showConfirm({
+      title: 'Xóa phòng',
+      message: 'Bạn có muốn xóa phòng này không?',
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          const res = await deleteAdminRoom(id);
 
-        if (res && res.status !== false) {
-          alert("Xóa thành công");
-          await loadRooms(false);
-        } else {
-          alert(res?.message || "Không thể xóa phòng này do vi phạm điều kiện ràng buộc.");
+          if (res && res.status !== false) {
+            showAlert("Thành công", "Xóa thành công", "info");
+            await loadRooms(false);
+          } else {
+            showAlert("Lỗi", res?.message || "Không thể xóa phòng này do vi phạm điều kiện ràng buộc.", "danger");
+          }
+        } catch (error: any) {
+          console.error("Lỗi xóa phòng:", error);
+          const errorMessage = error?.response?.data?.message || error?.message || "Đã xảy ra lỗi hệ thống khi xóa.";
+          showAlert("Lỗi", "Xóa thất bại: " + errorMessage, "danger");
+        } finally {
+          setIsConfirmLoading(false);
+          closeConfirm();
         }
-      }
-    } catch (error: any) {
-      console.error("Lỗi xóa phòng:", error);
-      const errorMessage = error?.response?.data?.message || error?.message || "Đã xảy ra lỗi hệ thống khi xóa.";
-      alert("Xóa thất bại: " + errorMessage);
-    }
+      },
+      variant: 'danger',
+    })
   };
 
   const loadFiltersData = async () => {
@@ -738,6 +751,7 @@ export function RoomsScreen() {
         </div>,
         document.body
       )}
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </div>
   )
 }

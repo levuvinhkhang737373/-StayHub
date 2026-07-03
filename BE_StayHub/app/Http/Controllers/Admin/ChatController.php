@@ -263,6 +263,16 @@ class ChatController extends Controller
 
     private function createTenantChatNotification(ChatConversation $conversation, ChatMessage $message, Admin $admin): void
     {
+        // Clean up any existing unread chat notifications for this tenant to combine them
+        Notification::query()
+            ->where('tenant_id', $conversation->tenant_id)
+            ->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
+            ->where('target_type', Notification::TARGET_TYPE_TENANT)
+            ->whereDoesntHave('reads', function ($q) use ($conversation) {
+                $q->where('tenant_id', $conversation->tenant_id);
+            })
+            ->delete();
+
         $notification = Notification::query()->create([
             'title' => 'Tin nhắn mới từ quản lý',
             'content' => 'Phòng ' . ($conversation->room?->room_number ?? $conversation->room_id) . ': ' . str($message->body)->limit(160)->toString(),

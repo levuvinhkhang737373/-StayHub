@@ -1,6 +1,8 @@
 import { ArrowLeft, Save, UserCog } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { ApiError } from '../../../../shared/lib/api/api-client'
@@ -63,6 +65,7 @@ export function CreateSystemUserScreen() {
   const [isLoading, setIsLoading] = useState(isEditMode)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   useEffect(() => {
     if (!isEditMode) return
@@ -141,13 +144,31 @@ export function CreateSystemUserScreen() {
 
       if (isEditMode) {
         await updateAdminAccount(Number(id), payload)
-        alert('Cập nhật tài khoản admin thành công!')
+        showConfirm({
+          title: 'Thành công',
+          message: 'Cập nhật tài khoản admin thành công!',
+          confirmLabel: 'Đồng ý',
+          hideCancel: true,
+          onConfirm: () => {
+            closeConfirm();
+            navigate('/admin/system-users');
+          },
+          variant: 'info',
+        });
       } else {
         await createAdminAccount({ ...payload, status: Number(form.status) })
-        alert('Tạo tài khoản admin thành công! Mật khẩu đã được gửi qua email.')
+        showConfirm({
+          title: 'Thành công',
+          message: 'Tạo tài khoản admin thành công! Mật khẩu đã được gửi qua email.',
+          confirmLabel: 'Đồng ý',
+          hideCancel: true,
+          onConfirm: () => {
+            closeConfirm();
+            navigate('/admin/system-users');
+          },
+          variant: 'info',
+        });
       }
-
-      navigate('/admin/system-users')
     } catch (error: any) {
       console.error(error)
       if (error instanceof ApiError && error.validationErrors) {
@@ -378,6 +399,7 @@ export function CreateSystemUserScreen() {
           </section>
         </div>
       </div>
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </form>
   )
 }

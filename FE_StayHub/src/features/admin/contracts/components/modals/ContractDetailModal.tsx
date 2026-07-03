@@ -1,5 +1,7 @@
 import { FileText, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { ConfirmModal } from '../../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../../shared/lib/hooks/use-confirm-modal'
 import { formatCurrency, formatDate, formatDateTime, formatMoneyText } from '../../../../../shared/lib/utils/format'
 import type { AdminContractResource } from '../../types/contract-api.model'
 import { getStatusLabel } from '../../utils/contract.helpers'
@@ -75,6 +77,7 @@ export function ContractDetailModal({
   onClose: () => void
   onPayDeposit: (contract: AdminContractResource) => void
 }) {
+  const { confirmState, isConfirmLoading, showAlert, closeConfirm } = useConfirmModal()
   const calculateMonths = (start?: string | null, end?: string | null) => {
     if (!start || !end) return '...'
     const s = new Date(start)
@@ -133,7 +136,7 @@ export function ContractDetailModal({
     
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
-      alert('Vui lòng cho phép trình duyệt mở popup để xuất PDF.')
+      showAlert('Thông báo', 'Vui lòng cho phép trình duyệt mở popup để xuất PDF.', 'warning')
       return
     }
 
@@ -511,6 +514,7 @@ export function ContractDetailModal({
           )}
         </div>
       </div>
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </div>
   )
 }

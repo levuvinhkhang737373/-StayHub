@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { Building2, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, Search, Trash2, UserRound, X, ArrowRightLeft, Users } from 'lucide-react'
@@ -87,6 +89,7 @@ export function TenantsScreen() {
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -232,46 +235,70 @@ export function TenantsScreen() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
 
-  const toggleTenantStatus = async (tenant: AdminTenantResource) => {
+  const toggleTenantStatus = (tenant: AdminTenantResource) => {
     const nextStatus = isTenantRenting(tenant) ? STATUS_STOPPED_RENTING : STATUS_RENTING
 
-    if (nextStatus === STATUS_STOPPED_RENTING && !window.confirm(`Bạn có chắc muốn chuyển khách thuê ${tenant.full_name || tenant.username} sang ngừng thuê?`)) return
+    const doToggle = async () => {
+      try {
+        setIsConfirmLoading(true)
+        setStatusChangingId(tenant.id)
+        setErrorMessage(null)
+        setSuccessMessage(null)
+        await updateAdminTenantStatus(tenant.id, {
+          status: nextStatus,
+          reason: nextStatus === STATUS_STOPPED_RENTING ? 'Ngừng thuê từ màn quản lý khách thuê' : 'Kích hoạt thuê lại từ màn quản lý khách thuê',
+        })
+        setSuccessMessage(`${nextStatus === STATUS_RENTING ? 'Kích hoạt thuê lại' : 'Ngừng thuê'} khách thuê thành công.`)
+        await loadTenants()
+      } catch (error) {
+        setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái khách thuê.'))
+      } finally {
+        setIsConfirmLoading(false)
+        setStatusChangingId(null)
+        closeConfirm()
+      }
+    }
 
-    try {
-      setStatusChangingId(tenant.id)
-      setErrorMessage(null)
-      setSuccessMessage(null)
-      await updateAdminTenantStatus(tenant.id, {
-        status: nextStatus,
-        reason: nextStatus === STATUS_STOPPED_RENTING ? 'Ngừng thuê từ màn quản lý khách thuê' : 'Kích hoạt thuê lại từ màn quản lý khách thuê',
+    if (nextStatus === STATUS_STOPPED_RENTING) {
+      showConfirm({
+        title: 'Ngừng thuê khách hàng',
+        message: `Bạn có chắc muốn chuyển khách thuê ${tenant.full_name || tenant.username} sang ngừng thuê?`,
+        confirmLabel: 'Ngừng thuê',
+        onConfirm: doToggle,
+        variant: 'warning',
       })
-      setSuccessMessage(`${nextStatus === STATUS_RENTING ? 'Kích hoạt thuê lại' : 'Ngừng thuê'} khách thuê thành công.`)
-      await loadTenants()
-    } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái khách thuê.'))
-    } finally {
-      setStatusChangingId(null)
+    } else {
+      void doToggle()
     }
   }
 
-  const removeTenant = async (tenant: AdminTenantResource) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa khách thuê ${tenant.full_name || tenant.username}? Chỉ khách thuê đã ngừng thuê và chưa phát sinh dữ liệu liên quan mới có thể xóa.`)) return
-
-    try {
-      setDeletingId(tenant.id)
-      setErrorMessage(null)
-      await deleteAdminTenant(tenant.id)
-      setSuccessMessage('Xóa khách thuê thành công.')
-      if (tenants.length === 1 && currentPage > 1) {
-        setCurrentPage((page) => Math.max(1, page - 1))
-      } else {
-        await loadTenants()
-      }
-    } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa khách thuê.'))
-    } finally {
-      setDeletingId(null)
-    }
+  const removeTenant = (tenant: AdminTenantResource) => {
+    showConfirm({
+      title: 'Xóa khách thuê',
+      message: `Bạn có chắc chắn muốn xóa khách thuê ${tenant.full_name || tenant.username}? Chỉ khách thuê đã ngừng thuê và chưa phát sinh dữ liệu liên quan mới có thể xóa.`,
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setDeletingId(tenant.id)
+          setErrorMessage(null)
+          await deleteAdminTenant(tenant.id)
+          setSuccessMessage('Xóa khách thuê thành công.')
+          if (tenants.length === 1 && currentPage > 1) {
+            setCurrentPage((page) => Math.max(1, page - 1))
+          } else {
+            await loadTenants()
+          }
+        } catch (error) {
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa khách thuê.'))
+        } finally {
+          setIsConfirmLoading(false)
+          setDeletingId(null)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
   }
 
   const clearFilters = () => {
@@ -629,6 +656,7 @@ export function TenantsScreen() {
         )
         }
       </>
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }

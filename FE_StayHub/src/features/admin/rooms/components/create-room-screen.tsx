@@ -1,6 +1,8 @@
 import { ArrowLeft, Building2, ImageIcon, Plus, Save, X, PackageOpen } from 'lucide-react';
 import { fetchAssets, fetchBuilding, fetchRoomType, createAdminRoom } from '../services/rooms.service';
 import { useEffect, useState } from 'react';
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal';
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal';
 import type { AssetResource, BuildingResource, RoomTypeResource } from '../types/rooms.model';
 import { useNavigate } from 'react-router-dom';
 import { AdminSelect } from '../../shared/components/AdminSelect';
@@ -39,6 +41,7 @@ export function CreateRoomScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [areaError, setAreaError] = useState<string | null>(null);
   const [floorError, setFloorError] = useState<string | null>(null);
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal();
 
   const validateFloor = (buildingId: string, floorVal: string) => {
     if (!buildingId) {
@@ -196,8 +199,17 @@ export function CreateRoomScreen() {
 
     try {
       await createAdminRoom(data);
-      alert('Tạo phòng mới thành công!');
-      navigate('/admin/rooms');
+      showConfirm({
+        title: 'Thành công',
+        message: 'Tạo phòng mới thành công!',
+        confirmLabel: 'Đồng ý',
+        hideCancel: true,
+        onConfirm: () => {
+          closeConfirm();
+          navigate('/admin/rooms');
+        },
+        variant: 'info',
+      });
     } catch (error: any) {
       console.error(error);
       const msg = error?.response?.data?.message || error?.message || 'Đã xảy ra lỗi khi tạo phòng.';
@@ -563,6 +575,7 @@ export function CreateRoomScreen() {
           </section>
         </div>
       </div>
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </form>
   );
 }
