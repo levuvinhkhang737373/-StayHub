@@ -62,7 +62,6 @@ class RoomController extends Controller
         if (!AdminScope::isSuperAdmin($admin)) {
             return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập vào tòa nhà này', 403, null, 403);
         }
-
         $uploadedImagePaths = [];
         DB::beginTransaction();
         try {
