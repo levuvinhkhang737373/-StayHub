@@ -128,15 +128,23 @@ class SePayWebhookController extends Controller
                 return ApiResponse::responseJson(false, 'Không tìm thấy hợp đồng/hóa đơn hoặc không thể trích xuất mã từ nội dung giao dịch.', 404, null, 404);
             }
 
-            $lock = Cache::lock('sepay-contract-payment:' . sha1($transactionReference), 10);
+            $lock = Cache::lock('sepay-contract-payment:' . $contract->id, 10);
 
             if (! $lock->get()) {
                 return ApiResponse::responseJson(false, 'Giao dịch đang được xử lý, vui lòng thử lại sau.', 409, null, 409);
             }
 
+            $ignored = null;
             try {
-                DB::transaction(function () use ($contract, $amount, $transactionReference, $content): void {
+                DB::transaction(function () use ($contract, $amount, $transactionReference, $content, &$ignored): void {
                     if (ContractDepositTransaction::query()->where('transaction_reference', $transactionReference)->exists()) {
+                        $ignored = 'duplicate';
+                        return;
+                    }
+
+                    $contract->refresh();
+                    if ($contract->is_deposit_paid) {
+                        $ignored = 'excess';
                         return;
                     }
 
@@ -187,6 +195,36 @@ class SePayWebhookController extends Controller
                 });
             } finally {
                 optional($lock)->release();
+            }
+
+            if ($ignored === 'duplicate') {
+                return ApiResponse::responseJson(true, 'Giao dịch đã được xử lý.', 0, null, 200);
+            }
+
+            if ($ignored === 'excess') {
+                try {
+                    $contract->loadMissing(['room.building']);
+                    $room = $contract->room;
+                    $building = $room?->building;
+                    $amountText = number_format(DecimalMoney::toIntegerAmount($amount), 0, ',', '.') . ' VND';
+
+                    $adminNotif = Notification::create([
+                        'title' => 'Cảnh báo nhận thừa tiền cọc',
+                        'content' => "Hợp đồng {$contract->contract_code} (Phòng " . ($room?->room_number ?? 'Chưa rõ') . ' - Tòa nhà ' . ($building?->name ?? 'Chưa rõ') . ") đã nhận được giao dịch {$amountText} qua SePay nhưng tiền cọc đã được đóng đủ trước đó. Mã giao dịch: {$transactionReference}. Vui lòng đối soát và hoàn tiền.",
+                        'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                        'target_type' => Notification::TARGET_TYPE_ADMIN,
+                        'building_id' => $room?->building_id,
+                        'room_id' => $contract->room_id,
+                        'status' => Notification::STATUS_SENT,
+                        'published_at' => now(),
+                    ]);
+
+                    broadcast(new NotificationSent($adminNotif));
+                } catch (\Exception $e) {
+                    Log::error('SePay Webhook: Error creating/broadcasting excess deposit notification: ' . $e->getMessage());
+                }
+
+                return ApiResponse::responseJson(true, 'Hợp đồng đã đủ cọc, đã cảnh báo giao dịch thừa.', 0, null, 200);
             }
 
             try {
@@ -246,7 +284,7 @@ class SePayWebhookController extends Controller
 
     private function processInvoicePayment(Invoice $invoice, string $amount, string $transactionReference, string $content): JsonResponse
     {
-        $lock = Cache::lock('sepay-invoice-payment:' . sha1($transactionReference), 10);
+        $lock = Cache::lock('sepay-invoice-payment:' . $invoice->id, 10);
 
         if (! $lock->get()) {
             return ApiResponse::responseJson(false, 'Giao dịch đang được xử lý, vui lòng thử lại sau.', 409, null, 409);
@@ -411,7 +449,7 @@ class SePayWebhookController extends Controller
 
     private function processTransferSettlementPayment(string $transferCode, string $amount, string $transactionReference, string $content): JsonResponse
     {
-        $lock = Cache::lock('sepay-transfer-payment:' . sha1($transactionReference), 10);
+        $lock = Cache::lock('sepay-transfer-payment:' . $transferCode, 10);
 
         if (! $lock->get()) {
             return ApiResponse::responseJson(false, 'Giao dịch đang được xử lý, vui lòng thử lại sau.', 409, null, 409);

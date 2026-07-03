@@ -83,6 +83,7 @@ export function ContractDetailModal({
 }) {
   const [isResponding, setIsResponding] = useState(false)
   const [respondError, setRespondError] = useState<string | null>(null)
+  const { confirmState, isConfirmLoading, closeConfirm } = useConfirmModal()
 
   const handleNegotiation = async (action: 'approve' | 'reject') => {
     setIsResponding(true)

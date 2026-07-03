@@ -404,16 +404,18 @@ class ExecuteScheduledRoomTransfers extends Command
 
         if (! $usesOldDepositSettlement) {
             $depositDueAmount = $hasDestinationActiveContract ? '0.00' : DecimalMoney::maxZero(DecimalMoney::subtract($newDepositAmount, $destinationContract->deposit_balance));
+            $extraChargeAmount = DecimalMoney::add([$deductionAmount, $transferFee]);
 
             return [
                 'old_balance' => $oldBalance,
-                'deduction_amount' => '0.00',
-                'transfer_fee' => '0.00',
+                'deduction_amount' => $deductionAmount,
+                'transfer_fee' => $transferFee,
                 'transfer_amount' => '0.00',
                 'manual_refund_amount' => '0.00',
                 'deposit_due_amount' => $depositDueAmount,
-                'extra_charge_amount' => '0.00',
-                'settlement_due_amount' => $depositDueAmount,
+                'extra_charge_amount' => $extraChargeAmount,
+                'settlement_due_amount' => DecimalMoney::add([$depositDueAmount, $extraChargeAmount]),
+                'is_partial_transfer' => true,
             ];
         }
 
@@ -446,7 +448,7 @@ class ExecuteScheduledRoomTransfers extends Command
 
     private function writeDepositSettlement(Contract $sourceContract, Contract $destinationContract, array $settlement, Carbon $movementDate, Admin $admin): void
     {
-        if (DecimalMoney::isPositive($settlement['deduction_amount'])) {
+        if (DecimalMoney::isPositive($settlement['deduction_amount']) && empty($settlement['is_partial_transfer'])) {
             $sourceContract->depositTransactions()->create([
                 'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
                 'amount' => $settlement['deduction_amount'],

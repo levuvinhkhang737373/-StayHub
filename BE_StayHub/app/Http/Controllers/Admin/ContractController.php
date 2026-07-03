@@ -123,7 +123,7 @@ class ContractController extends Controller
             $contract = DB::transaction(function () use ($validated, $admin, $request, &$uploadedPaths): Contract {
                 $status = (int) ($validated['status'] ?? Contract::STATUS_PENDING_SIGN);
 
-                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $validated['room_id']);
+                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy,status')->lockForUpdate()->find((int) $validated['room_id']);
 
                 if (! $room) {
                     $this->throwResponse('Không tìm thấy phòng ký hợp đồng', 404);
@@ -244,7 +244,7 @@ class ContractController extends Controller
             }
 
             $contractModel = $this->accessibleQuery($admin)
-                ->with('room.building:id,manager_admin_id,name,gender_policy')
+                ->with('room.building:id,manager_admin_id,name,gender_policy,status')
                 ->find($contract);
 
             if (! $contractModel) {
@@ -299,7 +299,7 @@ class ContractController extends Controller
 
             $updatedContract = DB::transaction(function () use ($validated, $contract, $admin, $request): Contract {
                 $contractModel = $this->accessibleQuery($admin)
-                    ->with('room.building:id,manager_admin_id,name,gender_policy')
+                    ->with('room.building:id,manager_admin_id,name,gender_policy,status')
                     ->lockForUpdate()
                     ->find($contract);
 
@@ -315,7 +315,7 @@ class ContractController extends Controller
                     $this->throwResponse('Chỉ có thể thêm khách thuê vào hợp đồng đang hiệu lực.', 422);
                 }
 
-                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $contractModel->room_id);
+                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy,status')->lockForUpdate()->find((int) $contractModel->room_id);
 
                 if (! $room) {
                     $this->throwResponse('Không tìm thấy phòng của hợp đồng', 404);
@@ -412,7 +412,7 @@ class ContractController extends Controller
                 $oldData = $contractModel->load($this->detailRelations())->loadCount($this->detailCounts())->toArray();
                 $status = (int) $contractModel->status;
                 $roomId = (int) ($validated['room_id'] ?? $contractModel->room_id);
-                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find($roomId);
+                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy,status')->lockForUpdate()->find($roomId);
 
                 if (! $room) {
                     $this->throwResponse('Không tìm thấy phòng ký hợp đồng', 404);
@@ -560,7 +560,7 @@ class ContractController extends Controller
                 $this->assertStatusTransition($currentStatus, $nextStatus);
 
                 if ($nextStatus === Contract::STATUS_ACTIVE) {
-                    $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $contractModel->room_id);
+                    $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy,status')->lockForUpdate()->find((int) $contractModel->room_id);
                     if (! $room) {
                         $this->throwResponse('Không tìm thấy phòng ký hợp đồng.', 404);
                     }
@@ -783,7 +783,7 @@ class ContractController extends Controller
                     $this->throwResponse('Chỉ có thể gia hạn hợp đồng đang hiệu lực hoặc đã hết hạn.', 422);
                 }
 
-                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy')->lockForUpdate()->find((int) $validated['room_id']);
+                $room = Room::query()->with('building:id,manager_admin_id,name,gender_policy,status')->lockForUpdate()->find((int) $validated['room_id']);
                 if (! $room) {
                     $this->throwResponse('Không tìm thấy phòng ký hợp đồng', 404);
                 }
