@@ -85,10 +85,6 @@ class InvoiceController extends Controller
     {
         $query = $this->accessibleInvoiceQuery($admin);
 
-        if (isset($validated['status'])) {
-            $query->where('status', $validated['status']);
-        }
-
         if (isset($validated['building_id'])) {
             $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->where('building_id', $validated['building_id']));
         }
