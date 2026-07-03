@@ -38,7 +38,7 @@ class IndexRequest extends FormRequest
             'source_type.in' => 'Loại nguồn camera không nằm trong danh sách cho phép.',
             'status.integer' => 'Trạng thái camera không hợp lệ.',
             'status.in' => 'Trạng thái camera không nằm trong danh sách cho phép.',
-            'is_ai_enabled.boolean' => 'Trạng thái AI không hợp lệ.',
+            'is_ai_enabled.boolean' => 'Trạng thái giám sát AI 24/24 không hợp lệ.',
             'keyword.string' => 'Từ khóa tìm kiếm phải là chuỗi ký tự.',
             'keyword.max' => 'Từ khóa tìm kiếm không được vượt quá 100 ký tự.',
             'page.integer' => 'Số trang không hợp lệ.',

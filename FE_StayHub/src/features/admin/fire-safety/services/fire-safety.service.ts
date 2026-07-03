@@ -5,6 +5,7 @@ import type {
   FireSafetyAlertResource,
   FireSafetyAnalysisResult,
   FireSafetyStreamTestResult,
+  SecurityCameraMonitoringResult,
   SecurityCameraFilters,
   SecurityCameraPayload,
   SecurityCameraResource,
@@ -49,6 +50,22 @@ export async function deleteSecurityCamera(cameraId: number) {
   return apiRequest<null>({
     url: `admin/security-cameras/${cameraId}`,
     method: 'DELETE',
+  })
+}
+
+export async function updateSecurityCameraMonitoring(cameraId: number, enabled: boolean) {
+  return apiRequest<SecurityCameraResource>({
+    url: `admin/security-cameras/${cameraId}/monitoring`,
+    method: 'PATCH',
+    data: { enabled },
+  })
+}
+
+export async function bulkUpdateSecurityCameraMonitoring(params: Pick<SecurityCameraFilters, 'building_id' | 'keyword'>, enabled: boolean) {
+  return apiRequest<SecurityCameraMonitoringResult>({
+    url: 'admin/security-cameras/monitoring/bulk',
+    method: 'PATCH',
+    data: { ...params, enabled },
   })
 }
 

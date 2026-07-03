@@ -98,6 +98,7 @@ return [
 
     'waits' => [
         'redis:chat' => 10,
+        'redis:fire-safety' => 30,
         'redis:high' => 30,
         'redis:default' => 60,
     ],
@@ -228,6 +229,22 @@ return [
             'timeout' => 120,
             'nice' => 0,
         ],
+        'fire-safety-supervisor' => [
+            'connection' => 'redis',
+            'queue' => ['fire-safety'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 4,
+            'minProcesses' => 1,
+            'maxTime' => 3600,
+            'maxJobs' => 500,
+            'memory' => 256,
+            'tries' => 1,
+            'timeout' => 180,
+            'balanceMaxShift' => 1,
+            'balanceCooldown' => 3,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -244,6 +261,12 @@ return [
                 'balanceMaxShift' => 2,
                 'balanceCooldown' => 3,
             ],
+            'fire-safety-supervisor' => [
+                'maxProcesses' => 4,
+                'minProcesses' => 1,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
         ],
 
         'local' => [
@@ -257,6 +280,12 @@ return [
                 'maxProcesses' => 10,
                 'minProcesses' => 2,
                 'balanceMaxShift' => 2,
+                'balanceCooldown' => 3,
+            ],
+            'fire-safety-supervisor' => [
+                'maxProcesses' => 4,
+                'minProcesses' => 1,
+                'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
         ],

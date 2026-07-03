@@ -1411,6 +1411,10 @@ class ContractController extends Controller
         if ((int) $room->status !== Room::STATUS_ACTIVE) {
             $this->throwResponse('Chỉ có thể lập hợp đồng cho phòng đang hoạt động.', 422);
         }
+
+        if ($room->building && (int) $room->building->status !== \App\Models\Building::STATUS_ACTIVE) {
+            $this->throwResponse('Không thể lập hợp đồng vì tòa nhà đã ngừng hoạt động hoặc đang bảo trì.', 422);
+        }
     }
 
     private function assertRoomContractAvailability(int $roomId, ?int $ignoreContractId, int $status): void

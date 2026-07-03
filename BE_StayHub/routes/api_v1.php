@@ -163,6 +163,8 @@ Route::prefix('admin')->group(function (): void {
         Route::get('dashboard/utility-price-history', [DashboardController::class, 'utilityPriceHistory']);
 
         // ==========================AI Camera Fire Safety===================
+        Route::patch('security-cameras/monitoring/bulk', [SecurityCameraController::class, 'bulkMonitoring']);
+        Route::patch('security-cameras/{securityCamera}/monitoring', [SecurityCameraController::class, 'monitoring']);
         Route::post('security-cameras/{securityCamera}/analyze', [SecurityCameraController::class, 'analyze']);
         Route::post('security-cameras/{securityCamera}/test-stream', [SecurityCameraController::class, 'testStream']);
         Route::apiResource('security-cameras', SecurityCameraController::class)->parameters(['security-cameras' => 'securityCamera']);

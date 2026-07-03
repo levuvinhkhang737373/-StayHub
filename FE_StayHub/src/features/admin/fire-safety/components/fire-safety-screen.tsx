@@ -27,6 +27,7 @@ import type { AdminBuildingResource } from '../../facilities/types/facility-api.
 import {
   acknowledgeFireSafetyAlert,
   analyzeSecurityCamera,
+  bulkUpdateSecurityCameraMonitoring,
   createSecurityCamera,
   deleteSecurityCamera,
   fetchFireSafetyAlerts,
@@ -35,6 +36,7 @@ import {
   resolveFireSafetyAlert,
   testSecurityCameraStream,
   updateSecurityCamera,
+  updateSecurityCameraMonitoring,
 } from '../services/fire-safety.service'
 import type { AdminPaginationMeta, FireSafetyAlertResource, SecurityCameraPayload, SecurityCameraResource } from '../types/fire-safety-api.model'
 
@@ -46,7 +48,7 @@ const DEFAULT_FORM = {
   stream_url: '',
   username: '',
   password: '',
-  is_ai_enabled: true,
+  is_ai_enabled: false,
   frame_interval_seconds: 2,
   frames_per_batch: 3,
   alert_cooldown_seconds: 60,
@@ -126,7 +128,7 @@ function toPayload(form: CameraForm): SecurityCameraPayload {
 export function FireSafetyScreen() {
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
-  const managedBuildings = session?.admin?.managed_buildings || []
+  const managedBuildings = useMemo(() => session?.admin?.managed_buildings || [], [session?.admin?.managed_buildings])
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [cameras, setCameras] = useState<SecurityCameraResource[]>([])
   const [cameraPaginationMeta, setCameraPaginationMeta] = useState<AdminPaginationMeta | null>(null)
@@ -145,7 +147,8 @@ export function FireSafetyScreen() {
   const [hasCameraAuth, setHasCameraAuth] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [liveMonitorEnabled, setLiveMonitorEnabled] = useState(false)
+  const [monitoringId, setMonitoringId] = useState<number | null>(null)
+  const [isBulkMonitoring, setIsBulkMonitoring] = useState(false)
   const [analyzingId, setAnalyzingId] = useState<number | null>(null)
   const [testingId, setTestingId] = useState<number | null>(null)
   const [streamSnapshots, setStreamSnapshots] = useState<Record<number, string>>({})
@@ -161,19 +164,11 @@ export function FireSafetyScreen() {
 
   const metrics = useMemo(() => {
     const activeCameras = cameras.filter((camera) => Number(camera.status) === 1).length
-    const aiEnabled = cameras.filter((camera) => camera.is_ai_enabled).length
+    const monitoringEnabled = cameras.filter((camera) => camera.is_ai_enabled).length
     const openAlerts = alerts.filter((alert) => Number(alert.status) === 1).length
     const criticalAlerts = alerts.filter((alert) => Number(alert.risk_level) >= 4 && Number(alert.status) === 1).length
-    return { activeCameras, aiEnabled, openAlerts, criticalAlerts }
+    return { activeCameras, monitoringEnabled, openAlerts, criticalAlerts }
   }, [alerts, cameras])
-
-  const liveMonitorTargets = useMemo(() => {
-    return cameras.filter((camera) => Number(camera.status) === 1 && camera.is_ai_enabled)
-  }, [cameras])
-
-  const liveMonitorSignature = useMemo(() => {
-    return liveMonitorTargets.map((camera) => `${camera.id}:${camera.frame_interval_seconds}`).join('|')
-  }, [liveMonitorTargets])
 
   const loadBuildings = useCallback(async () => {
     if (!isSuperAdmin) return
@@ -216,17 +211,11 @@ export function FireSafetyScreen() {
   }, [alertCurrentPage, alertPerPage, cameraCurrentPage, cameraPerPage, keyword, selectedBuildingId])
 
   useEffect(() => {
-    loadBuildings()
+    void Promise.resolve().then(loadBuildings)
   }, [loadBuildings])
 
   useEffect(() => {
-    if (!form.building_id && buildingOptions.length > 0) {
-      setForm((prev) => ({ ...prev, building_id: String(buildingOptions[0].id) }))
-    }
-  }, [buildingOptions, form.building_id])
-
-  useEffect(() => {
-    loadData()
+    void Promise.resolve().then(loadData)
   }, [loadData])
 
   useEffect(() => {
@@ -238,73 +227,6 @@ export function FireSafetyScreen() {
       window.removeEventListener('notification-refresh', refresh)
     }
   }, [loadData])
-
-  useEffect(() => {
-    if (!liveMonitorEnabled || liveMonitorTargets.length === 0) return
-
-    let isScanning = false
-    const intervalSeconds = Math.max(5, Math.min(...liveMonitorTargets.map((camera) => Number(camera.frame_interval_seconds) || 5)))
-
-    const scanActiveCameras = async () => {
-      if (isScanning) return
-      isScanning = true
-      setError(null)
-
-      const errors: string[] = []
-
-      try {
-        for (const camera of liveMonitorTargets) {
-          setAnalyzingId(camera.id)
-          try {
-            const response = await analyzeSecurityCamera(camera.id)
-            const alert = response.result?.alert
-            const risk = response.result?.analysis?.risk_level || 'safe'
-            setScanStatuses((current) => ({
-              ...current,
-              [camera.id]: {
-                status: alert ? 'ok' : 'safe',
-                message: alert ? `Đã gửi cảnh báo ${risk}` : `An toàn (${risk})`,
-                at: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              },
-            }))
-          } catch (err) {
-            const detail = err instanceof ApiError ? err.message : 'Không phân tích được camera.'
-            errors.push(`${camera.name}: ${detail}`)
-            setScanStatuses((current) => ({
-              ...current,
-              [camera.id]: {
-                status: 'error',
-                message: detail,
-                at: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              },
-            }))
-          }
-        }
-        await loadData()
-        if (errors.length > 0) {
-          setError(`Một số camera chưa quét được: ${errors.slice(0, 2).join(' | ')}`)
-        } else {
-          setMessage('Giám sát thật đang chạy ổn định trên camera đang bật AI.')
-        }
-      } catch {
-        setError('Giám sát thật không thể tải lại dữ liệu sau khi quét camera.')
-      } finally {
-        setAnalyzingId(null)
-        isScanning = false
-      }
-    }
-
-    void scanActiveCameras()
-    const timer = window.setInterval(scanActiveCameras, intervalSeconds * 1000)
-
-    return () => window.clearInterval(timer)
-  }, [liveMonitorEnabled, liveMonitorSignature, loadData])
-
-  useEffect(() => {
-    if (liveMonitorEnabled && liveMonitorTargets.length === 0) {
-      setLiveMonitorEnabled(false)
-    }
-  }, [liveMonitorEnabled, liveMonitorTargets.length])
 
   const resetForm = () => {
     setEditingCameraId(null)
@@ -415,7 +337,7 @@ export function FireSafetyScreen() {
       if (stream?.snapshot_base64) {
         setStreamSnapshots((current) => ({ ...current, [cameraId]: stream.snapshot_base64 || '' }))
       }
-      setMessage(`Camera lấy frame OK${stream?.width && stream?.height ? ` (${stream.width}x${stream.height})` : ''}${stream?.resolved_stream_url ? ` qua ${stream.resolved_stream_url}` : ''}. Có thể bấm Test AI.`)
+      setMessage(`Camera lấy frame OK${stream?.width && stream?.height ? ` (${stream.width}x${stream.height})` : ''}${stream?.resolved_stream_url ? ` qua ${stream.resolved_stream_url}` : ''}. Có thể bấm Quét ngay.`)
     } catch (err) {
       const detail = err instanceof ApiError ? err.message : 'Không lấy được frame từ camera iPhone.'
       if (/basic auth|username|password|401|mật khẩu|xác thực/i.test(detail)) {
@@ -437,6 +359,50 @@ export function FireSafetyScreen() {
       await loadData()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Không thể xóa camera.')
+    }
+  }
+
+  const toggleCameraMonitoring = async (camera: SecurityCameraResource, enabled: boolean) => {
+    if (!isSuperAdmin) return
+    if (enabled && Number(camera.status) !== 1) {
+      setError('Camera tạm tắt, không thể bật giám sát 24/24.')
+      return
+    }
+
+    setMonitoringId(camera.id)
+    setError(null)
+    setMessage(null)
+    try {
+      await updateSecurityCameraMonitoring(camera.id, enabled)
+      setMessage(enabled ? 'Đã bật giám sát AI 24/24 cho camera.' : 'Đã tắt giám sát AI 24/24 cho camera.')
+      await loadData()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không thể cập nhật giám sát 24/24.')
+    } finally {
+      setMonitoringId(null)
+    }
+  }
+
+  const bulkToggleMonitoring = async (enabled: boolean) => {
+    if (!isSuperAdmin) return
+    const scope = selectedBuildingId || keyword.trim() ? 'các camera khớp bộ lọc hiện tại' : 'tất cả camera'
+    if (!confirm(`${enabled ? 'Bật' : 'Tắt'} giám sát AI 24/24 cho ${scope}?`)) return
+
+    setIsBulkMonitoring(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const response = await bulkUpdateSecurityCameraMonitoring({
+        building_id: selectedBuildingId ? Number(selectedBuildingId) : undefined,
+        keyword: keyword.trim() || undefined,
+      }, enabled)
+      const result = response.result
+      setMessage(`${enabled ? 'Đã bật' : 'Đã tắt'} giám sát 24/24 cho ${result?.updated_count ?? 0} camera${result?.skipped_count ? `, bỏ qua ${result.skipped_count} camera tạm tắt` : ''}.`)
+      await loadData()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không thể cập nhật giám sát hàng loạt.')
+    } finally {
+      setIsBulkMonitoring(false)
     }
   }
 
@@ -523,19 +489,21 @@ export function FireSafetyScreen() {
               </h1>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setLiveMonitorEnabled((current) => !current)}
-                disabled={liveMonitorTargets.length === 0}
-                className={cn(
-                  'inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black shadow-xl transition-all focus:outline-none focus:ring-4 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50',
-                  liveMonitorEnabled
-                    ? 'bg-rose-500 text-white shadow-rose-950/20 hover:bg-rose-600 focus:ring-rose-200/30'
-                    : 'bg-[#f3c56b] text-[#24170d] shadow-[#a65f16]/20 hover:bg-[#ffd56f] focus:ring-[#f3c56b]/35',
-                )}
-              >
-                <RadioTower className="h-4 w-4" /> {liveMonitorEnabled ? 'Tắt giám sát' : 'Bật giám sát'}
-              </button>
+              {isSuperAdmin && (
+                <button type="button" onClick={openCreateCameraModal} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]">
+                  <Plus className="h-4 w-4" /> Thêm camera
+                </button>
+              )}
+              {isSuperAdmin && (
+                <button type="button" onClick={() => bulkToggleMonitoring(true)} disabled={isBulkMonitoring} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#0f766e]/25 bg-[#0f766e]/18 px-4 text-sm font-black text-[#d7fffb] transition hover:bg-[#0f766e]/25 focus:outline-none focus:ring-4 focus:ring-[#0f766e]/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55">
+                  {isBulkMonitoring ? <Loader2 className="h-4 w-4 animate-spin" /> : <RadioTower className="h-4 w-4" />} Bật 24/24
+                </button>
+              )}
+              {isSuperAdmin && (
+                <button type="button" onClick={() => bulkToggleMonitoring(false)} disabled={isBulkMonitoring} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200/25 bg-rose-500/16 px-4 text-sm font-black text-rose-50 transition hover:bg-rose-500/25 focus:outline-none focus:ring-4 focus:ring-rose-200/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55">
+                  Tắt 24/24
+                </button>
+              )}
               <button type="button" onClick={loadData} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#fff4df]/15 bg-white/10 px-4 text-sm font-black text-[#fff4df] transition hover:bg-white/15 focus:outline-none focus:ring-4 focus:ring-white/10">
                 <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} /> Làm mới
               </button>
@@ -544,7 +512,7 @@ export function FireSafetyScreen() {
 
           <div className="relative mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard icon={<Camera className="h-5 w-5" />} label="Camera hoạt động" value={metrics.activeCameras} tone="amber" />
-            <MetricCard icon={<RadioTower className="h-5 w-5" />} label="Đã bật AI" value={metrics.aiEnabled} tone="teal" />
+            <MetricCard icon={<RadioTower className="h-5 w-5" />} label="Giám sát 24/24" value={metrics.monitoringEnabled} tone="teal" />
             <MetricCard icon={<AlertTriangle className="h-5 w-5" />} label="Cảnh báo mở" value={metrics.openAlerts} tone="orange" />
             <MetricCard icon={<Flame className="h-5 w-5" />} label="Báo động đỏ" value={metrics.criticalAlerts} tone="rose" />
           </div>
@@ -570,7 +538,7 @@ export function FireSafetyScreen() {
                 <div>
                   <h2 className="text-lg font-black tracking-tight text-[#24170d]">Danh sách camera</h2>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-[minmax(11rem,13rem)_minmax(12rem,1fr)_auto_auto]">
+                <div className="grid gap-2 sm:grid-cols-[minmax(11rem,13rem)_minmax(12rem,1fr)_auto]">
                   <select value={selectedBuildingId} onChange={(event) => { setSelectedBuildingId(event.target.value); setCameraCurrentPage(1); setAlertCurrentPage(1) }} className={inputClass}>
                     <option value="">Tất cả tòa nhà</option>
                     {buildingOptions.map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}
@@ -582,11 +550,6 @@ export function FireSafetyScreen() {
                   <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className="inline-flex h-12 items-center justify-center rounded-2xl px-4 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] disabled:cursor-not-allowed disabled:opacity-45">
                     Xóa lọc
                   </button>
-                  {isSuperAdmin && (
-                    <button type="button" onClick={openCreateCameraModal} className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#f3c56b] px-4 text-xs font-black text-[#24170d] shadow-lg shadow-[#a65f16]/15 transition hover:bg-[#ffd56f] active:scale-[0.98]">
-                      <Plus className="h-4 w-4" /> Thêm camera
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
@@ -613,13 +576,22 @@ export function FireSafetyScreen() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="truncate text-base font-black text-[#24170d]">{camera.name}</h3>
                             <StatusBadge active={Number(camera.status) === 1} label={camera.status_label || (Number(camera.status) === 1 ? 'Đang hoạt động' : 'Tạm tắt')} />
-                            {camera.is_ai_enabled && <span className="rounded-full border border-[#0f766e]/15 bg-[#0f766e]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#0f5f59]">AI bật</span>}
+                            <span className={cn('rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em]', camera.is_ai_enabled ? 'border-[#0f766e]/15 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
+                              {camera.is_ai_enabled ? '24/24 bật' : 'Chưa giám sát'}
+                            </span>
                           </div>
                           <p className="mt-1 text-sm font-bold text-[#6f6254]">{camera.location || 'Chưa nhập vị trí'}</p>
                           <p className="mt-1 truncate text-xs font-semibold text-[#8b5e34]/75">{camera.stream_url}</p>
                           {scanStatuses[camera.id] && (
                             <div className={cn('mt-2 rounded-2xl border px-3 py-2 text-xs font-black', scanStatuses[camera.id].status === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : scanStatuses[camera.id].status === 'ok' ? 'border-[#f3c56b]/45 bg-[#f3c56b]/18 text-[#8a4f18]' : 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]')}>
                               {scanStatuses[camera.id].message} • {scanStatuses[camera.id].at}
+                            </div>
+                          )}
+                          {(camera.last_scan_message || camera.last_scanned_at || camera.next_scan_at) && (
+                            <div className={cn('mt-2 rounded-2xl border px-3 py-2 text-xs font-bold', camera.last_scan_status === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : camera.last_scan_status === 'alert' ? 'border-[#f3c56b]/45 bg-[#f3c56b]/18 text-[#8a4f18]' : 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]')}>
+                              <div className="font-black">{camera.last_scan_message || 'Đang chờ job giám sát 24/24.'}</div>
+                              <div className="mt-1 opacity-80">Quét cuối: {camera.last_scanned_at || 'chưa có'} • Lượt kế: {camera.next_scan_at || 'chưa lên lịch'}</div>
+                              {Boolean(camera.monitoring_error_count) && <div className="mt-1 text-rose-700">Lỗi liên tiếp: {camera.monitoring_error_count}</div>}
                             </div>
                           )}
                           {streamSnapshots[camera.id] && (
@@ -648,11 +620,25 @@ export function FireSafetyScreen() {
                         </div>
 
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => toggleCameraMonitoring(camera, !camera.is_ai_enabled)}
+                              disabled={monitoringId === camera.id || (Number(camera.status) !== 1 && !camera.is_ai_enabled)}
+                              title={Number(camera.status) !== 1 ? 'Camera tạm tắt, không thể bật giám sát' : undefined}
+                              className={cn(
+                                'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition focus:outline-none focus:ring-4 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60',
+                                camera.is_ai_enabled ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 focus:ring-rose-100' : 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59] hover:bg-[#0f766e]/16 focus:ring-[#0f766e]/10',
+                              )}
+                            >
+                              {monitoringId === camera.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RadioTower className="h-4 w-4" />} {camera.is_ai_enabled ? 'Tắt 24/24' : 'Bật 24/24'}
+                            </button>
+                          )}
                           <button type="button" onClick={() => testStream(camera.id)} disabled={testingId === camera.id || analyzingId === camera.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#0f766e]/20 bg-[#0f766e]/10 px-3 text-xs font-black text-[#0f5f59] transition hover:bg-[#0f766e]/16 focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60">
                             {testingId === camera.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Test cam
                           </button>
                           <button type="button" onClick={() => runAnalyze(camera.id)} disabled={analyzingId === camera.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60">
-                            {analyzingId === camera.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />} Test AI
+                            {analyzingId === camera.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />} Quét ngay
                           </button>
                           {isSuperAdmin && <button type="button" onClick={() => editCamera(camera)} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#f3c56b]/18 px-3 text-xs font-black text-[#8a4f18] transition hover:bg-[#f3c56b]/28 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-95">Sửa</button>}
                           {isSuperAdmin && <button type="button" onClick={() => removeCamera(camera.id)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95"><Trash2 className="h-4 w-4" /> Xóa</button>}
@@ -933,14 +919,15 @@ function CameraFormModal({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="AI">
-              <select value={form.is_ai_enabled ? '1' : '0'} onChange={(event) => onFormChange((prev) => ({ ...prev, is_ai_enabled: event.target.value === '1' }))} className={inputClass}>
-                <option value="1">Bật AI</option>
-                <option value="0">Tắt AI</option>
+            <Field label="Giám sát 24/24">
+              <select value={form.is_ai_enabled ? '1' : '0'} disabled={Number(form.status) !== 1} onChange={(event) => onFormChange((prev) => ({ ...prev, is_ai_enabled: event.target.value === '1' }))} className={inputClass}>
+                <option value="0">Tắt giám sát</option>
+                <option value="1">Bật giám sát 24/24</option>
               </select>
+              <p className="mt-1.5 text-xs font-bold leading-5 text-[#8b5e34]/75">Nên Test cam và Quét ngay trước khi bật job nền 24/24.</p>
             </Field>
             <Field label="Trạng thái">
-              <select value={form.status} onChange={(event) => onFormChange((prev) => ({ ...prev, status: Number(event.target.value) }))} className={inputClass}>
+              <select value={form.status} onChange={(event) => onFormChange((prev) => ({ ...prev, status: Number(event.target.value), is_ai_enabled: Number(event.target.value) === 1 ? prev.is_ai_enabled : false }))} className={inputClass}>
                 <option value={1}>Đang hoạt động</option>
                 <option value={2}>Tạm tắt</option>
               </select>

@@ -12,6 +12,10 @@ class SecurityCamera extends Model
 {
     use HasFactory;
 
+    public const SCAN_STATUS_SAFE = 'safe';
+    public const SCAN_STATUS_ALERT = 'alert';
+    public const SCAN_STATUS_ERROR = 'error';
+
     public const SOURCE_TYPE_SNAPSHOT = 1;
     public const SOURCE_TYPE_MJPEG = 2;
     public const SOURCE_TYPE_RTSP = 3;
@@ -43,6 +47,14 @@ class SecurityCamera extends Model
         'frames_per_batch',
         'alert_cooldown_seconds',
         'status',
+        'monitoring_token',
+        'monitoring_started_at',
+        'monitoring_stopped_at',
+        'last_scanned_at',
+        'next_scan_at',
+        'last_scan_status',
+        'last_scan_message',
+        'monitoring_error_count',
         'created_by',
         'updated_by',
     ];
@@ -60,7 +72,17 @@ class SecurityCamera extends Model
             'frames_per_batch' => 'integer',
             'alert_cooldown_seconds' => 'integer',
             'status' => 'integer',
+            'monitoring_started_at' => 'datetime',
+            'monitoring_stopped_at' => 'datetime',
+            'last_scanned_at' => 'datetime',
+            'next_scan_at' => 'datetime',
+            'monitoring_error_count' => 'integer',
         ];
+    }
+
+    public function isMonitoringActive(): bool
+    {
+        return (bool) $this->is_ai_enabled && (int) $this->status === self::STATUS_ACTIVE;
     }
 
     public function building(): BelongsTo

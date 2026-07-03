@@ -27,7 +27,13 @@ class RoomRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'building_id'          => 'required|integer|exists:buildings,id',
+            'building_id' => [
+                'required',
+                'integer',
+                Rule::exists('buildings', 'id')->where(function ($query) {
+                    $query->where('status', \App\Models\Building::STATUS_ACTIVE);
+                })
+            ],
             'room_type_id'         => 'required|integer|exists:room_types,id',
             'room_number' => [
                 'required',
@@ -61,7 +67,7 @@ class RoomRequest extends FormRequest
         return [
             'building_id.required'          => 'Vui lòng chọn tòa nhà.',
             'building_id.integer'           => 'Mã tòa nhà phải là số nguyên.',
-            'building_id.exists'            => 'Tòa nhà được chọn không tồn tại trên hệ thống.',
+            'building_id.exists'            => 'Tòa nhà được chọn không tồn tại hoặc không ở trạng thái hoạt động.',
 
             'room_type_id.required'         => 'Vui lòng chọn loại phòng trọ.',
             'room_type_id.integer'          => 'Mã loại phòng phải là số nguyên.',

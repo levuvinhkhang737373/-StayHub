@@ -1,19 +1,33 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import asyncio
 import base64
 import json
+import logging
 import os
 import re
 from urllib.parse import quote, urlparse, urlunparse
 import time
 from typing import Any
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("error.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("ai_service")
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 import cv2
 from deepface import DeepFace
+import httpx
 import numpy as np
-import requests
 from pydantic import BaseModel, Field
+
+os.environ["OPENCV_FFMPEG_READ_TIMEOUT"] = "5000"
 
 
 FACE_MODEL = "Facenet"
@@ -374,10 +388,15 @@ def camera_error_message(error: Exception):
     if "404" in message or "not found" in lower_message:
         return "Không tìm thấy endpoint ảnh/stream của camera. Hãy nhập URL gốc app iPhone, ví dụ http://192.168.x.x:8081, hoặc URL snapshot/video đúng trong app."
 
-    if "failed to establish a new connection" in lower_message or "connection refused" in lower_message:
+    if (
+        isinstance(error, httpx.ConnectError)
+        or "failed to establish a new connection" in lower_message
+        or "connection refused" in lower_message
+        or "all connection attempts failed" in lower_message
+    ):
         return "Không kết nối được camera. Hãy kiểm tra iPhone đang mở app camera, đúng IP/port và cùng mạng với laptop."
 
-    if "timed out" in lower_message or "timeout" in lower_message:
+    if isinstance(error, httpx.TimeoutException) or "timed out" in lower_message or "timeout" in lower_message:
         return "Camera phản hồi quá chậm. Hãy kiểm tra Wi-Fi/hotspot, giữ app iPhone mở màn hình và thử lại."
 
     if "no route to host" in lower_message or "network is unreachable" in lower_message:
@@ -410,7 +429,7 @@ def camera_request_timeout(remaining_seconds: float | None = None):
         connect_timeout = max(0.5, min(connect_timeout, remaining_seconds))
         read_timeout = max(0.5, min(read_timeout, remaining_seconds))
 
-    return connect_timeout, read_timeout
+    return httpx.Timeout(timeout=read_timeout, connect=connect_timeout)
 
 
 def frame_to_base64(image, max_width=768, quality=75):
@@ -426,7 +445,7 @@ def frame_to_base64(image, max_width=768, quality=75):
     return base64.b64encode(encoded.tobytes()).decode("utf-8")
 
 
-def load_snapshot_frame(
+async def load_snapshot_frame(
     stream_url: str,
     username: str | None = None,
     password: str | None = None,
@@ -436,35 +455,31 @@ def load_snapshot_frame(
     last_error = None
     deadline = time.time() + max_seconds if max_seconds else None
 
-    for candidate_url in stream_url_candidates(stream_url, candidate_limit):
-        if deadline and time.time() >= deadline:
-            break
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        for candidate_url in stream_url_candidates(stream_url, candidate_limit):
+            if deadline and time.time() >= deadline:
+                break
 
-        response = None
-        try:
-            remaining = deadline - time.time() if deadline else None
-            response = requests.get(
-                candidate_url,
-                auth=auth_for_request(username, password),
-                timeout=camera_request_timeout(remaining),
-                stream=False,
-            )
-            response.raise_for_status()
-            image_array = np.frombuffer(response.content, np.uint8)
-            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-            if image is not None:
-                return image
-            last_error = ValueError(f"{candidate_url} không trả về ảnh hợp lệ.")
-        except Exception as error:
-            last_error = error
-        finally:
-            if response is not None:
-                response.close()
+            try:
+                remaining = deadline - time.time() if deadline else None
+                response = await client.get(
+                    candidate_url,
+                    auth=auth_for_request(username, password),
+                    timeout=camera_request_timeout(remaining),
+                )
+                response.raise_for_status()
+                image_array = np.frombuffer(response.content, np.uint8)
+                image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                if image is not None:
+                    return image
+                last_error = ValueError(f"{candidate_url} không trả về ảnh hợp lệ.")
+            except Exception as error:
+                last_error = error
 
     raise ValueError(f"Không tìm được snapshot ảnh từ URL camera. {camera_error_message(last_error) if last_error else ''}")
 
 
-def load_mjpeg_frame(
+async def load_mjpeg_frame(
     stream_url: str,
     username: str | None = None,
     password: str | None = None,
@@ -474,114 +489,109 @@ def load_mjpeg_frame(
     last_error = None
     deadline = time.time() + max_seconds if max_seconds else None
 
-    for candidate_url in stream_url_candidates(stream_url, candidate_limit):
-        if deadline and time.time() >= deadline:
-            break
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        for candidate_url in stream_url_candidates(stream_url, candidate_limit):
+            if deadline and time.time() >= deadline:
+                break
 
-        response = None
-        try:
-            remaining = deadline - time.time() if deadline else None
-            response = requests.get(
-                candidate_url,
-                auth=auth_for_request(username, password),
-                timeout=camera_request_timeout(remaining),
-                stream=True,
-            )
-            response.raise_for_status()
-            buffer = b""
-            stream_deadline = deadline or (time.time() + 10)
-            for chunk in response.iter_content(chunk_size=4096):
-                if time.time() > stream_deadline:
-                    raise TimeoutError(f"Quá thời gian lấy frame từ {candidate_url}.")
+            try:
+                remaining = deadline - time.time() if deadline else None
+                async with client.stream(
+                    "GET",
+                    candidate_url,
+                    auth=auth_for_request(username, password),
+                    timeout=camera_request_timeout(remaining),
+                ) as response:
+                    response.raise_for_status()
+                    buffer = b""
+                    stream_deadline = deadline or (time.time() + 10)
+                    async for chunk in response.aiter_bytes(chunk_size=4096):
+                        if time.time() > stream_deadline:
+                            raise TimeoutError(f"Quá thời gian lấy frame từ {candidate_url}.")
 
-                if not chunk:
-                    continue
+                        if not chunk:
+                            continue
 
-                buffer += chunk
-                start = buffer.find(b"\xff\xd8")
-                end = buffer.find(b"\xff\xd9")
-                if start >= 0 and end > start:
-                    jpg = buffer[start : end + 2]
-                    image_array = np.frombuffer(jpg, np.uint8)
-                    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-                    if image is not None:
-                            return image
+                        buffer += chunk
+                        start = buffer.find(b"\xff\xd8")
+                        end = buffer.find(b"\xff\xd9")
+                        if start >= 0 and end > start:
+                            jpg = buffer[start : end + 2]
+                            image_array = np.frombuffer(jpg, np.uint8)
+                            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                            if image is not None:
+                                return image
 
-                if len(buffer) > 2_000_000:
-                    buffer = buffer[-200_000:]
-        except Exception as error:
-            last_error = error
-        finally:
-            if response is not None:
-                response.close()
+                        if len(buffer) > 2_000_000:
+                            buffer = buffer[-200_000:]
+            except Exception as error:
+                last_error = error
 
     raise ValueError(f"Không lấy được JPEG frame từ MJPEG stream. {camera_error_message(last_error) if last_error else ''}")
 
 
-def load_quick_http_frame(stream_url: str, username: str | None = None, password: str | None = None, max_seconds: float = 6):
+async def load_quick_http_frame(stream_url: str, username: str | None = None, password: str | None = None, max_seconds: float = 6):
     last_error = None
     deadline = time.time() + max_seconds
 
-    for candidate_url in stream_url_candidates(stream_url):
-        if time.time() >= deadline:
-            break
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        for candidate_url in stream_url_candidates(stream_url):
+            if time.time() >= deadline:
+                break
 
-        remaining = max(0.5, deadline - time.time())
-        response = None
-        try:
-            response = requests.get(
-                candidate_url,
-                auth=auth_for_request(username, password),
-                timeout=camera_request_timeout(remaining),
-                stream=True,
-            )
-            response.raise_for_status()
+            remaining = max(0.5, deadline - time.time())
+            try:
+                async with client.stream(
+                    "GET",
+                    candidate_url,
+                    auth=auth_for_request(username, password),
+                    timeout=camera_request_timeout(remaining),
+                ) as response:
+                    response.raise_for_status()
 
-            content_type = response.headers.get("content-type", "").lower()
-            if "image" in content_type:
-                body = response.content
-                image_array = np.frombuffer(body, np.uint8)
-                image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-                if image is not None:
-                    return image, candidate_url
+                    content_type = response.headers.get("content-type", "").lower()
+                    if "image" in content_type:
+                        body = await response.aread()
+                        image_array = np.frombuffer(body, np.uint8)
+                        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                        if image is not None:
+                            return image, candidate_url
 
-            buffer = b""
-            for chunk in response.iter_content(chunk_size=4096):
-                if time.time() >= deadline:
-                    raise TimeoutError(f"Quá thời gian lấy frame từ {candidate_url}.")
+                    buffer = b""
+                    async for chunk in response.aiter_bytes(chunk_size=4096):
+                        if time.time() >= deadline:
+                            raise TimeoutError(f"Quá thời gian lấy frame từ {candidate_url}.")
 
-                if not chunk:
-                    continue
+                        if not chunk:
+                            continue
 
-                buffer += chunk
-                start = buffer.find(b"\xff\xd8")
-                end = buffer.find(b"\xff\xd9")
-                if start >= 0 and end > start:
-                    jpg = buffer[start : end + 2]
-                    image_array = np.frombuffer(jpg, np.uint8)
-                    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-                    if image is not None:
-                        return image, candidate_url
+                        buffer += chunk
+                        start = buffer.find(b"\xff\xd8")
+                        end = buffer.find(b"\xff\xd9")
+                        if start >= 0 and end > start:
+                            jpg = buffer[start : end + 2]
+                            image_array = np.frombuffer(jpg, np.uint8)
+                            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                            if image is not None:
+                                return image, candidate_url
 
-                if len(buffer) > 2_000_000:
-                    buffer = buffer[-200_000:]
-        except Exception as error:
-            last_error = remember_camera_error(last_error, error)
-        finally:
-            if response is not None:
-                response.close()
+                        if len(buffer) > 2_000_000:
+                            buffer = buffer[-200_000:]
+            except Exception as error:
+                last_error = remember_camera_error(last_error, error)
 
     raise ValueError(camera_error_message(last_error) if last_error else "Không lấy được frame từ camera HTTP/iPhone.")
 
 
-def load_snapshot_frame_legacy(stream_url: str, username: str | None = None, password: str | None = None):
-    response = requests.get(
-        normalize_stream_url(stream_url),
-        auth=auth_for_request(username, password),
-        timeout=8,
-        stream=False,
-    )
-    response.raise_for_status()
+async def load_snapshot_frame_legacy(stream_url: str, username: str | None = None, password: str | None = None):
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.get(
+            normalize_stream_url(stream_url),
+            auth=auth_for_request(username, password),
+            timeout=httpx.Timeout(8),
+        )
+        response.raise_for_status()
+
     image_array = np.frombuffer(response.content, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
     if image is None:
@@ -590,25 +600,25 @@ def load_snapshot_frame_legacy(stream_url: str, username: str | None = None, pas
     return image
 
 
-def load_stream_frames(payload: FireSafetyStreamRequest):
+async def load_stream_frames(payload: FireSafetyStreamRequest):
     frames = []
     stream_url = stream_url_with_basic_auth(str(payload.stream_url), payload.username, payload.password)
 
     if payload.source_type == SECURITY_CAMERA_SOURCE_SNAPSHOT:
         for _ in range(payload.frame_count):
-            frames.append(load_snapshot_frame(stream_url, payload.username, payload.password, max_seconds=12))
+            frames.append(await load_snapshot_frame(stream_url, payload.username, payload.password, max_seconds=12))
             if len(frames) < payload.frame_count:
-                time.sleep(max(0.1, payload.window_seconds / max(payload.frame_count - 1, 1)))
+                await asyncio.sleep(max(0.1, payload.window_seconds / max(payload.frame_count - 1, 1)))
         return frames
 
     if is_http_stream(stream_url):
         last_error = None
         for _ in range(payload.frame_count):
             try:
-                frame, _ = load_quick_http_frame(stream_url, payload.username, payload.password, max_seconds=10)
+                frame, _ = await load_quick_http_frame(stream_url, payload.username, payload.password, max_seconds=10)
                 frames.append(frame)
                 if len(frames) < payload.frame_count:
-                    time.sleep(max(0.1, payload.window_seconds / max(payload.frame_count - 1, 1)))
+                    await asyncio.sleep(max(0.1, payload.window_seconds / max(payload.frame_count - 1, 1)))
             except Exception as error:
                 last_error = error
                 break
@@ -618,18 +628,20 @@ def load_stream_frames(payload: FireSafetyStreamRequest):
 
         raise ValueError(f"Không lấy được frame. {last_error}")
 
-    capture = cv2.VideoCapture(stream_url)
-    if not capture.isOpened():
+    capture = await asyncio.to_thread(cv2.VideoCapture, stream_url)
+    is_opened = await asyncio.to_thread(capture.isOpened)
+    if not is_opened:
+        await asyncio.to_thread(capture.release)
         snapshot_error = None
         try:
             frames = []
             for _ in range(payload.frame_count):
                 try:
-                    frames.append(load_snapshot_frame(stream_url, payload.username, payload.password, max_seconds=10))
+                    frames.append(await load_snapshot_frame(stream_url, payload.username, payload.password, max_seconds=10))
                 except Exception:
-                    frames.append(load_mjpeg_frame(stream_url, payload.username, payload.password, max_seconds=10))
+                    frames.append(await load_mjpeg_frame(stream_url, payload.username, payload.password, max_seconds=10))
                 if len(frames) < payload.frame_count:
-                    time.sleep(max(0.1, payload.window_seconds / max(payload.frame_count - 1, 1)))
+                    await asyncio.sleep(max(0.1, payload.window_seconds / max(payload.frame_count - 1, 1)))
             return frames
         except Exception as error:
             snapshot_error = error
@@ -641,16 +653,16 @@ def load_stream_frames(payload: FireSafetyStreamRequest):
         last_sample_at = 0.0
 
         while len(frames) < payload.frame_count and time.time() < deadline:
-            ok, frame = capture.read()
+            ok, frame = await asyncio.to_thread(capture.read)
             if not ok or frame is None:
-                time.sleep(0.1)
+                await asyncio.sleep(0.1)
                 continue
 
             if time.time() - last_sample_at >= sample_delay:
                 frames.append(frame)
                 last_sample_at = time.time()
     finally:
-        capture.release()
+        await asyncio.to_thread(capture.release)
 
     if not frames:
         raise ValueError("Không lấy được frame nào từ camera.")
@@ -697,7 +709,7 @@ def parse_ai_json(content: str):
     return json.loads(text)
 
 
-def parse_omniroute_response(response: requests.Response):
+def parse_omniroute_response(response: httpx.Response):
     text = response.content.decode("utf-8", errors="replace").strip()
     if not text:
         raise ValueError("OmniRoute trả về response rỗng.")
@@ -739,33 +751,34 @@ def parse_omniroute_response(response: requests.Response):
     }
 
 
-def call_omniroute_fire_vision(payload: FireSafetyStreamRequest, frames: list[Any]):
+async def call_omniroute_fire_vision(payload: FireSafetyStreamRequest, frames: list[Any]):
     api_key = omniroute_api_key()
     if not api_key:
         raise ValueError("Thiếu OMNIROUTE_API_KEY.")
 
-    frame_images = [frame_to_base64(frame) for frame in frames]
+    frame_images = await asyncio.gather(*(asyncio.to_thread(frame_to_base64, frame) for frame in frames))
     content = [{"type": "text", "text": fire_safety_prompt(payload.camera_name, payload.location)}]
     content.extend(
         {
             "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{image}", "detail": "low"},
+            "image_url": {"url": f"data:image/jpeg;base64,{image}", "detail": "auto"},
         }
         for image in frame_images
     )
 
-    response = requests.post(
-        omniroute_base_url() + "/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": fire_vision_model(),
-            "temperature": 0,
-            "max_tokens": 350,
-            "response_format": {"type": "json_object"},
-            "messages": [{"role": "user", "content": content}],
-        },
-        timeout=int(os.getenv("FIRE_AI_TIMEOUT", "90")),
-    )
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.post(
+            omniroute_base_url() + "/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": fire_vision_model(),
+                "temperature": 0,
+                "max_tokens": 350,
+                "response_format": {"type": "json_object"},
+                "messages": [{"role": "user", "content": content}],
+            },
+            timeout=httpx.Timeout(int(os.getenv("FIRE_AI_TIMEOUT", "90"))),
+        )
     response.raise_for_status()
     raw = parse_omniroute_response(response)
     message = raw.get("choices", [{}])[0].get("message", {})
@@ -792,32 +805,34 @@ def call_omniroute_fire_vision(payload: FireSafetyStreamRequest, frames: list[An
 
 
 @app.post("/api/v1/fire-safety/analyze-stream")
-def analyze_fire_safety_stream(payload: FireSafetyStreamRequest):
+async def analyze_fire_safety_stream(payload: FireSafetyStreamRequest):
     try:
-        frames = load_stream_frames(payload)
-        result = call_omniroute_fire_vision(payload, frames)
+        frames = await load_stream_frames(payload)
+        result = await call_omniroute_fire_vision(payload, frames)
         result["frame_count"] = len(frames)
-        result["snapshot_base64"] = frame_to_base64(frames[-1], max_width=960, quality=82)
+        result["snapshot_base64"] = await asyncio.to_thread(frame_to_base64, frames[-1], max_width=960, quality=82)
         result["camera_id"] = payload.camera_id
         result["building_id"] = payload.building_id
         return result
-    except requests.HTTPError as error:
+    except httpx.HTTPStatusError as error:
         detail = error.response.text[:500] if error.response is not None else str(error)
+        logger.error(f"OmniRoute error for camera ID {payload.camera_id}: {detail}")
         raise HTTPException(status_code=422, detail=f"OmniRoute không phân tích được camera: {detail}")
     except Exception as error:
+        logger.error(f"Camera stream error for ID {payload.camera_id}: {error}")
         raise HTTPException(status_code=422, detail=camera_error_message(error))
 
 
 @app.post("/api/v1/fire-safety/test-stream")
-def test_fire_safety_stream(payload: FireSafetyStreamRequest):
+async def test_fire_safety_stream(payload: FireSafetyStreamRequest):
     try:
         if is_http_stream(str(payload.stream_url)):
-            frame, used_url = load_quick_http_frame(str(payload.stream_url), payload.username, payload.password, max_seconds=6)
+            frame, used_url = await load_quick_http_frame(str(payload.stream_url), payload.username, payload.password, max_seconds=6)
             frames = [frame]
         else:
             used_url = str(payload.stream_url)
             test_payload = payload.model_copy(update={"frame_count": 1, "window_seconds": 1})
-            frames = load_stream_frames(test_payload)
+            frames = await load_stream_frames(test_payload)
 
         if not frames:
             raise ValueError("Không lấy được frame nào từ camera.")
@@ -831,9 +846,10 @@ def test_fire_safety_stream(payload: FireSafetyStreamRequest):
             "width": width,
             "height": height,
             "resolved_stream_url": used_url,
-            "snapshot_base64": frame_to_base64(frames[-1], max_width=640, quality=76),
+            "snapshot_base64": await asyncio.to_thread(frame_to_base64, frames[-1], max_width=640, quality=76),
         }
     except Exception as error:
+        logger.error(f"Test camera stream error for ID {payload.camera_id}: {error}")
         raise HTTPException(status_code=422, detail=camera_error_message(error))
 
 

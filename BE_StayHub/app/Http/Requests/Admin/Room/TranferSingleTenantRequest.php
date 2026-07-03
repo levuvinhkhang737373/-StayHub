@@ -30,7 +30,13 @@ class TranferSingleTenantRequest extends FormRequest
             'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
             'tenant_ids' => ['required_without:tenant_id', 'array', 'min:1', 'max:50'],
             'tenant_ids.*' => ['required', 'integer', 'distinct', Rule::exists('tenants', 'id')],
-            'to_room_id' => ['required', 'integer', 'exists:rooms,id'],
+            'to_room_id' => [
+                'required',
+                'integer',
+                Rule::exists('rooms', 'id')->where(function ($query) {
+                    $query->where('status', \App\Models\Room::STATUS_ACTIVE);
+                })
+            ],
             'movement_date' => ['required', 'date_format:Y-m-d'],
             'note' => ['nullable', 'string', 'max:500'],
 
@@ -79,7 +85,7 @@ class TranferSingleTenantRequest extends FormRequest
             'tenant_ids.array' => 'Danh sách khách thuê cần chuyển không hợp lệ.',
             'tenant_ids.*.distinct' => 'Danh sách khách thuê cần chuyển không được trùng nhau.',
             'to_room_id.required' => 'Vui lòng chọn phòng đích.',
-            'to_room_id.exists' => 'Phòng đích không tồn tại.',
+            'to_room_id.exists' => 'Phòng đích không tồn tại hoặc không ở trạng thái hoạt động.',
             'movement_date.date_format' => 'Ngày chuyển phải đúng định dạng YYYY-MM-DD.',
             'new_deposit_amount.min' => 'Tiền cọc yêu cầu của hợp đồng mới không được âm.',
             'deduction_items.*.name.required_with' => 'Vui lòng nhập tên khoản khấu trừ.',

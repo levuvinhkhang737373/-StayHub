@@ -9,6 +9,9 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
+Schedule::command('fire-safety:sync-monitors')
+    ->everyMinute()
+    ->withoutOverlapping();
 Schedule::command('contracts:check-expired')
     ->dailyAt('00:10')
     ->timezone('Asia/Ho_Chi_Minh')

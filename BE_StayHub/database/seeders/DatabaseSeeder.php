@@ -36,6 +36,7 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
+        $this->call(SuperAdminSeeder::class);
         $this->call(StayHubDemoSeeder::class);
     }
 }

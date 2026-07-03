@@ -18,7 +18,13 @@ class StoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'room_id' => ['nullable', 'integer', 'exists:rooms,id'],
+            'room_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('rooms', 'id')->where(function ($query) {
+                    $query->where('status', \App\Models\Room::STATUS_ACTIVE);
+                })
+            ],
             'room_number' => ['nullable', 'string', 'max:50'],
             'service_id' => ['required', 'integer', 'exists:services,id'],
             'meter_code' => ['nullable', 'string', 'max:100', 'unique:meter_devices,meter_code'],
@@ -36,7 +42,7 @@ class StoreRequest extends FormRequest
     {
         return [
             'room_id.integer' => 'ID phòng không hợp lệ.',
-            'room_id.exists' => 'Phòng không tồn tại.',
+            'room_id.exists' => 'Phòng không tồn tại hoặc không ở trạng thái hoạt động.',
             'room_number.string' => 'Số phòng không hợp lệ.',
             'room_number.max' => 'Số phòng tối đa 50 ký tự.',
             'service_id.required' => 'Dịch vụ là bắt buộc.',
