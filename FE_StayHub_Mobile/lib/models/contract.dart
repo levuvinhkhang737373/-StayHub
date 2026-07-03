@@ -67,6 +67,12 @@ class Contract {
   final String? tenantSignedAt;
   final String? tenantSignatureUrl;
   
+  // Negotiation fields
+  final int? negotiationStatus;
+  final double? proposedRoomPrice;
+  final List<dynamic>? proposedServices;
+  final List<dynamic>? roomServices;
+  
   // Payment fields
   final bool isDepositPaid;
   final int? paymentStatus;
@@ -99,6 +105,10 @@ class Contract {
     this.room,
     this.tenantSignedAt,
     this.tenantSignatureUrl,
+    this.negotiationStatus,
+    this.proposedRoomPrice,
+    this.proposedServices,
+    this.roomServices,
     this.isDepositPaid = true,
     this.paymentStatus,
     this.paymentStatusLabel,
@@ -167,6 +177,10 @@ class Contract {
       room: json['room'] != null ? Room.fromJson(json['room'] as Map<String, dynamic>) : null,
       tenantSignedAt: json['tenant_signed_at'] as String?,
       tenantSignatureUrl: json['tenant_signature_url'] as String?,
+      negotiationStatus: json['negotiation_status'] as int?,
+      proposedRoomPrice: json['proposed_room_price'] != null ? _toDouble(json['proposed_room_price']) : null,
+      proposedServices: json['proposed_services'] as List<dynamic>?,
+      roomServices: json['room_services'] as List<dynamic>?,
       isDepositPaid: isDepositPaidValue,
       paymentStatus: json['payment_status'] as int?,
       paymentStatusLabel: json['payment_status_label'] as String?,

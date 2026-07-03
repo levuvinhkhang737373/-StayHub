@@ -133,6 +133,7 @@ Route::prefix('admin')->group(function (): void {
         Route::get('contracts/{contract}/available-tenants', [ContractController::class, 'availableTenants']);
         Route::post('contracts/{contract}/tenants', [ContractController::class, 'addTenant']);
         Route::post('contracts/{contract}/deposit-transactions', [ContractController::class, 'addDepositTransaction']);
+        Route::post('contracts/{contract}/negotiate/respond', [ContractController::class, 'respondToNegotiation']);
         Route::apiResource('contracts', ContractController::class);
 
         // =========================Invoices================================
@@ -207,6 +208,7 @@ Route::prefix('tenant')->group(function (): void {
         Route::get('contract', [App\Http\Controllers\Tenant\ContractController::class, 'show']);
         Route::get('contracts', [App\Http\Controllers\Tenant\ContractController::class, 'index']);
         Route::post('contracts/{id}/sign', [App\Http\Controllers\Tenant\ContractController::class, 'sign']);
+        Route::post('contracts/{id}/negotiate', [App\Http\Controllers\Tenant\ContractController::class, 'negotiate']);
 
         // =========================Invoices============================
         Route::get('invoices', [TenantInvoiceController::class, 'index']);

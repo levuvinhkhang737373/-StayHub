@@ -205,10 +205,10 @@ class FinancialReportController extends Controller
             }
 
             $revenueBreakdown = [];
-            $itemLabels = array_merge(\App\Models\InvoiceItem::ITEM_TYPE_LABELS, [
+            $itemLabels = \App\Models\InvoiceItem::ITEM_TYPE_LABELS + [
                 'Khấu trừ cọc' => 'Khấu trừ cọc',
                 'Phí chuyển phòng' => 'Phí chuyển phòng'
-            ]);
+            ];
 
             foreach ($itemRevenueMap as $type => $amount) {
                 if ($amount == 0) continue;

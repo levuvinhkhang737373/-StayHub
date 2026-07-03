@@ -43,6 +43,7 @@ class ContractController extends Controller
                 ->with([
                     'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                     'room.building:id,name,slug,manager_admin_id,status,address',
+                    'room.services',
                     'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
@@ -80,6 +81,7 @@ class ContractController extends Controller
                 ->with([
                     'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                     'room.building:id,name,slug,manager_admin_id,status,address',
+                    'room.services',
                     'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
@@ -337,5 +339,125 @@ class ContractController extends Controller
         } while (Invoice::query()->where('invoice_code', $code)->exists());
 
         return $code;
+    }
+
+    public function negotiate(Request $request, int $id): JsonResponse
+    {
+        try {
+            $tenant = $request->user('tenant');
+            if (!$tenant) {
+                return ApiResponse::responseJson(false, 'Khách thuê chưa đăng nhập', 401, null, 401);
+            }
+
+            $contract = Contract::query()
+                ->where('id', $id)
+                ->whereHas('contractTenants', function (Builder $query) use ($tenant): void {
+                    $query->where('tenant_id', $tenant->id);
+                })
+                ->with(['room'])
+                ->first();
+
+            if (!$contract) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy hợp đồng', 404, null, 404);
+            }
+
+            if ($contract->status !== Contract::STATUS_PENDING_SIGN) {
+                return ApiResponse::responseJson(false, 'Hợp đồng này không ở trạng thái chờ ký.', 400, null, 400);
+            }
+
+            if ($contract->negotiation_status === Contract::NEGOTIATION_STATUS_APPROVED) {
+                return ApiResponse::responseJson(false, 'Thương lượng đã được đồng ý và áp dụng giá, không thể sửa đổi.', 400, null, 400);
+            }
+
+            $validated = $request->validate([
+                'room_price' => 'required|numeric|min:0',
+                'services' => 'nullable|array',
+                'services.*.service_id' => 'required|exists:services,id',
+                'services.*.price' => 'required|numeric|min:0',
+            ]);
+
+            // Validate that electricity and water are not negotiated
+            $servicesInput = $validated['services'] ?? [];
+            if (!empty($servicesInput)) {
+                $serviceIds = collect($servicesInput)->pluck('service_id')->toArray();
+                $meteredServices = \App\Models\Service::query()
+                    ->whereIn('id', $serviceIds)
+                    ->where(function ($query) {
+                        $query->where('charge_method', \App\Models\Service::CHARGE_METHOD_BY_METER)
+                              ->orWhereIn('slug', ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat']);
+                    })
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($servicesInput as $serviceInput) {
+                    $sId = $serviceInput['service_id'];
+                    if ($meteredServices->has($sId)) {
+                        // Check if the proposed price matches the current room service price or building price
+                        $currentRoomService = \App\Models\RoomService::where('room_id', $contract->room_id)
+                            ->where('service_id', $sId)
+                            ->first();
+                        
+                        $currentPrice = $currentRoomService ? $currentRoomService->price : null;
+                        if ($currentPrice === null) {
+                            $buildingPrice = \App\Models\ServicePrice::where('building_id', $contract->room->building_id)
+                                ->where('service_id', $sId)
+                                ->where('status', \App\Models\ServicePrice::STATUS_ACTIVE)
+                                ->first();
+                            $currentPrice = $buildingPrice ? $buildingPrice->price : '0.00';
+                        }
+
+                        if (DecimalMoney::normalize((string)$serviceInput['price']) !== DecimalMoney::normalize((string)$currentPrice)) {
+                            return ApiResponse::responseJson(false, "Không thể thương lượng giá của dịch vụ điện/nước ({$meteredServices->get($sId)->name}).", 422, null, 422);
+                        }
+                    }
+                }
+            }
+
+            // Update contract negotiation info
+            $contract->update([
+                'negotiation_status' => Contract::NEGOTIATION_STATUS_PENDING,
+                'proposed_room_price' => $validated['room_price'],
+                'proposed_services' => $servicesInput,
+            ]);
+
+            // Notify Building Manager
+            try {
+                $contract->loadMissing(['room.building']);
+                $room = $contract->room;
+                $building = $room?->building;
+
+                $adminNotif = \App\Models\Notification::create([
+                    'title' => 'Yêu cầu thương lượng giá hợp đồng',
+                    'content' => "Khách thuê {$tenant->full_name} đã gửi yêu cầu thương lượng giá hợp đồng {$contract->contract_code} cho phòng " . ($room?->room_number ?? 'chưa rõ') . " tại tòa nhà " . ($building?->name ?? 'chưa rõ') . ".",
+                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => \App\Models\Notification::TARGET_TYPE_ADMIN,
+                    'building_id' => $room?->building_id,
+                    'room_id' => $contract->room_id,
+                    'tenant_id' => $tenant->id,
+                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'published_at' => now(),
+                ]);
+
+                broadcast(new \App\Events\NotificationSent($adminNotif));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Tenant Contract negotiate notification error: ' . $e->getMessage());
+            }
+
+            $contract->load([
+                'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
+                'room.building:id,name,slug,manager_admin_id,status,address',
+                'room.services',
+                'representativeTenant:id,full_name,phone,email',
+                'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
+                'contractTenants.tenant:id,full_name,phone,email,identity_number',
+            ]);
+
+            return ApiResponse::responseJson(true, 'Gửi yêu cầu thương lượng thành công', 200, new ContractResource($contract), 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $firstError = collect($e->errors())->flatten()->first() ?? $e->getMessage();
+            return ApiResponse::responseJson(false, $firstError, 422, $e->errors(), 422);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+        }
     }
 }

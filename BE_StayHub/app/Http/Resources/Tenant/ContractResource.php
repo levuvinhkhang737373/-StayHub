@@ -43,6 +43,21 @@ class ContractResource extends JsonResource
             'deposit_due_amount' => $this->depositDueAmount(),
             'status' => $this->status,
             'status_label' => Contract::STATUS_LABELS[$this->status] ?? null,
+            'negotiation_status' => $this->negotiation_status,
+            'negotiation_status_label' => Contract::NEGOTIATION_STATUS_LABELS[$this->negotiation_status] ?? 'Không thương lượng',
+            'proposed_room_price' => $this->proposed_room_price === null ? null : (string) $this->proposed_room_price,
+            'proposed_services' => $this->proposed_services,
+            'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('services')
+                ? $this->room->services->map(fn ($service) => [
+                    'id' => $service->id,
+                    'name' => $service->name,
+                    'charge_method' => $service->charge_method,
+                    'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? '',
+                    'unit_name' => $service->unit_name,
+                    'price' => (string) $service->pivot->price,
+                    'is_required' => $service->is_required,
+                ])
+                : null,
             'is_staying' => $isStaying,
             'payment_status' => $this->payment_status,
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,

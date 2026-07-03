@@ -571,6 +571,41 @@ class ContractController extends ChangeNotifier {
     notifyListeners();
     return false;
   }
+
+  /// Thương lượng hợp đồng (Tenant action)
+  Future<bool> negotiateContract(int contractId, double proposedRoomPrice, List<Map<String, dynamic>> proposedServices) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final payload = {
+        'room_price': proposedRoomPrice,
+        'services': proposedServices,
+      };
+
+      final response = await _apiService.post<Map<String, dynamic>>(
+        '/tenant/contracts/$contractId/negotiate',
+        data: payload,
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      if (response.status) {
+        await fetchContracts('tenant');
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối API: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
 }
 
 // Rename class internal helper so we avoid compiler warnings about duplicate declarations

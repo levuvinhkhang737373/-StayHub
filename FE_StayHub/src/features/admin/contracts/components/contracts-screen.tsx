@@ -11,6 +11,7 @@ import {
   Edit3,
   Eye,
   FileText,
+  Handshake,
   Plus,
   Power,
   Trash2,
@@ -716,10 +717,26 @@ export function ContractsScreen() {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-center">
-                        <StatusBadge status={contract.status} label={contract.status_label || getStatusLabel(contract.status)} />
+                        <div className="inline-flex flex-col items-center gap-1.5">
+                          <StatusBadge status={contract.status} label={contract.status_label || getStatusLabel(contract.status)} />
+                          {contract.negotiation_status === 1 && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              Thương lượng
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
+                          {contract.negotiation_status === 1 && (
+                            <IconButton 
+                              title="Xem chi tiết thương lượng & Duyệt" 
+                              onClick={() => void viewContract(contract)}
+                            >
+                              <Handshake className="h-5 w-5 text-amber-500 animate-pulse" />
+                            </IconButton>
+                          )}
                           <IconButton title="Xem chi tiết" success onClick={() => void viewContract(contract)}>
                             <Eye className="h-5 w-5" />
                           </IconButton>
@@ -845,6 +862,10 @@ export function ContractsScreen() {
           }}
           onPayDeposit={(contract) => {
             setPayingDepositContract(contract)
+          }}
+          onNegotiationProcessed={(updated) => {
+            setDetailContract(updated)
+            void loadContracts()
           }}
         />
       )}
