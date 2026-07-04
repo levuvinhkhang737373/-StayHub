@@ -622,8 +622,10 @@ class InvoiceController extends Controller
         $billingMonth = (int) $periodStart->month;
         $billingYear = (int) $periodStart->year;
         $transferContext = $this->pendingTransferContext($contract, $periodStart, $periodEnd);
+        $remainingTransferContext = $this->remainingRepresentativeTransferContext($contract, $periodStart, $periodEnd);
+        $servicePeriodStart = $remainingTransferContext['service_period_start'];
 
-        $roomAmount = $this->calculateRoomAmount($contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date']);
+        $roomAmount = $this->calculateRoomAmount($contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date'], $servicePeriodStart);
         $items[] = [
             'service_id' => null,
             'meter_reading_id' => null,
@@ -718,7 +720,7 @@ class InvoiceController extends Controller
                 }
 
                 $fullAmount = DecimalMoney::multiply((string) $tenantCount, $unitPrice);
-                $proratedAmount = $this->calculateProratedAmount($fullAmount, $contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date']);
+                $proratedAmount = $this->calculateProratedAmount($fullAmount, $contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date'], $servicePeriodStart);
 
                 $items[] = [
                     'service_id' => $service->id,
@@ -734,7 +736,7 @@ class InvoiceController extends Controller
             }
 
             if (in_array((int) $service->charge_method, [Service::CHARGE_METHOD_BY_ROOM, Service::CHARGE_METHOD_FIXED], true)) {
-                $proratedAmount = $this->calculateProratedAmount($unitPrice, $contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date']);
+                $proratedAmount = $this->calculateProratedAmount($unitPrice, $contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date'], $servicePeriodStart);
 
                 $items[] = [
                     'service_id' => $service->id,
@@ -751,6 +753,28 @@ class InvoiceController extends Controller
         $vehicleServiceId = $prices
             ->first(fn (ServicePrice $price): bool => (int) $price->service?->charge_method === Service::CHARGE_METHOD_BY_VEHICLE)
             ?->service_id;
+
+        foreach ($remainingTransferContext['source_vehicle_rows'] as $sourceVehicle) {
+            if (DecimalMoney::compare($sourceVehicle->monthly_fee, '0') <= 0) {
+                continue;
+            }
+
+            $proratedAmount = $this->calculateVehicleProratedAmount($sourceVehicle, $periodStart, $periodEnd, $remainingTransferContext['source_period_end']);
+            if (DecimalMoney::compare($proratedAmount, '0') <= 0) {
+                continue;
+            }
+
+            $description = 'Gửi xe '.($sourceVehicle->vehicle?->license_plate ?? ('#'.$sourceVehicle->vehicle_id));
+            $items[] = [
+                'service_id' => $vehicleServiceId,
+                'meter_reading_id' => null,
+                'item_type' => InvoiceItem::ITEM_TYPE_PARKING,
+                'description' => $this->descriptionWithRemainingTransferCutoff($description, $remainingTransferContext['source_period_end']),
+                'quantity' => '1.00',
+                'unit_price' => DecimalMoney::normalize($sourceVehicle->monthly_fee),
+                'amount' => $proratedAmount,
+            ];
+        }
 
         foreach ($contract->contractVehicles as $contractVehicle) {
             if (DecimalMoney::compare($contractVehicle->monthly_fee, '0') <= 0) {
@@ -818,10 +842,11 @@ class InvoiceController extends Controller
         ];
     }
 
-    private function calculateProratedAmount(string $amount, Contract $contract, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null): string
+    private function calculateProratedAmount(string $amount, Contract $contract, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null, ?Carbon $servicePeriodStart = null): string
     {
-        $chargeStart = $contract->start_date && $contract->start_date->copy()->startOfDay()->greaterThan($periodStart)
-            ? $contract->start_date->copy()->startOfDay()
+        $billingStart = $servicePeriodStart ?: $contract->start_date;
+        $chargeStart = $billingStart && $billingStart->copy()->startOfDay()->greaterThan($periodStart)
+            ? $billingStart->copy()->startOfDay()
             : $periodStart->copy();
 
         $contractEndDate = $contract->actual_end_date ?: $contract->end_date;
@@ -882,9 +907,129 @@ class InvoiceController extends Controller
         return DecimalMoney::prorateByDays($contractVehicle->monthly_fee, $actualDays, $totalDays);
     }
 
-    private function calculateRoomAmount(Contract $contract, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null): string
+    private function calculateRoomAmount(Contract $contract, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null, ?Carbon $servicePeriodStart = null): string
     {
-        return $this->calculateProratedAmount($contract->room_price, $contract, $periodStart, $periodEnd, $cutoffDate);
+        return $this->calculateProratedAmount($contract->room_price, $contract, $periodStart, $periodEnd, $cutoffDate, $servicePeriodStart);
+    }
+
+    private function remainingRepresentativeTransferContext(Contract $contract, Carbon $periodStart, Carbon $periodEnd): array
+    {
+        $empty = [
+            'source_contract' => null,
+            'source_period_end' => null,
+            'source_vehicle_rows' => collect(),
+            'service_period_start' => null,
+        ];
+
+        if (! $this->isRemainingRepresentativeTransferContract($contract, $periodStart, $periodEnd)) {
+            return $empty;
+        }
+
+        $sourceContract = $this->remainingRepresentativeTransferSourceContract($contract);
+        if (! $sourceContract) {
+            return $empty;
+        }
+
+        if ($this->hasNonCancelledInvoiceForPeriod($sourceContract, $periodStart)) {
+            return $empty;
+        }
+
+        $sourcePeriodEnd = $sourceContract->actual_end_date?->copy()->startOfDay();
+        if (! $sourcePeriodEnd || $sourcePeriodEnd->lessThan($periodStart) || $sourcePeriodEnd->greaterThan($periodEnd)) {
+            return $empty;
+        }
+
+        $sourceStartDate = $sourceContract->start_date?->copy()->startOfDay();
+        $servicePeriodStart = $sourceStartDate && $sourceStartDate->greaterThan($periodStart)
+            ? $sourceStartDate
+            : $periodStart->copy();
+
+        return [
+            'source_contract' => $sourceContract,
+            'source_period_end' => $sourcePeriodEnd,
+            'source_vehicle_rows' => $this->remainingRepresentativeTransferSourceVehicles($sourceContract, $periodStart, $periodEnd),
+            'service_period_start' => $servicePeriodStart,
+        ];
+    }
+
+    private function isRemainingRepresentativeTransferContract(Contract $contract, Carbon $periodStart, Carbon $periodEnd): bool
+    {
+        if (! $contract->parent_contract_id || ! $contract->start_date) {
+            return false;
+        }
+
+        if (! str_contains((string) $contract->note, 'người còn ở lại sau khi đại diện chuyển phòng')) {
+            return false;
+        }
+
+        $startDate = $contract->start_date->copy()->startOfDay();
+
+        return $startDate->greaterThanOrEqualTo($periodStart)
+            && $startDate->lessThanOrEqualTo($periodEnd);
+    }
+
+    private function remainingRepresentativeTransferSourceContract(Contract $contract): ?Contract
+    {
+        $movementDate = $contract->start_date->copy()->startOfDay();
+        $sourceEndDate = $movementDate->copy()->subDay();
+
+        $movements = RoomMovement::query()
+            ->with('sourceContract.contractTenants')
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->where('status', RoomMovement::STATUS_EXECUTED)
+            ->where('from_room_id', $contract->room_id)
+            ->whereDate('movement_date', $movementDate->toDateString())
+            ->whereHas('sourceContract', function (Builder $query) use ($contract, $sourceEndDate): void {
+                $query->where('room_id', $contract->room_id)
+                    ->where('status', Contract::STATUS_LIQUIDATED)
+                    ->whereDate('actual_end_date', $sourceEndDate->toDateString());
+            })
+            ->get();
+
+        $movement = $movements->first(function (RoomMovement $movement) use ($contract): bool {
+            $sourceContract = $movement->sourceContract;
+            if (! $sourceContract || (int) $movement->tenant_id !== (int) $sourceContract->representative_tenant_id) {
+                return false;
+            }
+
+            $remainingTenantIds = $contract->contractTenants
+                ->pluck('tenant_id')
+                ->map(fn ($tenantId): int => (int) $tenantId)
+                ->unique();
+
+            $sourceTenantIds = $sourceContract->contractTenants
+                ->pluck('tenant_id')
+                ->map(fn ($tenantId): int => (int) $tenantId)
+                ->unique();
+
+            return $remainingTenantIds->intersect($sourceTenantIds)->isNotEmpty();
+        });
+
+        return $movement?->sourceContract;
+    }
+
+    private function hasNonCancelledInvoiceForPeriod(Contract $contract, Carbon $periodStart): bool
+    {
+        return Invoice::query()
+            ->where('contract_id', $contract->id)
+            ->where('billing_year', $periodStart->year)
+            ->where('billing_month', $periodStart->month)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->exists();
+    }
+
+    private function remainingRepresentativeTransferSourceVehicles(Contract $sourceContract, Carbon $periodStart, Carbon $periodEnd): Collection
+    {
+        return ContractVehicle::query()
+            ->with('vehicle:id,tenant_id,license_plate')
+            ->where('contract_id', $sourceContract->id)
+            ->where(function (Builder $query) use ($periodStart, $periodEnd): void {
+                $query->whereNull('billing_end_date')
+                    ->orWhereBetween('billing_end_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+                    ->orWhereBetween('ended_at', [$periodStart->toDateString(), $periodEnd->toDateString()]);
+            })
+            ->orderBy('id')
+            ->get();
     }
 
     private function pendingTransferContext(Contract $contract, Carbon $periodStart, Carbon $periodEnd): array
@@ -1127,6 +1272,13 @@ class InvoiceController extends Controller
     {
         return $cutoffDate
             ? $description.' (tính đến '.$cutoffDate->format('d/m/Y').' theo lịch chuyển phòng)'
+            : $description;
+    }
+
+    private function descriptionWithRemainingTransferCutoff(string $description, ?Carbon $cutoffDate): string
+    {
+        return $cutoffDate
+            ? $description.' (tính đến '.$cutoffDate->format('d/m/Y').' trước khi đại diện chuyển phòng)'
             : $description;
     }
 

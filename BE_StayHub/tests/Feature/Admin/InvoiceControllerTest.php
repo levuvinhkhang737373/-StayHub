@@ -1007,6 +1007,496 @@ class InvoiceControllerTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_invoice_preview_for_remaining_contract_after_representative_transfer_keeps_room_services_and_old_vehicle_days(): void
+    {
+        $this->electricityService->update(['is_active' => false]);
+        $this->waterService->update(['is_active' => false]);
+
+        $remainingTenant = $this->tenant;
+        $movingRepresentative = Tenant::create([
+            'username' => 'representative_transfer_test',
+            'full_name' => 'Representative Transfer Test',
+            'email' => 'representative_transfer_test@stayhub.local',
+            'phone' => '0933333333',
+            'password' => bcrypt('password'),
+            'role' => 1,
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '123456789222',
+            'date_of_birth' => '2000-01-01',
+            'created_by' => $this->superAdmin->id,
+            'building_id' => $this->building->id,
+        ]);
+
+        $sourceContract = Contract::create([
+            'contract_code' => 'HD-REP-SOURCE-TRANSFER',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $movingRepresentative->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'actual_end_date' => '2026-07-14',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_LIQUIDATED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $sourceContract->id,
+            'tenant_id' => $remainingTenant->id,
+            'join_date' => '2026-01-01',
+            'leave_date' => '2026-07-14',
+            'billing_start_date' => '2026-01-01',
+            'billing_end_date' => '2026-07-14',
+            'is_staying' => false,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $sourceContract->id,
+            'tenant_id' => $movingRepresentative->id,
+            'join_date' => '2026-01-01',
+            'leave_date' => '2026-07-14',
+            'billing_start_date' => '2026-01-01',
+            'billing_end_date' => '2026-07-14',
+            'is_staying' => false,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $remainingContract = Contract::create([
+            'contract_code' => 'HD-REP-REMAINING-TRANSFER',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $remainingTenant->id,
+            'start_date' => '2026-07-15',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'note' => 'Hợp đồng mới cho người còn ở lại sau khi đại diện chuyển phòng.',
+            'created_by' => $this->superAdmin->id,
+            'parent_contract_id' => $sourceContract->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $remainingContract->id,
+            'tenant_id' => $remainingTenant->id,
+            'join_date' => '2026-07-15',
+            'billing_start_date' => '2026-07-15',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $destinationRoom = Room::create([
+            'building_id' => $this->building->id,
+            'room_type_id' => $this->room->room_type_id,
+            'room_number' => '303',
+            'slug' => '303',
+            'floor' => 3,
+            'base_price' => '3000000.00',
+            'max_occupants' => 5,
+            'current_occupants' => 0,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $destinationContract = Contract::create([
+            'contract_code' => 'HD-REP-DEST-TRANSFER',
+            'room_id' => $destinationRoom->id,
+            'representative_tenant_id' => $movingRepresentative->id,
+            'start_date' => '2026-07-15',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $internetService = Service::create([
+            'name' => 'Internet phòng',
+            'slug' => 'internet-representative-transfer',
+            'charge_method' => Service::CHARGE_METHOD_FIXED,
+            'unit_name' => 'Phòng',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $internetService->id,
+            'building_id' => $this->building->id,
+            'price' => '60000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $parkingService = Service::create([
+            'name' => 'Gửi xe',
+            'slug' => 'parking-representative-transfer',
+            'charge_method' => Service::CHARGE_METHOD_BY_VEHICLE,
+            'unit_name' => 'Xe',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $parkingService->id,
+            'building_id' => $this->building->id,
+            'price' => '0.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $remainingVehicle = Vehicle::create([
+            'tenant_id' => $remainingTenant->id,
+            'vehicle_type' => Vehicle::VEHICLE_TYPE_MOTORBIKE,
+            'license_plate' => 'REP-A-001',
+            'brand' => 'Honda',
+            'color' => 'Black',
+            'is_active' => true,
+        ]);
+
+        $movingVehicle = Vehicle::create([
+            'tenant_id' => $movingRepresentative->id,
+            'vehicle_type' => Vehicle::VEHICLE_TYPE_MOTORBIKE,
+            'license_plate' => 'REP-B-001',
+            'brand' => 'Yamaha',
+            'color' => 'Blue',
+            'is_active' => true,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $sourceContract->id,
+            'vehicle_id' => $remainingVehicle->id,
+            'started_at' => '2026-01-01',
+            'ended_at' => '2026-07-14',
+            'billing_start_date' => '2026-01-01',
+            'billing_end_date' => '2026-07-14',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => false,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $sourceContract->id,
+            'vehicle_id' => $movingVehicle->id,
+            'started_at' => '2026-01-01',
+            'ended_at' => '2026-07-14',
+            'billing_start_date' => '2026-01-01',
+            'billing_end_date' => '2026-07-14',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => false,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $remainingContract->id,
+            'vehicle_id' => $remainingVehicle->id,
+            'started_at' => '2026-07-15',
+            'billing_start_date' => '2026-07-15',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => true,
+        ]);
+
+        RoomMovement::create([
+            'transfer_code' => 'TRF-REP-2026-07',
+            'tenant_id' => $movingRepresentative->id,
+            'contract_id' => $destinationContract->id,
+            'source_contract_id' => $sourceContract->id,
+            'destination_contract_id' => $destinationContract->id,
+            'from_room_id' => $this->room->id,
+            'to_room_id' => $destinationRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_EXECUTED,
+            'movement_date' => '2026-07-15 00:00:00',
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => '0.00',
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '0.00',
+            'manual_refund_amount' => '0.00',
+            'deposit_due_amount' => '0.00',
+            'extra_charge_amount' => '0.00',
+            'settlement_due_amount' => '0.00',
+            'settlement_paid_amount' => '0.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+            'settlement_payment_references' => [],
+            'scheduled_payload' => [
+                'tenant_ids' => [$movingRepresentative->id],
+                'to_room_id' => $destinationRoom->id,
+                'movement_date' => '2026-07-15',
+            ],
+            'executed_at' => '2026-07-15 01:00:00',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $previewResponse = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/preview', [
+            'contract_id' => $remainingContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ]);
+
+        $previewResponse->assertStatus(200)
+            ->assertJsonPath('result.total_amount', '3205161.29');
+
+        $items = collect($previewResponse->json('result.items'));
+        $roomItem = $items->firstWhere('item_type', InvoiceItem::ITEM_TYPE_ROOM);
+        $internetItem = $items->firstWhere('service_id', $internetService->id);
+        $parkingItems = $items->where('item_type', InvoiceItem::ITEM_TYPE_PARKING)->values();
+        $remainingVehicleItems = $parkingItems->filter(fn (array $item): bool => str_contains($item['description'], 'REP-A-001'))->values();
+        $movingVehicleItem = $parkingItems->first(fn (array $item): bool => str_contains($item['description'], 'REP-B-001'));
+
+        $this->assertSame('3000000.00', $roomItem['amount']);
+        $this->assertSame('60000.00', $internetItem['amount']);
+        $this->assertCount(3, $parkingItems);
+        $this->assertSame(['45161.29', '54838.71'], $remainingVehicleItems->pluck('amount')->sort()->values()->all());
+        $this->assertSame('45161.29', $movingVehicleItem['amount']);
+        $this->assertStringContainsString('tính đến 14/07/2026 trước khi đại diện chuyển phòng', $movingVehicleItem['description']);
+    }
+
+    public function test_invoice_preview_for_remaining_contract_does_not_duplicate_source_period_when_source_invoice_exists(): void
+    {
+        $this->electricityService->update(['is_active' => false]);
+        $this->waterService->update(['is_active' => false]);
+
+        $remainingTenant = $this->tenant;
+        $movingRepresentative = Tenant::create([
+            'username' => 'representative_transfer_existing_invoice',
+            'full_name' => 'Representative Existing Invoice',
+            'email' => 'representative_transfer_existing_invoice@stayhub.local',
+            'phone' => '0944444444',
+            'password' => bcrypt('password'),
+            'role' => 1,
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '123456789333',
+            'date_of_birth' => '2000-01-01',
+            'created_by' => $this->superAdmin->id,
+            'building_id' => $this->building->id,
+        ]);
+
+        $sourceContract = Contract::create([
+            'contract_code' => 'HD-REP-SOURCE-INVOICED',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $movingRepresentative->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'actual_end_date' => '2026-07-14',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_LIQUIDATED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $sourceContract->id,
+            'tenant_id' => $remainingTenant->id,
+            'join_date' => '2026-01-01',
+            'leave_date' => '2026-07-14',
+            'billing_start_date' => '2026-01-01',
+            'billing_end_date' => '2026-07-14',
+            'is_staying' => false,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $sourceContract->id,
+            'tenant_id' => $movingRepresentative->id,
+            'join_date' => '2026-01-01',
+            'leave_date' => '2026-07-14',
+            'billing_start_date' => '2026-01-01',
+            'billing_end_date' => '2026-07-14',
+            'is_staying' => false,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $remainingContract = Contract::create([
+            'contract_code' => 'HD-REP-REMAINING-INVOICED',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $remainingTenant->id,
+            'start_date' => '2026-07-15',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'note' => 'Hợp đồng mới cho người còn ở lại sau khi đại diện chuyển phòng.',
+            'created_by' => $this->superAdmin->id,
+            'parent_contract_id' => $sourceContract->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $remainingContract->id,
+            'tenant_id' => $remainingTenant->id,
+            'join_date' => '2026-07-15',
+            'billing_start_date' => '2026-07-15',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $destinationRoom = Room::create([
+            'building_id' => $this->building->id,
+            'room_type_id' => $this->room->room_type_id,
+            'room_number' => '304',
+            'slug' => '304',
+            'floor' => 3,
+            'base_price' => '3000000.00',
+            'max_occupants' => 5,
+            'current_occupants' => 0,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $destinationContract = Contract::create([
+            'contract_code' => 'HD-REP-DEST-INVOICED',
+            'room_id' => $destinationRoom->id,
+            'representative_tenant_id' => $movingRepresentative->id,
+            'start_date' => '2026-07-15',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $parkingService = Service::create([
+            'name' => 'Gửi xe',
+            'slug' => 'parking-representative-transfer-invoiced',
+            'charge_method' => Service::CHARGE_METHOD_BY_VEHICLE,
+            'unit_name' => 'Xe',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $parkingService->id,
+            'building_id' => $this->building->id,
+            'price' => '0.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $remainingVehicle = Vehicle::create([
+            'tenant_id' => $remainingTenant->id,
+            'vehicle_type' => Vehicle::VEHICLE_TYPE_MOTORBIKE,
+            'license_plate' => 'INV-A-001',
+            'brand' => 'Honda',
+            'color' => 'Black',
+            'is_active' => true,
+        ]);
+
+        $movingVehicle = Vehicle::create([
+            'tenant_id' => $movingRepresentative->id,
+            'vehicle_type' => Vehicle::VEHICLE_TYPE_MOTORBIKE,
+            'license_plate' => 'INV-B-001',
+            'brand' => 'Yamaha',
+            'color' => 'Blue',
+            'is_active' => true,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $sourceContract->id,
+            'vehicle_id' => $remainingVehicle->id,
+            'started_at' => '2026-01-01',
+            'ended_at' => '2026-07-14',
+            'billing_start_date' => '2026-01-01',
+            'billing_end_date' => '2026-07-14',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => false,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $sourceContract->id,
+            'vehicle_id' => $movingVehicle->id,
+            'started_at' => '2026-01-01',
+            'ended_at' => '2026-07-14',
+            'billing_start_date' => '2026-01-01',
+            'billing_end_date' => '2026-07-14',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => false,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $remainingContract->id,
+            'vehicle_id' => $remainingVehicle->id,
+            'started_at' => '2026-07-15',
+            'billing_start_date' => '2026-07-15',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => true,
+        ]);
+
+        RoomMovement::create([
+            'transfer_code' => 'TRF-REP-INVOICED-2026-07',
+            'tenant_id' => $movingRepresentative->id,
+            'contract_id' => $destinationContract->id,
+            'source_contract_id' => $sourceContract->id,
+            'destination_contract_id' => $destinationContract->id,
+            'from_room_id' => $this->room->id,
+            'to_room_id' => $destinationRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_EXECUTED,
+            'movement_date' => '2026-07-15 00:00:00',
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => '0.00',
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '0.00',
+            'manual_refund_amount' => '0.00',
+            'deposit_due_amount' => '0.00',
+            'extra_charge_amount' => '0.00',
+            'settlement_due_amount' => '0.00',
+            'settlement_paid_amount' => '0.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+            'settlement_payment_references' => [],
+            'scheduled_payload' => [
+                'tenant_ids' => [$movingRepresentative->id],
+                'to_room_id' => $destinationRoom->id,
+                'movement_date' => '2026-07-15',
+            ],
+            'executed_at' => '2026-07-15 01:00:00',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        Invoice::create([
+            'invoice_code' => 'INV-SOURCE-2026-07',
+            'contract_id' => $sourceContract->id,
+            'room_id' => $this->room->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '1451612.90',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '1451612.90',
+            'status' => Invoice::STATUS_UNPAID,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $previewResponse = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/preview', [
+            'contract_id' => $remainingContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ]);
+
+        $previewResponse->assertStatus(200);
+
+        $parkingItems = collect($previewResponse->json('result.items'))
+            ->where('item_type', InvoiceItem::ITEM_TYPE_PARKING)
+            ->values();
+
+        $this->assertCount(1, $parkingItems);
+        $this->assertSame('54838.71', $parkingItems->first()['amount']);
+        $this->assertStringContainsString('INV-A-001', $parkingItems->first()['description']);
+        $this->assertFalse($parkingItems->contains(fn (array $item): bool => str_contains($item['description'], 'INV-B-001')));
+    }
+
 
     public function test_admin_can_record_payment_manually(): void
     {

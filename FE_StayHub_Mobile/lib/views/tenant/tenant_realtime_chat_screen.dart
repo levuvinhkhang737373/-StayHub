@@ -371,7 +371,7 @@ class _EmptyChatState extends StatelessWidget {
             const SizedBox(height: 16),
             const Text('Bạn cần hỗ trợ?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1C1917))),
             const SizedBox(height: 8),
-            const Text('Nhắn trực tiếp cho quản lý tòa nhà của bạn. Tin nhắn sẽ được gửi realtime qua Reverb.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF57534E), height: 1.4)),
+            const Text('Nhắn trực tiếp cho quản lý tòa nhà của bạn.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF57534E), height: 1.4)),
           ],
         ),
       ),
