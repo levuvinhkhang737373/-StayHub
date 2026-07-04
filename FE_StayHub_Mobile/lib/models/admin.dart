@@ -12,6 +12,7 @@ class Admin {
   final int status;
   final int gender;
   final String? address;
+  final List<int> managedBuildingIds;
 
   Admin({
     required this.id,
@@ -27,6 +28,7 @@ class Admin {
     required this.status,
     required this.gender,
     this.address,
+    this.managedBuildingIds = const [],
   });
 
   factory Admin.fromJson(Map<String, dynamic> json) {
@@ -44,6 +46,11 @@ class Admin {
       status: json['status'] as int,
       gender: json['gender'] as int,
       address: json['address'] as String?,
+      managedBuildingIds: (json['managed_buildings'] as List? ?? const [])
+          .whereType<Map>()
+          .map((building) => int.tryParse(building['id'].toString()))
+          .whereType<int>()
+          .toList(),
     );
   }
 
@@ -62,6 +69,7 @@ class Admin {
       'status': status,
       'gender': gender,
       'address': address,
+      'managed_building_ids': managedBuildingIds,
     };
   }
 

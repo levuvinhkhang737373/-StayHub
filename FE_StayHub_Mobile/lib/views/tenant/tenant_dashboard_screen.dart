@@ -68,6 +68,14 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
             return;
           }
 
+          if (event['type'] == 'maintenance_assigned' ||
+              event['type'] == 'maintenance_processing' ||
+              event['type'] == 'maintenance_completed') {
+            context.read<MaintenanceController>().fetchRequests();
+            context.read<NotificationController>().fetchNotifications(isAdmin: false);
+            return;
+          }
+
           if (event['type'] != 'chat_message_sent') return;
 
           final data = event['data'] as Map<String, dynamic>?;

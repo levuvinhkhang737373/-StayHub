@@ -50,6 +50,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             context.read<ChatController>().handleRealtimeRead(payload);
           },
         );
+
+        final managedBuildingIds = context.read<AuthController>().currentAdmin?.managedBuildingIds ?? const <int>[];
+        wsService.subscribeToAdminBuildingContractExpirations(
+          managedBuildingIds,
+          onContractExpired: (contract) {
+            if (!mounted) return;
+            context.read<ContractController>().fetchContracts('admin');
+            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+          },
+        );
       }
       
       // Lắng nghe thông điệp debug để hiện SnackBar lên màn hình (chỉ hiển thị khi có lỗi)
@@ -127,6 +137,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               final content = data?['content']?.toString() ?? 'Một lịch chuyển phòng vừa đổi ngày.';
               _showAdminRealtimeSnackBar(Icons.event_repeat_rounded, content, const Color(0xFF92400E));
             }
+          }
+        } else if (event['type'] == 'contract_expired') {
+          if (mounted) {
+            final data = event['data'] as Map<String, dynamic>?;
+            context.read<ContractController>().fetchContracts('admin');
+            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+
+            final contractCode = data?['contract_code']?.toString() ?? '';
+            final roomNumber = data?['room_number']?.toString() ?? '?';
+            _showAdminRealtimeSnackBar(
+              Icons.warning_amber_rounded,
+              'Hợp đồng $contractCode phòng $roomNumber đã hết hạn.',
+              const Color(0xFFB45309),
+            );
           }
         } else if (event['type'] == 'chat_message_sent') {
           final data = event['data'] as Map<String, dynamic>?;
