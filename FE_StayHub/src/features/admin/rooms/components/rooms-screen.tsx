@@ -177,8 +177,12 @@ export function RoomsScreen() {
         fetchBuilding(),
         fetchRoomType(),
       ])
-      setBuildings(buildingsRes.result || [])
+      const list = buildingsRes.result || []
+      setBuildings(list)
       setRoomTypes(roomTypesRes.result || [])
+      if (!isSuperAdmin && list[0]?.id) {
+        setSelectedBuildingId(String(list[0].id))
+      }
     } catch (error) {
       console.error("Lỗi tải thông tin bộ lọc:", error)
     }
@@ -259,12 +263,13 @@ export function RoomsScreen() {
             <label className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Tòa nhà</label>
             <AdminSelect
               value={selectedBuildingId}
-              options={[
-                { value: '', label: 'Tất cả tòa nhà' },
-                ...buildings.map((b) => ({ value: String(b.id), label: b.name }))
-              ]}
+              options={
+                isSuperAdmin
+                  ? [{ value: '', label: 'Tất cả tòa nhà' }, ...buildings.map((b) => ({ value: String(b.id), label: b.name }))]
+                  : buildings.map((b) => ({ value: String(b.id), label: b.name }))
+              }
               onChange={(val) => setSelectedBuildingId(String(val))}
-              placeholder="Tất cả tòa nhà"
+              placeholder={isSuperAdmin ? "Tất cả tòa nhà" : undefined}
             />
           </div>
 
@@ -328,7 +333,7 @@ export function RoomsScreen() {
               type="button"
               onClick={() => {
                 setKeyword('')
-                setSelectedBuildingId('')
+                setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
                 setSelectedRoomTypeId('')
                 setSelectedStatus('')
               }}

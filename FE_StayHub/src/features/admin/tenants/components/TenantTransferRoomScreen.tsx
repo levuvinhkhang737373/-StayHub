@@ -420,13 +420,13 @@ export function TenantTransferRoomScreen() {
   }, [currentContract?.representative_tenant_id, selectedTenantIds, contractTenants])
 
   const tenantBuildingOptions = useMemo(
-    () => buildBuildingOptions(mergeBuildingResources(buildings, tenantsToBuildingResources(tenantOptions), roomsToBuildingResources(rooms)), 'Tất cả tòa nhà'),
-    [buildings, rooms, tenantOptions],
+    () => buildBuildingOptions(mergeBuildingResources(buildings, tenantsToBuildingResources(tenantOptions), roomsToBuildingResources(rooms)), isSuperAdmin ? 'Tất cả tòa nhà' : undefined),
+    [buildings, rooms, tenantOptions, isSuperAdmin],
   )
 
   const destinationBuildingOptions = useMemo(
-    () => buildBuildingOptions(mergeBuildingResources(buildings, roomsToBuildingResources(rooms)), 'Tất cả tòa nhà'),
-    [buildings, rooms],
+    () => buildBuildingOptions(mergeBuildingResources(buildings, roomsToBuildingResources(rooms)), isSuperAdmin ? 'Tất cả tòa nhà' : undefined),
+    [buildings, rooms, isSuperAdmin],
   )
 
   const floorOptions = useMemo(() => {

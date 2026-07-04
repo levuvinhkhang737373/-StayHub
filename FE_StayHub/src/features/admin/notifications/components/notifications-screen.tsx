@@ -142,7 +142,12 @@ export function NotificationsScreen() {
   const [form, setForm] = useState<NotificationFormValues>(defaultForm)
 
   const buildingOptions = useMemo(() => buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const })), [buildings])
-  const filterBuildingOptions = useMemo(() => [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions], [buildingOptions])
+  const filterBuildingOptions = useMemo(
+    () => isSuperAdmin
+      ? [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions]
+      : buildingOptions,
+    [buildingOptions, isSuperAdmin]
+  )
 
   // Metrics
   const metrics = useMemo(() => {
@@ -159,7 +164,11 @@ export function NotificationsScreen() {
         fetchAdminBuildings({ per_page: 100 }),
         fetchAdminTenants({ per_page: 100, status: 1 }) // Load active tenants
       ])
-      setBuildings(getResourceList(buildingsRes.result))
+      const list = getResourceList(buildingsRes.result)
+      setBuildings(list)
+      if (!isSuperAdmin && !selectedBuildingId && list[0]?.id) {
+        setSelectedBuildingId(String(list[0].id))
+      }
       
       // Parse tenants from envelope structure
       const tenantsEnvelope = tenantsRes as any
@@ -168,7 +177,7 @@ export function NotificationsScreen() {
     } catch (e) {
       console.error('Không thể load danh sách tòa nhà/khách thuê', e)
     }
-  }, [])
+  }, [isSuperAdmin, selectedBuildingId])
 
   const loadNotifications = useCallback(async () => {
     setIsLoading(true)
@@ -294,7 +303,7 @@ export function NotificationsScreen() {
   }
 
   const clearFilters = () => {
-    setSelectedBuildingId('')
+    setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
     setSelectedStatus('')
     setSelectedTargetType('')
   }

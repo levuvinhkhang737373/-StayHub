@@ -93,7 +93,7 @@ export function PaymentHistoryScreen() {
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
 
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
-  const filterBuildingOptions = useMemo(() => [{ value: '', label: isSuperAdmin ? 'Tất cả tòa nhà' : 'Tòa nhà được phân quyền', tone: 'default' as const }, ...buildingOptions], [buildingOptions, isSuperAdmin])
+  const filterBuildingOptions = useMemo(() => isSuperAdmin ? [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions] : buildingOptions, [buildingOptions, isSuperAdmin])
   const roomOptions = useMemo(() => [{ value: '', label: 'Tất cả phòng', tone: 'default' as const }, ...rooms.map((room) => ({ value: room.id, label: `Phòng ${room.room_number || room.id}`, tone: 'default' as const }))], [rooms])
   const contractOptions = useMemo(() => [{ value: '', label: 'Tất cả hợp đồng', tone: 'default' as const }, ...contracts.map((contract) => ({
     value: contract.id,

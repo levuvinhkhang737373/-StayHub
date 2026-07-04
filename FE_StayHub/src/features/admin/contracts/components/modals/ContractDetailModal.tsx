@@ -159,7 +159,7 @@ export function ContractDetailModal({
 
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
-      showAlert('Thông báo', 'Vui lòng cho phép trình duyệt mở popup để xuất PDF.', 'warning')
+      alert('Vui lòng cho phép trình duyệt mở popup để xuất PDF.')
       return
     }
 

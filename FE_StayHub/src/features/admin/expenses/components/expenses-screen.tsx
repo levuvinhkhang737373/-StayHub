@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+
 import { Banknote, Building2, CalendarDays, DoorOpen, Edit3, Eye, ImageIcon, Plus, ReceiptText, Search, Trash2, UploadCloud, WalletCards, X, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import type { AdminSelectOption } from '../../shared/components/AdminSelect'
@@ -10,6 +10,7 @@ import { formatCurrency, formatDate, formatMoneyInput, parseMoneyInput } from '.
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
+import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminRooms } from '../../rooms/services/rooms.service'
 import { fetchAdminExpenseCategories } from '../../expense-categories/services/expense-categories.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -108,12 +109,16 @@ function getExpenseCategoryName(expense: AdminExpenseResource) {
 }
 
 export function ExpensesScreen() {
+  const { session } = useAdminSession()
+  const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
+  const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
+
   const [expenses, setExpenses] = useState<AdminExpenseResource[]>([])
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [rooms, setRooms] = useState<AdminRoomResource[]>([])
   const [categories, setCategories] = useState<AdminExpenseCategoryResource[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedBuildingId, setSelectedBuildingId] = useState('')
+  const [selectedBuildingId, setSelectedBuildingId] = useState(isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : '')
   const [selectedRoomId, setSelectedRoomId] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
@@ -177,10 +182,10 @@ export function ExpensesScreen() {
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [cancellingId, setCancellingId] = useState<number | null>(null)
 
-  const buildingOptions = useMemo<AdminSelectOption[]>(() => [
+  const buildingOptions = useMemo<AdminSelectOption[]>(() => isSuperAdmin ? [
     { value: '', label: 'Tất cả tòa nhà', tone: 'default' },
     ...buildings.map((building) => ({ value: building.id, label: building.name, description: building.address || undefined, tone: 'default' as const })),
-  ], [buildings])
+  ] : buildings.map((building) => ({ value: building.id, label: building.name, description: building.address || undefined, tone: 'default' as const })), [buildings, isSuperAdmin])
 
   const formBuildingOptions = useMemo<AdminSelectOption[]>(() => buildings.map((building) => ({ value: building.id, label: building.name, description: building.address || undefined, tone: 'default' as const })), [buildings])
 
@@ -234,13 +239,18 @@ export function ExpensesScreen() {
         fetchAdminExpenseCategories({ is_active: true, per_page: 100 }),
       ])
 
-      setBuildings(getResourceList<AdminBuildingResource>(buildingResponse.result))
+      const list = getResourceList<AdminBuildingResource>(buildingResponse.result)
+      setBuildings(list)
       setRooms(getResourceList<AdminRoomResource>(roomResponse.result))
       setCategories(getResourceList<AdminExpenseCategoryResource>(categoryResponse.result))
+      
+      if (!isSuperAdmin && !selectedBuildingId && list[0]?.id) {
+        setSelectedBuildingId(String(list[0].id))
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể tải dữ liệu bộ lọc phiếu chi.')
     }
-  }, [])
+  }, [isSuperAdmin, selectedBuildingId])
 
   const loadExpenses = useCallback(async () => {
     setIsLoading(true)
@@ -358,7 +368,7 @@ export function ExpensesScreen() {
 
   const clearFilters = () => {
     setKeyword('')
-    setSelectedBuildingId('')
+    setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
     setSelectedRoomId('')
     setSelectedCategoryId('')
     setSelectedStatus('')

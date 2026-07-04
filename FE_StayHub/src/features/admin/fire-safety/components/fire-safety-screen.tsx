@@ -139,7 +139,7 @@ export function FireSafetyScreen() {
   const [alertCurrentPage, setAlertCurrentPage] = useState(1)
   const [alertPerPage, setAlertPerPage] = useState(5)
   const [activePanel, setActivePanel] = useState<ActivePanel>('cameras')
-  const [selectedBuildingId, setSelectedBuildingId] = useState('')
+  const [selectedBuildingId, setSelectedBuildingId] = useState(isSuperAdmin ? '' : managedBuildings?.[0]?.id ? String(managedBuildings[0].id) : '')
   const [keyword, setKeyword] = useState('')
   const [form, setForm] = useState<CameraForm>(DEFAULT_FORM)
   const [editingCameraId, setEditingCameraId] = useState<number | null>(null)
@@ -467,7 +467,7 @@ export function FireSafetyScreen() {
   }
 
   const clearFilters = () => {
-    setSelectedBuildingId('')
+    setSelectedBuildingId(isSuperAdmin ? '' : (buildingOptions[0]?.id ? String(buildingOptions[0].id) : ''))
     setKeyword('')
     setCameraCurrentPage(1)
     setAlertCurrentPage(1)
@@ -540,7 +540,7 @@ export function FireSafetyScreen() {
                 </div>
                 <div className="grid gap-2 sm:grid-cols-[minmax(11rem,13rem)_minmax(12rem,1fr)_auto]">
                   <select value={selectedBuildingId} onChange={(event) => { setSelectedBuildingId(event.target.value); setCameraCurrentPage(1); setAlertCurrentPage(1) }} className={inputClass}>
-                    <option value="">Tất cả tòa nhà</option>
+                    {isSuperAdmin && <option value="">Tất cả tòa nhà</option>}
                     {buildingOptions.map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}
                   </select>
                   <div className="relative">
