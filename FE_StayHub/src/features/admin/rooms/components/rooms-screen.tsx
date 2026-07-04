@@ -6,7 +6,7 @@ import type { AdminRoomResource } from '../types/rooms.model'
 import { createPortal } from 'react-dom'
 import { deleteAdminRoom, fetchAdminRoomDetail, fetchAdminRooms, updateAdminRoomStatus, fetchBuilding, fetchRoomType } from '../services/rooms.service'
 import { Eye, Trash2, Pencil, PackageOpen, Plus, Search, X, Power, ChevronLeft, ChevronRight, DoorOpen } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAdminSession } from '../../auth/hooks/admin-session-store'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
@@ -56,6 +56,58 @@ export function RoomsScreen() {
 
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const isInitialMount = useRef(true)
+
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [activeMessage, setActiveMessage] = useState<string | null>(null)
+  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+
+  // Read success message from navigation state (e.g. from create room screen)
+  useEffect(() => {
+    if (location.state?.successMessage) {
+      setSuccessMessage(location.state.successMessage)
+      // Clear the router state to avoid displaying it again on refresh
+      navigate(location.pathname, { replace: true })
+    }
+  }, [location, navigate])
+
+  // Handle auto-clear and transition logic
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [errorMessage])
+
+  useEffect(() => {
+    if (successMessage) {
+      setActiveMessage(successMessage)
+      setActiveType('success')
+    } else if (errorMessage) {
+      setActiveMessage(errorMessage)
+      setActiveType('error')
+    } else {
+      const timer = setTimeout(() => {
+        setActiveMessage(null)
+        setActiveType(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage, errorMessage])
 
   const filteredRooms = rooms
 
@@ -240,6 +292,20 @@ export function RoomsScreen() {
             <MetricCard label="Ngưng sử dụng" value={allRooms.filter(r => Number(r.status) === 3).length} tone="stone" />
           </div>
         </div>
+      </div>
+
+      <div
+        className={cn(
+          "rounded-3xl border px-4 text-sm font-black shadow-sm transition-all duration-500 ease-in-out transform overflow-hidden",
+          successMessage || errorMessage
+            ? "opacity-100 max-h-20 py-3 translate-y-0 scale-100"
+            : "opacity-0 max-h-0 py-0 -translate-y-2 scale-95 pointer-events-none border-transparent",
+          errorMessage || activeType === 'error'
+            ? "border-rose-200 bg-rose-50 text-rose-700"
+            : "border-emerald-200 bg-emerald-50 text-emerald-700"
+        )}
+      >
+        {activeMessage || errorMessage || successMessage}
       </div>
 
       {/* Search & Filter Controls */}

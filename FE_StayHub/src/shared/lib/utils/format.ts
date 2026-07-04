@@ -64,3 +64,39 @@ export function formatDateTime(value?: string | Date | null) {
     timeZone: 'Asia/Ho_Chi_Minh',
   }).format(date)
 }
+
+export function formatTimeOnly(value?: string | Date | null): string {
+  if (!value) return ''
+  const date = parseUtcDate(value)
+
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(date)
+}
+
+export function getChatDividerLabel(value?: string | Date | null): string {
+  if (!value) return ''
+  const date = parseUtcDate(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+
+  const dateStr = formatDate(date)
+  const todayStr = formatDate(today)
+  const yesterdayStr = formatDate(yesterday)
+
+  if (dateStr === todayStr) {
+    return 'Hôm nay'
+  } else if (dateStr === yesterdayStr) {
+    return 'Hôm qua'
+  } else {
+    return dateStr
+  }
+}

@@ -146,7 +146,7 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                             const DropdownMenuItem(value: 'all', child: Text('Tất cả khách thuê')),
                             ...tenants.map((t) => DropdownMenuItem(
                                   value: t.id.toString(),
-                                  child: Text('${t.fullName} (Phòng ${t.roomNumber ?? 'Chưa có'})'),
+                                  child: Text('${t.fullName} (Phòng ${t.roomNumber ?? 'Chưa có phòng'})'),
                                 )),
                           ],
                           onChanged: (val) {

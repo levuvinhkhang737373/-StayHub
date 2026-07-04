@@ -94,7 +94,7 @@ class _TenantsScreenState extends State<TenantsScreen> {
               _buildBottomSheetRow(Icons.email_outlined, 'Email:', tenant.email.isNotEmpty ? tenant.email : 'Chưa cập nhật'),
               _buildBottomSheetRow(Icons.wc_outlined, 'Giới tính:', tenant.genderLabel),
               _buildBottomSheetRow(Icons.home_outlined, 'Quê quán:', tenant.permanentAddress ?? 'Chưa cập nhật'),
-              _buildBottomSheetRow(Icons.meeting_room_outlined, 'Phòng:', tenant.roomNumber != null ? 'Phòng ${tenant.roomNumber}' : 'Chưa có'),
+              _buildBottomSheetRow(Icons.meeting_room_outlined, 'Phòng:', tenant.roomNumber != null ? 'Phòng ${tenant.roomNumber}' : 'Chưa có phòng'),
               _buildBottomSheetRow(Icons.business_outlined, 'Tòa nhà:', tenant.buildingName ?? 'Chưa cấu hình'),
               const SizedBox(height: 24),
               ElevatedButton(
@@ -195,7 +195,7 @@ class _TenantsScreenState extends State<TenantsScreen> {
                                     style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
                                   ),
                                   subtitle: Text(
-                                    'SĐT: ${tenant.phone} | Phòng: ${tenant.roomNumber ?? 'Chưa thuê'}',
+                                    'SĐT: ${tenant.phone} | Phòng: ${tenant.roomNumber ?? 'Chưa có phòng'}',
                                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                                   ),
                                   trailing: Row(

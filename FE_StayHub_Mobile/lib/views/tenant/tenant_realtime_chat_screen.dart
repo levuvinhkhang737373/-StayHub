@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/chat_controller.dart';
 import '../../services/websocket_service.dart';
@@ -17,6 +19,26 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   StreamSubscription? _chatSubscription;
+  List<File> _selectedImages = [];
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile> pickedFiles = await _picker.pickMultiImage();
+      if (pickedFiles.isNotEmpty) {
+        setState(() {
+          _selectedImages.addAll(pickedFiles.map((x) => File(x.path)));
+          if (_selectedImages.length > 5) {
+            _selectedImages = _selectedImages.sublist(0, 5);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking images: $e');
+    }
+  }
+
+  
 
   @override
   void initState() {
@@ -108,9 +130,13 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
 
   Future<void> _send() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && _selectedImages.isEmpty) return;
     _messageController.clear();
-    await context.read<ChatController>().sendTenantMessage(text);
+    final imagesToSend = List<File>.from(_selectedImages);
+    setState(() {
+      _selectedImages.clear();
+    });
+    await context.read<ChatController>().sendTenantMessage(text, images: imagesToSend);
     _subscribeRealtime();
     _scrollToBottom();
   }
@@ -163,10 +189,48 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                           controller: _scrollController,
                           padding: const EdgeInsets.all(16),
                           itemCount: chatController.messages.length,
-                          itemBuilder: (context, index) => _MessageBubble(
-                            message: chatController.messages[index],
-                            isMine: chatController.messages[index].senderRole == 1,
-                          ),
+                          itemBuilder: (context, index) {
+                            final message = chatController.messages[index];
+                            final isMine = message.senderRole == 1;
+
+                            // Date separator logic
+                            final prevMessage = index > 0 ? chatController.messages[index - 1] : null;
+                            final currentDividerLabel = _getChatDividerLabel(message.createdAt);
+                            final prevDividerLabel = prevMessage != null ? _getChatDividerLabel(prevMessage.createdAt) : null;
+                            final showDateDivider = prevMessage == null || currentDividerLabel != prevDividerLabel;
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (showDateDivider)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    child: Row(
+                                      children: [
+                                        Expanded(child: Divider(color: const Color(0xFF0F766E).withOpacity(0.15), thickness: 1)),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          child: Text(
+                                            currentDividerLabel,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 1.5,
+                                              color: const Color(0xFF0F766E).withOpacity(0.7),
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(child: Divider(color: const Color(0xFF0F766E).withOpacity(0.15), thickness: 1)),
+                                      ],
+                                    ),
+                                  ),
+                                _MessageBubble(
+                                  message: message,
+                                  isMine: isMine,
+                                ),
+                              ],
+                            );
+                          },
                         ),
             ),
             SafeArea(
@@ -177,38 +241,104 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                   color: Colors.white,
                   border: Border(top: BorderSide(color: const Color(0xFF3D2A18).withOpacity(0.1))),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        minLines: 1,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.newline,
-                        decoration: InputDecoration(
-                          hintText: 'Nhập tin nhắn...',
-                          hintStyle: TextStyle(color: const Color(0xFF8B5E34).withOpacity(0.5), fontWeight: FontWeight.bold),
-                          filled: true,
-                          fillColor: const Color(0xFFF9F5EC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    if (_selectedImages.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        height: 76,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF4FBF9),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF0F766E).withOpacity(0.15)),
+                        ),
+                        padding: const EdgeInsets.all(8),
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _selectedImages.length,
+                          itemBuilder: (context, idx) {
+                            final file = _selectedImages[idx];
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.file(
+                                      file,
+                                      width: 60,
+                                      height: 60,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: -6,
+                                    right: -6,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedImages.removeAt(idx);
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF24170D),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          size: 12,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: chatController.isSending ? null : _send,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F766E),
-                          foregroundColor: Colors.white,
-                          shape: const CircleBorder(),
-                          padding: EdgeInsets.zero,
-                        ),
-                        child: const Icon(Icons.send_rounded),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F2F5),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.image_outlined, color: Color(0xFF0F766E), size: 22),
+                            onPressed: _pickImages,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: _messageController,
+                              minLines: 1,
+                              maxLines: 4,
+                              textInputAction: TextInputAction.newline,
+                              onChanged: (val) => setState(() {}),
+                              decoration: const InputDecoration(
+                                hintText: 'Aa',
+                                hintStyle: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.normal),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              ),
+                              style: const TextStyle(fontSize: 15, color: Color(0xFF24170D)),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.send_rounded, color: Color(0xFF0F766E), size: 22),
+                            onPressed: (chatController.isSending || (_messageController.text.trim().isEmpty && _selectedImages.isEmpty))
+                                ? null
+                                : _send,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -274,17 +404,67 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              message.body,
-              style: TextStyle(
-                color: isMine ? Colors.white : const Color(0xFF24170D),
-                fontWeight: FontWeight.bold,
-                height: 1.35,
+            if (message.body.isNotEmpty)
+              Text(
+                message.body,
+                style: TextStyle(
+                  color: isMine ? Colors.white : const Color(0xFF24170D),
+                  fontWeight: FontWeight.bold,
+                  height: 1.35,
+                ),
               ),
-            ),
+            if (message.attachments.isNotEmpty) ...[
+              if (message.body.isNotEmpty) const SizedBox(height: 8),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: message.attachments.length > 1 ? 2 : 1,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                  childAspectRatio: 1.3,
+                ),
+                itemCount: message.attachments.length,
+                itemBuilder: (context, idx) {
+                  final url = message.attachments[idx];
+                  final isLocal = !url.startsWith('http');
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: isLocal
+                        ? Image.file(
+                            File(url),
+                            fit: BoxFit.cover,
+                          )
+                        : Image.network(
+                            url,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                color: Colors.black12,
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.black12,
+                                child: const Icon(Icons.broken_image, color: Colors.grey),
+                              );
+                            },
+                          ),
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
-              message.optimistic ? 'Đang gửi...' : (message.createdAt ?? ''),
+              message.optimistic ? 'Đang gửi...' : _formatTimeOnly(message.createdAt),
               style: TextStyle(
                 fontSize: 10,
                 color: isMine ? Colors.white70 : const Color(0xFF8B5E34).withOpacity(0.7),
@@ -295,5 +475,41 @@ class _MessageBubble extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+String _getChatDividerLabel(String? createdAtStr) {
+  if (createdAtStr == null || createdAtStr.isEmpty) return '';
+  try {
+    final date = DateTime.parse(createdAtStr).toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final messageDate = DateTime(date.year, date.month, date.day);
+
+    if (messageDate == today) {
+      return 'HÔM NAY';
+    } else if (messageDate == yesterday) {
+      return 'HÔM QUA';
+    } else {
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final year = date.year;
+      return '$day/$month/$year';
+    }
+  } catch (_) {
+    return createdAtStr;
+  }
+}
+
+String _formatTimeOnly(String? createdAtStr) {
+  if (createdAtStr == null || createdAtStr.isEmpty) return '';
+  try {
+    final date = DateTime.parse(createdAtStr).toLocal();
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  } catch (_) {
+    return createdAtStr;
   }
 }

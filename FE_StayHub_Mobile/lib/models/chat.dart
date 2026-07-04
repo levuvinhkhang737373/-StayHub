@@ -13,6 +13,7 @@ class ChatMessage {
   final String? readAt;
   final String? createdAt;
   final bool optimistic;
+  final List<String> attachments;
 
   ChatMessage({
     required this.id,
@@ -29,9 +30,15 @@ class ChatMessage {
     this.readAt,
     this.createdAt,
     this.optimistic = false,
+    this.attachments = const [],
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final attachmentsJson = json['attachments'];
+    List<String> attachmentsList = [];
+    if (attachmentsJson is List) {
+      attachmentsList = attachmentsJson.map((e) => e.toString()).toList();
+    }
     return ChatMessage(
       id: json['id'] as int,
       conversationId: json['conversation_id'] as int? ?? 0,
@@ -46,6 +53,7 @@ class ChatMessage {
       sentAt: json['sent_at'] as String?,
       readAt: json['read_at'] as String?,
       createdAt: json['created_at'] as String?,
+      attachments: attachmentsList,
     );
   }
 
@@ -65,6 +73,7 @@ class ChatMessage {
       readAt: readAt,
       createdAt: createdAt,
       optimistic: optimistic ?? this.optimistic,
+      attachments: attachments,
     );
   }
 }
