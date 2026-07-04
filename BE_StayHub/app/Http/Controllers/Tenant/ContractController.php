@@ -40,6 +40,7 @@ class ContractController extends Controller
                     'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
+                    'contractVehicles.vehicle',
                 ])
                 ->orderByRaw("FIELD(status, ?, ?, ?, ?, ?) ASC", [
                     Contract::STATUS_ACTIVE,
@@ -78,6 +79,7 @@ class ContractController extends Controller
                     'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
+                    'contractVehicles.vehicle',
                 ])
                 ->orderByRaw("FIELD(status, ?, ?, ?, ?, ?) ASC", [
                     Contract::STATUS_ACTIVE,
@@ -199,6 +201,7 @@ class ContractController extends Controller
                 'representativeTenant:id,full_name,phone,email',
                 'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                 'contractTenants.tenant:id,full_name,phone,email,identity_number',
+                'contractVehicles.vehicle',
             ]);
 
             return ApiResponse::responseJson(true, 'Ký hợp đồng thành công', 200, new ContractResource($contract), 200);
@@ -249,18 +252,22 @@ class ContractController extends Controller
             $servicesInput = $validated['services'] ?? [];
             if (!empty($servicesInput)) {
                 $serviceIds = collect($servicesInput)->pluck('service_id')->toArray();
-                $meteredServices = \App\Models\Service::query()
+                $nonNegotiableServices = \App\Models\Service::query()
                     ->whereIn('id', $serviceIds)
                     ->where(function ($query) {
                         $query->where('charge_method', \App\Models\Service::CHARGE_METHOD_BY_METER)
-                              ->orWhereIn('slug', ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat']);
+                              ->orWhereIn('slug', [
+                                  'electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat', 'dien', 'nuoc', 'tien-dien', 'tien-nuoc', 'dien-nuoc'
+                              ])
+                              ->orWhere('name', 'like', '%điện%')
+                              ->orWhere('name', 'like', '%nước%');
                     })
                     ->get()
                     ->keyBy('id');
 
                 foreach ($servicesInput as $serviceInput) {
                     $sId = $serviceInput['service_id'];
-                    if ($meteredServices->has($sId)) {
+                    if ($nonNegotiableServices->has($sId)) {
                         // Check if the proposed price matches the current room service price or building price
                         $currentRoomService = \App\Models\RoomService::where('room_id', $contract->room_id)
                             ->where('service_id', $sId)
@@ -276,7 +283,8 @@ class ContractController extends Controller
                         }
 
                         if (DecimalMoney::normalize((string)$serviceInput['price']) !== DecimalMoney::normalize((string)$currentPrice)) {
-                            return ApiResponse::responseJson(false, "Không thể thương lượng giá của dịch vụ điện/nước ({$meteredServices->get($sId)->name}).", 422, null, 422);
+                            $serviceName = $nonNegotiableServices->get($sId)->name;
+                            return ApiResponse::responseJson(false, "Không thể thương lượng giá của dịch vụ cố định / điện / nước / xe ({$serviceName}).", 422, null, 422);
                         }
                     }
                 }
@@ -319,6 +327,7 @@ class ContractController extends Controller
                 'representativeTenant:id,full_name,phone,email',
                 'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                 'contractTenants.tenant:id,full_name,phone,email,identity_number',
+                'contractVehicles.vehicle',
             ]);
 
             return ApiResponse::responseJson(true, 'Gửi yêu cầu thương lượng thành công', 200, new ContractResource($contract), 200);

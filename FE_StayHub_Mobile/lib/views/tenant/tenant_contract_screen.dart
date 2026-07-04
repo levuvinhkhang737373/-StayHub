@@ -2383,7 +2383,7 @@ class _TenantContractDetailScreenState
       // Skip metered services (electricity/water) - cannot be negotiated
       final slug = svc['slug']?.toString().toLowerCase() ?? '';
       final name = svc['name']?.toString().toLowerCase() ?? '';
-      final isMetered =
+      final isExcluded =
           chargeMethod == 1 || // CHARGE_METHOD_BY_METER
           [
             'electric',
@@ -2400,7 +2400,7 @@ class _TenantContractDetailScreenState
           name.contains('điện') ||
           name.contains('nước');
 
-      if (isMetered) continue;
+      if (isExcluded) continue;
 
       serviceNames[sId] = svc['name']?.toString() ?? '';
       final priceVal = svc['price'] != null

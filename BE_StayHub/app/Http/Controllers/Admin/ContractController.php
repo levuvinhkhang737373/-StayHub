@@ -2148,18 +2148,62 @@ class ContractController extends Controller
                     $contract->negotiation_status = Contract::NEGOTIATION_STATUS_APPROVED;
                     $contract->save();
 
-                    // Update room service prices
+                    // Update room service prices or contract vehicle fees
                     $dealServices = $contract->proposed_services ?? [];
                     foreach ($dealServices as $dealService) {
-                        \App\Models\RoomService::updateOrCreate(
-                            [
-                                'room_id' => $contract->room_id,
-                                'service_id' => $dealService['service_id']
-                            ],
-                            [
-                                'price' => $dealService['price']
-                            ]
-                        );
+                        $service = \App\Models\Service::find($dealService['service_id']);
+                        if (!$service) {
+                            continue;
+                        }
+
+                        $slug = strtolower($service->slug ?? '');
+                        $name = strtolower($service->name ?? '');
+                        $isVehicle = str_contains($slug, 'xe') || str_contains($slug, 'parking') || str_contains($slug, 'vehicle')
+                                  || str_contains($name, 'xe') || str_contains($name, 'parking') || str_contains($name, 'vehicle');
+
+                        if ($isVehicle) {
+                            // Load vehicles if not loaded
+                            $contract->loadMissing('contractVehicles.vehicle');
+
+                            // Find matching contract vehicle by type
+                            $type = null;
+                            if (str_contains($slug, 'may') || str_contains($name, 'máy')) {
+                                $type = \App\Models\Vehicle::VEHICLE_TYPE_MOTORBIKE;
+                            } elseif (str_contains($slug, 'dap') || str_contains($name, 'đạp')) {
+                                $type = \App\Models\Vehicle::VEHICLE_TYPE_BICYCLE;
+                            } elseif (str_contains($slug, 'to') || str_contains($name, 'tô') || str_contains($slug, 'car') || str_contains($name, 'car')) {
+                                $type = \App\Models\Vehicle::VEHICLE_TYPE_CAR;
+                            } elseif (str_contains($slug, 'dien') || str_contains($name, 'điện')) {
+                                $type = \App\Models\Vehicle::VEHICLE_TYPE_ELECTRIC;
+                            }
+
+                            $matchedVehicles = $contract->contractVehicles->filter(function ($cv) use ($type) {
+                                return $cv->is_active && ($type === null || $cv->vehicle?->vehicle_type === $type || $cv->vehicle_type === $type);
+                            });
+
+                            if ($matchedVehicles->isNotEmpty()) {
+                                foreach ($matchedVehicles as $cv) {
+                                    $cv->update(['monthly_fee' => $dealService['price']]);
+                                }
+                            } else {
+                                // Fallback: if no active vehicles found matching type, update all active contract vehicles
+                                $activeVehicles = $contract->contractVehicles->where('is_active', true);
+                                foreach ($activeVehicles as $cv) {
+                                    $cv->update(['monthly_fee' => $dealService['price']]);
+                                }
+                            }
+                        } else {
+                            // Update regular room service price
+                            \App\Models\RoomService::updateOrCreate(
+                                [
+                                    'room_id' => $contract->room_id,
+                                    'service_id' => $dealService['service_id']
+                                ],
+                                [
+                                    'price' => $dealService['price']
+                                ]
+                            );
+                        }
                     }
 
                     // Create notification for tenant
