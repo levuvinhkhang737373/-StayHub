@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, X, Check, AlertTriangle, RefreshCw, ArrowRight, TrendingDown, CheckCircle2, XCircle, Handshake } from 'lucide-react'
+import { FileText, X, Check, RefreshCw, ArrowRight, TrendingDown, CheckCircle2, XCircle, Handshake } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ConfirmModal } from '../../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../../shared/lib/hooks/use-confirm-modal'
