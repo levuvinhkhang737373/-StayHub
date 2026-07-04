@@ -132,8 +132,9 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
                           
                           final authController = context.read<AuthController>();
                           final roomNumber = authController.currentTenant?.roomNumber ?? '101';
+                          final maintenanceCtrl = context.read<MaintenanceController>();
                           
-                          final success = await context.read<MaintenanceController>().createRequest(
+                          final success = await maintenanceCtrl.createRequest(
                                 roomNumber: roomNumber,
                                 title: titleController.text.trim(),
                                 description: descController.text.trim(),
@@ -144,6 +145,13 @@ class _TenantMaintenanceScreenState extends State<TenantMaintenanceScreen> {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Gửi yêu cầu sửa chữa thành công!'), backgroundColor: Colors.green),
+                            );
+                          } else if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(maintenanceCtrl.errorMessage ?? 'Gửi yêu cầu thất bại'),
+                                backgroundColor: Colors.red,
+                              ),
                             );
                           }
                         },
