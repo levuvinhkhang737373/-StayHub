@@ -79,7 +79,7 @@ class MaintenanceRequestController extends Controller
             $uploadedPaths = [];
 
             // Chạy transaction để đảm bảo tính nhất quán dữ liệu
-            $result = DB::transaction(function () use ($request, $tenant, $roomId, $requestCode, &$uploadedPaths) {
+            $result = DB::transaction(function () use ($request, $tenant, $roomId, $currentRoom, $requestCode, &$uploadedPaths) {
                 // Xử lý upload ảnh minh chứng trước khi sửa (chấp nhận cả mảng hoặc tệp tin đơn lẻ)
                 if ($request->hasFile('images')) {
                     $images = $request->file('images');
