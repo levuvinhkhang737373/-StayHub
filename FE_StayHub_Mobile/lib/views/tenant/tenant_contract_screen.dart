@@ -31,7 +31,11 @@ bool _isContractRealtimeEvent(String? type, dynamic data) {
       text.contains('thanh toán đặt cọc') ||
       text.contains('tiền cọc') ||
       text.contains('chuyển phòng') ||
-      text.contains('mã chuyển phòng');
+      text.contains('mã chuyển phòng') ||
+      text.contains('thương lượng') ||
+      text.contains('chấp thuận') ||
+      text.contains('đồng ý') ||
+      text.contains('từ chối');
 }
 
 class TenantContractScreen extends StatefulWidget {
@@ -41,12 +45,13 @@ class TenantContractScreen extends StatefulWidget {
   State<TenantContractScreen> createState() => _TenantContractScreenState();
 }
 
-class _TenantContractScreenState extends State<TenantContractScreen> {
+class _TenantContractScreenState extends State<TenantContractScreen> with WidgetsBindingObserver {
   StreamSubscription? _wsSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final contractController = context.read<ContractController>();
       contractController.fetchContracts('tenant');
@@ -74,8 +79,17 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _wsSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      debugPrint('WS: App resumed, reloading contracts for tenant...');
+      context.read<ContractController>().fetchContracts('tenant');
+    }
   }
 
   String _formatCurrency(double amount) {
@@ -557,12 +571,13 @@ class TenantContractDetailScreen extends StatefulWidget {
 }
 
 class _TenantContractDetailScreenState
-    extends State<TenantContractDetailScreen> {
+    extends State<TenantContractDetailScreen> with WidgetsBindingObserver {
   StreamSubscription? _wsSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final contractController = context.read<ContractController>();
       final wsService = context.read<WebSocketService>();
@@ -586,8 +601,17 @@ class _TenantContractDetailScreenState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _wsSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      debugPrint('WS: App resumed in contract detail, reloading contracts for tenant...');
+      context.read<ContractController>().fetchContracts('tenant');
+    }
   }
 
   String _formatCurrency(double amount) {
@@ -2348,31 +2372,43 @@ class _TenantContractDetailScreenState
     // Maintain a list of controllers for service prices
     final serviceControllers = <int, TextEditingController>{};
     final serviceNames = <int, String>{};
-    final serviceMetered = <int, bool>{};
+    final serviceOriginalPrices = <int, double>{};
+    final serviceUnits = <int, String>{};
 
     final servicesList = contract.roomServices ?? [];
     for (var svc in servicesList) {
       final sId = svc['id'] as int;
       final chargeMethod = svc['charge_method'] as int? ?? 0;
 
-      // Determine if service is electricity/water (metered)
+      // Skip metered services (electricity/water) - cannot be negotiated
       final slug = svc['slug']?.toString().toLowerCase() ?? '';
+      final name = svc['name']?.toString().toLowerCase() ?? '';
       final isMetered =
-          chargeMethod == 2 || // CHARGE_METHOD_BY_METER
+          chargeMethod == 1 || // CHARGE_METHOD_BY_METER
           [
             'electric',
             'water',
             'electricity',
             'dien-sinh-hoat',
             'nuoc-sinh-hoat',
-          ].contains(slug);
+            'dien',
+            'nuoc',
+            'tien-dien',
+            'tien-nuoc',
+            'dien-nuoc',
+          ].contains(slug) ||
+          name.contains('điện') ||
+          name.contains('nước');
+
+      if (isMetered) continue;
 
       serviceNames[sId] = svc['name']?.toString() ?? '';
-      serviceMetered[sId] = isMetered;
-
       final priceVal = svc['price'] != null
           ? double.tryParse(svc['price'].toString()) ?? 0.0
           : 0.0;
+      serviceOriginalPrices[sId] = priceVal;
+      serviceUnits[sId] = svc['unit']?.toString() ?? 'tháng';
+
       serviceControllers[sId] = TextEditingController(
         text: priceVal.toStringAsFixed(0),
       );
@@ -2398,6 +2434,17 @@ class _TenantContractDetailScreenState
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -2417,7 +2464,7 @@ class _TenantContractDetailScreenState
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Vui lòng nhập giá thuê phòng và giá các dịch vụ mong muốn để gửi đề xuất thương lượng tới quản lý. Lưu ý giá điện và nước tính theo chỉ số tòa nhà nên không thể thay đổi.',
+                  'Vui lòng nhập giá thuê phòng và giá các dịch vụ mong muốn để gửi đề xuất thương lượng tới quản lý.',
                   style: TextStyle(
                     fontSize: 12.5,
                     color: Color(0xFF78716C),
@@ -2443,6 +2490,12 @@ class _TenantContractDetailScreenState
                   decoration: InputDecoration(
                     hintText: 'Nhập giá phòng...',
                     suffixText: 'đ',
+                    helperText: 'Giá gốc: ${_formatCurrency(contract.roomPrice)}',
+                    helperStyle: const TextStyle(
+                      color: Color(0xFFEAB308),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
@@ -2458,8 +2511,8 @@ class _TenantContractDetailScreenState
                 ),
                 const SizedBox(height: 20),
 
-                // Services Price Inputs
-                if (servicesList.isNotEmpty) ...[
+                // Services Price Inputs (only non-metered services)
+                if (serviceControllers.isNotEmpty) ...[
                   const Text(
                     'ĐỀ XUẤT GIÁ CÁC DỊCH VỤ',
                     style: TextStyle(
@@ -2470,33 +2523,42 @@ class _TenantContractDetailScreenState
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...servicesList.map((svc) {
-                    final sId = svc['id'] as int;
-                    final isMetered = serviceMetered[sId] ?? false;
+                  ...serviceControllers.entries.map((entry) {
+                    final sId = entry.key;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Row(
                         children: [
                           Expanded(
                             flex: 3,
-                            child: Text(
-                              serviceNames[sId] ?? '',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: isMetered
-                                    ? const Color(0xFF78716C)
-                                    : const Color(0xFF1C1917),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  serviceNames[sId] ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1C1917),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Gốc: ${_formatCurrency(serviceOriginalPrices[sId] ?? 0)} / ${serviceUnits[sId]}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF78716C),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             flex: 2,
                             child: TextField(
-                              controller: serviceControllers[sId],
+                              controller: entry.value,
                               keyboardType: TextInputType.number,
-                              enabled: !isMetered,
                               decoration: InputDecoration(
                                 suffixText: 'đ',
                                 contentPadding: const EdgeInsets.symmetric(
@@ -2509,19 +2571,11 @@ class _TenantContractDetailScreenState
                                     color: Color(0xFFE4E2D7),
                                   ),
                                 ),
-                                disabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFF5F5F4),
-                                  ),
-                                ),
                               ),
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isMetered
-                                    ? const Color(0xFF78716C)
-                                    : const Color(0xFF1C1917),
-                              ),
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF1C1917),
+                                  fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
@@ -2543,11 +2597,42 @@ class _TenantContractDetailScreenState
                       );
                       return;
                     }
+                    if (roomPrice >= contract.roomPrice) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Giá đề xuất phải nhỏ hơn giá phòng gốc (${_formatCurrency(contract.roomPrice)})',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
 
                     final proposedServices = <Map<String, dynamic>>[];
                     for (var entry in serviceControllers.entries) {
                       final sId = entry.key;
                       final price = double.tryParse(entry.value.text) ?? 0.0;
+                      if (price < 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Giá dịch vụ không được âm'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      final originalPrice = serviceOriginalPrices[sId] ?? 0.0;
+                      if (price > originalPrice) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Giá đề xuất cho dịch vụ "${serviceNames[sId]}" không được lớn hơn giá gốc (${_formatCurrency(originalPrice)})',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
                       proposedServices.add({'service_id': sId, 'price': price});
                     }
 

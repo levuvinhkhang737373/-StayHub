@@ -729,7 +729,19 @@ export function ContractsScreen() {
                           {contract.negotiation_status === 1 && (
                             <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">
                               <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                              Thương lượng
+                              Chờ duyệt TL
+                            </span>
+                          )}
+                          {contract.negotiation_status === 2 && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              TL đã duyệt
+                            </span>
+                          )}
+                          {contract.negotiation_status === 3 && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                              TL bị từ chối
                             </span>
                           )}
                         </div>

@@ -12,9 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('contracts', function (Blueprint $table) {
-            $table->tinyInteger('negotiation_status')->default(0)->comment('0: Không thương lượng, 1: Đang thương lượng, 2: Đã đồng ý, 3: Đã từ chối')->after('status');
-            $table->decimal('proposed_room_price', 15, 2)->nullable()->after('negotiation_status');
-            $table->json('proposed_services')->nullable()->after('proposed_room_price');
+            if (!Schema::hasColumn('contracts', 'negotiation_status')) {
+                $table->tinyInteger('negotiation_status')->default(0)->comment('0: Không thương lượng, 1: Đang thương lượng, 2: Đã đồng ý, 3: Đã từ chối')->after('status');
+            }
+            if (!Schema::hasColumn('contracts', 'proposed_room_price')) {
+                $table->decimal('proposed_room_price', 15, 2)->nullable()->after('negotiation_status');
+            }
+            if (!Schema::hasColumn('contracts', 'proposed_services')) {
+                $table->json('proposed_services')->nullable()->after('proposed_room_price');
+            }
         });
     }
 

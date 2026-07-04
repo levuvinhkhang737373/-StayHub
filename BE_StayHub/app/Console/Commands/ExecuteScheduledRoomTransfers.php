@@ -193,6 +193,23 @@ class ExecuteScheduledRoomTransfers extends Command
             ])->save());
 
             $notifications = $this->createTransferExecutedNotifications($movements->fresh(), $sourceContract, $destinationContract, $toRoom, $admin);
+
+            if ($remainingContract) {
+                $remainingNotifications = $remainingRows->map(fn ($row): Notification => Notification::query()->create([
+                    'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => Notification::TARGET_TYPE_TENANT,
+                    'status' => Notification::STATUS_SENT,
+                    'building_id' => $sourceContract->room?->building_id,
+                    'room_id' => $sourceContract->room_id,
+                    'tenant_id' => $row->tenant_id,
+                    'title' => 'Hợp đồng mới được tạo',
+                    'content' => "Hợp đồng mới mã {$remainingContract->contract_code} cho phòng {$sourceContract->room?->room_number} đã được tạo và đang chờ bạn ký.",
+                    'published_at' => now(),
+                    'created_by' => $admin->id,
+                ]));
+                $notifications = $notifications->merge($remainingNotifications);
+            }
+
             DB::afterCommit(fn (): mixed => $this->broadcastNotifications($notifications));
 
             return [

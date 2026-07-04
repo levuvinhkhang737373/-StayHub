@@ -272,22 +272,25 @@ class _MessageBubble extends StatelessWidget {
           border: isMine ? null : Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1)),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              message.body,
-              style: TextStyle(
-                color: isMine ? Colors.white : const Color(0xFF24170D),
-                fontWeight: FontWeight.bold,
-                height: 1.35,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                message.body,
+                style: TextStyle(
+                  color: isMine ? Colors.white : const Color(0xFF24170D),
+                  fontWeight: FontWeight.bold,
+                  height: 1.35,
+                ),
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              message.optimistic ? 'Đang gửi...' : (message.createdAt ?? ''),
+              message.optimistic ? 'Đang gửi...' : _formatMessageTime(message.createdAt),
               style: TextStyle(
-                fontSize: 10,
-                color: isMine ? Colors.white70 : const Color(0xFF8B5E34).withOpacity(0.7),
+                fontSize: 9,
+                color: isMine ? Colors.white60 : const Color(0xFF8B5E34).withOpacity(0.6),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -295,5 +298,60 @@ class _MessageBubble extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+String _formatMessageTime(String? dateTimeStr) {
+  if (dateTimeStr == null || dateTimeStr.isEmpty) return '';
+  try {
+    DateTime dt;
+    if (dateTimeStr.contains('T')) {
+      dt = DateTime.parse(dateTimeStr).toLocal();
+    } else {
+      final parts = dateTimeStr.split(' ');
+      if (parts.length == 2) {
+        final dateParts = parts[0].split('-');
+        final timeParts = parts[1].split(':');
+        if (dateParts.length == 3 && timeParts.length >= 2) {
+          dt = DateTime(
+            int.parse(dateParts[0]),
+            int.parse(dateParts[1]),
+            int.parse(dateParts[2]),
+            int.parse(timeParts[0]),
+            int.parse(timeParts[1]),
+            timeParts.length == 3 ? int.parse(timeParts[2].split('.')[0]) : 0,
+          );
+        } else {
+          dt = DateTime.parse(dateTimeStr).toLocal();
+        }
+      } else {
+        dt = DateTime.parse(dateTimeStr).toLocal();
+      }
+    }
+    
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final messageDate = DateTime(dt.year, dt.month, dt.day);
+
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+
+    if (messageDate == today) {
+      return '$hour:$minute';
+    } else if (messageDate == yesterday) {
+      return 'Hôm qua $hour:$minute';
+    } else if (dt.year == now.year) {
+      final day = dt.day.toString().padLeft(2, '0');
+      final month = dt.month.toString().padLeft(2, '0');
+      return '$day/$month $hour:$minute';
+    } else {
+      final day = dt.day.toString().padLeft(2, '0');
+      final month = dt.month.toString().padLeft(2, '0');
+      final year = dt.year;
+      return '$day/$month/$year $hour:$minute';
+    }
+  } catch (e) {
+    return dateTimeStr;
   }
 }

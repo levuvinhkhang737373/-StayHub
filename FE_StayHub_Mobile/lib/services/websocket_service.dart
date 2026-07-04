@@ -89,6 +89,13 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     await _client!.connect();
   }
 
+  /// Forces a complete clean reconnection to the WebSocket server
+  Future<void> forceReconnect() async {
+    debugPrint('WS: Forcing clean reconnect...');
+    _isConnected = false;
+    await connect();
+  }
+
   /// Subscribe to private channel 'admin-maintenance' (public registration)
   void subscribeToAdminMaintenance(VoidCallback onMaintenanceCreated) {
     _onAdminMaintenanceCallback = onMaintenanceCreated;
@@ -774,7 +781,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         _debugStreamController.add(
           'Ứng dụng hoạt động trở lại, đang kết nối lại WebSocket...',
         );
-        connect();
+        forceReconnect();
       }
     }
   }

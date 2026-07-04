@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, X, Check, AlertTriangle, RefreshCw } from 'lucide-react'
+import { FileText, X, Check, AlertTriangle, RefreshCw, ArrowRight, TrendingDown, CheckCircle2, XCircle, Handshake } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ConfirmModal } from '../../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../../shared/lib/hooks/use-confirm-modal'
@@ -159,7 +159,7 @@ export function ContractDetailModal({
 
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
-      showAlert('Thông báo', 'Vui lòng cho phép trình duyệt mở popup để xuất PDF.', 'warning')
+      alert('Vui lòng cho phép trình duyệt mở popup để xuất PDF.')
       return
     }
 
@@ -409,79 +409,216 @@ export function ContractDetailModal({
             </div>
           )}
 
-          {contract.negotiation_status === 1 && (
-            <div className="rounded-3xl border border-amber-200 bg-amber-50/50 p-6 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-                  <AlertTriangle className="h-6 w-6" />
+          {/* ── Negotiation Section ── */}
+          {contract.negotiation_status != null && contract.negotiation_status > 0 && (
+            <section
+              className={`rounded-3xl border p-5 shadow-sm transition-all ${
+                contract.negotiation_status === 1
+                  ? 'border-amber-200/80 bg-gradient-to-br from-amber-50/80 to-orange-50/40'
+                  : contract.negotiation_status === 2
+                    ? 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 to-teal-50/30'
+                    : 'border-rose-200/80 bg-gradient-to-br from-rose-50/60 to-red-50/30'
+              }`}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                    contract.negotiation_status === 1
+                      ? 'bg-amber-100 text-amber-600'
+                      : contract.negotiation_status === 2
+                        ? 'bg-emerald-100 text-emerald-600'
+                        : 'bg-rose-100 text-rose-600'
+                  }`}
+                >
+                  {contract.negotiation_status === 1 && <Handshake className="h-5 w-5" />}
+                  {contract.negotiation_status === 2 && <CheckCircle2 className="h-5 w-5" />}
+                  {contract.negotiation_status === 3 && <XCircle className="h-5 w-5" />}
                 </div>
-                <div className="flex-1 space-y-4">
-                  <div>
-                    <h3 className="text-lg font-black text-[#24170d]">Yêu cầu thương lượng giá từ khách thuê</h3>
-                    <p className="text-sm text-stone-600">Khách thuê đã đề xuất mức giá mới cho hợp đồng này. Vui lòng xem xét và duyệt:</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-[#24170d]">
+                      {contract.negotiation_status === 1 && 'Yêu cầu thương lượng giá'}
+                      {contract.negotiation_status === 2 && 'Thương lượng đã được duyệt'}
+                      {contract.negotiation_status === 3 && 'Thương lượng đã bị từ chối'}
+                    </h3>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                        contract.negotiation_status === 1
+                          ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                          : contract.negotiation_status === 2
+                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                            : 'bg-rose-100 text-rose-700 border border-rose-200'
+                      }`}
+                    >
+                      {contract.negotiation_status === 1 && (
+                        <><span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" /> Chờ duyệt</>
+                      )}
+                      {contract.negotiation_status === 2 && (
+                        <><Check className="h-3 w-3" /> Đã duyệt</>
+                      )}
+                      {contract.negotiation_status === 3 && (
+                        <><X className="h-3 w-3" /> Đã từ chối</>
+                      )}
+                    </span>
                   </div>
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    {contract.negotiation_status === 1 && 'Khách thuê đã gửi đề xuất mức giá mới. Vui lòng xem xét chi tiết bên dưới.'}
+                    {contract.negotiation_status === 2 && 'Giá mới đã được áp dụng vào hợp đồng.'}
+                    {contract.negotiation_status === 3 && 'Đề xuất giá đã bị từ chối. Khách thuê có thể gửi lại đề xuất khác.'}
+                  </p>
+                </div>
+              </div>
 
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white p-4">
-                      <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Giá thuê phòng</p>
-                      <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-sm text-stone-400 line-through">{formatCurrency(Number(contract.room_price || 0))}</span>
-                        <span className="text-lg font-black text-emerald-600">{formatCurrency(Number(contract.proposed_room_price || 0))}</span>
-                      </div>
-                    </div>
+              {/* Price Comparison Table */}
+              <div className="rounded-2xl border border-[#3d2a18]/8 bg-white overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#3d2a18]/8 bg-[#faf6ef]">
+                      <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Hạng mục</th>
+                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Giá hiện tại</th>
+                      <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70"></th>
+                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Giá đề xuất</th>
+                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Chênh lệch</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#3d2a18]/6">
+                    {/* Room Price Row */}
+                    {(() => {
+                      const current = Number(contract.room_price || 0)
+                      const proposed = Number(contract.proposed_room_price || 0)
+                      const diff = proposed - current
+                      const pct = current > 0 ? ((diff / current) * 100).toFixed(1) : '—'
+                      const changed = diff !== 0
+                      return (
+                        <tr className={`${changed ? 'bg-amber-50/30' : ''}`}>
+                          <td className="px-4 py-3 font-black text-[#24170d]">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-[#24170d] text-[10px] font-black text-[#f3c56b]">P</span>
+                              Giá thuê phòng
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-stone-600 tabular-nums">{formatCurrency(current)}</td>
+                          <td className="px-2 py-3 text-center text-stone-300">
+                            <ArrowRight className="inline h-4 w-4" />
+                          </td>
+                          <td className={`px-4 py-3 text-right font-black tabular-nums ${changed ? 'text-emerald-600' : 'text-stone-600'}`}>
+                            {formatCurrency(proposed)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {changed ? (
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-black ${diff < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                <TrendingDown className={`h-3 w-3 ${diff > 0 ? 'rotate-180' : ''}`} />
+                                {diff > 0 ? '+' : ''}{pct}%
+                              </span>
+                            ) : (
+                              <span className="text-xs font-bold text-stone-400">Không đổi</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })()}
 
-                    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white p-4">
-                      <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Đề xuất giá dịch vụ</p>
-                      <div className="mt-2 space-y-1.5">
-                        {contract.proposed_services && contract.proposed_services.length > 0 ? (
-                          contract.proposed_services.map((proposed) => {
-                            const currentSvc = contract.room_services?.find(
-                              (s) => s.id === proposed.service_id
-                            )
-                            return (
-                              <div key={proposed.service_id} className="flex justify-between items-center text-sm font-bold">
-                                <span className="text-stone-700">{currentSvc?.name || `Dịch vụ #${proposed.service_id}`}:</span>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-stone-400 line-through">
-                                    {formatCurrency(Number(currentSvc?.price || 0))}
-                                  </span>
-                                  <span className="text-stone-900 font-black text-emerald-600">
-                                    {formatCurrency(Number(proposed.price || 0))}
-                                  </span>
-                                </div>
+                    {/* Service Price Rows */}
+                    {contract.proposed_services && contract.proposed_services.length > 0 && (
+                      contract.proposed_services.map((proposed) => {
+                        const currentSvc = contract.room_services?.find(s => s.id === proposed.service_id)
+                        const currentPrice = Number(currentSvc?.price || 0)
+                        const proposedPrice = Number(proposed.price || 0)
+                        const diff = proposedPrice - currentPrice
+                        const pct = currentPrice > 0 ? ((diff / currentPrice) * 100).toFixed(1) : '—'
+                        const changed = diff !== 0
+                        const isMetered = currentSvc?.charge_method === 1
+
+                        return (
+                          <tr key={proposed.service_id} className={`${changed ? 'bg-amber-50/30' : ''}`}>
+                            <td className="px-4 py-3 font-bold text-[#24170d]">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black ${isMetered ? 'bg-stone-200 text-stone-500' : 'bg-[#0f766e]/15 text-[#0f766e]'}`}>
+                                  {isMetered ? '⚡' : 'DV'}
+                                </span>
+                                <span>{currentSvc?.name || `Dịch vụ #${proposed.service_id}`}</span>
+                                {isMetered && (
+                                  <span className="text-[10px] font-bold text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">Theo đồng hồ</span>
+                                )}
                               </div>
-                            )
-                          })
-                        ) : (
-                          <span className="text-stone-500 text-xs italic">Không đề xuất thay đổi giá dịch vụ.</span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-stone-600 tabular-nums">{formatCurrency(currentPrice)}</td>
+                            <td className="px-2 py-3 text-center text-stone-300">
+                              <ArrowRight className="inline h-4 w-4" />
+                            </td>
+                            <td className={`px-4 py-3 text-right font-black tabular-nums ${changed ? 'text-emerald-600' : 'text-stone-600'}`}>
+                              {formatCurrency(proposedPrice)}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {changed ? (
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-black ${diff < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                  <TrendingDown className={`h-3 w-3 ${diff > 0 ? 'rotate-180' : ''}`} />
+                                  {diff > 0 ? '+' : ''}{pct}%
+                                </span>
+                              ) : (
+                                <span className="text-xs font-bold text-stone-400">Không đổi</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Summary footer */}
+                {(() => {
+                  const currentTotal = Number(contract.room_price || 0) +
+                    (contract.proposed_services?.reduce((sum, ps) => {
+                      const cur = contract.room_services?.find(s => s.id === ps.service_id)
+                      return sum + Number(cur?.price || 0)
+                    }, 0) || 0)
+                  const proposedTotal = Number(contract.proposed_room_price || 0) +
+                    (contract.proposed_services?.reduce((sum, ps) => sum + Number(ps.price || 0), 0) || 0)
+                  const totalDiff = proposedTotal - currentTotal
+                  return (
+                    <div className="border-t border-[#3d2a18]/10 bg-[#faf6ef] px-4 py-3 flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-[#8b5e34]/70">Tổng ước tính (phòng + dịch vụ)</span>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm font-bold text-stone-500 line-through tabular-nums">{formatCurrency(currentTotal)}</span>
+                        <ArrowRight className="h-4 w-4 text-stone-300" />
+                        <span className="text-base font-black text-[#24170d] tabular-nums">{formatCurrency(proposedTotal)}</span>
+                        {totalDiff !== 0 && (
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black ${totalDiff < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                            {totalDiff > 0 ? '+' : ''}{formatCurrency(totalDiff)}
+                          </span>
                         )}
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      disabled={isResponding}
-                      onClick={() => handleNegotiation('approve')}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                    >
-                      {isResponding ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                      Đồng ý
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isResponding}
-                      onClick={() => handleNegotiation('reject')}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-rose-600 px-5 text-sm font-black text-white transition hover:bg-rose-700 disabled:opacity-50"
-                    >
-                      <X className="h-4 w-4" />
-                      Từ chối
-                    </button>
-                  </div>
-                </div>
+                  )
+                })()}
               </div>
-            </div>
+
+              {/* Action Buttons (only for pending) */}
+              {contract.negotiation_status === 1 && (
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={isResponding}
+                    onClick={() => handleNegotiation('approve')}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+                  >
+                    {isResponding ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    Đồng ý thương lượng
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isResponding}
+                    onClick={() => handleNegotiation('reject')}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-6 text-sm font-black text-rose-600 shadow-sm transition hover:bg-rose-50 hover:border-rose-300 active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <X className="h-4 w-4" />
+                    Từ chối
+                  </button>
+                </div>
+              )}
+            </section>
           )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
