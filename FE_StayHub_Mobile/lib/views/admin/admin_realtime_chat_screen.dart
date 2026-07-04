@@ -127,11 +127,28 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
       appBar: AppBar(
-        title: Text(
-          active != null
-              ? (active.roomNumber != null ? 'Phòng ${active.roomNumber} - ${active.tenantName}' : active.tenantName ?? 'Đoạn chat')
-              : 'Đoạn chat',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        leading: const BackButton(),
+        title: Builder(
+          builder: (context) => GestureDetector(
+            onTap: () => Scaffold.of(context).openDrawer(),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    active != null
+                        ? (active.roomNumber != null ? 'Phòng ${active.roomNumber} - ${active.tenantName}' : active.tenantName ?? 'Đoạn chat')
+                        : 'Đoạn chat',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.arrow_drop_down, color: Colors.white, size: 20),
+              ],
+            ),
+          ),
         ),
         backgroundColor: const Color(0xFF1C1917),
       ),

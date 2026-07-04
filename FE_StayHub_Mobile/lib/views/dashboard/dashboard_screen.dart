@@ -787,12 +787,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 48),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
