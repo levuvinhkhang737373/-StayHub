@@ -6,6 +6,7 @@ use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\AdminAuthResource;
 use App\Models\Admin;
+use App\Models\Building;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -396,7 +397,19 @@ class AuthController extends Controller
 
     private function authProfile(Admin $admin): Admin
     {
-        $admin->loadMissing('managedBuildings:id,manager_admin_id,name,slug,status');
+        if ($admin->role === Admin::ROLE_SUPER_ADMIN) {
+            $buildings = Building::query()
+                ->select('id', 'manager_admin_id', 'name', 'slug', 'gender_policy', 'status')
+                ->orderBy('name')
+                ->get();
+
+            $admin->setRelation('managedBuildings', $buildings);
+            $admin->setAttribute('managed_buildings_count', $buildings->count());
+
+            return $admin;
+        }
+
+        $admin->loadMissing('managedBuildings:id,manager_admin_id,name,slug,gender_policy,status');
         $admin->loadCount('managedBuildings');
 
         return $admin;

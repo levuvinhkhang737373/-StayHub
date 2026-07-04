@@ -418,7 +418,7 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: const Color(0xFFEAB308),
-        unselectedItemColor: Colors.white.withOpacity(0.6),
+        unselectedItemColor: Colors.white.withValues(alpha: 0.6),
         backgroundColor: const Color(0xFF1C1917),
         onTap: (index) {
           setState(() {

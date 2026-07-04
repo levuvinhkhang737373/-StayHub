@@ -51,15 +51,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           },
         );
 
-        final managedBuildingIds = context.read<AuthController>().currentAdmin?.managedBuildingIds ?? const <int>[];
-        wsService.subscribeToAdminBuildingContractExpirations(
-          managedBuildingIds,
-          onContractExpired: (contract) {
-            if (!mounted) return;
-            context.read<ContractController>().fetchContracts('admin');
-            context.read<NotificationController>().fetchNotifications(isAdmin: true);
-          },
-        );
+        _subscribeAdminBuildingContractExpirations(wsService);
       }
       
       // Lắng nghe thông điệp debug để hiện SnackBar lên màn hình (chỉ hiển thị khi có lỗi)
@@ -164,6 +156,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  void _subscribeAdminBuildingContractExpirations(
+    WebSocketService wsService,
+  ) {
+    final admin = context.read<AuthController>().currentAdmin;
+    if (admin == null) return;
+
+    wsService.subscribeToAdminBuildingContractExpirations(
+      admin.managedBuildingIds,
+      onContractExpired: (contract) {
+        if (!mounted) return;
+        context.read<ContractController>().fetchContracts('admin');
+        context.read<NotificationController>().fetchNotifications(isAdmin: true);
+      },
+    );
+  }
+
   bool _isTransferDateChangedNotification(Map<String, dynamic>? data) {
     if (data == null) return false;
 
@@ -204,14 +212,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _debugSubscription?.cancel();
     _wsAdminEventsSubscription?.cancel();
     super.dispose();
-  }
-
-  Future<void> _handleLogout() async {
-    context.read<WebSocketService>().disconnect();
-    final success = await context.read<AuthController>().logout();
-    if (success && mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
   }
 
   Widget _buildNotificationsTab(List<Map<String, dynamic>> items) {
@@ -336,7 +336,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final roomController = context.watch<RoomController>();
     final invoiceController = context.watch<InvoiceController>();
     final contractController = context.watch<ContractController>();
-    final maintenanceController = context.watch<MaintenanceController>();
     final notificationController = context.watch<NotificationController>();
     
     final admin = authController.currentAdmin;
@@ -680,7 +679,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: const Color(0xFFEAB308),
-        unselectedItemColor: Colors.white.withOpacity(0.6),
+        unselectedItemColor: Colors.white.withValues(alpha: 0.6),
         backgroundColor: const Color(0xFF1C1917),
         onTap: (index) {
           setState(() {
