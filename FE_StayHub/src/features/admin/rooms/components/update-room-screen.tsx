@@ -48,7 +48,7 @@ export function UpdateRoomScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [areaError, setAreaError] = useState<string | null>(null);
   const [floorError, setFloorError] = useState<string | null>(null);
-  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal();
+  const { confirmState, isConfirmLoading, showConfirm, closeConfirm } = useConfirmModal();
 
   const validateFloor = (buildingId: string, floorVal: string) => {
     if (!buildingId) {

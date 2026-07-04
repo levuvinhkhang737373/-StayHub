@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  ArrowLeft,
   Banknote,
   Building2,
   Loader2,
@@ -15,6 +13,7 @@ import {
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
+import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { fetchBuilding } from '../../rooms/services/rooms.service'
 import type { BuildingResource } from '../../rooms/types/rooms.model'
@@ -35,10 +34,14 @@ const MONTH_OPTIONS = Array.from({ length: 12 }).map((_, index) => ({
 }))
 
 export function FinancialsScreen() {
+  const { session } = useAdminSession()
+  const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
+  const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
+
   const [year, setYear] = useState<number>(CURRENT_YEAR)
   const [monthFrom, setMonthFrom] = useState<number>(1)
   const [monthTo, setMonthTo] = useState<number>(CURRENT_MONTH)
-  const [buildingId, setBuildingId] = useState<string | number>('')
+  const [buildingId, setBuildingId] = useState<string | number>(isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : '')
 
   const [buildings, setBuildings] = useState<BuildingResource[]>([])
   const [isBuildingsLoading, setIsBuildingsLoading] = useState(true)
@@ -55,7 +58,11 @@ export function FinancialsScreen() {
       setIsBuildingsLoading(true)
       try {
         const response = await fetchBuilding()
-        setBuildings(response.result || [])
+        const list = response.result || []
+        setBuildings(list)
+        if (!isSuperAdmin && !buildingId && list[0]?.id) {
+          setBuildingId(list[0].id)
+        }
       } catch (error) {
         console.error('Không thể tải danh sách tòa nhà', error)
       } finally {
@@ -63,7 +70,7 @@ export function FinancialsScreen() {
       }
     }
     void loadBuildings()
-  }, [])
+  }, [isSuperAdmin, buildingId])
 
   // 2. Tải dữ liệu báo cáo
   const loadReport = useCallback(async () => {
@@ -92,10 +99,10 @@ export function FinancialsScreen() {
     void loadReport()
   }, [loadReport])
 
-  const buildingOptions = useMemo(() => [
+  const buildingOptions = useMemo(() => isSuperAdmin ? [
     { value: '', label: 'Tất cả tòa nhà', tone: 'default' as const },
     ...buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const })),
-  ], [buildings])
+  ] : buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const })), [buildings, isSuperAdmin])
 
   const handleExportExcel = () => {
     if (!reportData) return

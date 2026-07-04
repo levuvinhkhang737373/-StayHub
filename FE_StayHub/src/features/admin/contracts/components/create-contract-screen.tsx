@@ -753,7 +753,12 @@ export function CreateContractScreen() {
                   key={index}
                   index={index}
                   row={tenant}
-                  options={tenantOptions}
+                  options={tenantOptions.filter(
+                    (opt) =>
+                      !form.tenants.some(
+                        (t, idx) => idx !== index && String(t.tenant_id) === String(opt.value)
+                      )
+                  )}
                   error={errors[`tenants.${index}`]}
                   canRemove={form.tenants.length > 1}
                   onChange={(patch) => updateTenantRow(index, patch)}
@@ -812,7 +817,12 @@ export function CreateContractScreen() {
                   key={index}
                   index={index}
                   row={vehicle}
-                  options={vehicleOptions}
+                  options={vehicleOptions.filter(
+                    (opt) =>
+                      !form.vehicles.some(
+                        (v, idx) => idx !== index && String(v.vehicle_id) === String(opt.value)
+                      )
+                  )}
                   error={errors[`vehicles.${index}`]}
                   onChange={(patch) => updateVehicleRow(index, patch)}
                   onRemove={() => {

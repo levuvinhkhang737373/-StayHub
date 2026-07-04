@@ -154,7 +154,7 @@ export function InvoicesScreen() {
   }, [successMessage, errorMessage])
 
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
-  const filterBuildingOptions = useMemo(() => [{ value: '', label: isSuperAdmin ? 'Tất cả tòa nhà' : 'Tòa nhà được phân quyền', tone: 'default' as const }, ...buildingOptions], [buildingOptions, isSuperAdmin])
+  const filterBuildingOptions = useMemo(() => isSuperAdmin ? [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions] : buildingOptions, [buildingOptions, isSuperAdmin])
   const roomOptions = useMemo(
     () => rooms.map((room) => ({ value: room.id, label: `Phòng ${room.room_number || room.id}`, tone: 'default' as const })),
     [rooms]

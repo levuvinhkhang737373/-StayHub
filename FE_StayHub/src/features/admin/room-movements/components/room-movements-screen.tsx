@@ -7,6 +7,7 @@ import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
 import type { AdminRoomResource, BuildingResource } from '../../rooms/types/rooms.model'
 import { fetchAdminRoomMovementDetail, fetchAdminRoomMovements } from '../services/room-movements.service'
@@ -46,6 +47,10 @@ const tableHeadCellClass = 'whitespace-nowrap px-5 py-4 align-middle'
 const tableBodyCellClass = 'whitespace-nowrap px-5 py-4 align-middle'
 
 export function RoomMovementsScreen() {
+  const { session } = useAdminSession()
+  const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
+  const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
+
   const [searchParams, setSearchParams] = useSearchParams()
   const tenantIdFilter = searchParams.get('tenant_id') || ''
   const contractIdFilter = searchParams.get('contract_id') || ''
@@ -54,7 +59,7 @@ export function RoomMovementsScreen() {
   const [keyword, setKeyword] = useState(keywordFilter)
   const [movementType, setMovementType] = useState<string | number>('')
   const [movementStatus, setMovementStatus] = useState<string | number>('')
-  const [buildingId, setBuildingId] = useState<string | number>('')
+  const [buildingId, setBuildingId] = useState<string | number>(isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : '')
   const [roomId, setRoomId] = useState<string | number>('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -132,8 +137,12 @@ export function RoomMovementsScreen() {
           fetchAdminRooms({ per_page: 1000 }),
         ])
 
-        setBuildings(buildingResponse.result || [])
+        const list = buildingResponse.result || []
+        setBuildings(list)
         setRooms(roomResponse.result || [])
+        if (!isSuperAdmin && !buildingId && list[0]?.id) {
+          setBuildingId(list[0].id)
+        }
       } catch (error) {
         console.error('Không thể tải bộ lọc lịch sử phòng', error)
       } finally {
@@ -142,7 +151,7 @@ export function RoomMovementsScreen() {
     }
 
     void loadOptions()
-  }, [])
+  }, [isSuperAdmin, buildingId])
 
   useEffect(() => {
     if (!isDetailOpen) return
@@ -155,10 +164,10 @@ export function RoomMovementsScreen() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDetailOpen])
 
-  const buildingOptions = useMemo(() => [
+  const buildingOptions = useMemo(() => isSuperAdmin ? [
     { value: '', label: 'Tất cả tòa nhà', tone: 'default' as const },
     ...buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })),
-  ], [buildings])
+  ] : buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings, isSuperAdmin])
 
   const roomOptions = useMemo(() => [
     { value: '', label: 'Tất cả phòng', tone: 'default' as const },
@@ -202,7 +211,7 @@ export function RoomMovementsScreen() {
     setKeyword('')
     setMovementType('')
     setMovementStatus('')
-    setBuildingId('')
+    setBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
     setRoomId('')
     setDateFrom('')
     setDateTo('')

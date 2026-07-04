@@ -65,7 +65,7 @@ export function CreateSystemUserScreen() {
   const [isLoading, setIsLoading] = useState(isEditMode)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
+  const { confirmState, isConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   useEffect(() => {
     if (!isEditMode) return
