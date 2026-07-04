@@ -3,6 +3,7 @@ import type { ElementType, ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Building2, ChevronRight, ImagePlus, MapPin, Plus, Save, Search, Settings, Star, Trash2, X, Zap } from "lucide-react";
 import { isSuperAdminRole, useAdminSession } from "../../auth/hooks/use-admin-session";
+import { RegionModal } from "./region-modal";
 import { createAdminService, fetchAdminServices } from "../../services/services/services.service";
 import type { AdminServiceResource } from "../../services/types/service-api.model";
 import { createAdminSetting, fetchAdminSettings } from "../../settings/services/settings.service";
@@ -115,6 +116,62 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const [form, setForm] = useState(createDefaultBuildingForm);
     const [viewingImageSrc, setViewingImageSrc] = useState<string | null>(null);
     const [isCreateManagerModalOpen, setIsCreateManagerModalOpen] = useState(false);
+    const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
+    const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
+    const [isRegionFormLoading, _setIsRegionFormLoading] = useState(false);
+    const [regionForm, setRegionForm] = useState({
+        parent_id: "",
+        code: "",
+        name: "",
+        description: "",
+        is_active: true,
+    });
+
+    const reloadRegions = async () => {
+        try {
+            const res = await fetchAdminRegions({ per_page: 100 });
+            setRegions(getResourceList(res.result));
+        } catch (e) {
+            console.error("Lỗi tải lại danh sách khu vực:", e);
+        }
+    };
+
+    const openCreateRegionModal = () => {
+        setEditingRegionId(null);
+        setRegionForm({
+            parent_id: "",
+            code: "",
+            name: "",
+            description: "",
+            is_active: true,
+        });
+        setIsRegionModalOpen(true);
+    };
+
+    const handleCancelRegionModal = () => {
+        setIsRegionModalOpen(false);
+        setEditingRegionId(null);
+        setRegionForm({
+            parent_id: "",
+            code: "",
+            name: "",
+            description: "",
+            is_active: true,
+        });
+    };
+
+    const handleRegionSubmitSuccess = async () => {
+        setIsRegionModalOpen(false);
+        setEditingRegionId(null);
+        setRegionForm({
+            parent_id: "",
+            code: "",
+            name: "",
+            description: "",
+            is_active: true,
+        });
+        await reloadRegions();
+    };
 
     const isEditMode = typeof resolvedBuildingId === "number";
     const activeRegions = useMemo(() => regions.filter((region) => region.status), [regions]);
@@ -452,6 +509,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                                 onToggleOpen={() => setIsRegionPickerOpen((current) => !current)}
                                 onToggleRegion={toggleRegionExpansion}
                                 onSelect={selectRegion}
+                                onCreateRegion={openCreateRegionModal}
                             />
                             <div className="lg:col-span-2">
                                 <label className={labelClass}>Địa chỉ</label>
@@ -536,6 +594,18 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                     }}
                 />
             )}
+
+            <RegionModal
+                isOpen={isRegionModalOpen}
+                onClose={handleCancelRegionModal}
+                regions={regions}
+                editingRegionId={editingRegionId}
+                form={regionForm}
+                setForm={setRegionForm}
+                onCancel={handleCancelRegionModal}
+                onSubmitSuccess={handleRegionSubmitSuccess}
+                isFormLoading={isRegionFormLoading}
+            />
         </div>
     );
 }
@@ -554,6 +624,7 @@ function RegionTreePicker({
     onToggleOpen,
     onToggleRegion,
     onSelect,
+    onCreateRegion,
 }: {
     regions: AdminRegionResource[];
     rootRegions: AdminRegionResource[];
@@ -568,6 +639,7 @@ function RegionTreePicker({
     onToggleOpen: () => void;
     onToggleRegion: (regionId: number) => void;
     onSelect: (region: AdminRegionResource) => void;
+    onCreateRegion?: () => void;
 }) {
     const isSearching = keyword.trim() !== "";
     const renderRegionNode = (region: AdminRegionResource, depth = 0): ReactNode => {
@@ -576,6 +648,7 @@ function RegionTreePicker({
             .sort((first, second) => first.sort_order - second.sort_order || first.name.localeCompare(second.name));
         const isExpanded = isSearching || expandedRegionIds.includes(region.id);
         const isSelected = Number(selectedRegionId) === region.id;
+        const isSelectable = true;
 
         return (
             <div key={region.id} className="space-y-1">
@@ -592,16 +665,28 @@ function RegionTreePicker({
                     </button>
                     <button
                         type="button"
-                        onClick={() => onSelect(region)}
-                        className={`flex min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-sm transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 ${isSelected ? "border-[#f3c56b]/35 bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" : "border-[#3d2a18]/10 bg-[#fffaf1]/80 text-[#6f6254] hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]"}`}
+                        onClick={() => {
+                            if (isSelectable) {
+                                onSelect(region);
+                            } else if (children.length > 0) {
+                                onToggleRegion(region.id);
+                            }
+                        }}
+                        className={`flex min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-sm transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 ${
+                            isSelected 
+                                ? "border-[#f3c56b]/35 bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" 
+                                : isSelectable
+                                    ? "border-[#3d2a18]/10 bg-[#fffaf1]/80 text-[#6f6254] hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]" 
+                                    : "border-[#3d2a18]/10 bg-[#fffaf1]/30 text-gray-400 hover:bg-[#efe2cf]/30 cursor-pointer"
+                        }`}
                         style={{ paddingLeft: 12 + depth * 16 }}
                         aria-pressed={isSelected}
                     >
                         <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <MapPin className={`h-4 w-4 shrink-0 ${isSelected ? "text-[#f3c56b]" : "text-[#a65f16]"}`} />
+                            <MapPin className={`h-4 w-4 shrink-0 ${isSelected ? "text-[#f3c56b]" : isSelectable ? "text-[#a65f16]" : "text-gray-300"}`} />
                             <span className="min-w-0 flex-1 truncate font-black tracking-tight">{region.name}</span>
                         </span>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${isSelected ? "bg-white/15 text-[#fff4df]" : "bg-[#efe2cf]/80 text-[#8b5e34]"}`}>{region.code}</span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${isSelected ? "bg-white/15 text-[#fff4df]" : isSelectable ? "bg-[#efe2cf]/80 text-[#8b5e34]" : "bg-gray-100 text-gray-400"}`}>{region.code}</span>
                     </button>
                 </div>
                 {isExpanded && children.length > 0 && <div className="space-y-1 border-l border-dashed border-[#f3c56b]/55 pl-2">{children.map((child) => renderRegionNode(child, depth + 1))}</div>}
@@ -641,6 +726,21 @@ function RegionTreePicker({
                     <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
                         {rootRegions.length > 0 ? rootRegions.map((region) => renderRegionNode(region)) : <p className="rounded-2xl border border-dashed border-[#3d2a18]/10 bg-white/70 p-4 text-center text-xs font-bold text-[#8b5e34]/65">Không tìm thấy khu vực phù hợp.</p>}
                     </div>
+                    {onCreateRegion && (
+                        <div className="mt-3 pt-3 border-t border-[#3d2a18]/10 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCreateRegion();
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-[#24170d] px-4 py-2 text-xs font-black uppercase tracking-widest text-[#fff4df] hover:bg-stone-900 transition cursor-pointer"
+                            >
+                                <Plus className="h-3.5 w-3.5 text-[#f3c56b]" />
+                                Tạo khu vực
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
             <FieldError message={error} />

@@ -1432,6 +1432,8 @@ class StayHubDemoSeeder extends Seeder
         $roomIds = array_values($rooms);
         $tenantIds = array_values($tenants);
 
+        DB::table('notifications')->whereIn('title', ['Thông báo mở rộng #4', 'Thông báo mở rộng #8'])->delete();
+
         for ($i = 1; $i <= 10; $i++) {
             if ($i === 4 || $i === 8) {
                 continue;
