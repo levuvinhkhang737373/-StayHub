@@ -300,6 +300,24 @@ class ApiService {
   }
 
   /// Get current session cookies and CSRF token to pass to external clients (like WebSocket)
+  Future<void> ensureCsrfTokenForAuth() async {
+    if (!_initialized || kIsWeb) return;
+
+    final uri = Uri.parse(AppConfig.apiOrigin);
+    final cookies = await _cookieJar.loadForRequest(uri);
+    final hasXsrfToken = cookies.any(
+      (cookie) => cookie.name == 'XSRF-TOKEN' && cookie.value.isNotEmpty,
+    );
+
+    if (!hasXsrfToken) {
+      try {
+        await getCsrfCookie();
+      } catch (e) {
+        debugPrint('CSRF Cookie refresh skipped before WebSocket auth: $e');
+      }
+    }
+  }
+
   Future<Map<String, String>> getAuthHeaders() async {
     final Map<String, String> headers = {
       'Accept': 'application/json',

@@ -2,7 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
 class AppConfig {
-  static bool useTunnel = true;
+  static const bool forceLocalServer = bool.fromEnvironment(
+    'STAYHUB_USE_LOCAL_SERVER',
+  );
+  static bool useTunnel = !forceLocalServer;
   static const String tunnelOrigin = 'https://api.stayhub.id.vn';
 
   static String get localOrigin {
@@ -44,6 +47,12 @@ class AppConfig {
 
   // Auto-detect if Cloudflare Tunnel is alive
   static Future<void> checkServerConnection() async {
+    if (forceLocalServer) {
+      useTunnel = false;
+      debugPrint('StayHub Config: Using Local API ($localOrigin)');
+      return;
+    }
+
     final dio = Dio(
       BaseOptions(
         connectTimeout: const Duration(seconds: 3),
@@ -61,10 +70,10 @@ class AppConfig {
       }
     } catch (e) {
       debugPrint(
-        'StayHub Config: Cloudflare Tunnel is unreachable ($e). Falling back to local.',
+        'StayHub Config: Cloudflare Tunnel check failed ($e). Keeping public API for installed app.',
       );
     }
-    useTunnel = false;
-    debugPrint('StayHub Config: Using Local API ($localOrigin)');
+    useTunnel = true;
+    debugPrint('StayHub Config: Using Public API ($tunnelOrigin)');
   }
 }

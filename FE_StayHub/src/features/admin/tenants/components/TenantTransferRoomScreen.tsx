@@ -395,8 +395,8 @@ export function TenantTransferRoomScreen() {
     : !usesOldDepositSettlement
       ? 0
       : destinationRoomHasContract
-      ? availableAfterCosts
-      : Math.max(availableAfterCosts - requiredNewDeposit, 0)
+        ? availableAfterCosts
+        : Math.max(availableAfterCosts - requiredNewDeposit, 0)
   const depositDueAmount = !selectedRoom || destinationRoomHasContract
     ? 0
     : usesOldDepositSettlement
@@ -1038,11 +1038,7 @@ export function TenantTransferRoomScreen() {
 
               <SummaryLine label="Cọc gốc hiện tại" value={formatCurrency(oldDepositBalance)} />
               <SummaryLine label="Cách xử lý cọc cũ" value={usesOldDepositSettlement ? 'Dùng cọc cũ để quyết toán' : 'Giữ nguyên ở HĐ nguồn'} accent={usesOldDepositSettlement} />
-              <div className={cn('rounded-2xl border p-3 text-xs font-bold leading-5', usesOldDepositSettlement ? 'border-[#0f766e]/15 bg-[#0f766e]/6 text-[#0f5f59]' : 'border-[#f3c56b]/40 bg-[#fff7df] text-[#8a4f18]')}>
-                {usesOldDepositSettlement
-                  ? 'Chuyển hết khách trong hợp đồng nguồn: backend dùng cọc cũ để trừ phí/khấu trừ, sau đó chuyển sang cọc phòng mới hoặc hoàn dư.'
-                  : 'Chuyển một phần khách: backend không đem cọc cũ bù cọc mới. Cọc mới và phí/khấu trừ sẽ thu qua settlement QR.'}
-              </div>
+
 
               <div className="flex flex-col gap-2 rounded-2xl border border-[#3d2a18]/8 bg-[#fffaf1]/50 p-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/65">Chi phí phát sinh</p>

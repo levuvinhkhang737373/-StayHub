@@ -9,12 +9,18 @@ import 'api_service.dart';
 class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   PusherChannelsClient? _client;
   StreamSubscription? _statusSubscription;
+  Timer? _reconnectTimer;
 
   // Track active channel subscriptions and event streams
   final Map<String, dynamic> _activeChannels = {};
   final Map<String, dynamic> _eventSubscriptions = {};
 
   bool _isConnected = false;
+  bool _isConnecting = false;
+  bool _manualDisconnect = false;
+  bool _isAppInBackground = false;
+  bool _isDisposed = false;
+  int _reconnectAttempt = 0;
   bool get isConnected => _isConnected;
 
   // Registered subscription callbacks for reconnection/lazy connection
@@ -45,14 +51,23 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Connect to the Laravel Reverb WebSocket server
   Future<void> connect() async {
-    if (_client != null && _isConnected) {
+    if (_isDisposed) return;
+
+    _manualDisconnect = false;
+
+    if (_client != null && (_isConnected || _isConnecting)) {
       debugPrint('WS: Already connected.');
       return;
     }
 
+    _cancelReconnectTimer();
+    _isConnecting = true;
+
     if (_client != null) {
-      await _closeConnectionOnly();
+      await _closeConnectionOnly(cancelReconnect: false);
     }
+
+    _isConnecting = true;
 
     final scheme = AppConfig.reverbPort == 443 ? 'wss' : 'ws';
     final wsUrl = '$scheme://${AppConfig.reverbHost}:${AppConfig.reverbPort}';
@@ -72,28 +87,144 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         debugPrint('WS Connection Error: $exception');
         _debugStreamController.add('Lỗi kết nối WebSocket: $exception');
         _isConnected = false;
+        _isConnecting = false;
         notifyListeners();
-        // Automatically attempt reconnection
-        Future.delayed(const Duration(seconds: 5), () => refresh());
+        _scheduleReconnect(reason: exception.toString());
       },
     );
 
-    _statusSubscription = _client!.onConnectionEstablished.listen((_) {
-      debugPrint('WS Connection Status: Connected');
-      _isConnected = true;
-      _debugStreamController.add('Kết nối WebSocket thành công!');
-      _triggerPendingSubscriptions();
-      notifyListeners();
-    });
+    _statusSubscription = _client!.lifecycleStream.listen(
+      _handleLifecycleState,
+    );
 
-    await _client!.connect();
+    try {
+      await _client!.connect();
+    } catch (e) {
+      debugPrint('WS Connect Error: $e');
+      _debugStreamController.add('Lỗi mở WebSocket: $e');
+      _isConnected = false;
+      _isConnecting = false;
+      notifyListeners();
+      _scheduleReconnect(reason: e.toString());
+    }
   }
 
   /// Forces a complete clean reconnection to the WebSocket server
   Future<void> forceReconnect() async {
     debugPrint('WS: Forcing clean reconnect...');
+    _manualDisconnect = false;
+    _cancelReconnectTimer();
     _isConnected = false;
+    await _closeConnectionOnly(cancelReconnect: false);
     await connect();
+  }
+
+  void _ensureConnected() {
+    if (_isDisposed || _manualDisconnect || _isAppInBackground) return;
+    if (_isConnected || _isConnecting) return;
+
+    unawaited(connect());
+  }
+
+  void _handleLifecycleState(PusherChannelsClientLifeCycleState state) {
+    debugPrint('WS Lifecycle: $state');
+
+    if (state == PusherChannelsClientLifeCycleState.establishedConnection) {
+      _isConnected = true;
+      _isConnecting = false;
+      _reconnectAttempt = 0;
+      _cancelReconnectTimer();
+      _debugStreamController.add('Kết nối WebSocket thành công!');
+      _resubscribeActiveChannels();
+      _triggerPendingSubscriptions();
+      notifyListeners();
+      return;
+    }
+
+    if (state == PusherChannelsClientLifeCycleState.pendingConnection ||
+        state == PusherChannelsClientLifeCycleState.reconnecting) {
+      _isConnected = false;
+      _isConnecting = true;
+      notifyListeners();
+      return;
+    }
+
+    if (state == PusherChannelsClientLifeCycleState.connectionError ||
+        state == PusherChannelsClientLifeCycleState.gotPusherError ||
+        state == PusherChannelsClientLifeCycleState.disconnected ||
+        state == PusherChannelsClientLifeCycleState.disposed) {
+      _isConnected = false;
+      _isConnecting = false;
+      notifyListeners();
+
+      if (state == PusherChannelsClientLifeCycleState.gotPusherError) {
+        _scheduleReconnect(reason: 'Pusher error');
+      }
+    }
+  }
+
+  void _scheduleReconnect({String? reason}) {
+    if (_isDisposed || _manualDisconnect || _isAppInBackground) return;
+    if (_reconnectTimer?.isActive ?? false) return;
+
+    const retryDelays = [2, 5, 10, 20, 30];
+    final delaySeconds =
+        retryDelays[_reconnectAttempt < retryDelays.length
+            ? _reconnectAttempt
+            : retryDelays.length - 1];
+    _reconnectAttempt++;
+
+    final message = reason == null || reason.isEmpty
+        ? 'WebSocket mất kết nối, thử lại sau ${delaySeconds}s...'
+        : 'WebSocket mất kết nối ($reason), thử lại sau ${delaySeconds}s...';
+    debugPrint('WS: $message');
+    _debugStreamController.add(message);
+
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (_isDisposed || _manualDisconnect || _isAppInBackground) return;
+      debugPrint('WS: Retrying WebSocket connection...');
+      unawaited(forceReconnect());
+    });
+  }
+
+  void _cancelReconnectTimer() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+  }
+
+  void _resubscribeActiveChannels() {
+    for (final entry in _activeChannels.entries) {
+      try {
+        debugPrint('WS: Re-subscribing active channel ${entry.key}...');
+        entry.value.subscribeIfNotUnsubscribed();
+      } catch (e) {
+        debugPrint('WS: Failed to re-subscribe ${entry.key}: $e');
+      }
+    }
+  }
+
+  Future<void> _handleChannelAuthFailed(
+    String channelName,
+    Object exception,
+  ) async {
+    debugPrint('WS: Channel auth failed for $channelName: $exception');
+    await _removeChannelLocally(channelName);
+    _scheduleReconnect(reason: 'auth $channelName');
+  }
+
+  Future<void> _removeChannelLocally(String channelName) async {
+    _activeChannels.remove(channelName);
+    final subscription = _eventSubscriptions.remove(channelName);
+
+    if (subscription is List) {
+      for (final sub in subscription) {
+        if (sub is StreamSubscription) {
+          await sub.cancel();
+        }
+      }
+    } else if (subscription is StreamSubscription) {
+      await subscription.cancel();
+    }
   }
 
   /// Subscribe to private channel 'admin-maintenance' (public registration)
@@ -101,6 +232,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     _onAdminMaintenanceCallback = onMaintenanceCreated;
     if (_isConnected) {
       _subscribeToAdminMaintenanceChannel();
+    } else {
+      _ensureConnected();
     }
   }
 
@@ -121,6 +254,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
             _debugStreamController.add(
               'Lỗi xác thực kênh $channelName: $exception',
             );
+            unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
       );
@@ -300,6 +434,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     _onTenantNotificationCallback = onNotificationReceived;
     if (_isConnected) {
       _subscribeToTenantChannel(tenantId);
+    } else {
+      _ensureConnected();
     }
   }
 
@@ -307,6 +443,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     _tenantId = tenantId;
     if (_isConnected) {
       _subscribeToTenantChannel(tenantId);
+    } else {
+      _ensureConnected();
     }
   }
 
@@ -327,6 +465,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
             _debugStreamController.add(
               'Lỗi xác thực kênh $channelName: $exception',
             );
+            unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
       );
@@ -518,6 +657,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (_isConnected) {
       _subscribeToChatInboxChannel(channelName);
+    } else {
+      _ensureConnected();
     }
   }
 
@@ -534,6 +675,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (_isConnected) {
       _subscribeToChatInboxChannel(channelName);
+    } else {
+      _ensureConnected();
     }
   }
 
@@ -550,6 +693,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (_isConnected) {
       _subscribeToChatConversationChannel(conversationId);
+    } else {
+      _ensureConnected();
     }
   }
 
@@ -574,6 +719,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
             _debugStreamController.add(
               'Lỗi xác thực kênh $channelName: $exception',
             );
+            unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
       );
@@ -662,19 +808,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   /// Unsubscribe from a channel
   Future<void> unsubscribe(String channelName) async {
     final channel = _activeChannels.remove(channelName);
-    final subscription = _eventSubscriptions.remove(channelName);
-
-    if (subscription != null) {
-      if (subscription is List) {
-        for (final sub in subscription) {
-          if (sub is StreamSubscription) {
-            await sub.cancel();
-          }
-        }
-      } else if (subscription is StreamSubscription) {
-        await subscription.cancel();
-      }
-    }
+    await _removeChannelLocally(channelName);
 
     if (channel != null && _client != null) {
       await channel.unsubscribe();
@@ -685,6 +819,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   /// Disconnect the socket client
   Future<void> disconnect() async {
     debugPrint('WS: Closing Reverb WebSocket connection...');
+    _manualDisconnect = true;
+    _cancelReconnectTimer();
 
     _onAdminMaintenanceCallback = null;
     _onTenantNotificationCallback = null;
@@ -721,12 +857,17 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     _isConnected = false;
+    _isConnecting = false;
     notifyListeners();
   }
 
   /// Closes the current connection and cleans up active subscriptions/channels, but preserves callbacks/configs.
-  Future<void> _closeConnectionOnly() async {
+  Future<void> _closeConnectionOnly({bool cancelReconnect = true}) async {
     debugPrint('WS: Closing connection only, keeping callbacks...');
+
+    if (cancelReconnect) {
+      _cancelReconnectTimer();
+    }
 
     // Cancel subscriptions
     for (final sub in _eventSubscriptions.values) {
@@ -754,6 +895,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     _isConnected = false;
+    _isConnecting = false;
     notifyListeners();
   }
 
@@ -762,9 +904,12 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     debugPrint('WS AppLifecycleState changed to: $state');
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
+      _isAppInBackground = true;
       debugPrint('WS: App backgrounded, closing connection to save battery...');
       _closeConnectionOnly();
     } else if (state == AppLifecycleState.resumed) {
+      _isAppInBackground = false;
+      _manualDisconnect = false;
       debugPrint('WS: App resumed, checking connection status...');
 
       final bool hasActiveSubscriptions =
@@ -788,6 +933,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _isDisposed = true;
+    _cancelReconnectTimer();
     WidgetsBinding.instance.removeObserver(this);
     disconnect();
     _notificationStreamController.close();
@@ -815,6 +962,7 @@ class DioPrivateChannelAuthorizationDelegate
   ) async {
     try {
       await _apiService.init();
+      await _apiService.ensureCsrfTokenForAuth();
       final authHeaders = await _apiService.getAuthHeaders();
       debugPrint('WS Auth: Authorizing $channelName with socket $socketId');
 
