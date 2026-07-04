@@ -522,7 +522,7 @@ export function ContractDetailModal({
                     {/* Service Price Rows */}
                     {contract.proposed_services && contract.proposed_services.length > 0 && (
                       contract.proposed_services.map((proposed) => {
-                        const currentSvc = contract.room_services?.find(s => s.id === proposed.service_id)
+                        const currentSvc = contract.room_services?.find(s => Number(s.id) === Number(proposed.service_id))
                         const currentPrice = Number(currentSvc?.price || 0)
                         const proposedPrice = Number(proposed.price || 0)
                         const diff = proposedPrice - currentPrice
@@ -569,14 +569,15 @@ export function ContractDetailModal({
 
                 {/* Summary footer */}
                 {(() => {
-                  const currentTotal = Number(contract.room_price || 0) +
-                    (contract.proposed_services?.reduce((sum, ps) => {
-                      const cur = contract.room_services?.find(s => s.id === ps.service_id)
-                      return sum + Number(cur?.price || 0)
-                    }, 0) || 0)
-                  const proposedTotal = Number(contract.proposed_room_price || 0) +
-                    (contract.proposed_services?.reduce((sum, ps) => sum + Number(ps.price || 0), 0) || 0)
-                  const totalDiff = proposedTotal - currentTotal
+                  const currentServicesTotal = contract.room_services?.reduce((sum, s) => sum + Number(s.price || 0), 0) || 0;
+                  const currentTotal = Number(contract.room_price || 0) + currentServicesTotal;
+
+                  const proposedServicesTotal = contract.room_services?.reduce((sum, s) => {
+                    const proposed = contract.proposed_services?.find(ps => Number(ps.service_id) === Number(s.id));
+                    return sum + Number(proposed ? proposed.price : s.price || 0);
+                  }, 0) || 0;
+                  const proposedTotal = Number(contract.proposed_room_price || 0) + proposedServicesTotal;
+                  const totalDiff = proposedTotal - currentTotal;
                   return (
                     <div className="border-t border-[#3d2a18]/10 bg-[#faf6ef] px-4 py-3 flex items-center justify-between">
                       <span className="text-xs font-black uppercase tracking-wider text-[#8b5e34]/70">Tổng ước tính (phòng + dịch vụ)</span>

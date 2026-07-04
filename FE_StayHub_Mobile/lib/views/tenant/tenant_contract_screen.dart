@@ -2597,11 +2597,11 @@ class _TenantContractDetailScreenState
                       );
                       return;
                     }
-                    if (roomPrice >= contract.roomPrice) {
+                    if (roomPrice > contract.roomPrice) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            'Giá đề xuất phải nhỏ hơn giá phòng gốc (${_formatCurrency(contract.roomPrice)})',
+                            'Giá đề xuất không được lớn hơn giá phòng gốc (${_formatCurrency(contract.roomPrice)})',
                           ),
                         ),
                       );
