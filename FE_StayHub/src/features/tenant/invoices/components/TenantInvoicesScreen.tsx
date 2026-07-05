@@ -189,8 +189,13 @@ export function TenantInvoicesScreen() {
 
   // 5. Open Upload Proof Modal
   const handleOpenProof = (invoice: TenantInvoiceResource) => {
+    if (invoice.is_debt_rolled_over) {
+      showAlert('Khoản nợ đã chuyển hóa đơn', `Khoản nợ này đã chuyển sang hóa đơn ${invoice.rolled_to_invoice_code || 'sau'}, vui lòng thanh toán hóa đơn đó.`, 'warning')
+      return
+    }
+
     setDetailInvoice(invoice)
-    setProofAmount(String(invoice.remaining_amount))
+    setProofAmount(String(invoice.collectible_remaining_amount || invoice.remaining_amount))
     setProofRef('')
     setProofNote('')
     setProofFile(null)
@@ -445,6 +450,11 @@ export function TenantInvoicesScreen() {
                             <span className="font-black text-rose-600">{formatCurrency(invoice.remaining_amount)}</span>
                           </div>
                         )}
+                        {invoice.is_debt_rolled_over && (
+                          <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-black text-amber-700">
+                            Nợ đã chuyển sang {invoice.rolled_to_invoice_code || 'hóa đơn sau'}
+                          </div>
+                        )}
                         <div className="flex justify-between font-medium text-[#8b5e34] text-xs">
                           <span>Hạn thanh toán:</span>
                           <span className="font-bold text-[#24170d]">{formatDate(invoice.due_date)}</span>
@@ -661,7 +671,7 @@ export function TenantInvoicesScreen() {
                 )}
 
                 {/* Dynamic VietQR display for payments */}
-                {detailInvoice.payment_qr_url && (
+                {detailInvoice.payment_qr_url && !detailInvoice.is_debt_rolled_over && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
                     <div className="flex flex-col items-center text-center gap-2">
                       <QrCode className="h-6 w-6 text-amber-600" />
@@ -697,9 +707,9 @@ export function TenantInvoicesScreen() {
                         <div className="rounded-xl bg-white border border-amber-100 p-2 text-[#24170d]">
                           <span className="text-[10px] text-[#8b5e34]/60 block">Số tiền chuyển</span>
                           <span className="flex items-center justify-between font-black mt-0.5">
-                            {formatMoney(detailInvoice.remaining_amount)}
+                            {formatMoney(detailInvoice.collectible_remaining_amount || detailInvoice.remaining_amount)}
                             <button
-                              onClick={() => copyToClipboard(String(Math.round(Number(detailInvoice.remaining_amount))), 'số tiền')}
+                              onClick={() => copyToClipboard(String(Math.round(Number(detailInvoice.collectible_remaining_amount || detailInvoice.remaining_amount))), 'số tiền')}
                               className="text-amber-600 hover:text-amber-800"
                             >
                               <Copy className="h-3.5 w-3.5" />
@@ -721,7 +731,7 @@ export function TenantInvoicesScreen() {
               >
                 Đóng
               </button>
-              {detailInvoice && [INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(detailInvoice.status) && (
+              {detailInvoice && !detailInvoice.is_debt_rolled_over && [INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(detailInvoice.status) && (
                 <button
                   onClick={() => {
                     setIsDetailOpen(false)

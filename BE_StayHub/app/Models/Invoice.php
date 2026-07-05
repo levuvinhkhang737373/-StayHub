@@ -112,4 +112,14 @@ class Invoice extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function debtRolloversOut(): HasMany
+    {
+        return $this->hasMany(InvoiceDebtRollover::class, 'source_invoice_id');
+    }
+
+    public function debtRolloversIn(): HasMany
+    {
+        return $this->hasMany(InvoiceDebtRollover::class, 'target_invoice_id');
+    }
 }

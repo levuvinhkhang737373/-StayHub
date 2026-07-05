@@ -10,6 +10,7 @@ use App\Http\Resources\Tenant\InvoiceDetailResource;
 use App\Http\Resources\Tenant\InvoiceResource;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Services\InvoiceDebtRolloverService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,8 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
+    public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -36,7 +39,7 @@ class InvoiceController extends Controller
             }
 
             $invoices = $this->tenantInvoiceQuery((int) $tenant->id)
-                ->with(['room:id,building_id,room_number', 'room.building:id,name', 'contract:id,contract_code'])
+                ->with(['room:id,building_id,room_number', 'room.building:id,name', 'contract:id,contract_code', 'debtRolloversOut.targetInvoice:id,invoice_code,status'])
                 ->when(isset($validated['status']), fn (Builder $query): Builder => $query->where('status', $validated['status']))
                 ->when(isset($validated['billing_month']), fn (Builder $query): Builder => $query->where('billing_month', $validated['billing_month']))
                 ->when(isset($validated['billing_year']), fn (Builder $query): Builder => $query->where('billing_year', $validated['billing_year']))
@@ -116,6 +119,14 @@ class InvoiceController extends Controller
                         return ApiResponse::responseJson(false, 'Không tìm thấy hóa đơn của bạn', 404, null, 404);
                     }
 
+                    $rollover = $this->debtRolloverService->activeRolloverOut($invoiceModel);
+                    if ($rollover?->targetInvoice) {
+                        return ApiResponse::responseJson(false, 'Khoản nợ đã chuyển sang hóa đơn '.$rollover->targetInvoice->invoice_code.', vui lòng thanh toán hóa đơn đó.', 422, [
+                            'rolled_to_invoice_id' => $rollover->target_invoice_id,
+                            'rolled_to_invoice_code' => $rollover->targetInvoice->invoice_code,
+                        ], 422);
+                    }
+
                     if (! in_array((int) $invoiceModel->status, [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE], true)) {
                         return ApiResponse::responseJson(false, 'Hóa đơn không ở trạng thái có thể gửi minh chứng', 422, null, 422);
                     }
@@ -178,6 +189,7 @@ class InvoiceController extends Controller
             'items.service:id,name,slug,charge_method,unit_name',
             'items.meterReading:id,meter_device_id,previous_reading,current_reading,consumption,reading_date,image_path',
             'payments' => fn ($query) => $query->orderByDesc('payment_date')->orderByDesc('id'),
+            'debtRolloversOut.targetInvoice:id,invoice_code,status',
         ];
     }
 

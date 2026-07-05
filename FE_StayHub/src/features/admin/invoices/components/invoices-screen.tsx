@@ -476,6 +476,7 @@ export function InvoicesScreen() {
                   <td className="px-5 py-4">
                     <p className="text-xs font-black text-[#24170d]">{formatCurrency(invoice.total_amount)}</p>
                     <p className="mt-1 text-xs font-bold text-rose-600">Còn {formatCurrency(invoice.remaining_amount)}</p>
+                    {invoice.is_debt_rolled_over && <p className="mt-1 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-black text-amber-700">Đã chuyển sang {invoice.rolled_to_invoice_code || 'hóa đơn sau'}</p>}
                   </td>
                   <td className="px-5 py-4 text-center"><InvoiceStatusBadge status={invoice.status} label={invoice.status_label || getInvoiceStatusLabel(invoice.status)} /></td>
                   <td className="px-5 py-4">
@@ -483,7 +484,7 @@ export function InvoicesScreen() {
                       <IconButton title="Xem chi tiết" success onClick={() => void viewInvoice(invoice)}><Eye className="h-5 w-5" /></IconButton>
                       {canReissueInvoice(invoice) && <IconButton title="Chỉnh sửa & phát hành lại" onClick={() => void openEditInvoice(invoice)}><Pencil className="h-5 w-5" /></IconButton>}
 
-                      {[INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status)) && <IconButton title="Ghi nhận thanh toán" success onClick={() => { setPaymentInvoice(invoice); setIsPaymentOpen(true) }}><Banknote className="h-5 w-5" /></IconButton>}
+                      {canCollectInvoiceDirectly(invoice) && <IconButton title="Ghi nhận thanh toán" success onClick={() => { setPaymentInvoice(invoice); setIsPaymentOpen(true) }}><Banknote className="h-5 w-5" /></IconButton>}
                     </div>
                   </td>
                 </tr>
@@ -662,7 +663,8 @@ function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { cont
 }
 
 function PaymentModal({ invoice, isSaving, onClose, onSubmit }: { invoice: AdminInvoiceResource; isSaving: boolean; onClose: () => void; onSubmit: (payload: { amount: string; payment_method: number; payment_date?: string | null; transaction_reference?: string | null; note?: string | null }) => Promise<void> }) {
-  const [amount, setAmount] = useState(formatMoneyInput(String(invoice.remaining_amount || '')))
+  const payableAmount = invoice.collectible_remaining_amount || invoice.remaining_amount
+  const [amount, setAmount] = useState(formatMoneyInput(String(payableAmount || '')))
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHOD_CASH)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
   const [reference, setReference] = useState('')
@@ -674,6 +676,8 @@ function PaymentModal({ invoice, isSaving, onClose, onSubmit }: { invoice: Admin
         <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/70 p-3 text-xs font-bold text-[#6f6254]">
           <p>Tổng: <span className="font-black text-[#24170d]">{formatCurrency(invoice.total_amount)}</span></p>
           <p>Còn lại: <span className="font-black text-rose-600">{formatCurrency(invoice.remaining_amount)}</span></p>
+          <p>Có thể thu: <span className="font-black text-emerald-700">{formatCurrency(payableAmount)}</span></p>
+          <p className="mt-1 text-[11px] text-[#8b5e34]">Có thể nhập số tiền thu tiền mặt/chuyển khoản một phần. Hệ thống ưu tiên trừ nợ cũ trước.</p>
         </div>
         <input className={inputClass} value={amount} onChange={(event) => setAmount(formatMoneyInput(event.target.value))} placeholder="Số tiền" />
         <AdminSelect value={paymentMethod} options={[{ value: PAYMENT_METHOD_CASH, label: 'Tiền mặt', tone: 'success' as const }, { value: PAYMENT_METHOD_BANK_TRANSFER, label: 'Chuyển khoản', tone: 'default' as const }]} onChange={(nextValue) => setPaymentMethod(Number(nextValue))} />
@@ -865,7 +869,7 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
 }
 
 function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, onPay, onEdit }: { invoice: AdminInvoiceResource; isLoading: boolean; isSaving: boolean; onClose: () => void; onCancel: () => void; onPay: () => void; onEdit: () => void }) {
-  const canPay = [INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status))
+  const canPay = canCollectInvoiceDirectly(invoice)
   const canEdit = canReissueInvoice(invoice)
 
   return (
@@ -883,6 +887,7 @@ function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, o
             <DetailTile label="Đã trả" value={formatCurrency(invoice.paid_amount)} />
             <DetailTile label="Còn lại" value={formatCurrency(invoice.remaining_amount)} />
           </div>
+          {invoice.is_debt_rolled_over && <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">Khoản nợ của hóa đơn này đã chuyển sang {invoice.rolled_to_invoice_code || 'hóa đơn sau'}, vui lòng thu tại hóa đơn đó để tránh thu trùng.</div>}
           <div className="overflow-x-auto rounded-3xl border border-[#3d2a18]/10">
             <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]"><tr><th className="px-4 py-3">Khoản mục</th><th className="px-4 py-3">SL</th><th className="px-4 py-3">Đơn giá</th><th className="px-4 py-3 text-right">Thành tiền</th></tr></thead>
@@ -895,7 +900,7 @@ function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, o
             <p className="mb-3 text-sm font-black text-[#24170d]">Thanh toán</p>
             <div className="space-y-2">
               {(invoice.payments || []).length === 0 && <p className="text-xs font-bold text-[#6f6254]">Chưa có giao dịch.</p>}
-              {(invoice.payments || []).map((payment) => <div key={payment.id} className="flex flex-col gap-1 rounded-2xl bg-[#fffaf1] p-3 text-xs font-bold text-[#6f6254] sm:flex-row sm:items-center sm:justify-between"><span>{payment.payment_code} · {payment.payment_method_label} · {formatDateTime(payment.payment_date)}</span><span className="font-black text-[#24170d]">{formatCurrency(payment.amount)} · {payment.status_label}</span></div>)}
+              {(invoice.payments || []).map((payment) => <div key={payment.id} className="flex flex-col gap-1 rounded-2xl bg-[#fffaf1] p-3 text-xs font-bold text-[#6f6254] sm:flex-row sm:items-center sm:justify-between"><span>{payment.payment_code} · {payment.payment_method_label} · {formatDateTime(payment.payment_date)}{payment.is_internal_allocation ? ' · Phân bổ nội bộ' : ''}</span><span className="font-black text-[#24170d]">{formatCurrency(payment.amount)} · {payment.status_label}</span></div>)}
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -920,6 +925,10 @@ function parseAdjustments(value: string): AdminInvoiceAdjustmentPayload[] {
 function canReissueInvoice(invoice: AdminInvoiceResource) {
   const paymentsCount = Number(invoice.payments_count ?? invoice.payments?.length ?? 0)
   return editableInvoiceStatuses.includes(Number(invoice.status)) && paymentsCount === 0
+}
+
+function canCollectInvoiceDirectly(invoice: AdminInvoiceResource) {
+  return !invoice.is_debt_rolled_over && [INVOICE_STATUS_UNPAID, INVOICE_STATUS_PARTIALLY_PAID, INVOICE_STATUS_OVERDUE].includes(Number(invoice.status)) && Number(invoice.collectible_remaining_amount || invoice.remaining_amount || 0) > 0
 }
 
 function absDecimal(value: string | number | null | undefined) {

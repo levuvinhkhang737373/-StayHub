@@ -98,6 +98,7 @@ class PaymentHistoryController extends Controller
     private function invoicePaymentRecords(array $validated, Admin $admin): Collection
     {
         $query = Payment::query()
+            ->realMoney()
             ->with([
                 'collector:id,full_name,username,email',
                 'invoice:id,invoice_code,contract_id,room_id,billing_month,billing_year,status,total_amount,paid_amount,remaining_amount',

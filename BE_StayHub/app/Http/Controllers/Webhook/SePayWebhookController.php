@@ -13,6 +13,7 @@ use App\Models\Invoice;
 use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\RoomMovement;
+use App\Services\InvoiceDebtRolloverService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -22,6 +23,8 @@ use Illuminate\Support\Facades\Log;
 
 class SePayWebhookController extends Controller
 {
+    public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
+
     public function handle(Request $request): JsonResponse
     {
         try {
@@ -284,18 +287,19 @@ class SePayWebhookController extends Controller
 
     private function processInvoicePayment(Invoice $invoice, string $amount, string $transactionReference, string $content): JsonResponse
     {
-        $lock = Cache::lock('sepay-invoice-payment:' . $invoice->id, 10);
+        $payableInvoice = $this->debtRolloverService->payableInvoiceForIncomingInvoice($invoice);
+        $lock = Cache::lock('sepay-invoice-payment:' . $payableInvoice->id, 10);
 
         if (! $lock->get()) {
             return ApiResponse::responseJson(false, 'Giao dịch đang được xử lý, vui lòng thử lại sau.', 409, null, 409);
         }
 
         try {
-            $response = DB::transaction(function () use ($invoice, $amount, $transactionReference, $content): JsonResponse {
+            $response = DB::transaction(function () use ($payableInvoice, $invoice, $amount, $transactionReference, $content): JsonResponse {
                 $invoiceModel = Invoice::query()
                     ->with(['room.building', 'contract.contractTenants.tenant'])
                     ->lockForUpdate()
-                    ->find($invoice->id);
+                    ->find($payableInvoice->id);
 
                 if (! $invoiceModel) {
                     return ApiResponse::responseJson(false, 'Không tìm thấy hóa đơn.', 404, null, 404);
@@ -303,6 +307,10 @@ class SePayWebhookController extends Controller
 
                 if (Payment::query()->where('transaction_reference', $transactionReference)->exists()) {
                     return ApiResponse::responseJson(true, 'Giao dịch đã được xử lý.', 0, ['status' => 'ignored'], 200);
+                }
+
+                if ((int) $invoiceModel->id !== (int) $invoice->id) {
+                    Log::info("SePay Webhook: Redirected rolled debt payment from invoice {$invoice->invoice_code} to {$invoiceModel->invoice_code}");
                 }
 
                 if ((int) $invoiceModel->status === Invoice::STATUS_PAID) {
@@ -364,11 +372,12 @@ class SePayWebhookController extends Controller
                     'transaction_reference' => $transactionReference,
                     'status' => Payment::STATUS_CONFIRMED,
                     'proof_image' => null,
-                    'note' => 'Hệ thống tự động ghi nhận qua SePay Webhook. Nội dung gốc: ' . $content,
-                    'collected_by' => null,
+                        'note' => ((int) $invoiceModel->id !== (int) $invoice->id ? 'Tự động chuyển từ mã hóa đơn nợ cũ '.$invoice->invoice_code.'. ' : '').'Hệ thống tự động ghi nhận qua SePay Webhook. Nội dung gốc: ' . $content,
+                        'collected_by' => null,
                 ]);
 
                 $this->applyConfirmedPayment($invoiceModel, (string) $payment->amount);
+                $this->debtRolloverService->allocateConfirmedPaymentToDebtRollovers($invoiceModel->fresh(), $payment);
                 $notifications = $this->createInvoicePaidNotifications($invoiceModel->fresh(['room.building', 'contract.contractTenants.tenant']), $payment);
 
                 DB::afterCommit(function () use ($invoiceModel, $notifications): void {

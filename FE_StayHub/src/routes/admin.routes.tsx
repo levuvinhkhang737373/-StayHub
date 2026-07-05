@@ -13,6 +13,7 @@ import { SystemUsersScreen, CreateSystemUserScreen } from '../features/admin/sys
 import { TenantsScreen } from '../features/admin/tenants'
 import { ContractsScreen, CreateContractScreen } from '../features/admin/contracts'
 import { InvoicesScreen } from '../features/admin/invoices'
+import { DebtsScreen } from '../features/admin/debts'
 import { ExpensesScreen } from '../features/admin/expenses'
 import { CreateTenantScreen } from '../features/admin/tenants/components/create-tenant-screen'
 import { FacilitiesScreen } from '../features/admin/facilities/components/facilities-screen'
@@ -143,6 +144,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'invoices',
         element: <AdminRouteGuard access="all"><InvoicesScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'debts',
+        element: <AdminRouteGuard access="all"><DebtsScreen /></AdminRouteGuard>,
       },
       {
         path: 'expenses',

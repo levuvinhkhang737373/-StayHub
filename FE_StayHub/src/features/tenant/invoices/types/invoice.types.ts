@@ -40,6 +40,7 @@ export interface TenantPaymentResource {
   id: number
   payment_code: string
   invoice_id?: number
+  is_internal_allocation?: boolean
   amount: string
   payment_date?: string | null
   payment_method: number
@@ -77,6 +78,11 @@ export interface TenantInvoiceResource {
   total_amount: string
   paid_amount: string
   remaining_amount: string
+  collectible_remaining_amount?: string | null
+  is_debt_rolled_over?: boolean
+  rolled_to_invoice_id?: number | null
+  rolled_to_invoice_code?: string | null
+  rolled_over_amount?: string | null
   due_date?: string | null
   status: number
   status_label?: string | null

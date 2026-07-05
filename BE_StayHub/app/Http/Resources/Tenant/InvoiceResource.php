@@ -12,6 +12,8 @@ class InvoiceResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $rolledOverInfo = $this->rolledOverInfo();
+
         return [
             'id' => $this->id,
             'invoice_code' => $this->invoice_code,
@@ -27,6 +29,11 @@ class InvoiceResource extends JsonResource
             'total_amount' => $this->total_amount,
             'paid_amount' => $this->paid_amount,
             'remaining_amount' => $this->remaining_amount,
+            'collectible_remaining_amount' => $this->collectibleRemainingAmount($rolledOverInfo),
+            'is_debt_rolled_over' => $rolledOverInfo !== null,
+            'rolled_to_invoice_id' => $rolledOverInfo['rolled_to_invoice_id'] ?? null,
+            'rolled_to_invoice_code' => $rolledOverInfo['rolled_to_invoice_code'] ?? null,
+            'rolled_over_amount' => $rolledOverInfo['rolled_over_amount'] ?? '0.00',
             'due_date' => optional($this->due_date)->toDateString(),
             'status' => $this->status,
             'status_label' => Invoice::STATUS_LABELS[$this->status] ?? null,
@@ -40,6 +47,10 @@ class InvoiceResource extends JsonResource
 
     private function paymentQrUrl(): ?string
     {
+        if ($this->rolledOverInfo() !== null) {
+            return null;
+        }
+
         if ((int) $this->status === Invoice::STATUS_PAID || (int) $this->status === Invoice::STATUS_CANCELLED) {
             return null;
         }
@@ -49,5 +60,35 @@ class InvoiceResource extends JsonResource
         }
 
         return VietQRHelper::generateLink(null, null, null, (string) $this->remaining_amount, $this->invoice_code);
+    }
+
+    private function rolledOverInfo(): ?array
+    {
+        if (! $this->relationLoaded('debtRolloversOut')) {
+            return null;
+        }
+
+        $rollover = $this->debtRolloversOut
+            ->first(fn ($rollover): bool => (int) $rollover->status === \App\Models\InvoiceDebtRollover::STATUS_ACTIVE
+                && (! $rollover->targetInvoice || (int) $rollover->targetInvoice->status !== Invoice::STATUS_CANCELLED));
+
+        if (! $rollover) {
+            return null;
+        }
+
+        return [
+            'rolled_to_invoice_id' => $rollover->target_invoice_id,
+            'rolled_to_invoice_code' => $rollover->targetInvoice?->invoice_code,
+            'rolled_over_amount' => DecimalMoney::maxZero(DecimalMoney::subtract($rollover->amount, $rollover->settled_amount)),
+        ];
+    }
+
+    private function collectibleRemainingAmount(?array $rolledOverInfo): string
+    {
+        if (! $rolledOverInfo) {
+            return (string) $this->remaining_amount;
+        }
+
+        return DecimalMoney::maxZero(DecimalMoney::subtract($this->remaining_amount, $rolledOverInfo['rolled_over_amount']));
     }
 }

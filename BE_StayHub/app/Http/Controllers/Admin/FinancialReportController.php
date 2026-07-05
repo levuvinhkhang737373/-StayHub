@@ -263,6 +263,10 @@ class FinancialReportController extends Controller
             // Lấy từ Payment
             $buildingRevenues = Payment::query()
                 ->where('payments.status', Payment::STATUS_CONFIRMED)
+                ->where(function (Builder $query): void {
+                    $query->where('payments.is_internal_allocation', false)
+                        ->orWhereNull('payments.is_internal_allocation');
+                })
                 ->whereBetween('payments.payment_date', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
                 ->join('invoices', 'payments.invoice_id', '=', 'invoices.id')
                 ->join('rooms', 'invoices.room_id', '=', 'rooms.id')
@@ -357,7 +361,7 @@ class FinancialReportController extends Controller
 
     private function scopedPaymentQuery(array $buildingIds): Builder
     {
-        $query = Payment::query()->where('status', Payment::STATUS_CONFIRMED);
+        $query = Payment::query()->realMoney()->where('status', Payment::STATUS_CONFIRMED);
 
         if (empty($buildingIds)) {
             return $query->whereRaw('1 = 0');

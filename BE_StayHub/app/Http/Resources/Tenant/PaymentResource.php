@@ -14,6 +14,7 @@ class PaymentResource extends JsonResource
         return [
             'id' => $this->id,
             'payment_code' => $this->payment_code,
+            'is_internal_allocation' => (bool) $this->is_internal_allocation,
             'amount' => $this->amount,
             'payment_date' => optional($this->payment_date)->toDateTimeString(),
             'payment_method' => $this->payment_method,

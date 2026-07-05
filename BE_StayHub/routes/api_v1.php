@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\BulkGenerateInvoiceController;
 use App\Http\Controllers\Admin\ChatController as AdminChatController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ContractController;
+use App\Http\Controllers\Admin\DebtController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
 use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\InvoiceController as AdminInvoiceController;
@@ -147,6 +148,9 @@ Route::prefix('admin')->group(function (): void {
 
         // =========================Payment History=========================
         Route::get('payment-history', [PaymentHistoryController::class, 'index']);
+
+        // =========================Debts===================================
+        Route::get('debts', [DebtController::class, 'index']);
 
         // ==========================Rooms===================================
         Route::apiResource('rooms', RoomController::class);

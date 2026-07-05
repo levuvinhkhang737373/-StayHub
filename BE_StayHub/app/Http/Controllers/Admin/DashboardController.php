@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
+use App\Helpers\DecimalMoney;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Dashboard\OverviewRequest;
 use App\Http\Resources\Admin\DashboardOverviewResource;
@@ -21,6 +22,7 @@ use App\Models\Room;
 use App\Models\RoomMovement;
 use App\Models\Service;
 use App\Models\Tenant;
+use App\Services\InvoiceDebtRolloverService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,6 +32,8 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
+
     public function overview(OverviewRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -476,41 +480,54 @@ class DashboardController extends Controller
 
     private function debtSummary(array $buildingIds): array
     {
-        $debtQuery = $this->scopedInvoiceQuery($buildingIds)
+        $debtInvoices = $this->scopedInvoiceQuery($buildingIds)
+            ->with('debtRolloversOut.targetInvoice:id,status')
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE])
-            ->where('remaining_amount', '>', 0);
+            ->where('remaining_amount', '>', 0)
+            ->get()
+            ->map(function (Invoice $invoice): array {
+                return [
+                    'invoice' => $invoice,
+                    'collectible_amount' => $this->debtRolloverService->collectibleRemainingAmount($invoice),
+                ];
+            })
+            ->filter(fn (array $row): bool => DecimalMoney::isPositive($row['collectible_amount']))
+            ->values();
 
-        $overdueQuery = (clone $debtQuery)->where(function (Builder $query): void {
-            $query->where('status', Invoice::STATUS_OVERDUE)
-                ->orWhereDate('due_date', '<', Carbon::today());
-        });
+        $overdueCount = $debtInvoices
+            ->filter(fn (array $row): bool => (int) $row['invoice']->status === Invoice::STATUS_OVERDUE
+                || ($row['invoice']->due_date && $row['invoice']->due_date->copy()->startOfDay()->lt(Carbon::today())))
+            ->count();
 
         return [
-            'amount' => round((float) (clone $debtQuery)->sum('remaining_amount'), 2),
-            'count' => (clone $debtQuery)->count(),
-            'overdue_count' => $overdueQuery->count(),
+            'amount' => round((float) DecimalMoney::add($debtInvoices->pluck('collectible_amount')->all()), 2),
+            'count' => $debtInvoices->count(),
+            'overdue_count' => $overdueCount,
         ];
     }
 
     private function invoiceStatusChart(array $buildingIds): array
     {
         $rows = $this->scopedInvoiceQuery($buildingIds)
-            ->select([
-                'status',
-                DB::raw('COUNT(*) as total'),
-                DB::raw('SUM(total_amount) as total_amount'),
-                DB::raw('SUM(remaining_amount) as remaining_amount'),
-            ])
-            ->groupBy('status')
+            ->with('debtRolloversOut.targetInvoice:id,status')
             ->get()
-            ->keyBy('status');
+            ->groupBy('status')
+            ->map(function (Collection $invoices): array {
+                return [
+                    'total' => $invoices->count(),
+                    'total_amount' => DecimalMoney::add($invoices->pluck('total_amount')->all()),
+                    'remaining_amount' => DecimalMoney::add($invoices
+                        ->map(fn (Invoice $invoice): string => $this->debtRolloverService->collectibleRemainingAmount($invoice))
+                        ->all()),
+                ];
+            });
 
         return collect(Invoice::STATUS_LABELS)->map(fn (string $label, int $status): array => [
             'status' => $status,
             'label' => $label,
-            'count' => (int) ($rows[$status]->total ?? 0),
-            'total_amount' => round((float) ($rows[$status]->total_amount ?? 0), 2),
-            'remaining_amount' => round((float) ($rows[$status]->remaining_amount ?? 0), 2),
+            'count' => (int) ($rows[$status]['total'] ?? 0),
+            'total_amount' => round((float) ($rows[$status]['total_amount'] ?? 0), 2),
+            'remaining_amount' => round((float) ($rows[$status]['remaining_amount'] ?? 0), 2),
         ])->values()->all();
     }
 
@@ -731,7 +748,7 @@ class DashboardController extends Controller
             });
 
         $this->scopedInvoiceQuery($buildingIds)
-            ->with(['room.building'])
+            ->with(['room.building', 'debtRolloversOut.targetInvoice:id,status'])
             ->where(function (Builder $query): void {
                 $query->where('status', Invoice::STATUS_OVERDUE)
                     ->orWhere(function (Builder $dateQuery): void {
@@ -743,13 +760,14 @@ class DashboardController extends Controller
             ->orderByDesc('due_date')
             ->limit(6)
             ->get()
+            ->filter(fn (Invoice $invoice): bool => DecimalMoney::isPositive($this->debtRolloverService->collectibleRemainingAmount($invoice)))
             ->each(function (Invoice $invoice) use ($activities): void {
                 $activities->push([
                     'type' => 'invoice',
                     'label' => 'Quá hạn',
                     'title' => 'Hóa đơn '.$invoice->invoice_code.' quá hạn',
                     'description' => trim(($invoice->room?->building?->name ? $invoice->room->building->name.' · ' : '').($invoice->room?->room_number ? 'Phòng '.$invoice->room->room_number : 'Chưa rõ phòng')),
-                    'amount' => round((float) $invoice->remaining_amount, 2),
+                    'amount' => round((float) $this->debtRolloverService->collectibleRemainingAmount($invoice), 2),
                     'occurred_at' => optional($invoice->due_date)->toDateString(),
                     'href' => '/admin/invoices',
                 ]);
@@ -765,7 +783,7 @@ class DashboardController extends Controller
 
     private function scopedPaymentQuery(array $buildingIds): Builder
     {
-        $query = Payment::query()->where('status', Payment::STATUS_CONFIRMED);
+        $query = Payment::query()->realMoney()->where('status', Payment::STATUS_CONFIRMED);
 
         if (empty($buildingIds)) {
             return $query->whereRaw('1 = 0');

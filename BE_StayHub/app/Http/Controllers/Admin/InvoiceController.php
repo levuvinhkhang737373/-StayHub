@@ -34,6 +34,7 @@ use App\Models\Payment;
 use App\Models\RoomMovement;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Services\InvoiceDebtRolloverService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -45,6 +46,8 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
+    public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
+
     private const ADJUSTMENT_ITEM_TYPES = [
         InvoiceItem::ITEM_TYPE_SURCHARGE,
         InvoiceItem::ITEM_TYPE_DISCOUNT,
@@ -203,6 +206,7 @@ class InvoiceController extends Controller
                 ]);
 
                 $invoice->items()->createMany($items);
+                $this->createDebtRollovers($invoice, $draft['previous_debt_rollovers'] ?? []);
 
                 $this->markMeterReadingsInvoiced($invoice);
                 $tenantNotifications = $this->createInvoiceIssuedNotifications($invoice, $admin);
@@ -269,7 +273,7 @@ class InvoiceController extends Controller
             ->where('contract_id', $contract->id)
             ->where('billing_year', $periodStart->year)
             ->where('billing_month', $periodStart->month)
-            ->withCount('payments')
+            ->withCount(['payments' => fn (Builder $query): Builder => $query->realMoney()])
             ->where('status', '!=', Invoice::STATUS_CANCELLED);
 
         $existingInvoice = $forIssue
@@ -302,7 +306,7 @@ class InvoiceController extends Controller
             }
         }
 
-        $automaticItems = $this->buildAutomaticItems($contract, $periodStart, $periodEnd);
+        $automaticItems = $this->buildAutomaticItems($contract, $periodStart, $periodEnd, $forIssue);
         if (! empty($automaticItems['errors'])) {
             return ApiResponse::responseJson(false, implode(' ', $automaticItems['errors']), 422, null, 422);
         }
@@ -323,6 +327,7 @@ class InvoiceController extends Controller
             'period_end' => $invoicePeriodEnd,
             'due_date' => $dueDate,
             'previous_debt_amount' => $automaticItems['previous_debt_amount'],
+            'previous_debt_rollovers' => $automaticItems['previous_debt_rollovers'],
             'total_amount' => $totalAmount,
             'items' => $items,
             'transfer_cutoffs' => $automaticItems['transfer_cutoffs'],
@@ -340,7 +345,7 @@ class InvoiceController extends Controller
             $response = DB::transaction(function () use ($validated, $invoice, $admin, $request): JsonResponse {
                 $invoiceModel = $this->accessibleInvoiceQuery($admin)
                     ->with($this->detailRelations())
-                    ->withCount('payments')
+                    ->withCount(['payments' => fn (Builder $query): Builder => $query->realMoney()])
                     ->lockForUpdate()
                     ->find($invoice);
 
@@ -381,7 +386,7 @@ class InvoiceController extends Controller
 
                 $affectedInvoices = Invoice::query()
                     ->whereIn('id', $affectedInvoiceIds->unique()->values()->all())
-                    ->withCount('payments')
+                    ->withCount(['payments' => fn (Builder $query): Builder => $query->realMoney()])
                     ->orderBy('billing_year')
                     ->orderBy('billing_month')
                     ->orderBy('id')
@@ -467,6 +472,10 @@ class InvoiceController extends Controller
                         return ApiResponse::responseJson(false, 'Không tìm thấy hóa đơn', 404, null, 404);
                     }
 
+                    if ($rolloverResponse = $this->rejectPaymentForRolledSourceInvoice($invoiceModel)) {
+                        return $rolloverResponse;
+                    }
+
                     if (! in_array((int) $invoiceModel->status, [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE], true)) {
                         return ApiResponse::responseJson(false, 'Hóa đơn không ở trạng thái có thể thanh toán', 422, null, 422);
                     }
@@ -498,6 +507,7 @@ class InvoiceController extends Controller
                     ]);
 
                     $this->applyConfirmedPayment($invoiceModel, (string) $payment->amount);
+                    $this->allocateConfirmedPaymentToDebtRollovers($invoiceModel->fresh(), $payment);
                     $notifications = $this->createInvoicePaidNotifications($invoiceModel->fresh($this->detailRelations()), $payment, $admin);
 
                     AdminActivityLogger::write($admin, 'Ghi nhận thanh toán hóa đơn', Payment::class, $payment->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
@@ -545,6 +555,10 @@ class InvoiceController extends Controller
                     return ApiResponse::responseJson(false, 'Không tìm thấy giao dịch thanh toán', 404, null, 404);
                 }
 
+                if ($rolloverResponse = $this->rejectPaymentForRolledSourceInvoice($invoiceModel)) {
+                    return $rolloverResponse;
+                }
+
                 if ((int) $paymentModel->status === Payment::STATUS_CONFIRMED) {
                     return ApiResponse::responseJson(false, 'Giao dịch đã được xác nhận trước đó', 422, null, 422);
                 }
@@ -564,6 +578,7 @@ class InvoiceController extends Controller
                 ])->save();
 
                 $this->applyConfirmedPayment($invoiceModel, (string) $paymentModel->amount);
+                $this->allocateConfirmedPaymentToDebtRollovers($invoiceModel->fresh(), $paymentModel);
                 $notifications = $this->createInvoicePaidNotifications($invoiceModel->fresh($this->detailRelations()), $paymentModel, $admin);
 
                 AdminActivityLogger::write($admin, 'Xác nhận thanh toán hóa đơn', Payment::class, $paymentModel->id, $oldData, $invoiceModel->fresh()->toArray(), $request);
@@ -593,7 +608,7 @@ class InvoiceController extends Controller
 
             $response = DB::transaction(function () use ($validated, $invoice, $admin, $request): JsonResponse {
                 $invoiceModel = $this->accessibleInvoiceQuery($admin)
-                    ->withCount(['payments' => fn (Builder $query): Builder => $query->where('status', Payment::STATUS_CONFIRMED)])
+                    ->withCount(['payments' => fn (Builder $query): Builder => $query->realMoney()->where('status', Payment::STATUS_CONFIRMED)])
                     ->lockForUpdate()
                     ->find($invoice);
 
@@ -609,8 +624,18 @@ class InvoiceController extends Controller
                     return ApiResponse::responseJson(false, 'Hóa đơn đã được hủy trước đó', 422, null, 422);
                 }
 
+                $rolloverOut = $this->debtRolloverService->activeRolloverOut($invoiceModel);
+                if ($rolloverOut?->targetInvoice) {
+                    return ApiResponse::responseJson(false, 'Không thể hủy hóa đơn này vì khoản nợ đã chuyển sang hóa đơn '.$rolloverOut->targetInvoice->invoice_code.'.', 422, [
+                        'rolled_to_invoice_id' => $rolloverOut->target_invoice_id,
+                        'rolled_to_invoice_code' => $rolloverOut->targetInvoice->invoice_code,
+                    ], 422);
+                }
+
                 $oldData = $invoiceModel->toArray();
                 $note = trim($validated['note'] ?? '');
+                $this->debtRolloverService->cancelTargetRollovers($invoiceModel);
+
                 $invoiceModel->forceFill([
                     'status' => Invoice::STATUS_CANCELLED,
                     'remaining_amount' => '0.00',
@@ -636,12 +661,16 @@ class InvoiceController extends Controller
             });
 
             return $response;
+        } catch (\DomainException $e) {
+            $status = in_array((int) $e->getCode(), [403, 404, 409, 422], true) ? (int) $e->getCode() : 422;
+
+            return ApiResponse::responseJson(false, $e->getMessage(), $status, null, $status);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
-    private function buildAutomaticItems(Contract $contract, Carbon $periodStart, Carbon $periodEnd): array
+    private function buildAutomaticItems(Contract $contract, Carbon $periodStart, Carbon $periodEnd, bool $lockDebt = false): array
     {
         $items = [];
         $errors = [];
@@ -848,7 +877,8 @@ class InvoiceController extends Controller
             ];
         }
 
-        $previousDebtAmount = $this->previousDebtAmount($contract, $billingYear, $billingMonth);
+        $previousDebtRollovers = $this->previousDebtRollovers($contract, $billingYear, $billingMonth, null, $lockDebt);
+        $previousDebtAmount = $this->debtRolloverService->previousDebtAmount($previousDebtRollovers);
         if (DecimalMoney::isPositive($previousDebtAmount)) {
             $items[] = [
                 'service_id' => null,
@@ -865,6 +895,7 @@ class InvoiceController extends Controller
             'items' => $items,
             'errors' => $errors,
             'previous_debt_amount' => $previousDebtAmount,
+            'previous_debt_rollovers' => $previousDebtRollovers,
             'transfer_cutoffs' => $transferContext['summaries'],
             'invoice_period_end' => $transferContext['contract_cutoff_date'] ?: $periodEnd,
         ];
@@ -1052,7 +1083,7 @@ class InvoiceController extends Controller
     {
         return $this->isTransferFinalizationBlockedByExistingInvoice($invoice, $invoicePeriodEnd, $periodEnd)
             && $invoice->period_end?->copy()->startOfDay()->isSameDay($periodEnd)
-            && (int) ($invoice->payments_count ?? $invoice->payments()->count()) === 0;
+            && (int) ($invoice->payments_count ?? $invoice->payments()->realMoney()->count()) === 0;
     }
 
     private function isTransferFinalizationBlockedByExistingInvoice(Invoice $invoice, Carbon $invoicePeriodEnd, Carbon $periodEnd): bool
@@ -1063,6 +1094,7 @@ class InvoiceController extends Controller
 
     private function cancelInvoiceBeforeTransferFinalization(Invoice $invoice): void
     {
+        $this->debtRolloverService->cancelTargetRollovers($invoice);
         $invoice->items()->delete();
         $invoice->forceFill([
             'status' => Invoice::STATUS_CANCELLED,
@@ -1350,20 +1382,43 @@ class InvoiceController extends Controller
 
     private function previousDebtAmount(Contract $contract, int $billingYear, int $billingMonth): string
     {
-        $amounts = Invoice::query()
-            ->where('contract_id', $contract->id)
-            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE])
-            ->where(function (Builder $query) use ($billingYear, $billingMonth): void {
-                $query->where('billing_year', '<', $billingYear)
-                    ->orWhere(function (Builder $sameYearQuery) use ($billingYear, $billingMonth): void {
-                        $sameYearQuery->where('billing_year', $billingYear)
-                            ->where('billing_month', '<', $billingMonth);
-                    });
-            })
-            ->pluck('remaining_amount')
-            ->all();
+        return $this->debtRolloverService->previousDebtAmount(
+            $this->previousDebtRollovers($contract, $billingYear, $billingMonth)
+        );
+    }
 
-        return DecimalMoney::add($amounts);
+    private function previousDebtRollovers(Contract $contract, int $billingYear, int $billingMonth, ?int $targetInvoiceId = null, bool $lock = false): Collection
+    {
+        return $this->debtRolloverService->previousDebtRollovers($contract, $billingYear, $billingMonth, $targetInvoiceId, $lock);
+    }
+
+    private function createDebtRollovers(Invoice $targetInvoice, Collection|array $rollovers): void
+    {
+        $this->debtRolloverService->syncTargetRollovers($targetInvoice, $rollovers);
+    }
+
+    private function rejectPaymentForRolledSourceInvoice(Invoice $invoice): ?JsonResponse
+    {
+        $rollover = $this->debtRolloverService->activeRolloverOut($invoice);
+        if (! $rollover?->targetInvoice) {
+            return null;
+        }
+
+        return ApiResponse::responseJson(
+            false,
+            'Khoản nợ đã chuyển sang hóa đơn '.$rollover->targetInvoice->invoice_code.', vui lòng thanh toán hóa đơn đó.',
+            422,
+            [
+                'rolled_to_invoice_id' => $rollover->target_invoice_id,
+                'rolled_to_invoice_code' => $rollover->targetInvoice->invoice_code,
+            ],
+            422
+        );
+    }
+
+    private function allocateConfirmedPaymentToDebtRollovers(Invoice $targetInvoice, Payment $payment): void
+    {
+        $this->debtRolloverService->allocateConfirmedPaymentToDebtRollovers($targetInvoice, $payment);
     }
 
     private function buildAdjustmentItems(array $adjustments): array
@@ -1423,7 +1478,7 @@ class InvoiceController extends Controller
 
         $paymentsCount = array_key_exists('payments_count', $invoice->getAttributes())
             ? (int) $invoice->payments_count
-            : $invoice->payments()->count();
+            : $invoice->payments()->realMoney()->count();
 
         if ($paymentsCount > 0) {
             return ApiResponse::responseJson(false, $label.'Không thể sửa hóa đơn đã phát sinh giao dịch hoặc minh chứng thanh toán', 422, null, 422);
@@ -1593,7 +1648,8 @@ class InvoiceController extends Controller
 
     private function syncPreviousDebtItem(Invoice $invoice): void
     {
-        $previousDebtAmount = $this->previousDebtAmount($invoice->contract, (int) $invoice->billing_year, (int) $invoice->billing_month);
+        $previousDebtRollovers = $this->previousDebtRollovers($invoice->contract, (int) $invoice->billing_year, (int) $invoice->billing_month, (int) $invoice->id, true);
+        $previousDebtAmount = $this->debtRolloverService->previousDebtAmount($previousDebtRollovers);
 
         $oldDebtItems = $invoice->items()
             ->where('item_type', InvoiceItem::ITEM_TYPE_OLD_DEBT)
@@ -1604,12 +1660,26 @@ class InvoiceController extends Controller
         foreach ($oldDebtItems as $index => $item) {
             $amount = $index === 0 ? $previousDebtAmount : '0.00';
             $item->forceFill([
+            'description' => 'Nợ cũ các kỳ trước',
+            'quantity' => '1.00',
+            'unit_price' => $amount,
+            'amount' => $amount,
+        ])->save();
+        }
+
+        if ($oldDebtItems->isEmpty() && DecimalMoney::isPositive($previousDebtAmount)) {
+            $invoice->items()->create([
+                'service_id' => null,
+                'meter_reading_id' => null,
+                'item_type' => InvoiceItem::ITEM_TYPE_OLD_DEBT,
                 'description' => 'Nợ cũ các kỳ trước',
                 'quantity' => '1.00',
-                'unit_price' => $amount,
-                'amount' => $amount,
-            ])->save();
+                'unit_price' => $previousDebtAmount,
+                'amount' => $previousDebtAmount,
+            ]);
         }
+
+        $this->createDebtRollovers($invoice, $previousDebtRollovers);
     }
 
     private function recalculateReissuedInvoice(Invoice $invoice, Admin $admin, string $reason, ?string $dueDate = null, bool $applyDueDate = false): void
@@ -1918,6 +1988,7 @@ class InvoiceController extends Controller
             'contract.contractTenants.tenant:id,full_name,phone,email',
             'creator:id,full_name',
             'updater:id,full_name',
+            'debtRolloversOut.targetInvoice:id,invoice_code,status',
         ];
     }
 
@@ -1936,6 +2007,8 @@ class InvoiceController extends Controller
             'items.meterReading:id,meter_device_id,previous_reading,current_reading,consumption,reading_date,image_path',
             'payments' => fn ($query) => $query->orderByDesc('payment_date')->orderByDesc('id'),
             'payments.collector:id,full_name',
+            'debtRolloversOut.targetInvoice:id,invoice_code,status',
+            'debtRolloversIn.sourceInvoice:id,invoice_code,billing_year,billing_month,total_amount,paid_amount,remaining_amount,status',
         ];
     }
 
