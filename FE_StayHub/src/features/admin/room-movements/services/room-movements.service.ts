@@ -1,5 +1,5 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
-import type { AdminRoomMovementFilters, AdminRoomMovementPaginator, AdminRoomMovementResource, AdminUpdateRoomMovementTransferDatePayload, AdminUpdateRoomMovementTransferDateResult } from '../types/room-movement-api.model'
+import type { AdminRoomMovementFilters, AdminRoomMovementPaginator, AdminRoomMovementResource, AdminRoomMovementSettlementCashPaymentPayload, AdminRoomMovementSettlementCashPaymentResult, AdminUpdateRoomMovementTransferDatePayload, AdminUpdateRoomMovementTransferDateResult } from '../types/room-movement-api.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
   const query = new URLSearchParams()
@@ -31,6 +31,14 @@ export async function updateAdminRoomMovementTransferDate(roomMovementId: number
   return apiRequest<AdminUpdateRoomMovementTransferDateResult>({
     url: `admin/room-movements/${roomMovementId}/transfer-date`,
     method: 'PATCH',
+    data: payload,
+  })
+}
+
+export async function recordAdminRoomMovementSettlementCashPayment(roomMovementId: number, payload: AdminRoomMovementSettlementCashPaymentPayload = {}) {
+  return apiRequest<AdminRoomMovementSettlementCashPaymentResult>({
+    url: `admin/room-movements/${roomMovementId}/settlement-cash-payment`,
+    method: 'POST',
     data: payload,
   })
 }

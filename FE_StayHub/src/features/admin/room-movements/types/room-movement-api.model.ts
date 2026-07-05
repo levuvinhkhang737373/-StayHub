@@ -25,6 +25,29 @@ export interface AdminUpdateRoomMovementTransferDateResult {
   movements: AdminRoomMovementResource[]
 }
 
+export interface AdminRoomMovementSettlementCashPaymentPayload {
+  note?: string
+}
+
+export interface AdminRoomMovementSettlementReference {
+  reference?: string | null
+  amount?: string | null
+  deposit_amount?: string | null
+  extra_amount?: string | null
+  payment_method?: number | null
+  paid_at?: string | null
+  collected_by?: number | null
+  collector_name?: string | null
+  note?: string | null
+}
+
+export interface AdminRoomMovementSettlementCashPaymentResult {
+  transfer_code?: string | null
+  movement: AdminRoomMovementResource
+  movements: AdminRoomMovementResource[]
+  reference?: AdminRoomMovementSettlementReference | null
+}
+
 export interface AdminRoomMovementTenantResource {
   id: number
   username?: string | null
@@ -85,7 +108,7 @@ export interface AdminRoomMovementResource {
   settlement_payment_status?: number | null
   settlement_payment_status_label?: string | null
   settlement_qr_url?: string | null
-  settlement_payment_references?: unknown[] | Record<string, unknown> | null
+  settlement_payment_references?: AdminRoomMovementSettlementReference[] | Record<string, unknown> | null
   final_electric_reading?: string | null
   final_water_reading?: string | null
   note?: string | null
