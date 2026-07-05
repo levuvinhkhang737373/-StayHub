@@ -89,7 +89,7 @@ export async function fetchAdminContractDetail(contractId: number) {
   })
 }
 
-export async function fetchAdminContractVehicles(params: { tenant_id?: number; is_active?: boolean; without_active_contract?: boolean; per_page?: number } = {}) {
+export async function fetchAdminContractVehicles(params: { tenant_id?: number; is_active?: boolean; without_active_contract?: boolean; without_reserved_contract?: boolean; per_page?: number } = {}) {
   return apiRequest<AdminPaginator<AdminVehicleOptionResource>>({
     url: `admin/vehicles${buildQuery({ per_page: 100, ...params })}`,
     method: 'GET',
@@ -103,7 +103,7 @@ export async function fetchContractAvailableTenants(contractId: number, params: 
   })
 }
 
-export async function fetchAvailableRooms(params: { building_id: number }) {
+export async function fetchAvailableRooms(params: { building_id: number; ignore_contract_id?: number }) {
   return apiRequest<Array<{ id: number; building_id: number; room_number?: string | null; status?: number | null; base_price?: string | number | null; max_occupants?: number | null; current_occupants?: number | null }>>({
     url: `admin/contracts/available-rooms${buildQuery(params)}`,
     method: 'GET',

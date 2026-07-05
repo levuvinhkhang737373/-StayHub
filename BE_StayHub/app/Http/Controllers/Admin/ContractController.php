@@ -56,6 +56,7 @@ class ContractController extends Controller
             }
 
             $buildingId = (int) $request->query('building_id');
+            $ignoreContractId = (int) $request->query('ignore_contract_id');
 
             if ($buildingId <= 0) {
                 return ApiResponse::responseJson(false, 'Vui lòng chọn tòa nhà', 422, null, 422);
@@ -65,12 +66,17 @@ class ContractController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền xem phòng của tòa nhà này', 403, null, 403);
             }
 
+            if ($ignoreContractId > 0 && ! $this->accessibleQuery($admin)->whereKey($ignoreContractId)->exists()) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền bỏ qua hợp đồng này', 403, null, 403);
+            }
+
             $rooms = Room::query()
                 ->select(['id', 'building_id', 'room_number', 'status', 'base_price', 'max_occupants', 'current_occupants'])
                 ->where('building_id', $buildingId)
                 ->where('status', Room::STATUS_ACTIVE)
-                ->whereDoesntHave('contracts', function (Builder $query): void {
-                    $query->where('status', Contract::STATUS_ACTIVE);
+                ->whereDoesntHave('contracts', function (Builder $query) use ($ignoreContractId): void {
+                    $query->whereIn('status', Contract::RESERVED_STATUSES)
+                        ->when($ignoreContractId > 0, fn (Builder $contractQuery): Builder => $contractQuery->whereKeyNot($ignoreContractId));
                 })
                 ->orderBy('room_number')
                 ->get();
@@ -814,6 +820,8 @@ class ContractController extends Controller
                     Vehicle::query()->whereIn('id', $removedVehicleIds)->update(['is_active' => false]);
                 }
 
+                $this->assertRoomContractAvailability($room->id, $oldContract->id, $status);
+
                 $oldContractActualEndDate = date('Y-m-d', strtotime($validated['start_date'].' - 1 day'));
                 $oldContract->forceFill([
                     'status' => Contract::STATUS_EXPIRED,
@@ -1338,10 +1346,8 @@ class ContractController extends Controller
             $this->throwResponse('Khách thuê đang có lịch chuyển phòng chưa hoàn tất, không thể thêm vào hợp đồng khác.', 422);
         }
 
-        if ($status === Contract::STATUS_ACTIVE) {
-            if ($stayingTenantIds !== [] && $this->hasActiveTenantConflict($stayingTenantIds, $contractId)) {
-                $this->throwResponse('Có khách thuê đang ở trong hợp đồng hiệu lực khác, vui lòng kiểm tra lại.', 422);
-            }
+        if (in_array($status, Contract::RESERVED_STATUSES, true) && $stayingTenantIds !== [] && $this->hasReservedTenantConflict($stayingTenantIds, $contractId)) {
+            $this->throwResponse('Có khách thuê đang ở trong hợp đồng chờ ký hoặc đang hiệu lực khác, vui lòng kiểm tra lại.', 422);
         }
 
         $invalidBuildingTenant = Tenant::query()
@@ -1395,14 +1401,14 @@ class ContractController extends Controller
             $this->throwResponse('Không thể thêm phương tiện đã ngừng sử dụng vào hợp đồng.', 422);
         }
 
-        if ($status === Contract::STATUS_ACTIVE) {
+        if (in_array($status, Contract::RESERVED_STATUSES, true)) {
             $activeVehicleIds = collect($vehiclePayloads)
                 ->filter(fn (array $vehicle): bool => (bool) $vehicle['is_active'])
                 ->pluck('vehicle_id')
                 ->all();
 
-            if ($activeVehicleIds !== [] && $this->hasActiveVehicleConflict($activeVehicleIds, $contractId)) {
-                $this->throwResponse('Có phương tiện đang được tính phí trong hợp đồng hiệu lực khác, vui lòng kiểm tra lại.', 422);
+            if ($activeVehicleIds !== [] && $this->hasReservedVehicleConflict($activeVehicleIds, $contractId)) {
+                $this->throwResponse('Có phương tiện đang được tính phí trong hợp đồng chờ ký hoặc đang hiệu lực khác, vui lòng kiểm tra lại.', 422);
             }
         }
     }
@@ -1424,7 +1430,7 @@ class ContractController extends Controller
 
     private function assertRoomContractAvailability(int $roomId, ?int $ignoreContractId, int $status): void
     {
-        if ($status !== Contract::STATUS_ACTIVE) {
+        if (! in_array($status, Contract::RESERVED_STATUSES, true)) {
             return;
         }
 
@@ -1433,14 +1439,14 @@ class ContractController extends Controller
             $this->throwResponse('Không tìm thấy phòng.', 404);
         }
 
-        $hasActiveContract = Contract::query()
+        $hasReservedContract = Contract::query()
             ->where('room_id', $roomId)
-            ->where('status', Contract::STATUS_ACTIVE)
+            ->whereIn('status', Contract::RESERVED_STATUSES)
             ->when($ignoreContractId !== null, fn (Builder $query) => $query->whereKeyNot($ignoreContractId))
             ->exists();
 
-        if ($hasActiveContract) {
-            $this->throwResponse('Phòng này đã có hợp đồng đang hiệu lực, không thể tạo thêm hợp đồng mới.', 422);
+        if ($hasReservedContract) {
+            $this->throwResponse('Phòng này đã có hợp đồng chờ ký hoặc đang hiệu lực, không thể tạo thêm hợp đồng mới.', 422);
         }
     }
 
@@ -1765,14 +1771,14 @@ class ContractController extends Controller
         Room::query()->whereKey($roomId)->update(['current_occupants' => $occupants]);
     }
 
-    private function hasActiveTenantConflict(array $tenantIds, ?int $ignoreContractId): bool
+    private function hasReservedTenantConflict(array $tenantIds, ?int $ignoreContractId): bool
     {
         return ContractTenant::query()
             ->whereIn('tenant_id', $tenantIds)
             ->where('is_staying', true)
             ->whereNull('leave_date')
             ->whereHas('contract', function (Builder $query) use ($ignoreContractId): void {
-                $query->where('status', Contract::STATUS_ACTIVE)
+                $query->whereIn('status', Contract::RESERVED_STATUSES)
                     ->when($ignoreContractId !== null, fn (Builder $contractQuery): Builder => $contractQuery->whereKeyNot($ignoreContractId));
             })
             ->exists();
@@ -1801,13 +1807,13 @@ class ContractController extends Controller
             ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED]);
     }
 
-    private function hasActiveVehicleConflict(array $vehicleIds, ?int $ignoreContractId): bool
+    private function hasReservedVehicleConflict(array $vehicleIds, ?int $ignoreContractId): bool
     {
         return ContractVehicle::query()
             ->whereIn('vehicle_id', $vehicleIds)
             ->where('is_active', true)
             ->whereHas('contract', function (Builder $query) use ($ignoreContractId): void {
-                $query->where('status', Contract::STATUS_ACTIVE)
+                $query->whereIn('status', Contract::RESERVED_STATUSES)
                     ->when($ignoreContractId !== null, fn (Builder $contractQuery): Builder => $contractQuery->whereKeyNot($ignoreContractId));
             })
             ->exists();

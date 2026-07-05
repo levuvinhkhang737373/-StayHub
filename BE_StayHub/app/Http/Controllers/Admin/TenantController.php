@@ -350,7 +350,9 @@ class TenantController extends Controller
             ->when(isset($validated['gender']), fn (Builder $q): Builder => $q->where('gender', (int) $validated['gender']))
             ->when(isset($validated['identity_type']), fn (Builder $q): Builder => $q->where('identity_type', (int) $validated['identity_type']));
 
-        $isContractSearch = isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN);
+        $withoutReservedContract = isset($validated['without_reserved_contract']) && filter_var($validated['without_reserved_contract'], FILTER_VALIDATE_BOOLEAN);
+        $withoutActiveContract = isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN);
+        $isContractSearch = $withoutActiveContract || $withoutReservedContract;
 
         if ($isContractSearch) {
             if (!isset($validated['building_id'])) {
@@ -364,8 +366,10 @@ class TenantController extends Controller
             });
 
             $query->where('status', Tenant::STATUS_RENTING)
-                ->whereDoesntHave('contracts', function (Builder $q): void {
-                    $q->where('status', Contract::STATUS_ACTIVE);
+                ->whereDoesntHave('contracts', function (Builder $q) use ($withoutReservedContract): void {
+                    $withoutReservedContract
+                        ? $q->whereIn('status', Contract::RESERVED_STATUSES)
+                        : $q->where('status', Contract::STATUS_ACTIVE);
                 });
 
             $this->applyBuildingGenderPolicyFilter($query, $buildingId);
@@ -381,7 +385,10 @@ class TenantController extends Controller
 
     private function searchTenants(string $keyword, array $validated, Admin $admin): LengthAwarePaginator
     {
-        if (AdminScope::isBuildingManager($admin) || (isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN))) {
+        $isContractSearch = (isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN))
+            || (isset($validated['without_reserved_contract']) && filter_var($validated['without_reserved_contract'], FILTER_VALIDATE_BOOLEAN));
+
+        if (AdminScope::isBuildingManager($admin) || $isContractSearch) {
             return $this->applyKeywordFilter($this->queryTenants($validated, $admin), $keyword)
                 ->paginate($validated['per_page'] ?? 20);
         }

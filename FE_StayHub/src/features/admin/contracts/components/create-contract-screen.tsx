@@ -189,14 +189,17 @@ export function CreateContractScreen() {
     }
 
     try {
-      const response = await fetchAvailableRooms({ building_id: Number(buildingId) })
+      const response = await fetchAvailableRooms({
+        building_id: Number(buildingId),
+        ignore_contract_id: contractId ? Number(contractId) : undefined,
+      })
       const list = Array.isArray(response.result) ? response.result : []
       setRooms(list)
     } catch (error) {
       setRooms([])
       setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phòng.'))
     }
-  }, [])
+  }, [contractId])
 
   const loadTenants = useCallback(async (buildingId: string) => {
     if (!buildingId) {
@@ -204,7 +207,7 @@ export function CreateContractScreen() {
       return
     }
     try {
-      const response = await fetchAdminTenants({ building_id: Number(buildingId), status: 1, without_active_contract: true, per_page: 100 })
+      const response = await fetchAdminTenants({ building_id: Number(buildingId), status: 1, without_reserved_contract: true, per_page: 100 })
       setTenants(getResourceList(response.result))
     } catch (error) {
       setTenants([])
@@ -300,7 +303,7 @@ export function CreateContractScreen() {
             fetchAdminContractVehicles({
               tenant_id: tenantId,
               is_active: true,
-              without_active_contract: true,
+              without_reserved_contract: true,
               per_page: 100,
             })
           )

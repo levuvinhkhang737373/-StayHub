@@ -30,6 +30,11 @@ class Contract extends Model
         self::STATUS_CANCELLED => 'Đã hủy',
     ];
 
+    public const RESERVED_STATUSES = [
+        self::STATUS_PENDING_SIGN,
+        self::STATUS_ACTIVE,
+    ];
+
     public const NEGOTIATION_STATUS_NONE = 0;
     public const NEGOTIATION_STATUS_PENDING = 1;
     public const NEGOTIATION_STATUS_APPROVED = 2;

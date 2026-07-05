@@ -26,6 +26,7 @@ class IndexRequest extends FormRequest
             'building_id' => ['nullable', 'integer', Rule::exists('buildings', 'id')],
             'created_by' => ['nullable', 'integer', Rule::exists('admins', 'id')],
             'without_active_contract' => ['nullable', 'boolean'],
+            'without_reserved_contract' => ['nullable', 'boolean'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];

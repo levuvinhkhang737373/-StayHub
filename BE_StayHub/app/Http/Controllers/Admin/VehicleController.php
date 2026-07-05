@@ -267,15 +267,27 @@ class VehicleController extends Controller
             ->when(isset($validated['tenant_id']), fn (Builder $query): Builder => $query->where('tenant_id', $validated['tenant_id']))
             ->when(isset($validated['vehicle_type']), fn (Builder $query): Builder => $query->where('vehicle_type', $validated['vehicle_type']))
             ->when(array_key_exists('is_active', $validated), fn (Builder $query): Builder => $query->where('is_active', (bool) $validated['is_active']))
-            ->when(isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN), function (Builder $query): Builder {
-                return $query->where('is_active', true)
-                    ->whereDoesntHave('contractVehicles', function (Builder $q): void {
-                        $q->where('is_active', true)
-                            ->whereHas('contract', function (Builder $cq): void {
-                                $cq->where('status', Contract::STATUS_ACTIVE);
-                            });
-                    });
-            })
+            ->when(
+                (isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN))
+                    || (isset($validated['without_reserved_contract']) && filter_var($validated['without_reserved_contract'], FILTER_VALIDATE_BOOLEAN)),
+                function (Builder $query) use ($validated): Builder {
+                    $withoutReservedContract = isset($validated['without_reserved_contract']) && filter_var($validated['without_reserved_contract'], FILTER_VALIDATE_BOOLEAN);
+
+                    return $query->where('is_active', true)
+                        ->whereDoesntHave('contractVehicles', function (Builder $q) use ($withoutReservedContract): void {
+                            $q->where('is_active', true)
+                                ->whereHas('contract', function (Builder $cq) use ($withoutReservedContract): void {
+                                    if ($withoutReservedContract) {
+                                        $cq->whereIn('status', Contract::RESERVED_STATUSES);
+
+                                        return;
+                                    }
+
+                                    $cq->where('status', Contract::STATUS_ACTIVE);
+                                });
+                        });
+                }
+            )
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }

@@ -348,7 +348,78 @@ class ContractControllerTest extends TestCase
             ->postJson('/api/v1/admin/contracts', $payload);
 
         $createResponse->assertStatus(422);
-        $createResponse->assertJsonPath('message', 'Phòng này đã có hợp đồng đang hiệu lực, không thể tạo thêm hợp đồng mới.');
+        $createResponse->assertJsonPath('message', 'Phòng này đã có hợp đồng chờ ký hoặc đang hiệu lực, không thể tạo thêm hợp đồng mới.');
+    }
+
+    public function test_room_tenant_and_vehicle_with_pending_contract_are_reserved_for_new_contracts()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-PENDING-ROOM',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '2000000.00',
+            'status' => Contract::STATUS_PENDING_SIGN,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant1->id,
+            'join_date' => '2026-06-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $contract->id,
+            'vehicle_id' => $this->vehicle->id,
+            'started_at' => '2026-06-01',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'monthly_fee' => '100000.00',
+            'is_active' => true,
+        ]);
+
+        $roomsResponse = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson("/api/v1/admin/contracts/available-rooms?building_id={$this->building->id}");
+
+        $roomsResponse->assertStatus(200);
+        $this->assertNotContains($this->room->id, collect($roomsResponse->json('result'))->pluck('id')->all());
+
+        $tenantsResponse = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson("/api/v1/admin/tenants?building_id={$this->building->id}&without_reserved_contract=1&per_page=100");
+
+        $tenantsResponse->assertStatus(200);
+        $this->assertNotContains($this->tenant1->id, collect($tenantsResponse->json('result.data'))->pluck('id')->all());
+
+        $vehiclesResponse = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson("/api/v1/admin/vehicles?tenant_id={$this->tenant1->id}&is_active=1&without_reserved_contract=1&per_page=100");
+
+        $vehiclesResponse->assertStatus(200);
+        $this->assertNotContains($this->vehicle->id, collect($vehiclesResponse->json('result.data'))->pluck('id')->all());
+
+        $createResponse = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/contracts', [
+                'room_id' => $this->room->id,
+                'start_date' => '2026-06-01',
+                'end_date' => '2026-12-01',
+                'billing_cycle_day' => 5,
+                'room_price' => '3500000.00',
+                'deposit_amount' => '2000000.00',
+                'status' => Contract::STATUS_PENDING_SIGN,
+                'tenants' => [
+                    [
+                        'tenant_id' => $this->tenant2->id,
+                        'join_date' => '2026-06-01',
+                        'is_staying' => true,
+                    ],
+                ],
+            ]);
+
+        $createResponse->assertStatus(422);
+        $createResponse->assertJsonPath('message', 'Phòng này đã có hợp đồng chờ ký hoặc đang hiệu lực, không thể tạo thêm hợp đồng mới.');
     }
 
     public function test_create_contract_violates_room_capacity()
