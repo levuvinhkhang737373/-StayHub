@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
+import type { AdminProfile } from '../../auth/types/admin-auth.model'
 import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
 import type { AdminRoomResource, BuildingResource } from '../../rooms/types/rooms.model'
-import { fetchAdminRoomMovementDetail, fetchAdminRoomMovements } from '../services/room-movements.service'
+import { fetchAdminRoomMovementDetail, fetchAdminRoomMovements, recordAdminRoomMovementSettlementCashPayment } from '../services/room-movements.service'
 import type { AdminRoomMovementPaginationMeta, AdminRoomMovementResource } from '../types/room-movement-api.model'
 
 const MOVEMENT_TRANSFER = 2
@@ -19,6 +20,7 @@ const MOVEMENT_STATUS_PENDING = 1
 const MOVEMENT_STATUS_EXECUTED = 2
 const MOVEMENT_STATUS_BLOCKED = 3
 const MOVEMENT_STATUS_CANCELLED = 4
+const SETTLEMENT_STATUS_PAID = 2
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'
 
@@ -50,6 +52,7 @@ export function RoomMovementsScreen() {
   const { session } = useAdminSession()
   const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
+  const currentAdmin = session?.admin ?? null
 
   const [searchParams, setSearchParams] = useSearchParams()
   const tenantIdFilter = searchParams.get('tenant_id') || ''
@@ -74,6 +77,10 @@ export function RoomMovementsScreen() {
   const [isOptionsLoading, setIsOptionsLoading] = useState(true)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [cashPaymentMovement, setCashPaymentMovement] = useState<AdminRoomMovementResource | null>(null)
+  const [cashPaymentNote, setCashPaymentNote] = useState('')
+  const [isCashPaymentSubmitting, setIsCashPaymentSubmitting] = useState(false)
+  const [cashPaymentErrorMessage, setCashPaymentErrorMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const currentPage = pageState.key === deepLinkFilterKey ? pageState.page : 1
@@ -248,6 +255,45 @@ export function RoomMovementsScreen() {
     setIsDetailOpen(false)
     setSelectedMovement(null)
     setDetailErrorMessage(null)
+  }
+
+  function openCashPayment(movement: AdminRoomMovementResource) {
+    setCashPaymentMovement(movement)
+    setCashPaymentNote('')
+    setCashPaymentErrorMessage(null)
+  }
+
+  function closeCashPayment() {
+    if (isCashPaymentSubmitting) return
+    setCashPaymentMovement(null)
+    setCashPaymentNote('')
+    setCashPaymentErrorMessage(null)
+  }
+
+  async function submitCashPayment() {
+    if (!cashPaymentMovement) return
+
+    setIsCashPaymentSubmitting(true)
+    setCashPaymentErrorMessage(null)
+
+    try {
+      const response = await recordAdminRoomMovementSettlementCashPayment(cashPaymentMovement.id, {
+        note: cashPaymentNote.trim() || undefined,
+      })
+
+      const freshMovement = response.result?.movement
+      if (freshMovement) {
+        setSelectedMovement(freshMovement)
+      }
+
+      setCashPaymentMovement(null)
+      setCashPaymentNote('')
+      await loadMovements()
+    } catch (error) {
+      setCashPaymentErrorMessage(getVisibleErrorMessage(error, 'Không thể ghi nhận thu tiền mặt chuyển phòng.'))
+    } finally {
+      setIsCashPaymentSubmitting(false)
+    }
   }
 
   return (
@@ -427,7 +473,19 @@ export function RoomMovementsScreen() {
       </section>
 
       {isDetailOpen && selectedMovement && (
-        <DetailModal movement={selectedMovement} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} />
+        <DetailModal movement={selectedMovement} currentAdmin={currentAdmin} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} onOpenCashPayment={openCashPayment} />
+      )}
+
+      {cashPaymentMovement && (
+        <CashSettlementPaymentModal
+          movement={cashPaymentMovement}
+          note={cashPaymentNote}
+          errorMessage={cashPaymentErrorMessage}
+          isSubmitting={isCashPaymentSubmitting}
+          onNoteChange={setCashPaymentNote}
+          onClose={closeCashPayment}
+          onConfirm={() => void submitCashPayment()}
+        />
       )}
     </>
   )
@@ -496,9 +554,10 @@ function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
   )
 }
 
-function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement: AdminRoomMovementResource; isLoading: boolean; errorMessage: string | null; onClose: () => void }) {
+function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose, onOpenCashPayment }: { movement: AdminRoomMovementResource; currentAdmin: AdminProfile | null; isLoading: boolean; errorMessage: string | null; onClose: () => void; onOpenCashPayment: (movement: AdminRoomMovementResource) => void }) {
   const hasMeterReadings = Boolean(movement.final_electric_reading || movement.final_water_reading)
   const settlementBreakdown = useMemo(() => makeSettlementBreakdown(movement), [movement])
+  const canCollectCash = canRecordCashSettlementPayment(movement, currentAdmin)
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
@@ -607,6 +666,12 @@ function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement:
                 ) : (
                   <div className="mt-4 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-center text-sm font-black text-[#f8e8c8]/65">Không phát sinh QR</div>
                 )}
+
+                {canCollectCash && (
+                  <button type="button" onClick={() => onOpenCashPayment(movement)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#7ddfd3]/25 bg-[#0f766e] px-4 py-3 text-sm font-black text-white transition hover:bg-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#7ddfd3]/20 active:scale-[0.99]">
+                    <HandCoins className="h-4 w-4" /> Thu tiền mặt
+                  </button>
+                )}
               </div>
             </div>
           </section>
@@ -634,6 +699,67 @@ function DetailModal({ movement, isLoading, errorMessage, onClose }: { movement:
               <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-[#3d2a18]">{movement.note}</p>
             </section>
           )}
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function CashSettlementPaymentModal({ movement, note, errorMessage, isSubmitting, onNoteChange, onClose, onConfirm }: { movement: AdminRoomMovementResource; note: string; errorMessage: string | null; isSubmitting: boolean; onNoteChange: (value: string) => void; onClose: () => void; onConfirm: () => void }) {
+  const remainingAmount = movement.settlement_remaining_amount || '0.00'
+  const depositRemaining = settlementDepositRemainingAmount(movement)
+  const extraAmount = settlementExtraCashAmount(movement)
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="cash-settlement-title">
+      <button type="button" aria-label="Đóng xác nhận thu tiền mặt" onClick={onClose} className="absolute inset-0 bg-[#120b06]/78 backdrop-blur-sm" />
+      <aside className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[2rem] border border-[#7ddfd3]/25 bg-[#fffaf1] shadow-2xl shadow-black/35">
+        <div className="relative bg-[#102f2b] p-5 text-white">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(125,223,211,0.26),transparent_32%),linear-gradient(135deg,#102f2b_0%,#24170d_100%)]" />
+          <div className="relative flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#7ddfd3]">Xác nhận thu tiền mặt</p>
+              <h2 id="cash-settlement-title" className="mt-2 text-2xl font-black tracking-tight">{formatCurrency(remainingAmount)}</h2>
+              <p className="mt-1 text-sm font-bold text-[#f8e8c8]/75">BE sẽ thu đủ số còn thiếu và tự tách cọc mới với phí/khấu trừ.</p>
+            </div>
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60" aria-label="Đóng xác nhận thu tiền mặt">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-5">
+          {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <DetailTile label="Mã chuyển phòng" value={movement.transfer_code || '—'} />
+            <DetailTile label="Khách thuê" value={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`} />
+            <DetailTile label="Phòng đến" value={roomLabel(movement.to_room, 'Phòng đến')} />
+            <DetailTile label="Trạng thái hiện tại" value={movement.settlement_payment_status_label || 'Chờ thanh toán'} />
+          </div>
+
+          <section className="rounded-[1.5rem] border border-[#0f766e]/15 bg-[#0f766e]/8 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f5f59]/70">Breakdown ghi nhận</p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <MoneyTile label="Số thu tiền mặt" value={remainingAmount} tone="success" />
+              <MoneyTile label="Ghi vào cọc mới" value={depositRemaining} tone="neutral" />
+              <MoneyTile label="Phí/khấu trừ" value={extraAmount} tone="warning" />
+            </div>
+            <p className="mt-3 text-xs font-bold leading-5 text-[#0f5f59]">Phần “Ghi vào cọc mới” sẽ tạo giao dịch thu cọc tiền mặt cho hợp đồng đích; phần phí/khấu trừ chỉ lưu trong lịch sử settlement chuyển phòng.</p>
+          </section>
+
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">Ghi chú nội bộ</span>
+            <textarea value={note} onChange={(event) => onNoteChange(event.target.value)} maxLength={500} rows={4} className="mt-2 w-full resize-none rounded-2xl border border-[#3d2a18]/10 bg-white/80 px-4 py-3 text-sm font-bold text-[#24170d] outline-none transition placeholder:text-[#8b5e34]/45 focus:border-[#0f766e] focus:ring-4 focus:ring-[#0f766e]/10" placeholder="Ví dụ: Thu tại quầy, người nhận tiền..." />
+          </label>
+
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="inline-flex items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white px-5 py-3 text-sm font-black text-[#6f6254] transition hover:bg-[#fff4df] disabled:cursor-not-allowed disabled:opacity-60">Hủy</button>
+            <button type="button" onClick={onConfirm} disabled={isSubmitting} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-black text-white shadow-lg shadow-[#0f766e]/20 transition hover:bg-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/20 disabled:cursor-not-allowed disabled:opacity-70">
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <HandCoins className="h-4 w-4" />}
+              Xác nhận thu đủ tiền mặt
+            </button>
+          </div>
         </div>
       </aside>
     </div>
@@ -735,6 +861,39 @@ function moneyNumber(value?: string | number | null): number {
   const normalizedValue = Number(String(value ?? '0').replace(/,/g, ''))
 
   return Number.isFinite(normalizedValue) ? normalizedValue : 0
+}
+
+function canRecordCashSettlementPayment(movement: AdminRoomMovementResource, admin?: AdminProfile | null): boolean {
+  return Number(movement.movement_type) === MOVEMENT_TRANSFER
+    && Number(movement.status) === MOVEMENT_STATUS_EXECUTED
+    && Number(movement.settlement_payment_status) !== SETTLEMENT_STATUS_PAID
+    && moneyNumber(movement.settlement_remaining_amount) > 0
+    && canAdminCollectDestinationBuildingCash(movement, admin)
+}
+
+function canAdminCollectDestinationBuildingCash(movement: AdminRoomMovementResource, admin?: AdminProfile | null): boolean {
+  if (!admin) return false
+  if (isSuperAdminRole(admin.role)) return true
+
+  const destinationBuildingId = movement.to_room?.building_id
+  if (!destinationBuildingId) return false
+
+  return (admin.managed_buildings || []).some((building) => Number(building.id) === Number(destinationBuildingId))
+}
+
+function settlementDepositRemainingAmount(movement: AdminRoomMovementResource): string {
+  const references = Array.isArray(movement.settlement_payment_references) ? movement.settlement_payment_references : []
+  const paidDeposit = references.reduce((total, reference) => total + moneyNumber(reference.deposit_amount), 0)
+  const remainingDeposit = Math.max(0, moneyNumber(movement.deposit_due_amount) - paidDeposit)
+  const amount = Math.min(moneyNumber(movement.settlement_remaining_amount), remainingDeposit)
+
+  return amount.toFixed(2)
+}
+
+function settlementExtraCashAmount(movement: AdminRoomMovementResource): string {
+  const amount = Math.max(0, moneyNumber(movement.settlement_remaining_amount) - moneyNumber(settlementDepositRemainingAmount(movement)))
+
+  return amount.toFixed(2)
 }
 
 function stringMoneyFromPayload(value: unknown, fallback?: string | null): string | null {
