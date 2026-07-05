@@ -183,6 +183,9 @@ class ImageHelper
             return true;
         }
 
+        $originalMemoryLimit = ini_get('memory_limit');
+        ini_set('memory_limit', '512M');
+
         try {
             $image = self::createImageResource($filePath, $info['mime']);
 
@@ -197,6 +200,8 @@ class ImageHelper
             return self::saveImage($image, $filePath, $info['mime'], $quality);
         } catch (Throwable) {
             return false;
+        } finally {
+            ini_set('memory_limit', $originalMemoryLimit);
         }
     }
 

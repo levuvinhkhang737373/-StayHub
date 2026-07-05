@@ -573,7 +573,12 @@ class ContractController extends ChangeNotifier {
   }
 
   /// Thương lượng hợp đồng (Tenant action)
-  Future<bool> negotiateContract(int contractId, double proposedRoomPrice, List<Map<String, dynamic>> proposedServices) async {
+  Future<bool> negotiateContract(
+    int contractId,
+    double proposedRoomPrice,
+    List<Map<String, dynamic>> proposedServices, [
+    List<Map<String, dynamic>>? proposedVehicles,
+  ]) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -582,6 +587,7 @@ class ContractController extends ChangeNotifier {
       final payload = {
         'room_price': proposedRoomPrice,
         'services': proposedServices,
+        if (proposedVehicles != null) 'vehicles': proposedVehicles,
       };
 
       final response = await _apiService.post<Map<String, dynamic>>(

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Image as ImageIcon, Loader2, MessageCircle, Search, Send, Users, X } from 'lucide-react'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { useAdminSession } from '../../auth/hooks/use-admin-session'
@@ -27,6 +28,10 @@ export function AdminChatScreen() {
   const { echo } = useAdminSocket()
   const { session } = useAdminSession()
   const adminId = session?.admin?.id
+  const [searchParams] = useSearchParams()
+  const tenantIdParam = searchParams.get('tenant_id')
+  const conversationIdParam = searchParams.get('conversation_id')
+
   const [conversations, setConversations] = useState<ChatConversationResource[]>([])
   const [activeConversation, setActiveConversation] = useState<ChatConversationResource | null>(null)
   const [messages, setMessages] = useState<ChatMessageResource[]>([])
@@ -80,13 +85,40 @@ export function AdminChatScreen() {
       })
       const data = response.result?.data || []
       setConversations(data)
-      setActiveConversation((current) => current && data.some((item) => item.id === current.id) ? current : data[0] || null)
+
+      // Find conversation matching query parameters
+      let targetConv: ChatConversationResource | null = null
+      if (conversationIdParam) {
+        targetConv = data.find(c => Number(c.id) === Number(conversationIdParam)) || null
+      } else if (tenantIdParam) {
+        targetConv = data.find(c => Number(c.tenant_id) === Number(tenantIdParam)) || null
+      }
+
+      setActiveConversation((current) => {
+        if (targetConv) return targetConv
+        return current && data.some((item) => item.id === current.id) ? current : data[0] || null
+      })
     } catch (error: any) {
       setErrorMessage(error?.message || 'Không thể tải danh sách đoạn chat.')
     } finally {
       setIsLoadingConversations(false)
     }
-  }, [keyword, showUnreadOnly])
+  }, [keyword, showUnreadOnly, tenantIdParam, conversationIdParam])
+
+  // Effect to switch active conversation immediately when URL parameters change without reloading list
+  useEffect(() => {
+    if (conversations.length > 0) {
+      let targetConv: ChatConversationResource | null = null
+      if (conversationIdParam) {
+        targetConv = conversations.find(c => Number(c.id) === Number(conversationIdParam)) || null
+      } else if (tenantIdParam) {
+        targetConv = conversations.find(c => Number(c.tenant_id) === Number(tenantIdParam)) || null
+      }
+      if (targetConv && activeConversation?.id !== targetConv.id) {
+        setActiveConversation(targetConv)
+      }
+    }
+  }, [tenantIdParam, conversationIdParam, conversations, activeConversation?.id])
 
   const loadMessages = useCallback(async (conversation: ChatConversationResource) => {
     setIsLoadingMessages(true)

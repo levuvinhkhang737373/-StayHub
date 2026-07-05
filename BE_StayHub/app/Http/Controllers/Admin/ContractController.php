@@ -1986,12 +1986,12 @@ class ContractController extends Controller
 
     private function listColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at', 'negotiation_status', 'proposed_room_price', 'proposed_services'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles'];
     }
 
     private function detailColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url', 'negotiation_status', 'proposed_room_price', 'proposed_services'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles'];
     }
 
     private function listRelations(): array
@@ -2148,6 +2148,14 @@ class ContractController extends Controller
                     $contract->negotiation_status = Contract::NEGOTIATION_STATUS_APPROVED;
                     $contract->save();
 
+                    // Update contract vehicle fees if proposed
+                    $dealVehicles = $contract->proposed_vehicles ?? [];
+                    foreach ($dealVehicles as $dealVehicle) {
+                        $contract->contractVehicles()
+                            ->where('vehicle_id', $dealVehicle['vehicle_id'])
+                            ->update(['monthly_fee' => $dealVehicle['price']]);
+                    }
+
                     // Update room service prices or contract vehicle fees
                     $dealServices = $contract->proposed_services ?? [];
                     foreach ($dealServices as $dealService) {
@@ -2158,10 +2166,16 @@ class ContractController extends Controller
 
                         $slug = strtolower($service->slug ?? '');
                         $name = strtolower($service->name ?? '');
-                        $isVehicle = str_contains($slug, 'xe') || str_contains($slug, 'parking') || str_contains($slug, 'vehicle')
+                        $isVehicle = $service->charge_method === \App\Models\Service::CHARGE_METHOD_BY_VEHICLE
+                                  || str_contains($slug, 'xe') || str_contains($slug, 'parking') || str_contains($slug, 'vehicle')
                                   || str_contains($name, 'xe') || str_contains($name, 'parking') || str_contains($name, 'vehicle');
 
                         if ($isVehicle) {
+                            // Skip vehicle services if proposed_vehicles already handled them directly
+                            if (!empty($dealVehicles)) {
+                                continue;
+                            }
+
                             // Load vehicles if not loaded
                             $contract->loadMissing('contractVehicles.vehicle');
 
@@ -2209,7 +2223,6 @@ class ContractController extends Controller
                     // Create notification for tenant
                     try {
                         $activeTenants = $contract->contractTenants()
-                            ->where('is_staying', true)
                             ->get();
 
                         foreach ($activeTenants as $ct) {
@@ -2240,7 +2253,6 @@ class ContractController extends Controller
                     // Create notification for tenant
                     try {
                         $activeTenants = $contract->contractTenants()
-                            ->where('is_staying', true)
                             ->get();
 
                         foreach ($activeTenants as $ct) {
@@ -2266,7 +2278,8 @@ class ContractController extends Controller
                 }
             });
 
-            $contract->load($this->detailRelations());
+            $contract->refresh();
+            $this->loadDetailRelations($contract);
 
             return ApiResponse::responseJson(true, 'Xử lý thương lượng thành công', 200, new ContractDetailResource($contract), 200);
         } catch (\Exception $e) {

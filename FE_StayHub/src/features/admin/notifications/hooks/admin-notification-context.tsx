@@ -90,7 +90,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
             } else if (item.notification_type === 2) {
               link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
             } else if (item.notification_type === 6) {
-              link = '/admin/chat'
+              link = item.tenant_id ? `/admin/chat?tenant_id=${item.tenant_id}` : '/admin/chat'
             } else {
               link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
             }
@@ -273,7 +273,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
             } else if (notification.notification_type === 4) {
               link = '/admin/fire-safety'
             } else if (notification.notification_type === 6) {
-              link = '/admin/chat'
+              link = notification.tenant_id ? `/admin/chat?tenant_id=${notification.tenant_id}` : '/admin/chat'
             } else {
               link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
             }
@@ -325,7 +325,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       addNotification({
         title: notification.title || 'Tin nhắn mới',
         description: notification.content || 'Bạn có tin nhắn chat mới.',
-        link: '/admin/chat',
+        link: notification.tenant_id ? `/admin/chat?tenant_id=${notification.tenant_id}` : '/admin/chat',
         type: 'chat',
       })
     })

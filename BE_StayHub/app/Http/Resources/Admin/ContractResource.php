@@ -34,6 +34,7 @@ class ContractResource extends JsonResource
             'negotiation_status_label' => Contract::NEGOTIATION_STATUS_LABELS[$this->negotiation_status] ?? 'Không thương lượng',
             'proposed_room_price' => $this->proposed_room_price === null ? null : (string) $this->proposed_room_price,
             'proposed_services' => $this->proposed_services,
+            'proposed_vehicles' => $this->proposed_vehicles,
             'payment_status' => $this->payment_status,
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,
             'is_deposit_paid' => $this->is_deposit_paid,

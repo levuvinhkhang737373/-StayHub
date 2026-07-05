@@ -246,6 +246,9 @@ class ContractController extends Controller
                 'services' => 'nullable|array',
                 'services.*.service_id' => 'required|exists:services,id',
                 'services.*.price' => 'required|numeric|min:0',
+                'vehicles' => 'nullable|array',
+                'vehicles.*.vehicle_id' => 'required|exists:vehicles,id',
+                'vehicles.*.price' => 'required|numeric|min:0',
             ]);
 
             // Validate that electricity and water are not negotiated
@@ -290,11 +293,23 @@ class ContractController extends Controller
                 }
             }
 
+            // Validate vehicles belong to the contract
+            $vehiclesInput = $validated['vehicles'] ?? [];
+            if (!empty($vehiclesInput)) {
+                $contractVehicleIds = $contract->contractVehicles()->pluck('vehicle_id')->toArray();
+                foreach ($vehiclesInput as $vInput) {
+                    if (!in_array($vInput['vehicle_id'], $contractVehicleIds)) {
+                        return ApiResponse::responseJson(false, 'Xe không thuộc hợp đồng này.', 422, null, 422);
+                    }
+                }
+            }
+
             // Update contract negotiation info
             $contract->update([
                 'negotiation_status' => Contract::NEGOTIATION_STATUS_PENDING,
                 'proposed_room_price' => $validated['room_price'],
                 'proposed_services' => $servicesInput,
+                'proposed_vehicles' => $vehiclesInput,
             ]);
 
             // Notify Building Manager
@@ -320,6 +335,7 @@ class ContractController extends Controller
                 \Illuminate\Support\Facades\Log::error('Tenant Contract negotiate notification error: ' . $e->getMessage());
             }
 
+            $contract->refresh();
             $contract->load([
                 'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                 'room.building:id,name,slug,manager_admin_id,status,address',

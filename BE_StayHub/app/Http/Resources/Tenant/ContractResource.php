@@ -47,6 +47,7 @@ class ContractResource extends JsonResource
             'negotiation_status_label' => Contract::NEGOTIATION_STATUS_LABELS[$this->negotiation_status] ?? 'Không thương lượng',
             'proposed_room_price' => $this->proposed_room_price === null ? null : (string) $this->proposed_room_price,
             'proposed_services' => $this->proposed_services,
+            'proposed_vehicles' => $this->proposed_vehicles,
             'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('services')
                 ? $this->room->services->map(function ($service) {
                     $price = (string) $service->pivot->price;
@@ -95,6 +96,32 @@ class ContractResource extends JsonResource
                         'unit_name' => $service->unit_name,
                         'price' => $price,
                         'is_required' => $service->is_required,
+                    ];
+                })
+                : null,
+            'contract_vehicles' => $this->relationLoaded('contractVehicles')
+                ? $this->contractVehicles->map(function ($cv) {
+                    return [
+                        'id' => $cv->id,
+                        'contract_id' => $cv->contract_id,
+                        'vehicle_id' => $cv->vehicle_id,
+                        'vehicle' => $cv->relationLoaded('vehicle') && $cv->vehicle ? [
+                            'id' => $cv->vehicle->id,
+                            'vehicle_type' => $cv->vehicle->vehicle_type,
+                            'vehicle_type_label' => \App\Models\Vehicle::VEHICLE_TYPE_LABELS[$cv->vehicle->vehicle_type] ?? null,
+                            'license_plate' => $cv->vehicle->license_plate,
+                            'brand' => $cv->vehicle->brand,
+                            'color' => $cv->vehicle->color,
+                            'is_active' => $cv->vehicle->is_active,
+                        ] : null,
+                        'started_at' => optional($cv->started_at)->toDateString(),
+                        'ended_at' => optional($cv->ended_at)->toDateString(),
+                        'billing_start_date' => optional($cv->billing_start_date)->toDateString(),
+                        'billing_end_date' => optional($cv->billing_end_date)->toDateString(),
+                        'monthly_fee' => $cv->monthly_fee === null ? null : (string) $cv->monthly_fee,
+                        'charge_policy' => $cv->charge_policy,
+                        'charge_policy_label' => \App\Models\ContractVehicle::CHARGE_POLICY_LABELS[$cv->charge_policy] ?? null,
+                        'is_active' => (bool) $cv->is_active,
                     ];
                 })
                 : null,

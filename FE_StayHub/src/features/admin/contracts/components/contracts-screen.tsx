@@ -120,6 +120,7 @@ export function ContractsScreen() {
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [rooms, setRooms] = useState<ContractRoomOption[]>([])
   const [detailContract, setDetailContract] = useState<AdminContractResource | null>(null)
+  const [isNegotiationMode, setIsNegotiationMode] = useState(false)
   const [statusContract, setStatusContract] = useState<AdminContractResource | null>(null)
   const [statusForm, setStatusForm] = useState({ status: STATUS_ACTIVE, note: '' })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -753,12 +754,18 @@ export function ContractsScreen() {
                           {contract.negotiation_status === 1 && (
                             <IconButton 
                               title="Xem chi tiết thương lượng & Duyệt" 
-                              onClick={() => void viewContract(contract)}
+                              onClick={() => {
+                                setIsNegotiationMode(true)
+                                void viewContract(contract)
+                              }}
                             >
                               <Handshake className="h-5 w-5 text-amber-500 animate-pulse" />
                             </IconButton>
                           )}
-                          <IconButton title="Xem chi tiết" success onClick={() => void viewContract(contract)}>
+                          <IconButton title="Xem chi tiết" success onClick={() => {
+                            setIsNegotiationMode(false)
+                            void viewContract(contract)
+                          }}>
                             <Eye className="h-5 w-5" />
                           </IconButton>
                           {Number(contract.status) === STATUS_EXPIRED && (
@@ -880,6 +887,7 @@ export function ContractsScreen() {
           onClose={() => {
             setDetailContract(null)
             setDetailErrorMessage(null)
+            setIsNegotiationMode(false)
           }}
           onPayDeposit={(contract) => {
             setPayingDepositContract(contract)
@@ -888,6 +896,7 @@ export function ContractsScreen() {
             setDetailContract(updated)
             void loadContracts()
           }}
+          onlyNegotiation={isNegotiationMode}
         />
       )}
 
