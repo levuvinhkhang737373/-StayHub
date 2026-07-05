@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\RoomType;
 use App\Models\Room;
 use App\Models\MeterDevice;
+use App\Models\Contract;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -136,5 +137,58 @@ class MeterReadingTest extends TestCase
         $response->assertJsonPath('message', 'Chốt số đồng hồ thành công');
 
         $this->assertEquals(150, (float)$this->meterDevice->fresh()->initial_reading);
+    }
+
+    public function test_saved_meter_reading_returns_correct_previous_reading_in_init(): void
+    {
+        $year = now()->year;
+        $month = now()->month;
+
+        // Create an active contract for the room so it shows up in init
+        Contract::create([
+            'contract_code' => 'HD-TEST',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        // First save a reading (from 100 to 150)
+        $payload = [
+            'meter_device_id' => $this->meterDevice->id,
+            'billing_month' => $month,
+            'billing_year' => $year,
+            'current_reading' => 150,
+            'reading_date' => now()->toDateString(),
+        ];
+
+        $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/meter-readings', $payload)
+            ->assertStatus(200);
+
+        // Fetch using the init endpoint
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson("/api/v1/admin/meter-readings/init?building_id={$this->building->id}&billing_month={$month}&billing_year={$year}");
+
+        $response->assertStatus(200);
+        
+        // Find the room and the meter inside result.rooms
+        $rooms = $response->json('result.rooms');
+        $this->assertNotEmpty($rooms);
+        
+        $roomData = collect($rooms)->firstWhere('room_id', $this->room->id);
+        $this->assertNotNull($roomData);
+        
+        $meterData = collect($roomData['meters'])->firstWhere('id', $this->meterDevice->id);
+        $this->assertNotNull($meterData);
+        
+        // Assert that previous_reading is 100 (which was the initial reading before update)
+        // and NOT 150 (the newly saved current_reading/initial_reading)
+        $this->assertEquals(100.0, (float)$meterData['previous_reading']);
+        $this->assertEquals(150.0, (float)$meterData['existing_reading']['current_reading']);
     }
 }

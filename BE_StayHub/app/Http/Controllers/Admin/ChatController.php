@@ -282,9 +282,14 @@ class ChatController extends Controller
             })
             ->delete();
 
+        $bodyText = trim((string) $message->body);
+        if (empty($bodyText) && !empty($message->attachments)) {
+            $bodyText = '[Hình ảnh]';
+        }
+
         $notification = Notification::query()->create([
             'title' => 'Tin nhắn mới từ quản lý',
-            'content' => 'Phòng ' . ($conversation->room?->room_number ?? $conversation->room_id) . ': ' . str($message->body)->limit(160)->toString(),
+            'content' => 'Phòng ' . ($conversation->room?->room_number ?? $conversation->room_id) . ': ' . str($bodyText)->limit(160)->toString(),
             'notification_type' => Notification::NOTIFICATION_TYPE_CHAT,
             'target_type' => Notification::TARGET_TYPE_TENANT,
             'building_id' => $conversation->building_id,

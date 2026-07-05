@@ -96,7 +96,7 @@ class DepositRefundExpenseHelper
 
     private static function makeTitle(Contract $contract, string $reason): string
     {
-        return Str::limit("Hoàn cọc {$contract->contract_code} — {$reason}", self::TITLE_MAX_LENGTH, '');
+        return Str::limit("Hoàn cọc {$contract->contract_code}", self::TITLE_MAX_LENGTH, '');
     }
 
     private static function normalizeReason(string $reason): string

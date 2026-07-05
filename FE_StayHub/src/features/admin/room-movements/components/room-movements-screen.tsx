@@ -602,15 +602,8 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
               <DetailTile label="Phòng mới" value={roomLabel(movement.to_room, 'Trả phòng')} />
               <DetailTile label="Hợp đồng ghi nhận" value={movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')} />
               <DetailTile label="Hợp đồng nguồn" value={movement.source_contract?.contract_code || (movement.source_contract_id ? `#${movement.source_contract_id}` : '—')} />
-              <DetailTile label="Hợp đồng đích" value={movement.destination_contract?.contract_code || (movement.destination_contract_id ? `#${movement.destination_contract_id}` : '—')} />
-              <DetailTile label="Loại biến động" value={movement.movement_type_label || '—'} />
-            </div>
-          </section>
-
-          <section className="overflow-hidden rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/70 shadow-sm">
-            <div className="border-b border-[#3d2a18]/10 bg-[#24170d] px-4 py-3 text-[#fff4df]">
+              <DetailTile label="H�            <div className="border-b border-[#3d2a18]/10 bg-[#24170d] px-4 py-3 text-[#fff4df]">
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Cọc & thanh toán chuyển phòng</p>
-              <p className="mt-1 text-xs font-bold text-[#f8e8c8]/75">Hiển thị theo đúng settlement backend: cọc mới và phí phát sinh thu chung một QR nhưng được tách riêng khi ghi nhận.</p>
             </div>
 
             <div className="grid gap-4 p-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -625,7 +618,6 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                       {settlementBreakdown.usesOldDeposit ? 'Có dùng cọc cũ' : 'Không dùng cọc cũ'}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs font-bold leading-5 text-[#6f6254]">{settlementBreakdown.oldDepositDescription}</p>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <MoneyTile label="Số dư cọc cũ" value={movement.old_room_final_amount} tone="neutral" compact />
                     <MoneyTile label="Cọc chuyển sang" value={movement.deposit_transfer_amount} tone="success" compact />
@@ -636,8 +628,8 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                 <div className="rounded-[1.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Khoản cần thu từ khách</p>
                   <div className="mt-3 space-y-2">
-                    <SettlementLine label="Cọc mới còn thiếu" value={movement.deposit_due_amount} tone="danger" helper="Phần được ghi nhận vào sổ cọc hợp đồng đích khi khách thanh toán." />
-                    <SettlementLine label="Phí/khấu trừ thu thêm" value={movement.extra_charge_amount} tone="danger" helper="Phần không ghi vào cọc mới; bao gồm khấu trừ và phí chuyển phòng còn phải thu." />
+                    <SettlementLine label="Cọc mới còn thiếu" value={movement.deposit_due_amount} tone="danger" />
+                    <SettlementLine label="Phí/khấu trừ thu thêm" value={movement.extra_charge_amount} tone="danger" />
                     <SettlementLine label="Khấu trừ admin nhập" value={settlementBreakdown.deductionInputAmount} tone="muted" />
                     <SettlementLine label="Phí chuyển phòng admin nhập" value={movement.transfer_fee} tone="muted" />
                   </div>
@@ -652,6 +644,7 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <MiniMetric label="Đã thanh toán" value={movement.settlement_paid_amount} tone="success" />
                   <MiniMetric label="Trạng thái" value={movement.settlement_payment_status_label || '—'} />
+                </div>            <MiniMetric label="Trạng thái" value={movement.settlement_payment_status_label || '—'} />
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-white/10 bg-white/8 p-3">

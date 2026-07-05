@@ -727,7 +727,7 @@ class ContractControllerTest extends TestCase
         $this->assertDatabaseHas('expenses', [
             'building_id' => $this->building->id,
             'room_id' => $this->room->id,
-            'title' => 'Hoàn cọc HD-TERMINATE — Thanh lý hợp đồng',
+            'title' => 'Hoàn cọc HD-TERMINATE',
             'amount' => '3500000.00',
             'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
             'status' => Expense::STATUS_RECORDED,
@@ -1022,7 +1022,7 @@ class ContractControllerTest extends TestCase
         $this->assertDatabaseHas('expenses', [
             'building_id' => $this->building->id,
             'room_id' => $this->room->id,
-            'title' => 'Hoàn cọc HD-TEST-REFUND — Hoàn trả một phần',
+            'title' => 'Hoàn cọc HD-TEST-REFUND',
             'amount' => '500000.00',
             'payment_method' => Expense::PAYMENT_METHOD_BANK_TRANSFER,
             'status' => Expense::STATUS_RECORDED,

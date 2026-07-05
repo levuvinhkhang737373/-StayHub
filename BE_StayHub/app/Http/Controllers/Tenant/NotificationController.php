@@ -61,7 +61,7 @@ class NotificationController extends Controller
                               ->where('tenant_id', $tenant->id);
                       });
                 })
-                ->with(['reads' => function ($query) use ($tenant) {
+                ->with(['creator', 'reads' => function ($query) use ($tenant) {
                     $query->where('tenant_id', $tenant->id);
                 }])
                 ->orderByDesc('published_at')

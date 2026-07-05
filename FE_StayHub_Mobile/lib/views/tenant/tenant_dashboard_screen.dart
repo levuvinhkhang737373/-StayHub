@@ -139,12 +139,12 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
     final notificationController = context.watch<NotificationController>();
     final unreadNotificationsCount = notificationController.unreadCount;
 
-    // Get mock data bound to this tenant (Room 101)
-    final roomNumber = tenant?.roomNumber ?? '101';
-    final tenantInvoices = invoiceController.getInvoicesForRoom(roomNumber);
+    // Get data bound to this tenant (only if roomNumber exists)
+    final roomNumber = tenant?.roomNumber ?? '';
+    final tenantInvoices = roomNumber.isNotEmpty ? invoiceController.getInvoicesForRoom(roomNumber) : <dynamic>[];
     final unpaidInvoices = tenantInvoices.where((i) => i.isUnpaid).toList();
 
-    final tenantRequests = maintenanceController.getRequestsForRoom(roomNumber);
+    final tenantRequests = roomNumber.isNotEmpty ? maintenanceController.getRequestsForRoom(roomNumber) : <dynamic>[];
     final activeRequests = tenantRequests.where((r) => r.status != 4 && r.status != 5).toList();
 
     final List<Widget> tabs = [
@@ -199,13 +199,21 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '${tenant?.buildingName ?? "StayHub Sài Gòn Q1"} • Phòng ${tenant?.roomNumber ?? "101"}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white.withValues(alpha: 0.8),
-                          ),
+                        Builder(
+                          builder: (context) {
+                            final bName = tenant?.buildingName;
+                            final rNum = tenant?.roomNumber;
+                            final hasB = bName != null && bName.isNotEmpty;
+                            final hasR = rNum != null && rNum.isNotEmpty;
+                            return Text(
+                              '${hasB ? bName : "Chưa gán tòa nhà"} • ${hasR ? "Phòng $rNum" : "Chưa gán phòng"}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -370,7 +378,13 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1C1917)),
                         ),
                         const Divider(height: 20, color: Color(0xFFE4E2D7)),
-                        _buildDetailRow('Địa chỉ hiện tại:', tenant?.currentAddress ?? 'Phòng 101'),
+                        _buildDetailRow(
+                          'Địa chỉ hiện tại:',
+                          tenant?.currentAddress ??
+                              (tenant?.roomNumber != null && tenant!.roomNumber!.isNotEmpty
+                                  ? 'Phòng ${tenant.roomNumber}'
+                                  : 'Chưa gán phòng'),
+                        ),
                         _buildDetailRow('Số điện thoại đăng kí:', tenant?.phone ?? ''),
                         _buildDetailRow('Email liên hệ:', tenant?.email ?? ''),
                         _buildDetailRow('Nơi thường trú:', tenant?.permanentAddress ?? 'Chưa cập nhật'),

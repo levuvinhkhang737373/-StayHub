@@ -79,6 +79,12 @@ const adjustmentItemTypeOptions = [
   { value: ITEM_TYPE_ADJUST_DECREASE, label: 'Điều chỉnh giảm', tone: 'danger' as const },
 ]
 
+const formatReadingNumber = (value: string | number | null | undefined): string => {
+  if (value === null || value === undefined) return ''
+  const num = Number(value)
+  return isNaN(num) ? String(value) : num.toString()
+}
+
 export function InvoicesScreen() {
   const { session } = useAdminSession()
   const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
@@ -719,9 +725,9 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
     .map((item) => ({
       meter_reading_id: Number(item.meter_reading_id),
       label: `${item.service_name || item.item_type_label || 'Chỉ số'} · ${item.description}`,
-      previous_reading: String(item.meter_reading?.previous_reading ?? '0'),
-      current_reading: String(item.meter_reading?.current_reading ?? '0'),
-      original_current_reading: String(item.meter_reading?.current_reading ?? '0'),
+      previous_reading: formatReadingNumber(item.meter_reading?.previous_reading),
+      current_reading: formatReadingNumber(item.meter_reading?.current_reading),
+      original_current_reading: formatReadingNumber(item.meter_reading?.current_reading),
       unit_price: String(item.unit_price || '0'),
       reading_date: item.meter_reading?.reading_date || '',
       image_url: item.meter_reading?.image_url,
@@ -800,7 +806,7 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="min-w-0">
                         <p className="truncate text-xs font-black text-[#24170d]">{reading.label}</p>
-                        <p className="mt-1 text-[11px] font-bold text-[#8b5e34]">Cũ: {reading.previous_reading} → {reading.original_current_reading}</p>
+                        <p className="mt-1 text-[11px] font-bold text-[#8b5e34]">Cũ: {formatReadingNumber(reading.previous_reading)} → {formatReadingNumber(reading.original_current_reading)}</p>
                       </div>
                       {reading.image_url && <a href={reading.image_url} target="_blank" rel="noreferrer" className="text-xs font-black text-[#0f766e] underline">Xem ảnh đồng hồ</a>}
                     </div>

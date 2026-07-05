@@ -51,6 +51,7 @@ class ApiService {
   late final Dio _dio;
   late final PersistCookieJar _cookieJar;
   bool _initialized = false;
+  VoidCallback? onUnauthorized;
 
   factory ApiService() {
     return _instance;
@@ -119,6 +120,12 @@ class ApiService {
             return handler.resolve(response);
           } catch (retryError) {
             return handler.next(e);
+          }
+        }
+        if (e.response?.statusCode == 401) {
+          final path = e.requestOptions.path;
+          if (!path.contains('/login') && !path.contains('/face-login')) {
+            onUnauthorized?.call();
           }
         }
         return handler.next(e);

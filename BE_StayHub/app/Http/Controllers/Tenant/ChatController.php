@@ -226,9 +226,14 @@ class ChatController extends Controller
 
     private function createAdminChatNotification(ChatConversation $conversation, ChatMessage $message, Tenant $tenant): void
     {
+        $bodyText = trim((string) $message->body);
+        if (empty($bodyText) && !empty($message->attachments)) {
+            $bodyText = '[Hình ảnh]';
+        }
+
         $notification = Notification::query()->create([
             'title' => 'Tin nhắn mới từ khách thuê',
-            'content' => 'Phòng ' . ($conversation->room?->room_number ?? $conversation->room_id) . ' - ' . ($tenant->full_name ?? $tenant->username) . ': ' . str($message->body)->limit(160)->toString(),
+            'content' => 'Phòng ' . ($conversation->room?->room_number ?? $conversation->room_id) . ' - ' . ($tenant->full_name ?? $tenant->username) . ': ' . str($bodyText)->limit(160)->toString(),
             'notification_type' => Notification::NOTIFICATION_TYPE_CHAT,
             'target_type' => Notification::TARGET_TYPE_ADMIN,
             'building_id' => $conversation->building_id,

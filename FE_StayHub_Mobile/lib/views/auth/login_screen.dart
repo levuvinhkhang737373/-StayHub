@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _isLoggingAsAdmin = true; // True: Admin, False: Tenant
+  bool _isLoggingAsAdmin = false; // True: Admin, False: Tenant
 
   @override
   void dispose() {
@@ -163,31 +163,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: InkWell(
                               onTap: () {
                                 setState(() {
-                                  _isLoggingAsAdmin = true;
-                                });
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: _isLoggingAsAdmin ? const Color(0xFF1C1917) : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  'QUẢN TRỊ VIÊN',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: _isLoggingAsAdmin ? const Color(0xFFEAB308) : const Color(0xFF78716C),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                setState(() {
                                   _isLoggingAsAdmin = false;
                                 });
                               },
@@ -203,6 +178,31 @@ class _LoginScreenState extends State<LoginScreen> {
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: !_isLoggingAsAdmin ? const Color(0xFFEAB308) : const Color(0xFF78716C),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _isLoggingAsAdmin = true;
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _isLoggingAsAdmin ? const Color(0xFF1C1917) : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  'QUẢN TRỊ VIÊN',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _isLoggingAsAdmin ? const Color(0xFFEAB308) : const Color(0xFF78716C),
                                   ),
                                   textAlign: TextAlign.center,
                                 ),

@@ -757,7 +757,7 @@ class InvoiceController extends Controller
                     'service_id' => $service->id,
                     'meter_reading_id' => $reading->id,
                     'item_type' => $this->meterItemType($meterDevice, $service),
-                    'description' => $service->name.' ('.$reading->previous_reading.' → '.$reading->current_reading.')',
+                    'description' => $service->name.' ('.((float)$reading->previous_reading).' → '.((float)$reading->current_reading).')',
                     'quantity' => DecimalMoney::normalize($reading->consumption),
                     'unit_price' => $unitPrice,
                     'amount' => DecimalMoney::multiply($reading->consumption, $unitPrice),
@@ -1611,7 +1611,7 @@ class InvoiceController extends Controller
             $name = trim(explode('(', $item->description, 2)[0]) ?: 'Chỉ số đồng hồ';
         }
 
-        return $name.' ('.DecimalMoney::normalize($reading->previous_reading).' → '.DecimalMoney::normalize($reading->current_reading).')';
+        return $name.' ('.((float)$reading->previous_reading).' → '.((float)$reading->current_reading).')';
     }
 
     private function syncMeterDeviceInitialReading(int $meterDeviceId): void

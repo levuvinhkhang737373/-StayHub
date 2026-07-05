@@ -22,6 +22,7 @@ class NotificationResource extends JsonResource
             'published_at' => optional($this->published_at)->toDateTimeString(),
             'is_read' => $this->reads->contains('tenant_id', $tenantId),
             'created_at' => optional($this->created_at)->toDateTimeString(),
+            'creator_name' => $this->creator?->full_name ?? $this->creator?->username,
         ];
     }
 }

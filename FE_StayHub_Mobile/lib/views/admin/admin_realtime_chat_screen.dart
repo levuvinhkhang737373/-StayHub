@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,6 +7,9 @@ import '../../controllers/auth_controller.dart';
 import '../../controllers/chat_controller.dart';
 import '../../models/chat.dart';
 import '../../services/websocket_service.dart';
+
+const _kMessagesPerPage = 30;
+const _kScrollUpThreshold = 80.0;
 
 class AdminChatScreen extends StatefulWidget {
   const AdminChatScreen({super.key});
@@ -20,10 +24,16 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   final ScrollController _scrollController = ScrollController();
   List<File> _selectedImages = [];
   final ImagePicker _picker = ImagePicker();
+  bool _isLoadingMore = false;
+  bool _hasMore = false;
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile> pickedFiles = await _picker.pickMultiImage();
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        imageQuality: 70,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
       if (pickedFiles.isNotEmpty) {
         setState(() {
           _selectedImages.addAll(pickedFiles.map((x) => File(x.path)));
@@ -40,6 +50,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final chatController = context.read<ChatController>();
       await chatController.fetchAdminConversations();
@@ -72,8 +83,45 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
       if (active != null) {
         await chatController.selectAdminConversation(active);
         _subscribeConversation(active.id);
+        _hasMore = chatController.messages.length >= _kMessagesPerPage;
       }
     });
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.pixels <= _kScrollUpThreshold && _hasMore && !_isLoadingMore) {
+      _loadMoreMessages();
+    }
+  }
+
+  Future<void> _loadMoreMessages() async {
+    final chatController = context.read<ChatController>();
+    final active = chatController.activeConversation;
+    if (active == null || chatController.messages.isEmpty) return;
+
+    setState(() => _isLoadingMore = true);
+
+    final oldScrollHeight = _scrollController.position.maxScrollExtent;
+    final oldScrollPos = _scrollController.position.pixels;
+
+    try {
+      final oldestId = chatController.messages.first.id;
+      await chatController.fetchMoreAdminMessages(active.id, beforeId: oldestId, perPage: _kMessagesPerPage);
+      
+      // Check if we got fewer messages than requested (= no more)
+      _hasMore = chatController.lastFetchCount >= _kMessagesPerPage;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        final newScrollHeight = _scrollController.position.maxScrollExtent;
+        _scrollController.jumpTo(oldScrollPos + (newScrollHeight - oldScrollHeight));
+      });
+    } catch (e) {
+      debugPrint('Error loading more messages: $e');
+    }
+
+    if (mounted) setState(() => _isLoadingMore = false);
   }
 
   void _subscribeConversation(int conversationId) {
@@ -93,6 +141,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     final ws = context.read<WebSocketService>();
     final active = context.read<ChatController>().activeConversation;
     if (active != null) {
@@ -144,147 +193,60 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
             onTap: () => Scaffold.of(context).openDrawer(),
             behavior: HitTestBehavior.opaque,
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Flexible(
-                  child: Text(
-                    active != null
-                        ? (active.roomNumber != null ? 'Phòng ${active.roomNumber} - ${active.tenantName}' : active.tenantName ?? 'Đoạn chat')
-                        : 'Đoạn chat',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                // Room number badge
+                if (active != null)
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3C56B),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      active.roomNumber ?? 'P?',
+                      style: const TextStyle(
+                        color: Color(0xFF24170D),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                if (active != null) const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        active != null
+                            ? (active.roomNumber != null ? 'Phòng ${active.roomNumber} - ${active.tenantName}' : active.tenantName ?? 'Đoạn chat')
+                            : 'Đoạn chat',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                      ),
+                      if (active != null)
+                        Text(
+                          '${active.buildingName ?? 'Tòa nhà'} · ${active.tenantPhone ?? 'Chưa có SĐT'}',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                            color: const Color(0xFF8B5E34).withOpacity(0.9),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 4),
                 const Icon(Icons.arrow_drop_down, color: Colors.white, size: 20),
               ],
             ),
           ),
         ),
-        backgroundColor: const Color(0xFF1C1917),
+        backgroundColor: const Color(0xFF24170D),
       ),
-      drawer: Drawer(
-        backgroundColor: const Color(0xFFF7F6F0),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.chat_bubble_outline, color: Color(0xFF1C1917)),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Đoạn chat',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1C1917),
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Color(0xFF1C1917)),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: Color(0xFFE4E2D7)),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: TextField(
-                  controller: _searchController,
-                  onSubmitted: (value) => context.read<ChatController>().fetchAdminConversations(keyword: value),
-                  decoration: InputDecoration(
-                    hintText: 'Tìm phòng hoặc tenant...',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: chatController.isLoading && chatController.conversations.isEmpty
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF1C1917)))
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemCount: chatController.conversations.length,
-                        itemBuilder: (context, index) {
-                          final item = chatController.conversations[index];
-                          final selected = active?.id == item.id;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            child: InkWell(
-                              onTap: () async {
-                                Navigator.pop(context);
-                                final oldActive = context.read<ChatController>().activeConversation;
-                                if (oldActive != null) {
-                                  context.read<WebSocketService>().unsubscribeFromChatConversation(oldActive.id);
-                                }
-                                await context.read<ChatController>().selectAdminConversation(item);
-                                _subscribeConversation(item.id);
-                                _scrollToBottom();
-                              },
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: selected ? const Color(0xFF1C1917) : Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: selected ? const Color(0xFFEAB308) : const Color(0xFFE4E2D7)),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            item.roomNumber != null ? 'Phòng ${item.roomNumber}' : 'Chưa có phòng',
-                                            style: TextStyle(
-                                              color: selected ? Colors.white : const Color(0xFF1C1917),
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ),
-                                        if (item.adminUnreadCount > 0)
-                                          Badge(label: Text('${item.adminUnreadCount}'), backgroundColor: Colors.redAccent),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      item.tenantName ?? 'Khách thuê',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: selected ? Colors.white70 : const Color(0xFF57534E),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      item.lastMessage?.body ?? item.buildingName ?? 'Chưa có tin nhắn',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: selected ? Colors.white60 : Colors.grey,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      drawer: _buildDrawer(context, chatController, active),
       body: Column(
         children: [
           Expanded(
@@ -302,51 +264,86 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: chatController.messages.length,
-                    itemBuilder: (context, index) {
-                      final message = chatController.messages[index];
-                      final isMine = message.senderRole == 2;
-
-                      // Date separator logic
-                      final prevMessage = index > 0 ? chatController.messages[index - 1] : null;
-                      final currentDividerLabel = _getChatDividerLabel(message.createdAt);
-                      final prevDividerLabel = prevMessage != null ? _getChatDividerLabel(prevMessage.createdAt) : null;
-                      final showDateDivider = prevMessage == null || currentDividerLabel != prevDividerLabel;
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (showDateDivider)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: Row(
-                                children: [
-                                  Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                                    child: Text(
-                                      currentDividerLabel,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.5,
-                                        color: const Color(0xFF8B5E34).withOpacity(0.7),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
-                                ],
+                : chatController.isLoading && chatController.messages.isEmpty
+                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF24170D)))
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: chatController.messages.length + (_isLoadingMore ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          // Loading spinner at the top
+                          if (_isLoadingMore && index == 0) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5E34))),
+                                    SizedBox(width: 8),
+                                    Text('Đang tải tin nhắn cũ...', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF8B5E34))),
+                                  ],
+                                ),
                               ),
-                            ),
-                          _AdminMessageBubble(message: message, isMine: isMine),
-                        ],
-                      );
-                    },
-                  ),
+                            );
+                          }
+
+                          final msgIndex = _isLoadingMore ? index - 1 : index;
+                          final message = chatController.messages[msgIndex];
+                          final isMine = message.senderRole == 2;
+
+                          // Date separator logic
+                          final prevMessage = msgIndex > 0 ? chatController.messages[msgIndex - 1] : null;
+                          final currentDividerLabel = _getChatDividerLabel(message.createdAt);
+                          final prevDividerLabel = prevMessage != null ? _getChatDividerLabel(prevMessage.createdAt) : null;
+                          final showDateDivider = prevMessage == null || currentDividerLabel != prevDividerLabel;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showDateDivider)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  child: Row(
+                                    children: [
+                                      Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        child: Text(
+                                          currentDividerLabel,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 1.5,
+                                            color: const Color(0xFF8B5E34).withOpacity(0.7),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
+                                    ],
+                                  ),
+                                ),
+                              _AdminMessageBubble(message: message, isMine: isMine, allMessages: chatController.messages),
+                            ],
+                          );
+                        },
+                      ),
           ),
+          if (chatController.errorMessage != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1F2),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF9F1239).withOpacity(0.1)),
+              ),
+              child: Text(
+                chatController.errorMessage!,
+                style: const TextStyle(color: Color(0xFFBE123C), fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
           if (active != null)
             SafeArea(
               top: false,
@@ -461,98 +458,575 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
       ),
     );
   }
+
+  Widget _buildDrawer(BuildContext context, ChatController chatController, ChatConversation? active) {
+    final totalUnread = chatController.conversations.fold<int>(0, (sum, c) => sum + c.adminUnreadCount);
+
+    return Drawer(
+      backgroundColor: const Color(0xFF24170D),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Đoạn chat',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3C56B),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      '$totalUnread',
+                      style: const TextStyle(
+                        color: Color(0xFF24170D),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: Color(0xFFF3C56B), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onSubmitted: (value) => context.read<ChatController>().fetchAdminConversations(keyword: value),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Tìm phòng hoặc khách thuê...',
+                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.45), fontWeight: FontWeight.bold, fontSize: 13),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Conversation list
+            Expanded(
+              child: chatController.isLoading && chatController.conversations.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(
+                          5,
+                          (_) => Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : chatController.conversations.isEmpty
+                      ? Center(
+                          child: Container(
+                            margin: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white.withOpacity(0.1)),
+                            ),
+                            child: Text(
+                              'Chưa có đoạn chat nào.',
+                              style: TextStyle(color: Colors.white.withOpacity(0.65), fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          itemCount: chatController.conversations.length,
+                          itemBuilder: (context, index) {
+                            final item = chatController.conversations[index];
+                            final selected = active?.id == item.id;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: InkWell(
+                                onTap: () async {
+                                  Navigator.pop(context);
+                                  final oldActive = context.read<ChatController>().activeConversation;
+                                  if (oldActive != null) {
+                                    context.read<WebSocketService>().unsubscribeFromChatConversation(oldActive.id);
+                                  }
+                                  await context.read<ChatController>().selectAdminConversation(item);
+                                  _subscribeConversation(item.id);
+                                  _hasMore = context.read<ChatController>().messages.length >= _kMessagesPerPage;
+                                  _scrollToBottom();
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: selected ? const Color(0xFFFFFAF1) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: selected
+                                        ? [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 12, offset: const Offset(0, 4))]
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Room number badge
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF3C56B),
+                                          borderRadius: BorderRadius.circular(14),
+                                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 2))],
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          item.roomNumber ?? 'P?',
+                                          style: const TextStyle(
+                                            color: Color(0xFF24170D),
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    'Phòng ${item.roomNumber ?? '—'} · ${item.tenantName ?? 'Khách thuê'}',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      color: selected ? const Color(0xFF24170D) : Colors.white,
+                                                      fontWeight: FontWeight.w900,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (item.adminUnreadCount > 0)
+                                                  Container(
+                                                    margin: const EdgeInsets.only(left: 6),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF006DFF),
+                                                      borderRadius: BorderRadius.circular(10),
+                                                    ),
+                                                    child: Text(
+                                                      '${item.adminUnreadCount}',
+                                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              item.lastMessage?.body ?? item.buildingName ?? 'Bắt đầu trò chuyện',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: selected ? const Color(0xFF24170D).withOpacity(0.7) : Colors.white.withOpacity(0.6),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AdminMessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMine;
+  final List<ChatMessage> allMessages;
 
-  const _AdminMessageBubble({required this.message, required this.isMine});
+  const _AdminMessageBubble({required this.message, required this.isMine, required this.allMessages});
 
   @override
   Widget build(BuildContext context) {
+    final hasBody = message.body.isNotEmpty;
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isMine ? const Color(0xFF1C1917) : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: isMine ? null : Border.all(color: const Color(0xFFE4E2D7)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (message.body.isNotEmpty)
-              Text(
-                message.body,
-                style: TextStyle(
-                  color: isMine ? Colors.white : const Color(0xFF1C1917),
-                  fontWeight: FontWeight.w700,
-                  height: 1.35,
-                ),
-              ),
-            if (message.attachments.isNotEmpty) ...[
-              if (message.body.isNotEmpty) const SizedBox(height: 8),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: message.attachments.length > 1 ? 2 : 1,
-                  crossAxisSpacing: 4,
-                  mainAxisSpacing: 4,
-                  childAspectRatio: 1.3,
-                ),
-                itemCount: message.attachments.length,
-                itemBuilder: (context, idx) {
-                  final url = message.attachments[idx];
-                  final isLocal = !url.startsWith('http');
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: isLocal
-                        ? Image.file(
-                            File(url),
-                            fit: BoxFit.cover,
-                          )
-                        : Image.network(
-                            url,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, progress) {
-                              if (progress == null) return child;
-                              return Container(
-                                color: Colors.black12,
-                                child: const Center(
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5E34)),
-                                  ),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.black12,
-                                child: const Icon(Icons.broken_image, color: Colors.grey),
-                              );
-                            },
+      child: Column(
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+            padding: hasBody
+                ? const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
+                : EdgeInsets.zero,
+            decoration: BoxDecoration(
+              color: hasBody
+                  ? (isMine ? const Color(0xFF24170D) : Colors.white)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(23),
+              border: (hasBody && !isMine) ? Border.all(color: const Color(0xFFE4E2D7)) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (message.body.isNotEmpty)
+                  Text(
+                    message.body,
+                    style: TextStyle(
+                      color: isMine ? Colors.white : const Color(0xFF24170D),
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
+                if (message.attachments.isNotEmpty) ...[
+                  if (message.body.isNotEmpty) const SizedBox(height: 8),
+                  if (message.attachments.length == 1)
+                    Align(
+                      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.76,
+                          maxHeight: 400,
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1)),
                           ),
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: 4),
-            Text(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: GestureDetector(
+                              onTap: () => _openImageGallery(context, message.attachments, 0),
+                              child: _buildImage(message.attachments[0]),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 4,
+                        mainAxisSpacing: 4,
+                        childAspectRatio: 1.3,
+                      ),
+                      itemCount: message.attachments.length,
+                      itemBuilder: (context, idx) {
+                        final url = message.attachments[idx];
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: GestureDetector(
+                            onTap: () => _openImageGallery(context, message.attachments, idx),
+                            child: _buildImage(url, fit: BoxFit.cover),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+            child: Text(
               message.optimistic ? 'Đang gửi...' : _formatTimeOnly(message.createdAt),
               style: TextStyle(
                 fontSize: 10,
-                color: isMine ? Colors.white70 : Colors.grey,
+                color: const Color(0xFF8B5E34).withOpacity(0.7),
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImage(String url, {BoxFit? fit}) {
+    final isLocal = !url.startsWith('http');
+    if (kIsWeb || !isLocal) {
+      return Image.network(
+        url,
+        fit: fit,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return Container(
+            color: Colors.black12,
+            width: 150,
+            height: 150,
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5E34)),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.black12,
+            width: 150,
+            height: 150,
+            child: const Icon(Icons.broken_image, color: Colors.grey),
+          );
+        },
+      );
+    }
+    return Image.file(File(url), fit: fit);
+  }
+
+  void _openImageGallery(BuildContext context, List<String> urls, int initialIndex) {
+    showDialog(
+      context: context,
+      useSafeArea: false,
+      barrierColor: Colors.black.withOpacity(0.95),
+      builder: (context) => _ImageGalleryOverlay(urls: urls, initialIndex: initialIndex),
+    );
+  }
+}
+
+class _ImageGalleryOverlay extends StatefulWidget {
+  final List<String> urls;
+  final int initialIndex;
+
+  const _ImageGalleryOverlay({required this.urls, required this.initialIndex});
+
+  @override
+  State<_ImageGalleryOverlay> createState() => _ImageGalleryOverlayState();
+}
+
+class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
+  late int _currentIndex;
+  final TransformationController _transformationController = TransformationController();
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  void _resetZoom() {
+    _transformationController.value = Matrix4.identity();
+  }
+
+  void _goTo(int index) {
+    if (index < 0 || index >= widget.urls.length) return;
+    setState(() {
+      _currentIndex = index;
+    });
+    _resetZoom();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final url = widget.urls[_currentIndex];
+    final isLocal = !url.startsWith('http');
+
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          // Background dismiss
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(color: Colors.transparent),
+          ),
+
+          // InteractiveViewer
+          Center(
+            child: InteractiveViewer(
+              transformationController: _transformationController,
+              minScale: 0.5,
+              maxScale: 5.0,
+              child: (kIsWeb || !isLocal)
+                  ? Image.network(
+                      url,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 48));
+                      },
+                    )
+                  : Image.file(File(url), fit: BoxFit.contain),
+            ),
+          ),
+
+          // Top controls
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 12,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          final currentScale = _transformationController.value.getMaxScaleOnAxis();
+                          final newScale = (currentScale - 0.3).clamp(0.5, 5.0);
+                          _transformationController.value = Matrix4.identity()..scale(newScale);
+                        },
+                        child: const Icon(Icons.zoom_out, color: Colors.white, size: 18),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _resetZoom,
+                        child: const Text('Reset', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          final currentScale = _transformationController.value.getMaxScaleOnAxis();
+                          final newScale = (currentScale + 0.3).clamp(0.5, 5.0);
+                          _transformationController.value = Matrix4.identity()..scale(newScale);
+                        },
+                        child: const Icon(Icons.zoom_in, color: Colors.white, size: 18),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Left arrow
+          if (widget.urls.length > 1 && _currentIndex > 0)
+            Positioned(
+              left: 12,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () => _goTo(_currentIndex - 1),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+            ),
+
+          // Right arrow
+          if (widget.urls.length > 1 && _currentIndex < widget.urls.length - 1)
+            Positioned(
+              right: 12,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () => _goTo(_currentIndex + 1),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    child: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+            ),
+
+          // Image counter
+          if (widget.urls.length > 1)
+            Positioned(
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1} / ${widget.urls.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

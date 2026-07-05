@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -24,7 +25,11 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile> pickedFiles = await _picker.pickMultiImage();
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        imageQuality: 70,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
       if (pickedFiles.isNotEmpty) {
         setState(() {
           _selectedImages.addAll(pickedFiles.map((x) => File(x.path)));
@@ -148,14 +153,31 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F766E),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        backgroundColor: const Color(0xFF24170D),
+        title: Row(
           children: [
-            const Text('Chat với quản lý', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            Text(
-              conversation?.managerName ?? 'StayHub realtime',
-              style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w600),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3C56B),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF24170D), size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Chat với quản lý', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  Text(
+                    conversation?.managerName ?? 'StayHub',
+                    style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -176,13 +198,21 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
             if (chatController.errorMessage != null)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                color: Colors.red.shade50,
-                child: Text(chatController.errorMessage!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF9F1239).withOpacity(0.1)),
+                ),
+                child: Text(
+                  chatController.errorMessage!,
+                  style: const TextStyle(color: Color(0xFFBE123C), fontWeight: FontWeight.bold, fontSize: 13),
+                ),
               ),
             Expanded(
               child: chatController.isLoading
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F766E)))
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF8B5E34)))
                   : chatController.messages.isEmpty
                       ? const _EmptyChatState()
                       : ListView.builder(
@@ -207,7 +237,7 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                                     padding: const EdgeInsets.symmetric(vertical: 16),
                                     child: Row(
                                       children: [
-                                        Expanded(child: Divider(color: const Color(0xFF0F766E).withOpacity(0.15), thickness: 1)),
+                                        Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
                                         Padding(
                                           padding: const EdgeInsets.symmetric(horizontal: 12),
                                           child: Text(
@@ -216,17 +246,18 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                                               fontSize: 10,
                                               fontWeight: FontWeight.w900,
                                               letterSpacing: 1.5,
-                                              color: const Color(0xFF0F766E).withOpacity(0.7),
+                                              color: const Color(0xFF8B5E34).withOpacity(0.7),
                                             ),
                                           ),
                                         ),
-                                        Expanded(child: Divider(color: const Color(0xFF0F766E).withOpacity(0.15), thickness: 1)),
+                                        Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
                                       ],
                                     ),
                                   ),
                                 _MessageBubble(
                                   message: message,
                                   isMine: isMine,
+                                  allMessages: chatController.messages,
                                 ),
                               ],
                             );
@@ -251,7 +282,7 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFF4FBF9),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF0F766E).withOpacity(0.15)),
+                          border: Border.all(color: const Color(0xFF8B5E34).withOpacity(0.15)),
                         ),
                         padding: const EdgeInsets.all(8),
                         child: ListView.builder(
@@ -311,7 +342,7 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.image_outlined, color: Color(0xFF0F766E), size: 22),
+                            icon: const Icon(Icons.image_outlined, color: Color(0xFF8B5E34), size: 22),
                             onPressed: _pickImages,
                             visualDensity: VisualDensity.compact,
                           ),
@@ -332,7 +363,7 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.send_rounded, color: Color(0xFF0F766E), size: 22),
+                            icon: const Icon(Icons.send_rounded, color: Color(0xFF8B5E34), size: 22),
                             onPressed: (chatController.isSending || (_messageController.text.trim().isEmpty && _selectedImages.isEmpty))
                                 ? null
                                 : _send,
@@ -366,7 +397,7 @@ class _EmptyChatState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(18),
               decoration: const BoxDecoration(color: Color(0xFFE0F2F1), shape: BoxShape.circle),
-              child: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF0F766E), size: 36),
+              child: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF8B5E34), size: 36),
             ),
             const SizedBox(height: 16),
             const Text('Bạn cần hỗ trợ?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1C1917))),
@@ -382,97 +413,352 @@ class _EmptyChatState extends StatelessWidget {
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMine;
+  final List<ChatMessage> allMessages;
 
-  const _MessageBubble({required this.message, required this.isMine});
+  const _MessageBubble({required this.message, required this.isMine, required this.allMessages});
 
   @override
   Widget build(BuildContext context) {
+    final hasBody = message.body.isNotEmpty;
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isMine ? const Color(0xFF0F766E) : Colors.white,
-          borderRadius: BorderRadius.circular(20).copyWith(
-            bottomRight: isMine ? const Radius.circular(4) : const Radius.circular(20),
-            bottomLeft: isMine ? const Radius.circular(20) : const Radius.circular(4),
-          ),
-          border: isMine ? null : Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (message.body.isNotEmpty)
-              Text(
-                message.body,
-                style: TextStyle(
-                  color: isMine ? Colors.white : const Color(0xFF24170D),
-                  fontWeight: FontWeight.bold,
-                  height: 1.35,
-                ),
-              ),
-            if (message.attachments.isNotEmpty) ...[
-              if (message.body.isNotEmpty) const SizedBox(height: 8),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: message.attachments.length > 1 ? 2 : 1,
-                  crossAxisSpacing: 4,
-                  mainAxisSpacing: 4,
-                  childAspectRatio: 1.3,
-                ),
-                itemCount: message.attachments.length,
-                itemBuilder: (context, idx) {
-                  final url = message.attachments[idx];
-                  final isLocal = !url.startsWith('http');
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: isLocal
-                        ? Image.file(
-                            File(url),
-                            fit: BoxFit.cover,
-                          )
-                        : Image.network(
-                            url,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, progress) {
-                              if (progress == null) return child;
-                              return Container(
-                                color: Colors.black12,
-                                child: const Center(
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
-                                  ),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.black12,
-                                child: const Icon(Icons.broken_image, color: Colors.grey),
-                              );
-                            },
+      child: Column(
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+            padding: hasBody
+                ? const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
+                : EdgeInsets.zero,
+            decoration: BoxDecoration(
+              color: hasBody
+                  ? (isMine ? const Color(0xFF24170D) : Colors.white)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(23),
+              border: (hasBody && !isMine) ? Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1)) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (message.body.isNotEmpty)
+                  Text(
+                    message.body,
+                    style: TextStyle(
+                      color: isMine ? Colors.white : const Color(0xFF24170D),
+                      fontWeight: FontWeight.bold,
+                      height: 1.35,
+                    ),
+                  ),
+                if (message.attachments.isNotEmpty) ...[
+                  if (message.body.isNotEmpty) const SizedBox(height: 8),
+                  if (message.attachments.length == 1)
+                    Align(
+                      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.76,
+                          maxHeight: 400,
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1)),
                           ),
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: 4),
-            Text(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: GestureDetector(
+                              onTap: () => _openImageGallery(context, message.attachments, 0),
+                              child: _buildImage(message.attachments[0]),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 4,
+                        mainAxisSpacing: 4,
+                        childAspectRatio: 1.3,
+                      ),
+                      itemCount: message.attachments.length,
+                      itemBuilder: (context, idx) {
+                        final url = message.attachments[idx];
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: GestureDetector(
+                            onTap: () => _openImageGallery(context, message.attachments, idx),
+                            child: _buildImage(url, fit: BoxFit.cover),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+            child: Text(
               message.optimistic ? 'Đang gửi...' : _formatTimeOnly(message.createdAt),
               style: TextStyle(
                 fontSize: 9,
-                color: isMine ? Colors.white60 : const Color(0xFF8B5E34).withOpacity(0.6),
+                color: const Color(0xFF8B5E34).withOpacity(0.6),
                 fontWeight: FontWeight.bold,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImage(String url, {BoxFit? fit}) {
+    final isLocal = !url.startsWith('http');
+    if (kIsWeb || !isLocal) {
+      return Image.network(
+        url,
+        fit: fit,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return Container(
+            color: Colors.black12,
+            width: 150,
+            height: 150,
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5E34)),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.black12,
+            width: 150,
+            height: 150,
+            child: const Icon(Icons.broken_image, color: Colors.grey),
+          );
+        },
+      );
+    }
+    return Image.file(File(url), fit: fit);
+  }
+
+  void _openImageGallery(BuildContext context, List<String> urls, int initialIndex) {
+    showDialog(
+      context: context,
+      useSafeArea: false,
+      barrierColor: Colors.black.withOpacity(0.95),
+      builder: (context) => _ImageGalleryOverlay(urls: urls, initialIndex: initialIndex),
+    );
+  }
+}
+
+class _ImageGalleryOverlay extends StatefulWidget {
+  final List<String> urls;
+  final int initialIndex;
+
+  const _ImageGalleryOverlay({required this.urls, required this.initialIndex});
+
+  @override
+  State<_ImageGalleryOverlay> createState() => _ImageGalleryOverlayState();
+}
+
+class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
+  late int _currentIndex;
+  final TransformationController _transformationController = TransformationController();
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  void _resetZoom() {
+    _transformationController.value = Matrix4.identity();
+  }
+
+  void _goTo(int index) {
+    if (index < 0 || index >= widget.urls.length) return;
+    setState(() {
+      _currentIndex = index;
+    });
+    _resetZoom();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final url = widget.urls[_currentIndex];
+    final isLocal = !url.startsWith('http');
+
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          // Image area - tap background to dismiss
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(color: Colors.transparent),
+          ),
+
+          // InteractiveViewer for zoom/pan
+          Center(
+            child: InteractiveViewer(
+              transformationController: _transformationController,
+              minScale: 0.5,
+              maxScale: 5.0,
+              child: (kIsWeb || !isLocal)
+                  ? Image.network(
+                      url,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 48));
+                      },
+                    )
+                  : Image.file(File(url), fit: BoxFit.contain),
+            ),
+          ),
+
+          // Top controls
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 12,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Zoom controls
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          final currentScale = _transformationController.value.getMaxScaleOnAxis();
+                          final newScale = (currentScale - 0.3).clamp(0.5, 5.0);
+                          _transformationController.value = Matrix4.identity()..scale(newScale);
+                        },
+                        child: const Icon(Icons.zoom_out, color: Colors.white, size: 18),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _resetZoom,
+                        child: const Text('Reset', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          final currentScale = _transformationController.value.getMaxScaleOnAxis();
+                          final newScale = (currentScale + 0.3).clamp(0.5, 5.0);
+                          _transformationController.value = Matrix4.identity()..scale(newScale);
+                        },
+                        child: const Icon(Icons.zoom_in, color: Colors.white, size: 18),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Close button
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Left arrow
+          if (widget.urls.length > 1 && _currentIndex > 0)
+            Positioned(
+              left: 12,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () => _goTo(_currentIndex - 1),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+            ),
+
+          // Right arrow
+          if (widget.urls.length > 1 && _currentIndex < widget.urls.length - 1)
+            Positioned(
+              right: 12,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () => _goTo(_currentIndex + 1),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    child: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+            ),
+
+          // Image counter
+          if (widget.urls.length > 1)
+            Positioned(
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1} / ${widget.urls.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -266,13 +266,17 @@ class MeterReadingController extends Controller
             ->orderByDesc('billing_month')
             ->first();
 
+        $previousReading = $existingReading
+            ? (float) $existingReading->previous_reading
+            : ($previousReadingRecord ? (float) $previousReadingRecord->current_reading : (float) $meter->initial_reading);
+
         return [
             'id' => $meter->id,
             'meter_code' => $meter->meter_code,
             'meter_type' => $meter->meter_type,
             'service_id' => $meter->service_id,
             'service_name' => $meter->service?->name,
-            'previous_reading' => $previousReadingRecord ? (float) $previousReadingRecord->current_reading : (float) $meter->initial_reading,
+            'previous_reading' => $previousReading,
             'existing_reading' => $existingReading ? $this->existingReadingPayload($existingReading) : null,
         ];
     }

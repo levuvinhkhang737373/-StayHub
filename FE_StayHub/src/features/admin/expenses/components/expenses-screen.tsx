@@ -584,7 +584,7 @@ export function ExpensesScreen() {
                 {!isLoading && expenses.map((expense) => (
                   <tr key={expense.id} className="align-middle transition hover:bg-[#f3c56b]/10 group">
                     <td className="px-5 py-4"><p className="font-black text-[#24170d]">{expense.expense_code}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{expense.payment_method_label || '—'}</p></td>
-                    <td className="px-5 py-4"><p className="font-black text-[#24170d]">{expense.title}</p><p className="mt-1 line-clamp-1 text-xs font-bold text-[#8b5e34]/75">{expense.note || 'Không có ghi chú'}</p></td>
+                    <td className="px-5 py-4"><p className="font-black text-[#24170d]">{expense.title.replace(/\s*[—\-]\s*Thanh lý hợp đồng/gi, '')}</p><p className="mt-1 line-clamp-1 text-xs font-bold text-[#8b5e34]/75">{expense.note || 'Không có ghi chú'}</p></td>
                     <td className="px-5 py-4"><p className="font-black text-[#24170d]">{getExpenseBuildingName(expense)}</p><p className="mt-1 text-xs font-bold text-[#8b5e34]">{getExpenseRoomName(expense)}</p></td>
                     <td className="px-5 py-4 text-xs font-black text-[#8b5e34] text-center">{getExpenseCategoryName(expense)}</td>
                     <td className="px-5 py-4 font-black tabular-nums text-[#24170d] text-center">{expense.amount_formatted || formatCurrency(expense.amount)}</td>
@@ -704,7 +704,7 @@ export function ExpensesScreen() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8b5e34]">{getExpenseCategoryName(detailExpense)}</p>
-                    <h3 className="mt-1 text-xl font-black text-[#24170d]">{detailExpense.title}</h3>
+                    <h3 className="mt-1 text-xl font-black text-[#24170d]">{detailExpense.title.replace(/\s*[—\-]\s*Thanh lý hợp đồng/gi, '')}</h3>
                     <p className="mt-2 text-sm font-bold leading-6 text-[#6f6254]">{detailExpense.note || 'Không có ghi chú.'}</p>
                   </div>
                   <StatusBadge status={detailExpense.status} label={detailExpense.status_label} />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, X, Check, AlertTriangle, RefreshCw, ArrowRight, TrendingDown, TrendingUp, CheckCircle2, XCircle, Handshake } from 'lucide-react'
+import { FileText, X, Check, RefreshCw, ArrowRight, TrendingDown, TrendingUp, CheckCircle2, XCircle, Handshake } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ConfirmModal } from '../../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../../shared/lib/hooks/use-confirm-modal'
@@ -548,8 +548,6 @@ export function ContractDetailModal({
                           return contract.proposed_services.map((proposed) => {
                             const currentPrice = 0
                             const proposedPrice = Number(proposed.price || 0)
-                            const diff = proposedPrice - currentPrice
-                            const changed = true
                             return (
                               <tr key={proposed.service_id} className="bg-amber-50/30">
                                 <td className="px-4 py-3 font-bold text-[#24170d]">

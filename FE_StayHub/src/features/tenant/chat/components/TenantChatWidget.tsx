@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Image as ImageIcon, MessageCircle, Minus, Send, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Image as ImageIcon, MessageCircle, Minus, Send, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatTimeOnly, getChatDividerLabel } from '../../../../shared/lib/utils/format'
@@ -30,6 +31,48 @@ export function TenantChatWidget() {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [activeImageUrls, setActiveImageUrls] = useState<string[] | null>(null)
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0)
+  const [scale, setScale] = useState(1)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
+  useEffect(() => {
+    if (activeImageUrls) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+      setScale(1)
+      setPosition({ x: 0, y: 0 })
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [activeImageUrls])
+
+  useEffect(() => {
+    setScale(1)
+    setPosition({ x: 0, y: 0 })
+  }, [activeImageIndex, activeImageUrls])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!activeImageUrls) return
+      if (e.key === 'ArrowLeft' && activeImageIndex > 0) {
+        setActiveImageIndex(prev => prev - 1)
+      } else if (e.key === 'ArrowRight' && activeImageIndex < activeImageUrls.length - 1) {
+        setActiveImageIndex(prev => prev + 1)
+      } else if (e.key === 'Escape') {
+        setActiveImageUrls(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeImageUrls, activeImageIndex])
 
   useEffect(() => {
     if (selectedImages.length === 0) {
@@ -44,6 +87,15 @@ export function TenantChatWidget() {
   }, [selectedImages])
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.style.height = 'auto'
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+  }, [input])
 
   const showChatToast = useCallback((message: string) => {
     setToastMessage(message)
@@ -164,6 +216,35 @@ export function TenantChatWidget() {
     }
   }
 
+  const handleWheel = (e: React.WheelEvent) => {
+    const zoomFactor = 0.1
+    let newScale = scale + (e.deltaY < 0 ? zoomFactor : -zoomFactor)
+    newScale = Math.max(0.5, Math.min(newScale, 5))
+    setScale(newScale)
+    if (newScale === 1) {
+      setPosition({ x: 0, y: 0 })
+    }
+  }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (scale <= 1) return
+    e.preventDefault()
+    setIsDragging(true)
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    })
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
   const unreadCount = conversation?.tenant_unread_count || 0
 
   return (
@@ -223,6 +304,7 @@ export function TenantChatWidget() {
                   const currentDividerLabel = getChatDividerLabel(message.created_at)
                   const prevDividerLabel = prevMessage ? getChatDividerLabel(prevMessage.created_at) : null
                   const showDateDivider = !prevMessage || currentDividerLabel !== prevDividerLabel
+                  const hasBody = !!message.body
 
                   return (
                     <div key={message.id} className="space-y-3">
@@ -235,18 +317,43 @@ export function TenantChatWidget() {
                           <div className="h-[1px] flex-1 bg-[#0f766e]/15" />
                         </div>
                       )}
-                      <div className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
-                        <div className={cn('max-w-[82%] rounded-[1.35rem] px-4 py-3 shadow-sm', isMine ? 'bg-[#0f766e] text-white' : 'border border-[#3d2a18]/10 bg-white text-[#24170d]')}>
-                          {message.body && <p className="whitespace-pre-wrap text-sm font-bold leading-6">{message.body}</p>}
-                          {message.attachments && message.attachments.length > 0 && (
-                            <div className={cn("mt-2 grid gap-1", message.attachments.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
-                              {message.attachments.map((url, i) => (
-                                <img key={i} src={url} alt="Attachment" className="h-24 w-full rounded-xl object-cover border border-white/20 bg-black/5" />
-                              ))}
-                            </div>
+                      <div className={cn('flex flex-col mb-3', isMine ? 'items-end' : 'items-start')}>
+                        <div
+                          className={cn(
+                            'max-w-[78%] rounded-[1.45rem] shadow-sm transition-all flex flex-col',
+                            isMine ? 'items-end' : 'items-start',
+                            hasBody
+                              ? (isMine ? 'bg-[#24170d] text-white px-4 py-3' : 'border border-[#3d2a18]/10 bg-white text-[#24170d] px-4 py-3')
+                              : 'bg-transparent text-inherit p-0 shadow-none'
                           )}
-                          <p className={cn('mt-1 text-[10px] font-black uppercase tracking-[0.13em]', isMine ? 'text-white/55' : 'text-[#8b5e34]/70')}>{message.optimistic ? 'Đang gửi...' : formatTimeOnly(message.created_at)}</p>
+                        >
+                          {message.body && <p className="whitespace-pre-wrap break-words text-sm font-bold leading-6 w-full text-left">{message.body}</p>}
+                          {message.attachments && message.attachments.length > 0 && (
+                            message.attachments.length === 1 ? (
+                              <img
+                                src={message.attachments[0]}
+                                alt="Attachment"
+                                onClick={() => { setActiveImageUrls(message.attachments ?? null); setActiveImageIndex(0); }}
+                                className="mt-2 block rounded-xl border border-[#3d2a18]/15 bg-black/5 hover:opacity-95 transition cursor-pointer max-h-[320px] max-w-full"
+                              />
+                            ) : (
+                              <div className="mt-2 grid grid-cols-2 gap-2 max-w-[280px] w-full">
+                                {message.attachments.map((url, i) => (
+                                  <img
+                                    key={i}
+                                    src={url}
+                                    alt="Attachment"
+                                    onClick={() => { setActiveImageUrls(message.attachments ?? null); setActiveImageIndex(i); }}
+                                    className="rounded-xl border border-[#3d2a18]/15 bg-black/5 hover:opacity-95 transition cursor-pointer h-28 w-full object-cover"
+                                  />
+                                ))}
+                              </div>
+                            )
+                          )}
                         </div>
+                        <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/70 px-1.5">
+                          {message.optimistic ? 'Đang gửi...' : formatTimeOnly(message.created_at)}
+                        </p>
                       </div>
                     </div>
                   )
@@ -284,6 +391,7 @@ export function TenantChatWidget() {
               </button>
               
               <textarea
+                ref={textareaRef}
                 rows={1}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
@@ -294,6 +402,7 @@ export function TenantChatWidget() {
                   }
                 }}
                 placeholder="Aa"
+                spellCheck={false}
                 className="max-h-24 min-h-5 flex-1 resize-none bg-transparent px-2 py-0.5 text-[15px] font-medium text-[#24170d] outline-none placeholder:text-gray-500 self-center"
               />
 
@@ -303,6 +412,101 @@ export function TenantChatWidget() {
             </div>
           </form>
         </div>
+      )}
+
+      {activeImageUrls && activeImageUrls.length > 0 && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/95 backdrop-blur-md"
+          onWheel={handleWheel}
+        >
+          {/* Zoom controls header */}
+          <div className="absolute top-6 right-6 flex items-center gap-4 z-50" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md rounded-full px-4 py-1.5 text-white text-xs font-semibold select-none border border-white/10">
+              <button
+                type="button"
+                onClick={() => setScale(prev => Math.max(0.5, prev - 0.2))}
+                className="hover:text-[#0f766e] transition p-1"
+              >
+                <ZoomOut className="h-4 w-4 text-white" />
+              </button>
+              <span className="w-12 text-center text-white">{Math.round(scale * 100)}%</span>
+              <button
+                type="button"
+                onClick={() => setScale(prev => Math.min(5, prev + 0.2))}
+                className="hover:text-[#0f766e] transition p-1"
+              >
+                <ZoomIn className="h-4 w-4 text-white" />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); }}
+                className="ml-2 pl-2 border-l border-white/20 hover:text-[#0f766e] transition text-[10px] font-bold text-white"
+              >
+                Reset
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveImageUrls(null)}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Left Arrow */}
+          {activeImageUrls.length > 1 && activeImageIndex > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setActiveImageIndex(prev => prev - 1)
+              }}
+              className="absolute left-6 top-1/2 -translate-y-1/2 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition cursor-pointer z-[10000] border border-white/5"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+          )}
+
+          {/* Right Arrow */}
+          {activeImageUrls.length > 1 && activeImageIndex < activeImageUrls.length - 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setActiveImageIndex(prev => prev + 1)
+              }}
+              className="absolute right-6 top-1/2 -translate-y-1/2 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition cursor-pointer z-[10000] border border-white/5"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          )}
+
+          <div
+            className="w-full h-full flex items-center justify-center overflow-hidden"
+            onClick={() => setActiveImageUrls(null)}
+          >
+            <img
+              src={activeImageUrls[activeImageIndex]}
+              alt="Enlarged view"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+                transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              className={cn(
+                "max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none transition-all duration-300",
+                scale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+              )}
+            />
+          </div>
+        </div>,
+        document.body
       )}
 
       <button

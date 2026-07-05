@@ -14,6 +14,7 @@ import 'controllers/notification_controller.dart';
 import 'controllers/chat_controller.dart';
 import 'services/websocket_service.dart';
 import 'controllers/meter_reading_controller.dart';
+import 'services/api_service.dart';
 
 import 'views/auth/login_screen.dart';
 import 'views/auth/forgot_password_screen.dart';
@@ -64,12 +65,31 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    ApiService().onUnauthorized = () {
+      if (mounted) {
+        final auth = context.read<AuthController>();
+        auth.logout();
+        MyApp.navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: MyApp.navigatorKey,
       title: 'StayHub Mobile',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

@@ -87,6 +87,29 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
                     itemCount: notifications.length,
                     itemBuilder: (context, index) {
                       final notif = notifications[index];
+                      
+                      // Format chat notifications if content is empty or contains room number prefix
+                      String displayContent = notif.content;
+                      if (notif.notificationType == 6) {
+                        final managerName = notif.creatorName ?? 'Quản lý';
+                        final regExp = RegExp(r'^Phòng\s+[^:]+:\s*');
+                        if (regExp.hasMatch(displayContent)) {
+                          final msgBody = displayContent.replaceFirst(regExp, '');
+                          displayContent = '$managerName: ${msgBody.trim().isEmpty ? '[Hình ảnh]' : msgBody}';
+                        } else {
+                          if (!displayContent.startsWith(managerName)) {
+                            displayContent = '$managerName: $displayContent';
+                          }
+                        }
+                      }
+
+                      // Format display date
+                      String displayDate = notif.createdAt;
+                      try {
+                        final parsed = DateTime.parse(notif.createdAt).toLocal();
+                        displayDate = '${parsed.hour.toString().padLeft(2, "0")}:${parsed.minute.toString().padLeft(2, "0")} ${parsed.day.toString().padLeft(2, "0")}/${parsed.month.toString().padLeft(2, "0")}/${parsed.year}';
+                      } catch (_) {}
+
                       return Card(
                         color: notif.isRead
                             ? Colors.white
@@ -107,7 +130,18 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
                             if (!notif.isRead) {
                               notificationController.markAsRead(notif.id);
                             }
-                            if (notif.notificationType == 1) {
+                            
+                            // Check if utility notification (electricity/water price or usage)
+                            final isUtility = notif.title.toLowerCase().contains('điện') ||
+                                              notif.title.toLowerCase().contains('nước') ||
+                                              notif.title.toLowerCase().contains('đơn giá') ||
+                                              notif.content.toLowerCase().contains('điện') ||
+                                              notif.content.toLowerCase().contains('nước') ||
+                                              notif.content.toLowerCase().contains('đơn giá');
+                                              
+                            if (isUtility) {
+                              Navigator.pushNamed(context, '/tenant/utility');
+                            } else if (notif.notificationType == 1) {
                               Navigator.pushNamed(context, '/tenant/maintenance');
                             } else if (notif.notificationType == 2) {
                               Navigator.pushNamed(context, '/tenant/invoices');
@@ -115,6 +149,29 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
                               Navigator.pushNamed(context, '/tenant/contract');
                             } else if (notif.notificationType == 6) {
                               Navigator.pushNamed(context, '/tenant/chat');
+                            } else {
+                              // Show dialog with title and message content for warning/other
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  title: Text(
+                                    notif.title,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                                  ),
+                                  content: Text(
+                                    displayContent,
+                                    style: const TextStyle(color: Color(0xFF44403C), height: 1.4),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Đóng', style: TextStyle(color: Color(0xFF8B5E34), fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              );
                             }
                           },
                           borderRadius: BorderRadius.circular(16),
@@ -129,14 +186,47 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(
-                                          notif.isRead
-                                              ? Icons.campaign_outlined
-                                              : Icons.campaign_rounded,
-                                          color: notif.isRead
-                                              ? Colors.grey
-                                              : const Color(0xFFEAB308),
-                                          size: 24,
+                                        Builder(
+                                          builder: (context) {
+                                            IconData iconData;
+                                            Color iconColor;
+                                            
+                                            // Check if utility notification
+                                            final isUtility = notif.title.toLowerCase().contains('điện') ||
+                                                              notif.title.toLowerCase().contains('nước') ||
+                                                              notif.title.toLowerCase().contains('đơn giá') ||
+                                                              notif.content.toLowerCase().contains('điện') ||
+                                                              notif.content.toLowerCase().contains('nước') ||
+                                                              notif.content.toLowerCase().contains('đơn giá');
+
+                                            if (isUtility) {
+                                              iconData = notif.isRead ? Icons.electric_meter_outlined : Icons.electric_meter_rounded;
+                                              iconColor = Colors.amber.shade800;
+                                            } else if (notif.notificationType == 1) {
+                                              iconData = notif.isRead ? Icons.build_outlined : Icons.build_rounded;
+                                              iconColor = Colors.orange.shade700;
+                                            } else if (notif.notificationType == 2) {
+                                              iconData = notif.isRead ? Icons.receipt_long_outlined : Icons.receipt_long_rounded;
+                                              iconColor = Colors.blue.shade700;
+                                            } else if (notif.notificationType == 3) {
+                                              iconData = notif.isRead ? Icons.assignment_outlined : Icons.assignment_rounded;
+                                              iconColor = Colors.green.shade700;
+                                            } else if (notif.notificationType == 4) {
+                                              iconData = notif.isRead ? Icons.warning_amber_rounded : Icons.warning_rounded;
+                                              iconColor = Colors.red.shade700;
+                                            } else if (notif.notificationType == 6) {
+                                              iconData = notif.isRead ? Icons.chat_bubble_outline_rounded : Icons.chat_bubble_rounded;
+                                              iconColor = const Color(0xFF8B5E34);
+                                            } else {
+                                              iconData = notif.isRead ? Icons.campaign_outlined : Icons.campaign_rounded;
+                                              iconColor = Colors.grey;
+                                            }
+                                            return Icon(
+                                              iconData,
+                                              color: notif.isRead ? Colors.grey : iconColor,
+                                              size: 24,
+                                            );
+                                          }
                                         ),
                                         const SizedBox(width: 8),
                                         if (!notif.isRead)
@@ -151,7 +241,7 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
                                       ],
                                     ),
                                     Text(
-                                      notif.createdAt,
+                                      displayDate,
                                       style: const TextStyle(
                                         fontSize: 10,
                                         color: Colors.grey,
@@ -172,7 +262,7 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  notif.content,
+                                  displayContent,
                                   style: const TextStyle(
                                     fontSize: 13,
                                     color: Color(0xFF44403C),

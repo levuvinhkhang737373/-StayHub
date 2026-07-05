@@ -13,6 +13,7 @@ class ChatController extends ChangeNotifier {
   bool _isLoading = false;
   bool _isSending = false;
   String? _errorMessage;
+  int _lastFetchCount = 0;
 
   List<ChatConversation> get conversations => _conversations;
   ChatConversation? get activeConversation => _activeConversation;
@@ -20,6 +21,7 @@ class ChatController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSending => _isSending;
   String? get errorMessage => _errorMessage;
+  int get lastFetchCount => _lastFetchCount;
 
   Future<void> fetchAdminConversations({String? keyword}) async {
     _isLoading = true;
@@ -68,12 +70,32 @@ class ChatController extends ChangeNotifier {
       );
       final data = response.result?['data'] as List<dynamic>? ?? [];
       _messages = data.map((item) => ChatMessage.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+      _lastFetchCount = data.length;
     } catch (e) {
       _errorMessage = 'Không thể tải tin nhắn: $e';
     }
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> fetchMoreAdminMessages(int conversationId, {required int beforeId, int perPage = 30}) async {
+    try {
+      final response = await _apiService.get<Map<String, dynamic>>(
+        '/admin/chat/conversations/$conversationId/messages',
+        queryParameters: {'per_page': perPage, 'before_id': beforeId},
+        fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
+      );
+      final data = response.result?['data'] as List<dynamic>? ?? [];
+      final olderMessages = data.map((item) => ChatMessage.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+      _lastFetchCount = olderMessages.length;
+      if (olderMessages.isNotEmpty) {
+        _messages = [...olderMessages, ..._messages];
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error fetching more messages: $e');
+    }
   }
 
   Future<void> fetchTenantMessages() async {
