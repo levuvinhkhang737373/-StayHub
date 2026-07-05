@@ -384,12 +384,12 @@ volumes:
   frontend_npm_cache:
   ai_deepface_cache:
   dbdata_new:
-    name: repokytucxaphongtro_dbdata_new
+    name: stayhub_dbdata_new
   redis_data:
-    name: repokytucxaphongtro_redis_data
+    name: stayhub_redis_data
   meili_data:
-    name: repokytucxaphongtro_meili_data
+    name: stayhub_meili_data
   minio_data:
-    name: repokytucxaphongtro_minio_data
+    name: stayhub_minio_data
   qdrant_data:
-    name: repokytucxaphongtro_qdrant_data
+    name: stayhub_qdrant_data

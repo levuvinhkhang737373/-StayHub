@@ -9,6 +9,8 @@ class NotificationModel {
   final bool isRead;
   final String createdAt;
 
+  final int? tenantId;
+
   NotificationModel({
     required this.id,
     required this.title,
@@ -19,6 +21,7 @@ class NotificationModel {
     this.publishedAt,
     required this.isRead,
     required this.createdAt,
+    this.tenantId,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
@@ -32,6 +35,7 @@ class NotificationModel {
       publishedAt: json['published_at'] as String?,
       isRead: json['is_read'] as bool? ?? false,
       createdAt: json['created_at'] as String? ?? '',
+      tenantId: json['tenant_id'] as int?,
     );
   }
 
@@ -46,6 +50,7 @@ class NotificationModel {
       'published_at': publishedAt,
       'is_read': isRead,
       'created_at': createdAt,
+      'tenant_id': tenantId,
     };
   }
 }

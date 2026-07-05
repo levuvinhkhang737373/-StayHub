@@ -57,7 +57,7 @@ class Contract extends Model
         self::PAYMENT_STATUS_EXPIRED => 'Hết hạn',
     ];
 
-    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'tenant_signed_at', 'tenant_signature_url'];
+    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'tenant_signed_at', 'tenant_signature_url'];
 
     protected function casts(): array
     {
@@ -72,6 +72,7 @@ class Contract extends Model
             'negotiation_status' => 'integer',
             'proposed_room_price' => 'decimal:2',
             'proposed_services' => 'array',
+            'proposed_vehicles' => 'array',
             'payment_status' => 'integer',
             'contract_files' => 'array',
             'representative_tenant_id' => 'integer',

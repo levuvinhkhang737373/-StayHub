@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, X, Check, RefreshCw, ArrowRight, TrendingDown, CheckCircle2, XCircle, Handshake } from 'lucide-react'
+import { FileText, X, Check, AlertTriangle, RefreshCw, ArrowRight, TrendingDown, TrendingUp, CheckCircle2, XCircle, Handshake } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ConfirmModal } from '../../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../../shared/lib/hooks/use-confirm-modal'
@@ -73,6 +73,7 @@ export function ContractDetailModal({
   onClose,
   onPayDeposit,
   onNegotiationProcessed,
+  onlyNegotiation = false,
 }: {
   contract: AdminContractResource
   isLoading: boolean
@@ -80,6 +81,7 @@ export function ContractDetailModal({
   onClose: () => void
   onPayDeposit: (contract: AdminContractResource) => void
   onNegotiationProcessed?: (updated: AdminContractResource) => void
+  onlyNegotiation?: boolean
 }) {
   const [isResponding, setIsResponding] = useState(false)
   const [respondError, setRespondError] = useState<string | null>(null)
@@ -372,22 +374,37 @@ export function ContractDetailModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <button type="button" aria-label="Đóng chi tiết hợp đồng" onClick={onClose} className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" />
-      <div className="relative z-10 w-full max-w-6xl overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30">
+      <div className={`relative z-10 w-full overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] shadow-2xl shadow-stone-950/30 transition-all duration-300 ${onlyNegotiation ? 'max-w-3xl' : 'max-w-6xl'}`}>
         <div className="bg-[#24170d] p-5 text-[#fff4df]">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Chi tiết hợp đồng</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight">{contract.contract_code}</h2>
+            <div className="flex items-center gap-3">
+              {onlyNegotiation ? (
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-[#f3c56b]">
+                  <Handshake className="h-5 w-5" />
+                </div>
+              ) : (
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f766e]/10 text-[#f3c56b]">
+                  <FileText className="h-5 w-5" />
+                </div>
+              )}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">
+                  {onlyNegotiation ? 'Chi tiết thương lượng & Duyệt' : 'Chi tiết hợp đồng'}
+                </p>
+                <h2 className="mt-1 text-2xl font-black tracking-tight">{contract.contract_code}</h2>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportPDF}
-                disabled={isLoading}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#f3c56b]/30 bg-[#f3c56b]/15 px-4 text-sm font-black text-[#f3c56b] transition hover:bg-[#f3c56b]/25 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileText className="h-4 w-4" /> Xuất hợp đồng (PDF)
-              </button>
+              {!onlyNegotiation && (
+                <button
+                  type="button"
+                  onClick={handleExportPDF}
+                  disabled={isLoading}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#f3c56b]/30 bg-[#f3c56b]/15 px-4 text-sm font-black text-[#f3c56b] transition hover:bg-[#f3c56b]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FileText className="h-4 w-4" /> Xuất hợp đồng (PDF)
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -410,26 +427,24 @@ export function ContractDetailModal({
           )}
 
           {/* ── Negotiation Section ── */}
-          {contract.negotiation_status != null && contract.negotiation_status > 0 && (
+          {onlyNegotiation && contract.negotiation_status != null && contract.negotiation_status > 0 && (
             <section
-              className={`rounded-3xl border p-5 shadow-sm transition-all ${
-                contract.negotiation_status === 1
+              className={`rounded-3xl border p-5 shadow-sm transition-all ${contract.negotiation_status === 1
                   ? 'border-amber-200/80 bg-gradient-to-br from-amber-50/80 to-orange-50/40'
                   : contract.negotiation_status === 2
                     ? 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 to-teal-50/30'
                     : 'border-rose-200/80 bg-gradient-to-br from-rose-50/60 to-red-50/30'
-              }`}
+                }`}
             >
               {/* Header */}
               <div className="flex items-center gap-3 mb-4">
                 <div
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-                    contract.negotiation_status === 1
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${contract.negotiation_status === 1
                       ? 'bg-amber-100 text-amber-600'
                       : contract.negotiation_status === 2
                         ? 'bg-emerald-100 text-emerald-600'
                         : 'bg-rose-100 text-rose-600'
-                  }`}
+                    }`}
                 >
                   {contract.negotiation_status === 1 && <Handshake className="h-5 w-5" />}
                   {contract.negotiation_status === 2 && <CheckCircle2 className="h-5 w-5" />}
@@ -443,13 +458,12 @@ export function ContractDetailModal({
                       {contract.negotiation_status === 3 && 'Thương lượng đã bị từ chối'}
                     </h3>
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                        contract.negotiation_status === 1
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${contract.negotiation_status === 1
                           ? 'bg-amber-100 text-amber-700 border border-amber-200'
                           : contract.negotiation_status === 2
                             ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                             : 'bg-rose-100 text-rose-700 border border-rose-200'
-                      }`}
+                        }`}
                     >
                       {contract.negotiation_status === 1 && (
                         <><span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" /> Chờ duyệt</>
@@ -472,123 +486,239 @@ export function ContractDetailModal({
 
               {/* Price Comparison Table */}
               <div className="rounded-2xl border border-[#3d2a18]/8 bg-white overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[#3d2a18]/8 bg-[#faf6ef]">
-                      <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Hạng mục</th>
-                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Giá hiện tại</th>
-                      <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70"></th>
-                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Giá đề xuất</th>
-                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Chênh lệch</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#3d2a18]/6">
-                    {/* Room Price Row */}
-                    {(() => {
-                      const current = Number(contract.room_price || 0)
-                      const proposed = Number(contract.proposed_room_price || 0)
-                      const diff = proposed - current
-                      const pct = current > 0 ? ((diff / current) * 100).toFixed(1) : '—'
-                      const changed = diff !== 0
-                      return (
-                        <tr className={`${changed ? 'bg-amber-50/30' : ''}`}>
-                          <td className="px-4 py-3 font-black text-[#24170d]">
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-[#24170d] text-[10px] font-black text-[#f3c56b]">P</span>
-                              Giá thuê phòng
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-right font-bold text-stone-600 tabular-nums">{formatCurrency(current)}</td>
-                          <td className="px-2 py-3 text-center text-stone-300">
-                            <ArrowRight className="inline h-4 w-4" />
-                          </td>
-                          <td className={`px-4 py-3 text-right font-black tabular-nums ${changed ? 'text-emerald-600' : 'text-stone-600'}`}>
-                            {formatCurrency(proposed)}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {changed ? (
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-black ${diff < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                <TrendingDown className={`h-3 w-3 ${diff > 0 ? 'rotate-180' : ''}`} />
-                                {diff > 0 ? '+' : ''}{pct}%
-                              </span>
-                            ) : (
-                              <span className="text-xs font-bold text-stone-400">Không đổi</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })()}
-
-                    {/* Service Price Rows */}
-                    {contract.proposed_services && contract.proposed_services.length > 0 && (
-                      contract.proposed_services.map((proposed) => {
-                        const currentSvc = contract.room_services?.find(s => Number(s.id) === Number(proposed.service_id))
-                        const currentPrice = Number(currentSvc?.price || 0)
-                        const proposedPrice = Number(proposed.price || 0)
-                        const diff = proposedPrice - currentPrice
-                        const pct = currentPrice > 0 ? ((diff / currentPrice) * 100).toFixed(1) : '—'
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[640px]">
+                    <thead>
+                      <tr className="border-b border-[#3d2a18]/8 bg-[#faf6ef]">
+                        <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Hạng mục</th>
+                        <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Giá hiện tại</th>
+                        <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70"></th>
+                        <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Giá đề xuất</th>
+                        <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-[0.15em] text-[#8b5e34]/70">Chênh lệch</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#3d2a18]/6">
+                      {/* Room Price Row */}
+                      {(() => {
+                        const current = Number(contract.room_price || 0)
+                        const proposed = Number(contract.proposed_room_price || 0)
+                        const diff = proposed - current
+                        const pct = current > 0 ? (Math.abs(diff) / current * 100).toFixed(1) : '—'
                         const changed = diff !== 0
-                        const isMetered = currentSvc?.charge_method === 1
-
                         return (
-                          <tr key={proposed.service_id} className={`${changed ? 'bg-amber-50/30' : ''}`}>
-                            <td className="px-4 py-3 font-bold text-[#24170d]">
+                          <tr className={`${changed ? 'bg-amber-50/30' : ''}`}>
+                            <td className="px-4 py-3 font-black text-[#24170d]">
                               <div className="flex items-center gap-2">
-                                <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black ${isMetered ? 'bg-stone-200 text-stone-500' : 'bg-[#0f766e]/15 text-[#0f766e]'}`}>
-                                  {isMetered ? '⚡' : 'DV'}
-                                </span>
-                                <span>{currentSvc?.name || `Dịch vụ #${proposed.service_id}`}</span>
-                                {isMetered && (
-                                  <span className="text-[10px] font-bold text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">Theo đồng hồ</span>
-                                )}
+                                <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-[#24170d] text-[10px] font-black text-[#f3c56b]">P</span>
+                                Giá thuê phòng
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-right font-bold text-stone-600 tabular-nums">{formatCurrency(currentPrice)}</td>
+                            <td className="px-4 py-3 text-right font-bold text-stone-600 tabular-nums">{formatCurrency(current)}</td>
                             <td className="px-2 py-3 text-center text-stone-300">
                               <ArrowRight className="inline h-4 w-4" />
                             </td>
-                            <td className={`px-4 py-3 text-right font-black tabular-nums ${changed ? 'text-emerald-600' : 'text-stone-600'}`}>
-                              {formatCurrency(proposedPrice)}
+                            <td className={`px-4 py-3 text-right font-black tabular-nums ${changed ? (diff < 0 ? 'text-rose-600' : 'text-emerald-600') : 'text-stone-600'}`}>
+                              {formatCurrency(proposed)}
                             </td>
                             <td className="px-4 py-3 text-right">
                               {changed ? (
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-black ${diff < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                  <TrendingDown className={`h-3 w-3 ${diff > 0 ? 'rotate-180' : ''}`} />
-                                  {diff > 0 ? '+' : ''}{pct}%
-                                </span>
+                                diff < 0 ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200/60 px-2.5 py-0.5 text-xs font-black text-rose-600">
+                                    <TrendingDown className="h-3 w-3" />
+                                    -{pct}%
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 text-xs font-black text-emerald-600">
+                                    <TrendingUp className="h-3 w-3" />
+                                    +{pct}%
+                                  </span>
+                                )
                               ) : (
-                                <span className="text-xs font-bold text-stone-400">Không đổi</span>
+                                <span className="text-xs font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">Không đổi</span>
                               )}
                             </td>
                           </tr>
                         )
-                      })
-                    )}
-                  </tbody>
-                </table>
+                      })()}
+
+                      {/* Service Price Rows */}
+                      {(() => {
+                        const renderServices = (contract.room_services || []).filter(s => s.charge_method !== 1)
+                        if (renderServices.length === 0 && contract.proposed_services) {
+                          return contract.proposed_services.map((proposed) => {
+                            const currentPrice = 0
+                            const proposedPrice = Number(proposed.price || 0)
+                            const diff = proposedPrice - currentPrice
+                            const changed = true
+                            return (
+                              <tr key={proposed.service_id} className="bg-amber-50/30">
+                                <td className="px-4 py-3 font-bold text-[#24170d]">
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black bg-[#0f766e]/15 text-[#0f766e]">DV</span>
+                                    <span>Dịch vụ #{proposed.service_id}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right font-bold text-stone-600 tabular-nums">{formatCurrency(currentPrice)}</td>
+                                <td className="px-2 py-3 text-center text-stone-300">
+                                  <ArrowRight className="inline h-4 w-4" />
+                                </td>
+                                <td className="px-4 py-3 text-right font-black tabular-nums text-emerald-600">{formatCurrency(proposedPrice)}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-black bg-emerald-100 text-emerald-700">Mới</span>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        }
+
+                        return renderServices.map((svc) => {
+                          const proposed = contract.proposed_services?.find(ps => Number(ps.service_id) === Number(svc.id))
+                          const currentPrice = Number(svc.price || 0)
+                          const proposedPrice = proposed ? Number(proposed.price || 0) : currentPrice
+                          const diff = proposedPrice - currentPrice
+                          const pct = currentPrice > 0 ? (Math.abs(diff) / currentPrice * 100).toFixed(1) : '—'
+                          const changed = diff !== 0
+                          const isMetered = svc.charge_method === 1
+
+                          return (
+                            <tr key={svc.id} className={`${changed ? 'bg-amber-50/30' : ''}`}>
+                              <td className="px-4 py-3 font-bold text-[#24170d]">
+                                <div className="flex items-center gap-2">
+                                  <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black ${isMetered ? 'bg-stone-200 text-stone-500' : 'bg-[#0f766e]/15 text-[#0f766e]'}`}>
+                                    {isMetered ? '⚡' : 'DV'}
+                                  </span>
+                                  <span>{svc.name}</span>
+                                  {isMetered && (
+                                    <span className="text-[10px] font-bold text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">Theo đồng hồ</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-stone-600 tabular-nums">{formatCurrency(currentPrice)}</td>
+                              <td className="px-2 py-3 text-center text-stone-300">
+                                <ArrowRight className="inline h-4 w-4" />
+                              </td>
+                              <td className={`px-4 py-3 text-right font-black tabular-nums ${changed ? (diff < 0 ? 'text-rose-600' : 'text-emerald-600') : 'text-stone-600'}`}>
+                                {formatCurrency(proposedPrice)}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {changed ? (
+                                  diff < 0 ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200/60 px-2.5 py-0.5 text-xs font-black text-rose-600">
+                                      <TrendingDown className="h-3 w-3" />
+                                      -{pct}%
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 text-xs font-black text-emerald-600">
+                                      <TrendingUp className="h-3 w-3" />
+                                      +{pct}%
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-xs font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">Không đổi</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })
+                      })()}
+
+                      {/* Vehicle Price Rows */}
+                      {(() => {
+                        const activeVehicles = (contract.contract_vehicles || []).filter((v) => v.is_active !== false)
+                        return activeVehicles.map((cv) => {
+                          const proposed = contract.proposed_vehicles?.find(pv => Number(pv.vehicle_id) === Number(cv.vehicle_id))
+                          const currentPrice = Number(cv.monthly_fee || 0)
+                          const proposedPrice = proposed ? Number(proposed.price || 0) : currentPrice
+                          const diff = proposedPrice - currentPrice
+                          const pct = currentPrice > 0 ? (Math.abs(diff) / currentPrice * 100).toFixed(1) : '—'
+                          const changed = diff !== 0
+                          const licensePlate = cv.vehicle?.license_plate || (cv.vehicle_id ? `Xe #${cv.vehicle_id}` : `Xe #${cv.id}`)
+                          return (
+                            <tr key={`vehicle-${cv.id || cv.vehicle_id}`} className={`${changed ? 'bg-amber-50/30' : ''}`}>
+                              <td className="px-4 py-3 font-bold text-[#24170d]">
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-xs bg-amber-100 text-amber-700">
+                                    🏍️
+                                  </span>
+                                  <span>Xe: {licensePlate}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-stone-600 tabular-nums">{formatCurrency(currentPrice)}</td>
+                              <td className="px-2 py-3 text-center text-stone-300">
+                                <ArrowRight className="inline h-4 w-4" />
+                              </td>
+                              <td className={`px-4 py-3 text-right font-black tabular-nums ${changed ? (diff < 0 ? 'text-rose-600' : 'text-emerald-600') : 'text-stone-600'}`}>
+                                {formatCurrency(proposedPrice)}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {changed ? (
+                                  diff < 0 ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200/60 px-2.5 py-0.5 text-xs font-black text-rose-600">
+                                      <TrendingDown className="h-3 w-3" />
+                                      -{pct}%
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 text-xs font-black text-emerald-600">
+                                      <TrendingUp className="h-3 w-3" />
+                                      +{pct}%
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-xs font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">Không đổi</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* Summary footer */}
                 {(() => {
-                  const currentServicesTotal = contract.room_services?.reduce((sum, s) => sum + Number(s.price || 0), 0) || 0;
-                  const currentTotal = Number(contract.room_price || 0) + currentServicesTotal;
+                  const activeVehicles = (contract.contract_vehicles || []).filter((v) => v.is_active !== false)
+                  const currentVehiclesTotal = activeVehicles.reduce((sum, v) => sum + Number(v.monthly_fee || 0), 0)
+                  const proposedVehiclesTotal = activeVehicles.reduce((sum, v) => {
+                    const proposed = contract.proposed_vehicles?.find(pv => Number(pv.vehicle_id) === Number(v.vehicle_id));
+                    return sum + Number(proposed ? proposed.price : v.monthly_fee || 0);
+                  }, 0)
+
+                  const currentServicesTotal = contract.room_services?.reduce((sum, s) => {
+                    if (s.charge_method === 1) return sum; // skip metered services like electricity/water
+                    return sum + Number(s.price || 0);
+                  }, 0) || 0;
+                  const currentTotal = Number(contract.room_price || 0) + currentServicesTotal + currentVehiclesTotal;
 
                   const proposedServicesTotal = contract.room_services?.reduce((sum, s) => {
+                    if (s.charge_method === 1) return sum; // skip metered services like electricity/water
                     const proposed = contract.proposed_services?.find(ps => Number(ps.service_id) === Number(s.id));
                     return sum + Number(proposed ? proposed.price : s.price || 0);
                   }, 0) || 0;
-                  const proposedTotal = Number(contract.proposed_room_price || 0) + proposedServicesTotal;
+                  const proposedTotal = Number(contract.proposed_room_price || 0) + proposedServicesTotal + proposedVehiclesTotal;
                   const totalDiff = proposedTotal - currentTotal;
                   return (
-                    <div className="border-t border-[#3d2a18]/10 bg-[#faf6ef] px-4 py-3 flex items-center justify-between">
-                      <span className="text-xs font-black uppercase tracking-wider text-[#8b5e34]/70">Tổng ước tính (phòng + dịch vụ)</span>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm font-bold text-stone-500 line-through tabular-nums">{formatCurrency(currentTotal)}</span>
-                        <ArrowRight className="h-4 w-4 text-stone-300" />
-                        <span className="text-base font-black text-[#24170d] tabular-nums">{formatCurrency(proposedTotal)}</span>
+                    <div className="border-t border-[#3d2a18]/10 bg-[#faf6ef] px-5 py-3.5 flex items-center justify-between gap-3">
+                      <div className="flex flex-col text-left min-w-0">
+                        <span className="text-xs font-black uppercase tracking-wider text-[#8b5e34]/70 truncate">Tổng chi phí cố định/tháng</span>
+                        <span className="text-[10px] font-bold text-stone-400 mt-0.5 whitespace-nowrap">(Không tính điện, nước)</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 whitespace-nowrap">
+                        <span className="text-sm font-bold text-stone-400 line-through tabular-nums whitespace-nowrap">{formatCurrency(currentTotal)}</span>
+                        <ArrowRight className="h-4 w-4 text-stone-300 shrink-0" />
+                        <span className="text-lg font-black tabular-nums text-[#24170d] whitespace-nowrap">{formatCurrency(proposedTotal)}</span>
                         {totalDiff !== 0 && (
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black ${totalDiff < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                            {totalDiff > 0 ? '+' : ''}{formatCurrency(totalDiff)}
-                          </span>
+                          totalDiff < 0 ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2.5 py-1 text-xs font-black text-rose-600 shrink-0 whitespace-nowrap">
+                              <TrendingDown className="h-3.5 w-3.5" />
+                              -{formatCurrency(Math.abs(totalDiff))}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-black text-emerald-600 shrink-0 whitespace-nowrap">
+                              <TrendingUp className="h-3.5 w-3.5" />
+                              +{formatCurrency(Math.abs(totalDiff))}
+                            </span>
+                          )
                         )}
                       </div>
                     </div>
@@ -622,137 +752,141 @@ export function ContractDetailModal({
             </section>
           )}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
-            <DetailTile label="Trạng thái" value={contract.status_label || getStatusLabel(contract.status)} />
-            <DetailTile
-              label="Trạng thái cọc"
-              value={
-                <span
-                  className={
-                    contract.payment_status === 2 // SUCCESS
-                      ? 'text-emerald-600 font-black'
-                      : contract.payment_status === 3 // CANCELLED
-                        ? 'text-rose-600 font-black'
-                        : contract.payment_status === 4 // EXPIRED
-                          ? 'text-red-600 font-black'
-                          : 'text-amber-600 font-black' // PENDING / others
+          {!onlyNegotiation && (
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+                <DetailTile label="Trạng thái" value={contract.status_label || getStatusLabel(contract.status)} />
+                <DetailTile
+                  label="Trạng thái cọc"
+                  value={
+                    <span
+                      className={
+                        contract.payment_status === 2 // SUCCESS
+                          ? 'text-emerald-600 font-black'
+                          : contract.payment_status === 3 // CANCELLED
+                            ? 'text-rose-600 font-black'
+                            : contract.payment_status === 4 // EXPIRED
+                              ? 'text-red-600 font-black'
+                              : 'text-amber-600 font-black' // PENDING / others
+                      }
+                    >
+                      {contract.payment_status_label || (contract.is_deposit_paid ? 'Đã đóng cọc' : 'Chưa đóng cọc')}
+                    </span>
                   }
-                >
-                  {contract.payment_status_label || (contract.is_deposit_paid ? 'Đã đóng cọc' : 'Chưa đóng cọc')}
-                </span>
-              }
-            />
-            <DetailTile label="Phòng" value={`Phòng ${contract.room?.room_number || contract.room_number || contract.room_id}`} />
-            <DetailTile label="Tòa nhà" value={contract.room?.building_name || contract.building_name || '—'} />
-            <DetailTile label="Người tạo" value={contract.creator_name || '—'} />
-          </div>
-
-          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-            <p className={labelClass}>Thông tin tài chính & thời hạn</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
-              <DetailTile label="Thời hạn" value={`${formatDate(contract.start_date)} → ${formatDate(contract.end_date)}`} />
-              <DetailTile label="Ngày kết thúc thực tế" value={formatDate(contract.actual_end_date)} />
-              <DetailTile label="Giá phòng" value={formatCurrency(contract.room_price)} />
-              <DetailTile label="Tiền cọc" value={formatCurrency(contract.deposit_amount)} />
-            </div>
-          </section>
-
-          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-            <p className={labelClass}>Khách thuê trong hợp đồng</p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">
-                  <tr>
-                    <th className="py-3 px-4">Khách thuê</th>
-                    <th className="py-3 px-4 text-center">Ngày ở</th>
-                    <th className="py-3 px-4 text-center">Thời gian tính tiền</th>
-                    <th className="py-3 px-4 text-center">Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#3d2a18]/10">
-                  {(contract.contract_tenants || []).map((tenant) => (
-                    <tr key={tenant.id || tenant.tenant_id}>
-                      <td className="py-3 px-4 font-black">{tenant.tenant?.full_name || tenant.tenant_id}</td>
-                      <td className="py-3 px-4 font-black text-center">
-                        {formatDate(tenant.join_date)} → {formatDate(tenant.leave_date)}
-                      </td>
-                      <td className="py-3 px-4 font-black text-center">
-                        {formatDate(tenant.billing_start_date)} → {formatDate(tenant.billing_end_date)}
-                      </td>
-                      <td className="py-3 px-4 font-black text-center">{tenant.is_staying ? 'Đang ở' : 'Đã rời'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {(contract.contract_tenants || []).length === 0 && <p className="py-4 text-sm font-bold text-[#8b5e34]/70">Chưa có dữ liệu khách thuê.</p>}
-            </div>
-          </section>
-
-          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-              <p className={labelClass}>Phương tiện</p>
-              <div className="mt-3 space-y-2">
-                {(contract.contract_vehicles || [])
-                  .filter((vehicle) => vehicle.is_active !== false)
-                  .map((vehicle) => (
-                    <div key={vehicle.id || vehicle.vehicle_id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 text-sm font-bold">
-                      <p className="font-black text-[#24170d]">{vehicle.vehicle?.license_plate || vehicle.vehicle_id}</p>
-                      <p className="text-xs font-black text-[#6f6254]">
-                        {vehicle.charge_policy_label} · {formatCurrency(vehicle.monthly_fee)} · {vehicle.is_active ? 'Còn tính phí' : 'Hết tính phí'}
-                      </p>
-                    </div>
-                  ))}
-                {(contract.contract_vehicles || []).filter((vehicle) => vehicle.is_active !== false).length === 0 && (
-                  <p className="text-sm font-bold text-[#8b5e34]/70">Chưa có phương tiện.</p>
-                )}
+                />
+                <DetailTile label="Phòng" value={`Phòng ${contract.room?.room_number || contract.room_number || contract.room_id}`} />
+                <DetailTile label="Tòa nhà" value={contract.room?.building_name || contract.building_name || '—'} />
+                <DetailTile label="Người tạo" value={contract.creator_name || '—'} />
               </div>
-            </div>
-            <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-              <div className="flex items-center justify-between">
-                <p className={labelClass}>Giao dịch cọc</p>
-                {!contract.is_deposit_paid && Number(contract.deposit_amount) > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => onPayDeposit(contract)}
-                    className="rounded-xl bg-[#24170d] px-3 py-1.5 text-xs font-black text-[#fff4df] transition hover:bg-[#3d2a18] active:scale-95"
-                  >
-                    Đóng cọc
-                  </button>
-                )}
-              </div>
-              <div className="mt-3 space-y-2">
-                {(contract.deposit_transactions || []).map((transaction) => (
-                  <div key={transaction.id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 text-sm font-bold">
-                    <p className="font-black text-[#24170d]">
-                      {transaction.transaction_type_label} · {formatCurrency(transaction.amount)}
-                    </p>
-                    <p className="text-xs font-black text-[#6f6254]">
-                      {formatDate(transaction.transaction_date)} · {transaction.payment_method_label} · {transaction.creator_name || '—'}
-                    </p>
+
+              <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                <p className={labelClass}>Thông tin tài chính & thời hạn</p>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <DetailTile label="Thời hạn" value={`${formatDate(contract.start_date)} → ${formatDate(contract.end_date)}`} />
+                  <DetailTile label="Ngày kết thúc thực tế" value={formatDate(contract.actual_end_date)} />
+                  <DetailTile label="Giá phòng" value={formatCurrency(contract.room_price)} />
+                  <DetailTile label="Tiền cọc" value={formatCurrency(contract.deposit_amount)} />
+                </div>
+              </section>
+
+              <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                <p className={labelClass}>Khách thuê trong hợp đồng</p>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-left text-sm">
+                    <thead className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">
+                      <tr>
+                        <th className="py-3 px-4">Khách thuê</th>
+                        <th className="py-3 px-4 text-center">Ngày ở</th>
+                        <th className="py-3 px-4 text-center">Thời gian tính tiền</th>
+                        <th className="py-3 px-4 text-center">Trạng thái</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#3d2a18]/10">
+                      {(contract.contract_tenants || []).map((tenant) => (
+                        <tr key={tenant.id || tenant.tenant_id}>
+                          <td className="py-3 px-4 font-black">{tenant.tenant?.full_name || tenant.tenant_id}</td>
+                          <td className="py-3 px-4 font-black text-center">
+                            {formatDate(tenant.join_date)} → {formatDate(tenant.leave_date)}
+                          </td>
+                          <td className="py-3 px-4 font-black text-center">
+                            {formatDate(tenant.billing_start_date)} → {formatDate(tenant.billing_end_date)}
+                          </td>
+                          <td className="py-3 px-4 font-black text-center">{tenant.is_staying ? 'Đang ở' : 'Đã rời'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(contract.contract_tenants || []).length === 0 && <p className="py-4 text-sm font-bold text-[#8b5e34]/70">Chưa có dữ liệu khách thuê.</p>}
+                </div>
+              </section>
+
+              <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                  <p className={labelClass}>Phương tiện</p>
+                  <div className="mt-3 space-y-2">
+                    {(contract.contract_vehicles || [])
+                      .filter((vehicle) => vehicle.is_active !== false)
+                      .map((vehicle) => (
+                        <div key={vehicle.id || vehicle.vehicle_id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 text-sm font-bold">
+                          <p className="font-black text-[#24170d]">{vehicle.vehicle?.license_plate || vehicle.vehicle_id}</p>
+                          <p className="text-xs font-black text-[#6f6254]">
+                            {vehicle.charge_policy_label} · {formatCurrency(vehicle.monthly_fee)} · {vehicle.is_active ? 'Còn tính phí' : 'Hết tính phí'}
+                          </p>
+                        </div>
+                      ))}
+                    {(contract.contract_vehicles || []).filter((vehicle) => vehicle.is_active !== false).length === 0 && (
+                      <p className="text-sm font-bold text-[#8b5e34]/70">Chưa có phương tiện.</p>
+                    )}
                   </div>
-                ))}
-                {(contract.deposit_transactions || []).length === 0 && <p className="text-sm font-bold text-[#8b5e34]/70">Chưa có giao dịch cọc.</p>}
+                </div>
+                <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className={labelClass}>Giao dịch cọc</p>
+                    {!contract.is_deposit_paid && Number(contract.deposit_amount) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => onPayDeposit(contract)}
+                        className="rounded-xl bg-[#24170d] px-3 py-1.5 text-xs font-black text-[#fff4df] transition hover:bg-[#3d2a18] active:scale-95"
+                      >
+                        Đóng cọc
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {(contract.deposit_transactions || []).map((transaction) => (
+                      <div key={transaction.id} className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 text-sm font-bold">
+                        <p className="font-black text-[#24170d]">
+                          {transaction.transaction_type_label} · {formatCurrency(transaction.amount)}
+                        </p>
+                        <p className="text-xs font-black text-[#6f6254]">
+                          {formatDate(transaction.transaction_date)} · {transaction.payment_method_label} · {transaction.creator_name || '—'}
+                        </p>
+                      </div>
+                    ))}
+                    {(contract.deposit_transactions || []).length === 0 && <p className="text-sm font-bold text-[#8b5e34]/70">Chưa có giao dịch cọc.</p>}
+                  </div>
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <DetailTile
+                  label="Lịch sử phòng"
+                  value={
+                    <Link to={`/admin/room-movements?contract_id=${contract.id}`} className="inline-flex items-center rounded-full border border-[#0f766e]/15 bg-[#0f766e]/10 px-3 py-1 text-xs font-black text-[#0f5f59] transition hover:bg-[#0f766e]/15">
+                      {contract.room_movements_count ?? 0} bản ghi
+                    </Link>
+                  }
+                />
+                <DetailTile label="Cập nhật" value={formatDateTime(contract.updated_at)} />
               </div>
-            </div>
-          </section>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <DetailTile
-              label="Lịch sử phòng"
-              value={
-                <Link to={`/admin/room-movements?contract_id=${contract.id}`} className="inline-flex items-center rounded-full border border-[#0f766e]/15 bg-[#0f766e]/10 px-3 py-1 text-xs font-black text-[#0f5f59] transition hover:bg-[#0f766e]/15">
-                  {contract.room_movements_count ?? 0} bản ghi
-                </Link>
-              }
-            />
-            <DetailTile label="Cập nhật" value={formatDateTime(contract.updated_at)} />
-          </div>
-
-          {contract.note && (
-            <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-              <p className={labelClass}>Ghi chú</p>
-              <p className="whitespace-pre-wrap text-sm font-bold text-[#3d2a18]">{contract.note}</p>
-            </section>
+              {contract.note && (
+                <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                  <p className={labelClass}>Ghi chú</p>
+                  <p className="whitespace-pre-wrap text-sm font-bold text-[#3d2a18]">{contract.note}</p>
+                </section>
+              )}
+            </>
           )}
         </div>
       </div>

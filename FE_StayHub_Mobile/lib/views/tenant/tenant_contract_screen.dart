@@ -924,31 +924,58 @@ class _TenantContractDetailScreenState
                   ),
                 ),
                 child: contract.negotiationStatus == 1
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        width: double.infinity,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(
-                              Icons.hourglass_empty_rounded,
-                              color: Color(0xFFD97706),
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Thương lượng giá đang chờ duyệt. Không thể ký lúc này.',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFD97706),
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(
+                                Icons.hourglass_empty_rounded,
+                                color: Color(0xFFD97706),
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Thương lượng giá đang chờ duyệt. Không thể ký lúc này.',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFD97706),
+                                  ),
+                                  textAlign: TextAlign.center,
                                 ),
-                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _showNegotiationDialog(
+                                context,
+                                contract,
+                                contractController,
+                              ),
+                              icon: const Icon(Icons.handshake_rounded),
+                              label: const Text('Thương lượng lại'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF1C1917),
+                                side: const BorderSide(
+                                  color: Color(0xFF1C1917),
+                                  width: 1.5,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       )
                     : Row(
                         children: [
@@ -2144,6 +2171,78 @@ class _TenantContractDetailScreenState
                   ],
                 ),
               ],
+              // Contract Vehicles Section
+              if (contract.contractVehicles != null &&
+                  contract.contractVehicles!.isNotEmpty) ...[
+                const Divider(height: 20, color: Color(0xFFF1F0EA)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(
+                          Icons.two_wheeler_rounded,
+                          size: 16,
+                          color: Color(0xFF78716C),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'XE GỬI TRONG HỢP ĐỒNG',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF78716C),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...contract.contractVehicles!
+                        .where((v) => v['is_active'] != false)
+                        .map((v) {
+                      final vehicleData =
+                          v['vehicle'] as Map<String, dynamic>?;
+                      final licensePlate =
+                          vehicleData?['license_plate']?.toString() ??
+                              'Xe #${v['vehicle_id']}';
+                      final typeLabel =
+                          vehicleData?['vehicle_type_label']?.toString() ?? '';
+                      final feeVal = v['monthly_fee'] != null
+                          ? double.tryParse(v['monthly_fee'].toString()) ?? 0.0
+                          : 0.0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                typeLabel.isNotEmpty
+                                    ? '$typeLabel: $licensePlate'
+                                    : 'Xe: $licensePlate',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF44403C),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '${_formatCurrency(feeVal)} / tháng',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1C1917),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -2380,11 +2479,12 @@ class _TenantContractDetailScreenState
       final sId = svc['id'] as int;
       final chargeMethod = svc['charge_method'] as int? ?? 0;
 
-      // Skip metered services (electricity/water) - cannot be negotiated
+      // Skip metered services (electricity/water) and vehicle services - cannot be negotiated here
       final slug = svc['slug']?.toString().toLowerCase() ?? '';
       final name = svc['name']?.toString().toLowerCase() ?? '';
-      final isMetered =
+      final isExcluded =
           chargeMethod == 1 || // CHARGE_METHOD_BY_METER
+          chargeMethod == 4 || // CHARGE_METHOD_BY_VEHICLE (handled in vehicle section)
           [
             'electric',
             'water',
@@ -2400,7 +2500,7 @@ class _TenantContractDetailScreenState
           name.contains('điện') ||
           name.contains('nước');
 
-      if (isMetered) continue;
+      if (isExcluded) continue;
 
       serviceNames[sId] = svc['name']?.toString() ?? '';
       final priceVal = svc['price'] != null
@@ -2411,6 +2511,31 @@ class _TenantContractDetailScreenState
 
       serviceControllers[sId] = TextEditingController(
         text: priceVal.toStringAsFixed(0),
+      );
+    }
+
+    // Maintain a list of controllers for vehicle prices
+    final vehicleControllers = <int, TextEditingController>{};
+    final vehicleNames = <int, String>{};
+    final vehicleOriginalPrices = <int, double>{};
+
+    final vehiclesList = contract.contractVehicles ?? [];
+    for (var v in vehiclesList) {
+      final isVehicleActive = v['is_active'] != false;
+      if (!isVehicleActive) continue;
+
+      final vId = v['vehicle_id'] as int;
+      final vehicleData = v['vehicle'] as Map<String, dynamic>?;
+      final licensePlate = vehicleData?['license_plate']?.toString() ?? v['license_plate']?.toString() ?? v['vehicle_id']?.toString() ?? 'Xe';
+
+      vehicleNames[vId] = 'Xe: $licensePlate';
+      final feeVal = v['monthly_fee'] != null
+          ? double.tryParse(v['monthly_fee'].toString()) ?? 0.0
+          : 0.0;
+      vehicleOriginalPrices[vId] = feeVal;
+
+      vehicleControllers[vId] = TextEditingController(
+        text: feeVal.toStringAsFixed(0),
       );
     }
 
@@ -2585,6 +2710,80 @@ class _TenantContractDetailScreenState
                   const SizedBox(height: 20),
                 ],
 
+                // Vehicles Price Inputs
+                if (vehicleControllers.isNotEmpty) ...[
+                  const Text(
+                    'ĐỀ XUẤT PHÍ GỬI XE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF78716C),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...vehicleControllers.entries.map((entry) {
+                    final vId = entry.key;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  vehicleNames[vId] ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1C1917),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Gốc: ${_formatCurrency(vehicleOriginalPrices[vId] ?? 0)} / tháng',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF78716C),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: entry.value,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                suffixText: 'đ',
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFE4E2D7),
+                                  ),
+                                ),
+                              ),
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF1C1917),
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 20),
+                ],
+
                 ElevatedButton(
                   onPressed: () async {
                     final roomPrice =
@@ -2636,12 +2835,41 @@ class _TenantContractDetailScreenState
                       proposedServices.add({'service_id': sId, 'price': price});
                     }
 
+                    final proposedVehicles = <Map<String, dynamic>>[];
+                    for (var entry in vehicleControllers.entries) {
+                      final vId = entry.key;
+                      final price = double.tryParse(entry.value.text) ?? 0.0;
+                      if (price < 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Giá dịch vụ gửi xe không được âm'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      final originalPrice = vehicleOriginalPrices[vId] ?? 0.0;
+                      if (price > originalPrice) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Giá đề xuất cho "${vehicleNames[vId]}" không được lớn hơn giá gốc (${_formatCurrency(originalPrice)})',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
+                      proposedVehicles.add({'vehicle_id': vId, 'price': price});
+                    }
+
                     Navigator.pop(context);
 
                     final success = await controller.negotiateContract(
                       contract.id,
                       roomPrice,
                       proposedServices,
+                      proposedVehicles,
                     );
                     if (success) {
                       ScaffoldMessenger.of(context).showSnackBar(

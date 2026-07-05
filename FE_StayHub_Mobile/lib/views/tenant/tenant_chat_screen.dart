@@ -113,6 +113,8 @@ class _TenantNotificationScreenState extends State<TenantNotificationScreen> {
                               Navigator.pushNamed(context, '/tenant/invoices');
                             } else if (notif.notificationType == 3) {
                               Navigator.pushNamed(context, '/tenant/contract');
+                            } else if (notif.notificationType == 6) {
+                              Navigator.pushNamed(context, '/tenant/chat');
                             }
                           },
                           borderRadius: BorderRadius.circular(16),

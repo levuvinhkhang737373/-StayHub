@@ -57,7 +57,18 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
           },
         );
       }
-      final active = chatController.activeConversation;
+
+      final tenantId = ModalRoute.of(context)?.settings.arguments as int?;
+      ChatConversation? targetConv;
+      if (tenantId != null) {
+        try {
+          targetConv = chatController.conversations.firstWhere(
+            (c) => c.tenantId == tenantId,
+          );
+        } catch (_) {}
+      }
+
+      final active = targetConv ?? chatController.activeConversation;
       if (active != null) {
         await chatController.selectAdminConversation(active);
         _subscribeConversation(active.id);

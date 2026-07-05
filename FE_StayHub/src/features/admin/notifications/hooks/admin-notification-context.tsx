@@ -94,11 +94,11 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
         if (res.status && res.result) {
           // Safeguard to ensure result is an array
           const list = res.result.data || []
-          
+
           const mapped: ReceivedNotification[] = list.map((item: any) => {
             const notifId = String(item.id)
             const localItem = localNotifs.find((ln) => ln.id === notifId)
-            
+
             let notifType: ReceivedNotification['type'] = 'system'
             if (item.notification_type === 1) {
               notifType = 'maintenance'
@@ -108,7 +108,20 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               notifType = 'chat'
             }
 
-            const link = resolveNotificationLink(item)
+            const scMatch = (item.content || '').match(/(SC-\d{6})/i)
+            const invMatch = (item.content || '').match(/(INV-[A-Z0-9-]+)/i)
+            const hdMatch = (item.content || '').match(/(HD-[A-Z0-9-]+)/i)
+
+            let link = '/admin/contracts'
+            if (item.notification_type === 1) {
+              link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
+            } else if (item.notification_type === 2) {
+              link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+            } else if (item.notification_type === 6) {
+              link = item.tenant_id ? `/admin/chat?tenant_id=${item.tenant_id}` : '/admin/chat'
+            } else {
+              link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
+            }
 
             return {
               id: notifId,
@@ -195,7 +208,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
             type: 'maintenance',
           })
         }
-        
+
         // Dispatch custom event to notify React components (like MaintenanceScreen)
         window.dispatchEvent(new CustomEvent('maintenance-created'))
       }
@@ -276,10 +289,21 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           window.dispatchEvent(new CustomEvent('notification-refresh'))
 
           if (Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
-            const link = resolveNotificationLink(notification)
+            const scMatch = (notification.content || '').match(/(SC-\d{6})/i)
+            const invMatch = (notification.content || '').match(/(INV-[A-Z0-9-]+)/i)
+            const hdMatch = (notification.content || '').match(/(HD-[A-Z0-9-]+)/i)
 
-            if (link.includes('/admin/meter-readings')) {
-              window.dispatchEvent(new CustomEvent('meter-readings-refresh', { detail: notification }))
+            let link = '/admin/contracts'
+            if (notification.notification_type === 1) {
+              link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
+            } else if (notification.notification_type === 2) {
+              link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+            } else if (notification.notification_type === 4) {
+              link = '/admin/fire-safety'
+            } else if (notification.notification_type === 6) {
+              link = notification.tenant_id ? `/admin/chat?tenant_id=${notification.tenant_id}` : '/admin/chat'
+            } else {
+              link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
             }
 
             addNotification({
@@ -329,7 +353,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       addNotification({
         title: notification.title || 'Tin nhắn mới',
         description: notification.content || 'Bạn có tin nhắn chat mới.',
-        link: '/admin/chat',
+        link: notification.tenant_id ? `/admin/chat?tenant_id=${notification.tenant_id}` : '/admin/chat',
         type: 'chat',
       })
     })
@@ -396,11 +420,11 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           osc2.start()
           gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3)
           setTimeout(() => osc2.stop(), 350)
-        } catch {}
+        } catch { }
       }, 120)
 
       setTimeout(() => oscillator.stop(), 180)
-    } catch {}
+    } catch { }
   }
 
   return (
@@ -429,7 +453,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               exit={{ opacity: 0, scale: 0.85, y: -20, transition: { duration: 0.2 } }}
               className="pointer-events-auto flex gap-3 overflow-hidden rounded-2xl border border-[#3d2a18]/10 bg-white/95 p-4 text-[#24170d] shadow-2xl shadow-[#6b3f1d]/18 backdrop-blur-md"
             >
-              <div 
+              <div
                 className="flex-1 cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => {
                   if (toast.id) markAsRead(toast.id)

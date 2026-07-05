@@ -265,6 +265,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Navigator.pushNamed(context, '/admin/maintenance');
                           } else if (item['type'] == 'invoice') {
                             Navigator.pushNamed(context, '/admin/invoices');
+                          } else if (item['type'] == 'chat') {
+                            Navigator.pushNamed(context, '/admin/chat', arguments: item['tenant_id']);
                           } else {
                             Navigator.pushNamed(context, '/admin/contracts');
                           }
@@ -362,6 +364,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       } else if (notif.notificationType == 4) {
         icon = Icons.warning_amber_rounded;
         color = Colors.redAccent;
+      } else if (notif.notificationType == 6) {
+        icon = Icons.chat_rounded;
+        color = Colors.teal;
       }
 
       // Format date
@@ -374,13 +379,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       items.add({
         'key': key,
         'id': notif.id,
-        'type': notif.notificationType == 1 ? 'request' : notif.notificationType == 2 ? 'invoice' : 'system',
+        'type': notif.notificationType == 1 ? 'request' : notif.notificationType == 2 ? 'invoice' : notif.notificationType == 6 ? 'chat' : 'system',
         'title': notif.title,
         'subtitle': notif.content,
         'date': displayDate,
         'icon': icon,
         'color': color,
         'isRead': isReadLocal,
+        'tenant_id': notif.tenantId,
       });
     }
 

@@ -1986,12 +1986,12 @@ class ContractController extends Controller
 
     private function listColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at', 'negotiation_status', 'proposed_room_price', 'proposed_services'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles'];
     }
 
     private function detailColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url', 'negotiation_status', 'proposed_room_price', 'proposed_services'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles'];
     }
 
     private function listRelations(): array
@@ -2148,24 +2148,81 @@ class ContractController extends Controller
                     $contract->negotiation_status = Contract::NEGOTIATION_STATUS_APPROVED;
                     $contract->save();
 
-                    // Update room service prices
+                    // Update contract vehicle fees if proposed
+                    $dealVehicles = $contract->proposed_vehicles ?? [];
+                    foreach ($dealVehicles as $dealVehicle) {
+                        $contract->contractVehicles()
+                            ->where('vehicle_id', $dealVehicle['vehicle_id'])
+                            ->update(['monthly_fee' => $dealVehicle['price']]);
+                    }
+
+                    // Update room service prices or contract vehicle fees
                     $dealServices = $contract->proposed_services ?? [];
                     foreach ($dealServices as $dealService) {
-                        \App\Models\RoomService::updateOrCreate(
-                            [
-                                'room_id' => $contract->room_id,
-                                'service_id' => $dealService['service_id']
-                            ],
-                            [
-                                'price' => $dealService['price']
-                            ]
-                        );
+                        $service = \App\Models\Service::find($dealService['service_id']);
+                        if (!$service) {
+                            continue;
+                        }
+
+                        $slug = strtolower($service->slug ?? '');
+                        $name = strtolower($service->name ?? '');
+                        $isVehicle = $service->charge_method === \App\Models\Service::CHARGE_METHOD_BY_VEHICLE
+                                  || str_contains($slug, 'xe') || str_contains($slug, 'parking') || str_contains($slug, 'vehicle')
+                                  || str_contains($name, 'xe') || str_contains($name, 'parking') || str_contains($name, 'vehicle');
+
+                        if ($isVehicle) {
+                            // Skip vehicle services if proposed_vehicles already handled them directly
+                            if (!empty($dealVehicles)) {
+                                continue;
+                            }
+
+                            // Load vehicles if not loaded
+                            $contract->loadMissing('contractVehicles.vehicle');
+
+                            // Find matching contract vehicle by type
+                            $type = null;
+                            if (str_contains($slug, 'may') || str_contains($name, 'máy')) {
+                                $type = \App\Models\Vehicle::VEHICLE_TYPE_MOTORBIKE;
+                            } elseif (str_contains($slug, 'dap') || str_contains($name, 'đạp')) {
+                                $type = \App\Models\Vehicle::VEHICLE_TYPE_BICYCLE;
+                            } elseif (str_contains($slug, 'to') || str_contains($name, 'tô') || str_contains($slug, 'car') || str_contains($name, 'car')) {
+                                $type = \App\Models\Vehicle::VEHICLE_TYPE_CAR;
+                            } elseif (str_contains($slug, 'dien') || str_contains($name, 'điện')) {
+                                $type = \App\Models\Vehicle::VEHICLE_TYPE_ELECTRIC;
+                            }
+
+                            $matchedVehicles = $contract->contractVehicles->filter(function ($cv) use ($type) {
+                                return $cv->is_active && ($type === null || $cv->vehicle?->vehicle_type === $type || $cv->vehicle_type === $type);
+                            });
+
+                            if ($matchedVehicles->isNotEmpty()) {
+                                foreach ($matchedVehicles as $cv) {
+                                    $cv->update(['monthly_fee' => $dealService['price']]);
+                                }
+                            } else {
+                                // Fallback: if no active vehicles found matching type, update all active contract vehicles
+                                $activeVehicles = $contract->contractVehicles->where('is_active', true);
+                                foreach ($activeVehicles as $cv) {
+                                    $cv->update(['monthly_fee' => $dealService['price']]);
+                                }
+                            }
+                        } else {
+                            // Update regular room service price
+                            \App\Models\RoomService::updateOrCreate(
+                                [
+                                    'room_id' => $contract->room_id,
+                                    'service_id' => $dealService['service_id']
+                                ],
+                                [
+                                    'price' => $dealService['price']
+                                ]
+                            );
+                        }
                     }
 
                     // Create notification for tenant
                     try {
                         $activeTenants = $contract->contractTenants()
-                            ->where('is_staying', true)
                             ->get();
 
                         foreach ($activeTenants as $ct) {
@@ -2196,7 +2253,6 @@ class ContractController extends Controller
                     // Create notification for tenant
                     try {
                         $activeTenants = $contract->contractTenants()
-                            ->where('is_staying', true)
                             ->get();
 
                         foreach ($activeTenants as $ct) {
@@ -2222,7 +2278,8 @@ class ContractController extends Controller
                 }
             });
 
-            $contract->load($this->detailRelations());
+            $contract->refresh();
+            $this->loadDetailRelations($contract);
 
             return ApiResponse::responseJson(true, 'Xử lý thương lượng thành công', 200, new ContractDetailResource($contract), 200);
         } catch (\Exception $e) {

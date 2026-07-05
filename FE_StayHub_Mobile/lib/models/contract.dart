@@ -157,6 +157,7 @@ class Contract {
   final double? proposedRoomPrice;
   final List<dynamic>? proposedServices;
   final List<dynamic>? roomServices;
+  final List<dynamic>? contractVehicles;
 
   // Payment fields
   final bool isDepositPaid;
@@ -194,6 +195,7 @@ class Contract {
     this.proposedRoomPrice,
     this.proposedServices,
     this.roomServices,
+    this.contractVehicles,
     this.isDepositPaid = true,
     this.paymentStatus,
     this.paymentStatusLabel,
@@ -291,6 +293,7 @@ class Contract {
           : null,
       proposedServices: json['proposed_services'] as List<dynamic>?,
       roomServices: json['room_services'] as List<dynamic>?,
+      contractVehicles: json['contract_vehicles'] as List<dynamic>?,
       isDepositPaid: isDepositPaidValue,
       paymentStatus: json['payment_status'] as int?,
       paymentStatusLabel: json['payment_status_label'] as String?,
@@ -333,6 +336,7 @@ class Contract {
       'deposit_qr_url': depositQrUrl,
       'transfer_settlement': transferSettlement?.toJson(),
       'is_staying': isStaying,
+      'contract_vehicles': contractVehicles,
     };
   }
 

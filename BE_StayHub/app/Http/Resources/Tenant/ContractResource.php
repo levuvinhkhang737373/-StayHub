@@ -47,16 +47,83 @@ class ContractResource extends JsonResource
             'negotiation_status_label' => Contract::NEGOTIATION_STATUS_LABELS[$this->negotiation_status] ?? 'Không thương lượng',
             'proposed_room_price' => $this->proposed_room_price === null ? null : (string) $this->proposed_room_price,
             'proposed_services' => $this->proposed_services,
+            'proposed_vehicles' => $this->proposed_vehicles,
             'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('services')
-                ? $this->room->services->map(fn ($service) => [
-                    'id' => $service->id,
-                    'name' => $service->name,
-                    'charge_method' => $service->charge_method,
-                    'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? '',
-                    'unit_name' => $service->unit_name,
-                    'price' => (string) $service->pivot->price,
-                    'is_required' => $service->is_required,
-                ])
+                ? $this->room->services->map(function ($service) {
+                    $price = (string) $service->pivot->price;
+
+                    // If it is a vehicle service, check if there is a matching contract vehicle to take the fee from
+                    $slug = strtolower($service->slug ?? '');
+                    $name = strtolower($service->name ?? '');
+                    $isVehicle = str_contains($slug, 'xe') || str_contains($slug, 'parking') || str_contains($slug, 'vehicle')
+                              || str_contains($name, 'xe') || str_contains($name, 'parking') || str_contains($name, 'vehicle');
+
+                    if ($isVehicle && $this->relationLoaded('contractVehicles')) {
+                        // Find matching contract vehicle by type
+                        $type = null;
+                        if (str_contains($slug, 'may') || str_contains($name, 'máy')) {
+                            $type = \App\Models\Vehicle::VEHICLE_TYPE_MOTORBIKE;
+                        } elseif (str_contains($slug, 'dap') || str_contains($name, 'đạp')) {
+                            $type = \App\Models\Vehicle::VEHICLE_TYPE_BICYCLE;
+                        } elseif (str_contains($slug, 'to') || str_contains($name, 'tô') || str_contains($slug, 'car') || str_contains($name, 'car')) {
+                            $type = \App\Models\Vehicle::VEHICLE_TYPE_CAR;
+                        } elseif (str_contains($slug, 'dien') || str_contains($name, 'điện')) {
+                            $type = \App\Models\Vehicle::VEHICLE_TYPE_ELECTRIC;
+                        }
+
+                        $cv = null;
+                        if ($type !== null) {
+                            $cv = $this->contractVehicles->first(function ($item) use ($type) {
+                                return $item->is_active && ($item->vehicle?->vehicle_type === $type || $item->vehicle_type === $type);
+                            });
+                        }
+
+                        // Fallback to any active contract vehicle if no specific type matched
+                        if (!$cv) {
+                            $cv = $this->contractVehicles->firstWhere('is_active', true);
+                        }
+
+                        if ($cv && $cv->monthly_fee !== null) {
+                            $price = (string) $cv->monthly_fee;
+                        }
+                    }
+
+                    return [
+                        'id' => $service->id,
+                        'name' => $service->name,
+                        'charge_method' => $service->charge_method,
+                        'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? '',
+                        'unit_name' => $service->unit_name,
+                        'price' => $price,
+                        'is_required' => $service->is_required,
+                    ];
+                })
+                : null,
+            'contract_vehicles' => $this->relationLoaded('contractVehicles')
+                ? $this->contractVehicles->map(function ($cv) {
+                    return [
+                        'id' => $cv->id,
+                        'contract_id' => $cv->contract_id,
+                        'vehicle_id' => $cv->vehicle_id,
+                        'vehicle' => $cv->relationLoaded('vehicle') && $cv->vehicle ? [
+                            'id' => $cv->vehicle->id,
+                            'vehicle_type' => $cv->vehicle->vehicle_type,
+                            'vehicle_type_label' => \App\Models\Vehicle::VEHICLE_TYPE_LABELS[$cv->vehicle->vehicle_type] ?? null,
+                            'license_plate' => $cv->vehicle->license_plate,
+                            'brand' => $cv->vehicle->brand,
+                            'color' => $cv->vehicle->color,
+                            'is_active' => $cv->vehicle->is_active,
+                        ] : null,
+                        'started_at' => optional($cv->started_at)->toDateString(),
+                        'ended_at' => optional($cv->ended_at)->toDateString(),
+                        'billing_start_date' => optional($cv->billing_start_date)->toDateString(),
+                        'billing_end_date' => optional($cv->billing_end_date)->toDateString(),
+                        'monthly_fee' => $cv->monthly_fee === null ? null : (string) $cv->monthly_fee,
+                        'charge_policy' => $cv->charge_policy,
+                        'charge_policy_label' => \App\Models\ContractVehicle::CHARGE_POLICY_LABELS[$cv->charge_policy] ?? null,
+                        'is_active' => (bool) $cv->is_active,
+                    ];
+                })
                 : null,
             'is_staying' => $isStaying,
             'payment_status' => $this->payment_status,
