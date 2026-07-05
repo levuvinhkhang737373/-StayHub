@@ -24,6 +24,7 @@ use App\Models\Notification;
 use App\Models\Room;
 use App\Models\RoomAsset;
 use App\Models\RoomMovement;
+use App\Models\RoomType;
 use App\Models\Tenant;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -61,6 +62,10 @@ class RoomController extends Controller
 
         if (!AdminScope::isSuperAdmin($admin)) {
             return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập vào tòa nhà này', 403, null, 403);
+        }
+        $loai_phong_hoat_dong = RoomType::where('id', $request->room_type_id)->where('status', RoomType::STATUS_ACTIVE)->first();
+        if (!$loai_phong_hoat_dong) {
+            return ApiResponse::responseJson(false, 'Loại phòng đã ngừng hoạt động', 400, null, 400);
         }
         $uploadedImagePaths = [];
         DB::beginTransaction();
@@ -705,7 +710,7 @@ class RoomController extends Controller
 
     private function utilityCutoffActionUrl(RoomMovement $movement, Contract $sourceContract, Room $fromRoom, Carbon $movementDate, Carbon $cutoffDate): string
     {
-        return '/admin/meter-readings?'.http_build_query([
+        return '/admin/meter-readings?' . http_build_query([
             'building_id' => $fromRoom->building_id,
             'billing_month' => $cutoffDate->month,
             'billing_year' => $cutoffDate->year,
