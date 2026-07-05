@@ -263,10 +263,13 @@ class InvoiceController extends Controller
             return ApiResponse::responseJson(false, 'Hợp đồng đã kết thúc trước kỳ hóa đơn này', 422, null, 422);
         }
 
+        $invoicePeriodEnd = $this->invoicePeriodEndForPendingTransfer($contract, $periodStart, $periodEnd);
+
         $existingInvoiceQuery = Invoice::query()
             ->where('contract_id', $contract->id)
             ->where('billing_year', $periodStart->year)
             ->where('billing_month', $periodStart->month)
+            ->withCount('payments')
             ->where('status', '!=', Invoice::STATUS_CANCELLED);
 
         $existingInvoice = $forIssue
@@ -274,13 +277,37 @@ class InvoiceController extends Controller
             : $existingInvoiceQuery->first();
 
         if ($existingInvoice) {
-            return ApiResponse::responseJson(false, 'Hợp đồng này đã có hóa đơn trong kỳ đã chọn', 422, null, 422);
+            if ($this->canReplaceExistingInvoiceForTransferCutoff($existingInvoice, $invoicePeriodEnd, $periodEnd)) {
+                if ($forIssue) {
+                    $this->cancelInvoiceBeforeTransferFinalization($existingInvoice);
+                }
+            } elseif ($this->isTransferFinalizationBlockedByExistingInvoice($existingInvoice, $invoicePeriodEnd, $periodEnd)) {
+                return ApiResponse::responseJson(false, 'Hợp đồng đã có hóa đơn tháng này trước khi lên lịch chuyển phòng. Vui lòng hủy hoặc phát hành lại hóa đơn cũ chưa thu tiền trước khi lập hóa đơn chốt chuyển phòng.', 422, null, 422);
+            } else {
+                return ApiResponse::responseJson(false, 'Hợp đồng này đã có hóa đơn trong kỳ đã chọn', 422, null, 422);
+            }
+        }
+
+        if ($forIssue) {
+            $conflictingInvoice = Invoice::query()
+                ->where('contract_id', $contract->id)
+                ->where('billing_year', $periodStart->year)
+                ->where('billing_month', $periodStart->month)
+                ->where('status', '!=', Invoice::STATUS_CANCELLED)
+                ->lockForUpdate()
+                ->first();
+
+            if ($conflictingInvoice) {
+                return ApiResponse::responseJson(false, 'Hợp đồng này đã có hóa đơn trong kỳ đã chọn', 422, null, 422);
+            }
         }
 
         $automaticItems = $this->buildAutomaticItems($contract, $periodStart, $periodEnd);
         if (! empty($automaticItems['errors'])) {
             return ApiResponse::responseJson(false, implode(' ', $automaticItems['errors']), 422, null, 422);
         }
+
+        $invoicePeriodEnd = $automaticItems['invoice_period_end'] ?? $periodEnd;
 
         $items = array_merge($automaticItems['items'], $this->buildAdjustmentItems($validated['adjustments'] ?? []));
         $totalAmount = $this->calculateItemsTotal($items);
@@ -293,7 +320,7 @@ class InvoiceController extends Controller
             'admin' => $admin,
             'contract' => $contract,
             'period_start' => $periodStart,
-            'period_end' => $periodEnd,
+            'period_end' => $invoicePeriodEnd,
             'due_date' => $dueDate,
             'previous_debt_amount' => $automaticItems['previous_debt_amount'],
             'total_amount' => $totalAmount,
@@ -622,7 +649,7 @@ class InvoiceController extends Controller
         $billingMonth = (int) $periodStart->month;
         $billingYear = (int) $periodStart->year;
         $transferContext = $this->pendingTransferContext($contract, $periodStart, $periodEnd);
-        $remainingTransferContext = $this->remainingRepresentativeTransferContext($contract, $periodStart, $periodEnd);
+        $remainingTransferContext = $this->remainingTransferContext($contract, $periodStart, $periodEnd);
         $servicePeriodStart = $remainingTransferContext['service_period_start'];
 
         $roomAmount = $this->calculateRoomAmount($contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date'], $servicePeriodStart);
@@ -839,6 +866,7 @@ class InvoiceController extends Controller
             'errors' => $errors,
             'previous_debt_amount' => $previousDebtAmount,
             'transfer_cutoffs' => $transferContext['summaries'],
+            'invoice_period_end' => $transferContext['contract_cutoff_date'] ?: $periodEnd,
         ];
     }
 
@@ -912,7 +940,7 @@ class InvoiceController extends Controller
         return $this->calculateProratedAmount($contract->room_price, $contract, $periodStart, $periodEnd, $cutoffDate, $servicePeriodStart);
     }
 
-    private function remainingRepresentativeTransferContext(Contract $contract, Carbon $periodStart, Carbon $periodEnd): array
+    private function remainingTransferContext(Contract $contract, Carbon $periodStart, Carbon $periodEnd): array
     {
         $empty = [
             'source_contract' => null,
@@ -921,11 +949,11 @@ class InvoiceController extends Controller
             'service_period_start' => null,
         ];
 
-        if (! $this->isRemainingRepresentativeTransferContract($contract, $periodStart, $periodEnd)) {
+        if (! $this->isRemainingTransferContract($contract, $periodStart, $periodEnd)) {
             return $empty;
         }
 
-        $sourceContract = $this->remainingRepresentativeTransferSourceContract($contract);
+        $sourceContract = $this->remainingTransferSourceContract($contract);
         if (! $sourceContract) {
             return $empty;
         }
@@ -947,18 +975,20 @@ class InvoiceController extends Controller
         return [
             'source_contract' => $sourceContract,
             'source_period_end' => $sourcePeriodEnd,
-            'source_vehicle_rows' => $this->remainingRepresentativeTransferSourceVehicles($sourceContract, $periodStart, $periodEnd),
+            'source_vehicle_rows' => $this->remainingTransferSourceVehicles($sourceContract, $periodStart, $periodEnd),
             'service_period_start' => $servicePeriodStart,
         ];
     }
 
-    private function isRemainingRepresentativeTransferContract(Contract $contract, Carbon $periodStart, Carbon $periodEnd): bool
+    private function isRemainingTransferContract(Contract $contract, Carbon $periodStart, Carbon $periodEnd): bool
     {
         if (! $contract->parent_contract_id || ! $contract->start_date) {
             return false;
         }
 
-        if (! str_contains((string) $contract->note, 'người còn ở lại sau khi đại diện chuyển phòng')) {
+        $note = (string) $contract->note;
+        if (! str_contains($note, 'người còn ở lại sau khi chuyển phòng')
+            && ! str_contains($note, 'người còn ở lại sau khi đại diện chuyển phòng')) {
             return false;
         }
 
@@ -968,7 +998,7 @@ class InvoiceController extends Controller
             && $startDate->lessThanOrEqualTo($periodEnd);
     }
 
-    private function remainingRepresentativeTransferSourceContract(Contract $contract): ?Contract
+    private function remainingTransferSourceContract(Contract $contract): ?Contract
     {
         $movementDate = $contract->start_date->copy()->startOfDay();
         $sourceEndDate = $movementDate->copy()->subDay();
@@ -988,7 +1018,7 @@ class InvoiceController extends Controller
 
         $movement = $movements->first(function (RoomMovement $movement) use ($contract): bool {
             $sourceContract = $movement->sourceContract;
-            if (! $sourceContract || (int) $movement->tenant_id !== (int) $sourceContract->representative_tenant_id) {
+            if (! $sourceContract) {
                 return false;
             }
 
@@ -1018,7 +1048,31 @@ class InvoiceController extends Controller
             ->exists();
     }
 
-    private function remainingRepresentativeTransferSourceVehicles(Contract $sourceContract, Carbon $periodStart, Carbon $periodEnd): Collection
+    private function canReplaceExistingInvoiceForTransferCutoff(Invoice $invoice, Carbon $invoicePeriodEnd, Carbon $periodEnd): bool
+    {
+        return $this->isTransferFinalizationBlockedByExistingInvoice($invoice, $invoicePeriodEnd, $periodEnd)
+            && $invoice->period_end?->copy()->startOfDay()->isSameDay($periodEnd)
+            && (int) ($invoice->payments_count ?? $invoice->payments()->count()) === 0;
+    }
+
+    private function isTransferFinalizationBlockedByExistingInvoice(Invoice $invoice, Carbon $invoicePeriodEnd, Carbon $periodEnd): bool
+    {
+        return $invoicePeriodEnd->lt($periodEnd)
+            && ! $invoice->period_end?->copy()->startOfDay()->isSameDay($invoicePeriodEnd);
+    }
+
+    private function cancelInvoiceBeforeTransferFinalization(Invoice $invoice): void
+    {
+        $invoice->items()->delete();
+        $invoice->forceFill([
+            'status' => Invoice::STATUS_CANCELLED,
+            'remaining_amount' => '0.00',
+            'reissued_at' => now(),
+            'reissue_reason' => 'Tự động hủy hóa đơn full tháng để lập hóa đơn chốt chuyển phòng theo ngày cắt.',
+        ])->save();
+    }
+
+    private function remainingTransferSourceVehicles(Contract $sourceContract, Carbon $periodStart, Carbon $periodEnd): Collection
     {
         return ContractVehicle::query()
             ->with('vehicle:id,tenant_id,license_plate')
@@ -1087,6 +1141,13 @@ class InvoiceController extends Controller
         ];
     }
 
+    private function invoicePeriodEndForPendingTransfer(Contract $contract, Carbon $periodStart, Carbon $periodEnd): Carbon
+    {
+        $transferContext = $this->pendingTransferContext($contract, $periodStart, $periodEnd);
+
+        return $transferContext['contract_cutoff_date'] ?: $periodEnd;
+    }
+
     private function pendingOutgoingTransferMovements(Contract $contract, Carbon $periodStart, Carbon $periodEnd): Collection
     {
         return RoomMovement::query()
@@ -1094,7 +1155,10 @@ class InvoiceController extends Controller
             ->where('source_contract_id', $contract->id)
             ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
             ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED])
-            ->whereBetween('movement_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->whereBetween('movement_date', [
+                $periodStart->copy()->addDay()->toDateString(),
+                $periodEnd->copy()->addDay()->toDateString(),
+            ])
             ->orderBy('movement_date')
             ->orderBy('id')
             ->get();
@@ -1211,30 +1275,7 @@ class InvoiceController extends Controller
 
     private function pendingTransferClosesSourceContract(?Contract $contract, Collection $activeTenantIds, Collection $movingTenantIds): bool
     {
-        if ($activeTenantIds->isEmpty()) {
-            return false;
-        }
-
-        $movingAllActiveTenants = $this->movingAllActiveTenants($activeTenantIds, $movingTenantIds);
-
-        if ($movingAllActiveTenants) {
-            return true;
-        }
-
-        $representativeTenantId = $this->representativeTenantId($contract, $activeTenantIds);
-
-        return $representativeTenantId
-            ? $movingTenantIds->contains($representativeTenantId)
-            : false;
-    }
-
-    private function representativeTenantId(?Contract $contract, Collection $activeTenantIds): ?int
-    {
-        if ($contract?->representative_tenant_id) {
-            return (int) $contract->representative_tenant_id;
-        }
-
-        return $activeTenantIds->first();
+        return $activeTenantIds->isNotEmpty() && $movingTenantIds->isNotEmpty();
     }
 
     private function movingAllActiveTenants(Collection $activeTenantIds, Collection $movingTenantIds): bool
@@ -1278,7 +1319,7 @@ class InvoiceController extends Controller
     private function descriptionWithRemainingTransferCutoff(string $description, ?Carbon $cutoffDate): string
     {
         return $cutoffDate
-            ? $description.' (tính đến '.$cutoffDate->format('d/m/Y').' trước khi đại diện chuyển phòng)'
+            ? $description.' (tính đến '.$cutoffDate->format('d/m/Y').' trước khi chuyển phòng)'
             : $description;
     }
 

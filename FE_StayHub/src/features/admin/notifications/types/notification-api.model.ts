@@ -2,6 +2,7 @@ export interface AdminNotificationResource {
   id: number
   title: string
   content: string
+  action_url?: string | null
   notification_type: number
   notification_type_label?: string | null
   target_type: number

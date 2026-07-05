@@ -29,6 +29,34 @@ interface AdminNotificationContextValue {
 
 const AdminNotificationContext = createContext<AdminNotificationContextValue | null>(null)
 
+function resolveNotificationLink(item: any) {
+  if (typeof item?.action_url === 'string' && item.action_url.trim() !== '') {
+    return item.action_url
+  }
+
+  const scMatch = (item.content || '').match(/(SC-\d{6})/i)
+  const invMatch = (item.content || '').match(/(INV-[A-Z0-9-]+)/i)
+  const hdMatch = (item.content || '').match(/(HD-[A-Z0-9-]+)/i)
+
+  if (item.notification_type === 1) {
+    return scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
+  }
+
+  if (item.notification_type === 2) {
+    return invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
+  }
+
+  if (item.notification_type === 4) {
+    return '/admin/fire-safety'
+  }
+
+  if (item.notification_type === 6) {
+    return '/admin/chat'
+  }
+
+  return hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
+}
+
 export function AdminNotificationProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const { session } = useAdminSession()
@@ -80,20 +108,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               notifType = 'chat'
             }
 
-            const scMatch = (item.content || '').match(/(SC-\d{6})/i)
-            const invMatch = (item.content || '').match(/(INV-[A-Z0-9-]+)/i)
-            const hdMatch = (item.content || '').match(/(HD-[A-Z0-9-]+)/i)
-
-            let link = '/admin/contracts'
-            if (item.notification_type === 1) {
-              link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
-            } else if (item.notification_type === 2) {
-              link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
-            } else if (item.notification_type === 6) {
-              link = '/admin/chat'
-            } else {
-              link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
-            }
+            const link = resolveNotificationLink(item)
 
             return {
               id: notifId,
@@ -261,21 +276,10 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           window.dispatchEvent(new CustomEvent('notification-refresh'))
 
           if (Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
-            const scMatch = (notification.content || '').match(/(SC-\d{6})/i)
-            const invMatch = (notification.content || '').match(/(INV-[A-Z0-9-]+)/i)
-            const hdMatch = (notification.content || '').match(/(HD-[A-Z0-9-]+)/i)
+            const link = resolveNotificationLink(notification)
 
-            let link = '/admin/contracts'
-            if (notification.notification_type === 1) {
-              link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
-            } else if (notification.notification_type === 2) {
-              link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
-            } else if (notification.notification_type === 4) {
-              link = '/admin/fire-safety'
-            } else if (notification.notification_type === 6) {
-              link = '/admin/chat'
-            } else {
-              link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
+            if (link.includes('/admin/meter-readings')) {
+              window.dispatchEvent(new CustomEvent('meter-readings-refresh', { detail: notification }))
             }
 
             addNotification({

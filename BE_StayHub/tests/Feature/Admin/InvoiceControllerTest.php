@@ -628,7 +628,7 @@ class InvoiceControllerTest extends TestCase
         ]);
     }
 
-    public function test_invoice_preview_uses_pending_transfer_date_to_prorate_only_vehicle_fee_for_partial_transfer_before_execution(): void
+    public function test_invoice_preview_uses_pending_transfer_cutoff_for_source_contract_before_execution(): void
     {
         Carbon::setTestNow('2026-07-28 09:00:00');
         $this->electricityService->update(['is_active' => false]);
@@ -726,6 +726,25 @@ class InvoiceControllerTest extends TestCase
             'created_by' => $this->superAdmin->id,
         ]);
 
+        $remainingVehicle = Vehicle::create([
+            'tenant_id' => $this->tenant->id,
+            'vehicle_type' => Vehicle::VEHICLE_TYPE_MOTORBIKE,
+            'license_plate' => '29-A1 111.11',
+            'brand' => 'Honda',
+            'color' => 'Black',
+            'is_active' => true,
+        ]);
+
+        ContractVehicle::create([
+            'contract_id' => $contract->id,
+            'vehicle_id' => $remainingVehicle->id,
+            'started_at' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'monthly_fee' => '100000.00',
+            'charge_policy' => ContractVehicle::CHARGE_POLICY_MONTHLY,
+            'is_active' => true,
+        ]);
+
         $vehicle = Vehicle::create([
             'tenant_id' => $movingTenant->id,
             'vehicle_type' => Vehicle::VEHICLE_TYPE_MOTORBIKE,
@@ -785,20 +804,23 @@ class InvoiceControllerTest extends TestCase
             ->assertJsonPath('result.transfer_cutoffs.0.transfer_code', 'TRF-2026-07-PENDING')
             ->assertJsonPath('result.transfer_cutoffs.0.cutoff_date', '2026-07-28')
             ->assertJsonPath('result.transfer_cutoffs.0.moving_all_active_tenants', false)
-            ->assertJsonPath('result.transfer_cutoffs.0.closes_source_contract', false);
+            ->assertJsonPath('result.transfer_cutoffs.0.closes_source_contract', true)
+            ->assertJsonPath('result.period_end', '2026-07-28');
 
         $previewItems = collect($previewResponse->json('result.items'));
         $roomItem = $previewItems->firstWhere('item_type', InvoiceItem::ITEM_TYPE_ROOM);
         $internetItem = $previewItems->firstWhere('service_id', $internetService->id);
-        $parkingItem = $previewItems->firstWhere('item_type', InvoiceItem::ITEM_TYPE_PARKING);
+        $parkingItems = $previewItems->where('item_type', InvoiceItem::ITEM_TYPE_PARKING)->values();
+        $parkingAmounts = $parkingItems->pluck('amount')->sort()->values()->all();
 
-        $this->assertSame('3000000.00', $roomItem['amount']);
-        $this->assertSame('50000.00', $internetItem['amount']);
-        $this->assertStringNotContainsString('tính đến 28/07/2026', $roomItem['description']);
-        $this->assertStringNotContainsString('tính đến 28/07/2026', $internetItem['description']);
+        $this->assertSame('2709677.42', $roomItem['amount']);
+        $this->assertSame('45161.29', $internetItem['amount']);
+        $this->assertStringContainsString('tính đến 28/07/2026', $roomItem['description']);
+        $this->assertStringContainsString('tính đến 28/07/2026', $internetItem['description']);
 
-        $this->assertSame('90322.58', $parkingItem['amount']);
-        $this->assertStringContainsString('tính đến 28/07/2026', $parkingItem['description']);
+        $this->assertCount(2, $parkingItems);
+        $this->assertSame(['90322.58', '90322.58'], $parkingAmounts);
+        $this->assertTrue($parkingItems->every(fn (array $item): bool => str_contains($item['description'], 'tính đến 28/07/2026')));
 
         $generateResponse = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/generate', [
             'contract_id' => $contract->id,
@@ -807,22 +829,143 @@ class InvoiceControllerTest extends TestCase
         ]);
 
         $generateResponse->assertStatus(201);
+        $this->assertSame('2026-07-28', Invoice::query()->findOrFail($generateResponse->json('result.id'))->period_end?->toDateString());
+
         $this->assertDatabaseHas('invoice_items', [
             'invoice_id' => $generateResponse->json('result.id'),
             'item_type' => InvoiceItem::ITEM_TYPE_PARKING,
             'amount' => '90322.58',
         ]);
 
+
         $this->assertDatabaseHas('invoice_items', [
             'invoice_id' => $generateResponse->json('result.id'),
             'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
-            'amount' => '3000000.00',
+            'amount' => '2709677.42',
         ]);
 
         $this->assertDatabaseHas('invoice_items', [
             'invoice_id' => $generateResponse->json('result.id'),
             'service_id' => $internetService->id,
-            'amount' => '50000.00',
+            'amount' => '45161.29',
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_transfer_final_invoice_replaces_unpaid_full_month_invoice_created_before_transfer_schedule(): void
+    {
+        Carbon::setTestNow('2026-07-28 09:00:00');
+        $this->electricityService->update(['is_active' => false]);
+        $this->waterService->update(['is_active' => false]);
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-TRANSFER-REPLACE-FULL-INVOICE',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $this->tenant->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3100000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $fullMonthInvoice = Invoice::create([
+            'invoice_code' => 'INV-FULL-BEFORE-TRANSFER',
+            'contract_id' => $contract->id,
+            'room_id' => $this->room->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '3100000.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '3100000.00',
+            'status' => Invoice::STATUS_UNPAID,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $fullMonthInvoice->items()->create([
+            'service_id' => null,
+            'meter_reading_id' => null,
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'description' => 'Tiền phòng tháng 07/2026',
+            'quantity' => '1.00',
+            'unit_price' => '3100000.00',
+            'amount' => '3100000.00',
+        ]);
+
+        $toRoom = Room::create([
+            'building_id' => $this->building->id,
+            'room_type_id' => $this->room->room_type_id,
+            'room_number' => '209',
+            'slug' => '209',
+            'floor' => 2,
+            'base_price' => '3000000.00',
+            'max_occupants' => 5,
+            'current_occupants' => 0,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomMovement::create([
+            'transfer_code' => 'TRF-REPLACE-FULL-2026-07',
+            'tenant_id' => $this->tenant->id,
+            'contract_id' => $contract->id,
+            'source_contract_id' => $contract->id,
+            'from_room_id' => $this->room->id,
+            'to_room_id' => $toRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_PENDING,
+            'movement_date' => '2026-07-29 00:00:00',
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => '0.00',
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '0.00',
+            'manual_refund_amount' => '0.00',
+            'deposit_due_amount' => '0.00',
+            'extra_charge_amount' => '0.00',
+            'settlement_due_amount' => '0.00',
+            'settlement_paid_amount' => '0.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+            'settlement_payment_references' => [],
+            'scheduled_payload' => [
+                'tenant_ids' => [$this->tenant->id],
+                'to_room_id' => $toRoom->id,
+                'movement_date' => '2026-07-29',
+            ],
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $generateResponse = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/generate', [
+            'contract_id' => $contract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ]);
+
+        $generateResponse->assertStatus(201)
+            ->assertJsonPath('result.period_end', '2026-07-28');
+
+        $fullMonthInvoice->refresh();
+        $this->assertSame(Invoice::STATUS_CANCELLED, (int) $fullMonthInvoice->status);
+        $this->assertSame('0.00', (string) $fullMonthInvoice->remaining_amount);
+        $this->assertDatabaseHas('invoice_items', [
+            'invoice_id' => $generateResponse->json('result.id'),
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'amount' => '2800000.00',
         ]);
 
         Carbon::setTestNow();
@@ -1007,7 +1150,7 @@ class InvoiceControllerTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_invoice_preview_for_remaining_contract_after_representative_transfer_keeps_room_services_and_old_vehicle_days(): void
+    public function test_invoice_preview_for_remaining_contract_after_non_representative_transfer_keeps_room_services_and_old_vehicle_days(): void
     {
         $this->electricityService->update(['is_active' => false]);
         $this->waterService->update(['is_active' => false]);
@@ -1032,7 +1175,7 @@ class InvoiceControllerTest extends TestCase
         $sourceContract = Contract::create([
             'contract_code' => 'HD-REP-SOURCE-TRANSFER',
             'room_id' => $this->room->id,
-            'representative_tenant_id' => $movingRepresentative->id,
+            'representative_tenant_id' => $remainingTenant->id,
             'start_date' => '2026-01-01',
             'end_date' => '2026-12-31',
             'actual_end_date' => '2026-07-14',
@@ -1252,7 +1395,7 @@ class InvoiceControllerTest extends TestCase
         $this->assertCount(3, $parkingItems);
         $this->assertSame(['45161.29', '54838.71'], $remainingVehicleItems->pluck('amount')->sort()->values()->all());
         $this->assertSame('45161.29', $movingVehicleItem['amount']);
-        $this->assertStringContainsString('tính đến 14/07/2026 trước khi đại diện chuyển phòng', $movingVehicleItem['description']);
+        $this->assertStringContainsString('tính đến 14/07/2026 trước khi chuyển phòng', $movingVehicleItem['description']);
     }
 
     public function test_invoice_preview_for_remaining_contract_does_not_duplicate_source_period_when_source_invoice_exists(): void

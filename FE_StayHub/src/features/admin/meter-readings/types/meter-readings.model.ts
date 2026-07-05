@@ -24,6 +24,14 @@ export interface RoomReadingInit {
   room_number: string
   tenant_name: string | null
   contract_id: number | null
+  contract_code?: string | null
+  contract_status?: number | null
+  is_transfer_finalization?: boolean
+  should_finalize_before_transfer?: boolean
+  transfer_code?: string | null
+  movement_date?: string | null
+  utility_cutoff_date?: string | null
+  cutoff_reason?: string | null
   meters: MeterDeviceReadingInit[]
 }
 

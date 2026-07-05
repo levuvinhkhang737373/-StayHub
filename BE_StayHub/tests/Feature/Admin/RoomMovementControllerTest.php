@@ -106,6 +106,8 @@ class RoomMovementControllerTest extends TestCase
             'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER_OUT,
         ]);
 
+        $this->createPaidFinalInvoice($oldContract, $fromRoom, $admin, Carbon::parse($movementDate)->subDay()->toDateString(), 'INV-FINAL-OLD-MOVE');
+
         $this->artisan('room-transfers:execute-scheduled', ['--date' => $movementDate, '--code' => $transferCode])
             ->assertExitCode(0);
 
@@ -339,6 +341,8 @@ class RoomMovementControllerTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
+        $this->createPaidFinalInvoice($oldContract, $fromRoom, $admin, now('Asia/Ho_Chi_Minh')->copy()->subDay()->toDateString(), 'INV-FINAL-METER-GUARD');
+
         $response = $this->actingAs($admin, 'admin')
             ->postJson('/api/v1/admin/room-transfers/tenant', [
                 'tenant_id' => $tenant->id,
@@ -413,6 +417,8 @@ class RoomMovementControllerTest extends TestCase
 
         $response->assertStatus(201);
         $transferCode = (string) $response->json('result.transfer_code');
+
+        $this->createPaidFinalInvoice($oldContract, $fromRoom, $admin, Carbon::parse($movementDate)->subDay()->toDateString(), 'INV-FINAL-VEHICLE-MOVE');
 
         $this->artisan('room-transfers:execute-scheduled', ['--date' => $movementDate, '--code' => $transferCode])
             ->assertExitCode(0);
@@ -520,6 +526,8 @@ class RoomMovementControllerTest extends TestCase
             'created_by' => $admin->id,
         ]);
         $movement = RoomMovement::create($this->movementPayload($tenant, $contract, $fromRoom, $toRoom, $admin, 'TRF-2026-07-TODAY', '2026-07-20', RoomMovement::STATUS_PENDING));
+
+        $this->createPaidFinalInvoice($contract, $fromRoom, $admin, '2026-07-09', 'INV-FINAL-RESCHEDULE-TODAY');
 
         $response = $this->actingAs($admin, 'admin')->patchJson("/api/v1/admin/room-movements/{$movement->id}/transfer-date", [
             'movement_date' => '2026-07-10',
@@ -916,6 +924,27 @@ class RoomMovementControllerTest extends TestCase
             'room_price' => '3500000.00',
             'deposit_amount' => '0.00',
             'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $admin->id,
+        ]);
+    }
+
+    private function createPaidFinalInvoice(Contract $contract, Room $room, Admin $admin, string $cutoffDate, string $invoiceCode): Invoice
+    {
+        $cutoff = Carbon::parse($cutoffDate)->startOfDay();
+
+        return Invoice::create([
+            'invoice_code' => $invoiceCode,
+            'contract_id' => $contract->id,
+            'room_id' => $room->id,
+            'billing_month' => $cutoff->month,
+            'billing_year' => $cutoff->year,
+            'period_start' => $cutoff->copy()->startOfMonth()->toDateString(),
+            'period_end' => $cutoff->toDateString(),
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '0.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '0.00',
+            'status' => Invoice::STATUS_PAID,
             'created_by' => $admin->id,
         ]);
     }

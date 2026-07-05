@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { AlertTriangle, ArrowRightLeft, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, updateUtilityPrices, fetchUtilityPriceHistory } from '../services/meter-readings.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -108,6 +109,7 @@ function buildMeterFormState(args: {
 
 export function MeterReadingsScreen() {
   const { session } = useAdminSession()
+  const [searchParams] = useSearchParams()
   const isManager = isBuildingManagerRole(session?.admin.role)
 
   const today = useMemo(() => new Date(), [])
@@ -122,6 +124,7 @@ export function MeterReadingsScreen() {
   const isPastMonth = useMemo(() => {
     return selectedYear < currentYear || (selectedYear === currentYear && selectedMonth < currentMonth)
   }, [selectedYear, selectedMonth, currentYear, currentMonth])
+
 
   const years = useMemo(() => {
     return Array.from({ length: 3 }, (_, i) => {
@@ -147,6 +150,12 @@ export function MeterReadingsScreen() {
 
   const [rooms, setRooms] = useState<RoomReadingInit[]>([])
   const [servicePrices, setServicePrices] = useState<ServicePriceInit[]>([])
+  const transferFinalizationRooms = useMemo(() => {
+    return rooms.filter((room) => Boolean(room.should_finalize_before_transfer))
+  }, [rooms])
+  const [focusedRoomId, setFocusedRoomId] = useState<number | null>(null)
+  const [focusedContractId, setFocusedContractId] = useState<number | null>(null)
+  const [didOpenFocusedRoom, setDidOpenFocusedRoom] = useState(false)
 
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -195,12 +204,16 @@ export function MeterReadingsScreen() {
       }
       setBuildings(list)
       if (list.length > 0) {
-        setSelectedBuildingId(String(list[0].id))
+        const paramBuildingId = searchParams.get('building_id')
+        const targetBuilding = paramBuildingId && list.some((building: any) => Number(building.id) === Number(paramBuildingId))
+          ? paramBuildingId
+          : String(list[0].id)
+        setSelectedBuildingId(targetBuilding)
       }
     } catch (e) {
       console.error('Không thể tải danh sách tòa nhà', e)
     }
-  }, [isManager, session?.admin.id])
+  }, [isManager, searchParams, session?.admin.id])
 
   const loadReadingsData = useCallback(async () => {
     if (!selectedBuildingId) return
@@ -227,10 +240,55 @@ export function MeterReadingsScreen() {
   }, [loadBuildings])
 
   useEffect(() => {
+    const monthParam = Number(searchParams.get('billing_month'))
+    const yearParam = Number(searchParams.get('billing_year'))
+    const roomParam = Number(searchParams.get('room_id'))
+    const contractParam = Number(searchParams.get('contract_id'))
+
+    if (monthParam >= 1 && monthParam <= 12) {
+      setSelectedMonth(monthParam)
+    }
+
+    if (yearParam >= 2020 && yearParam <= 2100) {
+      setSelectedYear(yearParam)
+    }
+
+    setFocusedRoomId(Number.isFinite(roomParam) && roomParam > 0 ? roomParam : null)
+    setFocusedContractId(Number.isFinite(contractParam) && contractParam > 0 ? contractParam : null)
+    setDidOpenFocusedRoom(false)
+  }, [searchParams])
+
+  useEffect(() => {
     if (selectedBuildingId) {
       void loadReadingsData()
     }
   }, [selectedBuildingId, selectedMonth, selectedYear, loadReadingsData])
+
+  useEffect(() => {
+    if (!focusedRoomId || didOpenFocusedRoom || isLoading || rooms.length === 0 || servicePrices.length === 0) return
+
+    const targetRoom = rooms.find((room) => {
+      const sameRoom = Number(room.room_id) === Number(focusedRoomId)
+      const sameContract = !focusedContractId || Number(room.contract_id) === Number(focusedContractId)
+      return sameRoom && sameContract
+    })
+
+    if (targetRoom) {
+      setDidOpenFocusedRoom(true)
+      openReadingModal(targetRoom)
+    }
+  }, [didOpenFocusedRoom, focusedContractId, focusedRoomId, isLoading, rooms, servicePrices])
+
+  useEffect(() => {
+    const refresh = () => {
+      if (selectedBuildingId) {
+        void loadReadingsData()
+      }
+    }
+
+    window.addEventListener('meter-readings-refresh', refresh)
+    return () => window.removeEventListener('meter-readings-refresh', refresh)
+  }, [loadReadingsData, selectedBuildingId])
 
 
   useEffect(() => {
@@ -354,10 +412,14 @@ export function MeterReadingsScreen() {
   }
 
 
-  const openReadingModal = (room: RoomReadingInit) => {
+  function canEditRoomReadings(room: RoomReadingInit) {
+    return !isPastMonth || Boolean(room.should_finalize_before_transfer)
+  }
+
+  function openReadingModal(room: RoomReadingInit) {
     setActiveRoom(room)
     setNote('')
-    setReadingDate(new Date().toISOString().split('T')[0])
+    setReadingDate(room.utility_cutoff_date || new Date().toISOString().split('T')[0])
     setFormErrors({})
 
     const electricDevice = room.meters.find(m => m.meter_type === 1)
@@ -636,6 +698,25 @@ export function MeterReadingsScreen() {
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val)
+  }
+
+  const formatDisplayDate = (value?: string | null) => {
+    if (!value) return '—'
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return value
+    return parsed.toLocaleDateString('vi-VN')
+  }
+
+  const transferFinalizeActionLabel = (room: RoomReadingInit, hasElectricReading: boolean, hasWaterReading: boolean) => {
+    if (!room.should_finalize_before_transfer) {
+      return hasElectricReading && hasWaterReading ? 'Sửa số' : 'Ghi số'
+    }
+
+    return hasElectricReading && hasWaterReading ? 'Sửa chốt' : 'Chốt chuyển'
+  }
+
+  const invoiceActionLabel = (room: RoomReadingInit) => {
+    return room.should_finalize_before_transfer ? 'Lập HĐ chốt' : 'Tạo HĐ'
   }
 
   const renderMeterPanel = (kind: MeterKind, meter: MeterFormState) => {
@@ -1014,6 +1095,40 @@ export function MeterReadingsScreen() {
           {activeMessage || errorMessage || successMessage}
         </div>
 
+        {transferFinalizationRooms.length > 0 && (
+          <section className="overflow-hidden rounded-[2rem] border border-amber-300/60 bg-[#fff7e8] shadow-xl shadow-amber-900/10">
+            <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div className="flex gap-3">
+                <div className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-amber-600 text-white shadow-lg shadow-amber-800/20">
+                  <ArrowRightLeft className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">Chốt trước chuyển phòng</p>
+                  <h2 className="mt-1 text-lg font-black tracking-tight text-[#24170d]">
+                    Có {transferFinalizationRooms.length} phòng/hợp đồng cần nhập điện nước và lập hóa đơn cuối trước ngày chuyển.
+                  </h2>
+                  <p className="mt-1.5 text-sm font-bold leading-6 text-[#6f6254]">
+                    Backend chỉ cho execute lịch chuyển khi hóa đơn cũ đã được lập đúng ngày cắt và thanh toán xong. Bấm từng dòng để chốt số, sau đó lập hóa đơn chốt.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[360px]">
+                {transferFinalizationRooms.slice(0, 4).map((room) => (
+                  <button
+                    key={`${room.room_id}-${room.contract_id}-${room.transfer_code}`}
+                    type="button"
+                    onClick={() => openReadingModal(room)}
+                    className="rounded-2xl border border-amber-300/70 bg-white/75 px-3 py-2 text-left text-xs font-black text-[#3d2a18] transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md hover:shadow-amber-900/10"
+                  >
+                    <span className="block">Phòng {room.room_number}</span>
+                    <span className="mt-0.5 block font-bold text-amber-700">Cắt {formatDisplayDate(room.utility_cutoff_date)} · Chuyển {formatDisplayDate(room.movement_date)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Room Readings Sheets */}
         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
           <div className="overflow-x-auto">
@@ -1049,7 +1164,20 @@ export function MeterReadingsScreen() {
                   return (
                     <tr key={room.room_id} className="group transition hover:bg-[#f3c56b]/10">
                       <td className="px-5 py-4">
-                        <span className="text-sm font-black text-[#24170d]">Phòng {room.room_number}</span>
+                        <div className="space-y-2">
+                          <span className="block text-sm font-black text-[#24170d]">Phòng {room.room_number}</span>
+                          {room.should_finalize_before_transfer && (
+                            <div className="w-fit max-w-[260px] rounded-2xl border border-amber-300/70 bg-amber-50 px-3 py-2 text-[10px] font-black uppercase leading-4 tracking-wider text-amber-800 shadow-sm shadow-amber-900/5">
+                              <span className="flex items-center gap-1.5">
+                                <ArrowRightLeft className="h-3.5 w-3.5" /> Chốt chuyển phòng
+                              </span>
+                              <span className="mt-1 block normal-case tracking-normal text-[#6f6254]">
+                                Cắt {formatDisplayDate(room.utility_cutoff_date)} · Chuyển {formatDisplayDate(room.movement_date)}
+                              </span>
+                              {room.transfer_code && <span className="mt-0.5 block font-bold normal-case tracking-normal text-amber-700">{room.transfer_code}</span>}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* Electricity Detail Column */}
@@ -1138,21 +1266,23 @@ export function MeterReadingsScreen() {
                             <button
                               type="button"
                               onClick={() => openReadingModal(room)}
-                              disabled={room.meters.length === 0 || isPastMonth}
+                              disabled={room.meters.length === 0 || !canEditRoomReadings(room)}
                               className={cn(
                                 'inline-flex h-10 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black whitespace-nowrap transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-4',
-                                (isChotElec && isChotWater)
+                                room.should_finalize_before_transfer
+                                  ? 'bg-amber-600 text-white hover:bg-amber-700 focus:ring-amber-200 shadow-sm shadow-amber-900/10'
+                                  : (isChotElec && isChotWater)
                                   ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15 focus:ring-[#3d2a18]/10'
                                   : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] focus:ring-[#24170d]/20 shadow-sm shadow-[#24170d]/10'
                               )}
                             >
                               {(isChotElec && isChotWater) ? (
                                 <>
-                                  <Edit3 className="h-3.5 w-3.5" /> Sửa số
+                                  <Edit3 className="h-3.5 w-3.5" /> {transferFinalizeActionLabel(room, isChotElec, isChotWater)}
                                 </>
                               ) : (
                                 <>
-                                  <Calendar className="h-3.5 w-3.5" /> Ghi số
+                                  <Calendar className="h-3.5 w-3.5" /> {transferFinalizeActionLabel(room, isChotElec, isChotWater)}
                                 </>
                               )}
                             </button>
@@ -1164,7 +1294,7 @@ export function MeterReadingsScreen() {
                                 void handleGenerateSingle(room.contract_id)
                               }}
                               disabled={!room.contract_id || isGeneratingSingle === room.contract_id || (elec && !isChotElec) || (water && !isChotWater)}
-                              title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : 'Tạo hóa đơn'}
+                              title={!room.contract_id ? 'Phòng trống chưa có hợp đồng' : (elec && !isChotElec) || (water && !isChotWater) ? 'Cần chốt điện nước' : invoiceActionLabel(room)}
                               className="inline-flex h-10 w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl px-3.5 text-[11px] font-black whitespace-nowrap transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-600/20 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 shadow-sm shadow-emerald-900/5"
                             >
                               {isGeneratingSingle === room.contract_id && room.contract_id ? (
@@ -1172,7 +1302,7 @@ export function MeterReadingsScreen() {
                               ) : (
                                 <FileText className="h-3.5 w-3.5" />
                               )}
-                              Tạo HĐ
+                              {invoiceActionLabel(room)}
                             </button>
                           </div>
                         </div>
@@ -1211,6 +1341,12 @@ export function MeterReadingsScreen() {
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Utility Record</p>
                   <h2 id="reading-dialog-title" className="mt-1.5 text-2xl font-black tracking-tight sm:text-3xl">Chốt chỉ số - Phòng {activeRoom.room_number}</h2>
                   <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Khách thuê đại diện: {activeRoom.tenant_name || 'Không có (Phòng trống)'}</p>
+                  {activeRoom.should_finalize_before_transfer && (
+                    <p className="mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/12 px-3 py-1 text-[11px] font-black text-amber-100">
+                      <ArrowRightLeft className="h-3.5 w-3.5 text-[#f3c56b]" />
+                      Chốt đến {formatDisplayDate(activeRoom.utility_cutoff_date)} trước lịch chuyển {formatDisplayDate(activeRoom.movement_date)}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -1226,6 +1362,20 @@ export function MeterReadingsScreen() {
             <div className="flex-1 overflow-y-auto p-5 sm:p-6 lg:p-7">
               <div className="grid gap-5 lg:grid-cols-[1fr_320px] lg:items-start">
                 <div className="space-y-5">
+                  {activeRoom.should_finalize_before_transfer && (
+                    <div className="rounded-[1.35rem] border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-900 shadow-sm shadow-amber-900/5">
+                      <div className="flex gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
+                        <div>
+                          <p className="font-black">Đây là kỳ chốt chuyển phòng {activeRoom.transfer_code ? `(${activeRoom.transfer_code})` : ''}.</p>
+                          <p className="mt-0.5 text-xs font-bold text-[#6f6254]">
+                            Nhập chỉ số đúng ngày cắt {formatDisplayDate(activeRoom.utility_cutoff_date)}. Sau khi lưu đủ điện/nước, lập hóa đơn chốt để backend cho phép execute lịch chuyển.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Electric Meter section */}
                   {elecMeter && renderMeterPanel('elec', elecMeter)}
 
@@ -1292,7 +1442,7 @@ export function MeterReadingsScreen() {
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#24170d] px-5 text-xs font-black uppercase tracking-wider text-[#fff4df] hover:bg-[#3d2a18] shadow-md shadow-[#24170d]/10 active:scale-95 disabled:opacity-50"
               >
                 <Save className="h-4 w-4 text-[#f3c56b] stroke-[2.8]" />
-                {elecMeter?.isAnalyzing || waterMeter?.isAnalyzing ? 'Đang đọc ảnh...' : isSaving ? 'Đang lưu...' : 'Lưu chốt số'}
+                {elecMeter?.isAnalyzing || waterMeter?.isAnalyzing ? 'Đang đọc ảnh...' : isSaving ? 'Đang lưu...' : activeRoom.should_finalize_before_transfer ? 'Lưu chốt chuyển' : 'Lưu chốt số'}
               </button>
             </div>
           </div>
