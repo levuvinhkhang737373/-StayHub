@@ -14,6 +14,7 @@ class NotificationResource extends JsonResource
             'id' => $this->id,
             'title' => $this->title,
             'content' => $this->content,
+            'action_url' => $this->action_url,
             'notification_type' => $this->notification_type,
             'notification_type_label' => Notification::NOTIFICATION_TYPE_LABELS[$this->notification_type] ?? 'Khác',
             'target_type' => $this->target_type,

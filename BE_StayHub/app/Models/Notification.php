@@ -53,7 +53,7 @@ class Notification extends Model
         self::STATUS_CANCELLED => 'Đã hủy',
     ];
 
-    protected $fillable = ['title', 'content', 'notification_type', 'target_type', 'building_id', 'room_id', 'tenant_id', 'target_admin_id', 'published_at', 'status', 'created_by'];
+    protected $fillable = ['title', 'content', 'action_url', 'notification_type', 'target_type', 'building_id', 'room_id', 'tenant_id', 'target_admin_id', 'published_at', 'status', 'created_by'];
 
     protected function casts(): array
     {

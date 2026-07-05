@@ -44,6 +44,18 @@ export interface AdminInvoicePreviewItemResource extends Omit<AdminInvoiceItemRe
   invoice_id?: number | null
 }
 
+export interface AdminInvoiceTransferCutoffResource {
+  transfer_code: string
+  direction?: 'outgoing' | 'incoming'
+  movement_date: string
+  cutoff_date: string | null
+  vehicle_start_date?: string | null
+  moving_all_active_tenants: boolean
+  closes_source_contract?: boolean
+  tenant_ids: number[]
+  tenant_names: string[]
+}
+
 export interface AdminPaymentResource {
   id: number
   payment_code: string
@@ -128,6 +140,7 @@ export interface AdminInvoicePreviewResource extends Omit<AdminInvoiceResource, 
   invoice_code_note?: string | null
   items?: AdminInvoicePreviewItemResource[]
   payments: []
+  transfer_cutoffs?: AdminInvoiceTransferCutoffResource[]
   preview_generated_at?: string | null
 }
 

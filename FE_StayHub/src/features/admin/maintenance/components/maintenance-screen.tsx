@@ -130,7 +130,12 @@ export function MaintenanceScreen() {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
 
   const buildingOptions = useMemo(() => buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const })), [buildings])
-  const filterBuildingOptions = useMemo(() => [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions], [buildingOptions])
+  const filterBuildingOptions = useMemo(
+    () => isSuperAdmin
+      ? [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions]
+      : buildingOptions,
+    [buildingOptions, isSuperAdmin]
+  )
 
   // Metrics
   const metrics = useMemo(() => {
@@ -144,11 +149,15 @@ export function MaintenanceScreen() {
   const loadBuildingsAndStaff = useCallback(async () => {
     try {
       const buildingsRes = await fetchAdminBuildings({ per_page: 100 })
-      setBuildings(getResourceList(buildingsRes.result))
+      const list = getResourceList(buildingsRes.result)
+      setBuildings(list)
+      if (!isSuperAdmin && !selectedBuildingId && list[0]?.id) {
+        setSelectedBuildingId(String(list[0].id))
+      }
     } catch (e) {
       console.error('Không thể load tòa nhà', e)
     }
-  }, [])
+  }, [isSuperAdmin, selectedBuildingId])
 
   const loadRequests = useCallback(async () => {
     setIsLoading(true)
@@ -243,30 +252,33 @@ export function MaintenanceScreen() {
 
   // Update status
   const handleStatusSubmit = async () => {
-    if (!updatingRequest) return
+    const req = updatingRequest
+    if (!req) return
+    if (newStatus === 4 && !afterImageFile) {
       setErrorMessage('Vui lòng tải lên ảnh minh chứng sau khi hoàn thành sửa chữa.')
       return
+    }
 
     setIsUpdatingStatus(true)
     setErrorMessage(null)
     setSuccessMessage(null)
     try {
       await updateMaintenanceStatus(
-        updatingRequest.id,
+        req.id,
         newStatus,
         updateNote.trim() || undefined,
         afterImageFile
       )
-      setSuccessMessage(`Cập nhật trạng thái phiếu ${updatingRequest.request_code} thành công.`)
+      setSuccessMessage(`Cập nhật trạng thái phiếu ${req.request_code} thành công.`)
       setUpdatingRequest(null)
       setUpdateNote('')
       setAfterImageFile(null)
       void loadRequests()
-      if (detailRequest && detailRequest.id === updatingRequest.id) {
-        void openDetail(updatingRequest)
+      if (detailRequest && detailRequest.id === req.id) {
+        void openDetail(req)
       }
-    } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : 'Có lỗi xảy ra khi cập nhật trạng thái.')
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Có lỗi xảy ra khi cập nhật trạng thái.')
     } finally {
       setIsUpdatingStatus(false)
     }
@@ -274,7 +286,7 @@ export function MaintenanceScreen() {
 
   const clearFilters = () => {
     setKeyword('')
-    setSelectedBuildingId('')
+    setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
     setSelectedStatus('')
     setRoomNumber('')
   }

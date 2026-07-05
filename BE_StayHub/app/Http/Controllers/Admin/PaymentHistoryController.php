@@ -334,9 +334,9 @@ class PaymentHistoryController extends Controller
                     'email' => $movement->tenant->email,
                     'is_staying' => null,
                 ]] : [],
-                'actor_name' => 'SePay Webhook',
+                'actor_name' => $reference['collector_name'] ?? 'SePay Webhook',
                 'proof_image_url' => null,
-                'note' => $movement->note,
+                'note' => $reference['note'] ?? $movement->note,
                 'can_confirm' => false,
                 'metadata' => [
                     'room_movement_id' => $movement->id,

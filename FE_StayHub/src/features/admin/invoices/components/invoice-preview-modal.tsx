@@ -12,6 +12,7 @@ type InvoicePreviewModalProps = {
 
 export function InvoicePreviewModal({ invoice, isIssuing, onClose, onConfirm }: InvoicePreviewModalProps) {
   const items = invoice.items || []
+  const transferCutoffs = invoice.transfer_cutoffs || []
   const roomLabel = invoice.room?.room_number || invoice.room_number || invoice.room_id
   const tenantNames = (invoice.tenants || [])
     .filter((tenant) => tenant.is_staying !== false)
@@ -32,9 +33,7 @@ export function InvoicePreviewModal({ invoice, isIssuing, onClose, onConfirm }: 
                 <ShieldCheck className="h-3.5 w-3.5" /> Bản xem trước
               </div>
               <h2 id="invoice-preview-title" className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Kiểm tra hóa đơn trước khi phát hành</h2>
-              <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-[#f8e8c8]/78">
-                Hóa đơn chưa được tạo mã, chưa gửi thông báo và chưa đổi trạng thái chỉ số. Khi bấm phát hành, hệ thống sẽ tính lại lần cuối rồi mới ghi nhận.
-              </p>
+
             </div>
 
             <button
@@ -77,10 +76,42 @@ export function InvoicePreviewModal({ invoice, isIssuing, onClose, onConfirm }: 
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
               <div>
                 <p className="font-black">Đây chỉ là bản nháp kiểm tra.</p>
-                <p className="mt-1 text-xs leading-5 text-amber-900/75">Mã hóa đơn, thông báo người thuê, log phát hành và trạng thái chỉ số chỉ phát sinh sau khi xác nhận phát hành.</p>
               </div>
             </div>
           </div>
+
+          {transferCutoffs.length > 0 && (
+            <div className="mt-4 rounded-[1.7rem] border border-[#0f766e]/20 bg-[#e6fffb] p-4 text-sm font-bold text-[#0f3f3b]">
+              <div className="flex gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#0f766e]" />
+                <div>
+                  <p className="font-black">Đã áp dụng lịch chuyển phòng đang chờ xử lý.</p>
+                  <p className="mt-1 text-xs leading-5 text-[#0f3f3b]/75">Tiền phòng/dịch vụ đi theo hợp đồng phòng: chỉ cắt khi hợp đồng cũ kết thúc hoặc hợp đồng mới bắt đầu; chuyển ghép phòng active chỉ cộng/cắt tiền xe theo ngày chuyển.</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {transferCutoffs.map((cutoff) => (
+                      <div key={`${cutoff.direction || 'outgoing'}-${cutoff.transfer_code}`} className="rounded-2xl border border-[#0f766e]/15 bg-white/70 p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f766e]">{cutoff.transfer_code}</p>
+                        <p className="mt-1 text-xs leading-5 text-[#0f3f3b]/80">
+                          {cutoff.direction === 'incoming' ? (
+                            <>Chuyển vào ngày <b>{formatDate(cutoff.movement_date)}</b>, xe phòng mới tính từ <b>{formatDate(cutoff.vehicle_start_date || cutoff.movement_date)}</b>.</>
+                          ) : (
+                            <>Chuyển đi ngày <b>{formatDate(cutoff.movement_date)}</b>, xe phòng cũ tính đến <b>{formatDate(cutoff.cutoff_date)}</b>.</>
+                          )}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-[#0f3f3b]/70">
+                          {cutoff.direction === 'incoming'
+                            ? `Phòng mới có lịch nhận khách, chỉ cộng tiền xe của: ${cutoff.tenant_names?.join(', ') || cutoff.tenant_ids.join(', ')}`
+                            : cutoff.closes_source_contract
+                              ? 'Lịch này đóng hợp đồng cũ nên tiền phòng/dịch vụ cũng tính theo ngày kết thúc hợp đồng.'
+                              : `Chuyển lẻ, chỉ cắt tiền xe của: ${cutoff.tenant_names?.join(', ') || cutoff.tenant_ids.join(', ')}`}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <section className="mt-4 overflow-hidden rounded-[1.7rem] border border-[#3d2a18]/10 bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-3">

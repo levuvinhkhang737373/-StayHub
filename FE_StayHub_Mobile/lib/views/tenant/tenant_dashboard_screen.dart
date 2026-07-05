@@ -68,6 +68,14 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
             return;
           }
 
+          if (event['type'] == 'maintenance_assigned' ||
+              event['type'] == 'maintenance_processing' ||
+              event['type'] == 'maintenance_completed') {
+            context.read<MaintenanceController>().fetchRequests();
+            context.read<NotificationController>().fetchNotifications(isAdmin: false);
+            return;
+          }
+
           if (event['type'] != 'chat_message_sent') return;
 
           final data = event['data'] as Map<String, dynamic>?;
@@ -410,7 +418,7 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: const Color(0xFFEAB308),
-        unselectedItemColor: Colors.white.withOpacity(0.6),
+        unselectedItemColor: Colors.white.withValues(alpha: 0.6),
         backgroundColor: const Color(0xFF1C1917),
         onTap: (index) {
           setState(() {

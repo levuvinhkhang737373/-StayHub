@@ -50,6 +50,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             context.read<ChatController>().handleRealtimeRead(payload);
           },
         );
+
+        _subscribeAdminBuildingContractExpirations(wsService);
       }
       
       // Lắng nghe thông điệp debug để hiện SnackBar lên màn hình (chỉ hiển thị khi có lỗi)
@@ -128,6 +130,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _showAdminRealtimeSnackBar(Icons.event_repeat_rounded, content, const Color(0xFF92400E));
             }
           }
+        } else if (event['type'] == 'contract_expired') {
+          if (mounted) {
+            final data = event['data'] as Map<String, dynamic>?;
+            context.read<ContractController>().fetchContracts('admin');
+            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+
+            final contractCode = data?['contract_code']?.toString() ?? '';
+            final roomNumber = data?['room_number']?.toString() ?? '?';
+            _showAdminRealtimeSnackBar(
+              Icons.warning_amber_rounded,
+              'Hợp đồng $contractCode phòng $roomNumber đã hết hạn.',
+              const Color(0xFFB45309),
+            );
+          }
         } else if (event['type'] == 'chat_message_sent') {
           final data = event['data'] as Map<String, dynamic>?;
           final message = data?['message'] as Map<String, dynamic>?;
@@ -138,6 +154,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       });
     });
+  }
+
+  void _subscribeAdminBuildingContractExpirations(
+    WebSocketService wsService,
+  ) {
+    final admin = context.read<AuthController>().currentAdmin;
+    if (admin == null) return;
+
+    wsService.subscribeToAdminBuildingContractExpirations(
+      admin.managedBuildingIds,
+      onContractExpired: (contract) {
+        if (!mounted) return;
+        context.read<ContractController>().fetchContracts('admin');
+        context.read<NotificationController>().fetchNotifications(isAdmin: true);
+      },
+    );
   }
 
   bool _isTransferDateChangedNotification(Map<String, dynamic>? data) {
@@ -180,14 +212,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _debugSubscription?.cancel();
     _wsAdminEventsSubscription?.cancel();
     super.dispose();
-  }
-
-  Future<void> _handleLogout() async {
-    context.read<WebSocketService>().disconnect();
-    final success = await context.read<AuthController>().logout();
-    if (success && mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
   }
 
   Widget _buildNotificationsTab(List<Map<String, dynamic>> items) {
@@ -312,7 +336,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final roomController = context.watch<RoomController>();
     final invoiceController = context.watch<InvoiceController>();
     final contractController = context.watch<ContractController>();
-    final maintenanceController = context.watch<MaintenanceController>();
     final notificationController = context.watch<NotificationController>();
     
     final admin = authController.currentAdmin;
@@ -656,7 +679,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: const Color(0xFFEAB308),
-        unselectedItemColor: Colors.white.withOpacity(0.6),
+        unselectedItemColor: Colors.white.withValues(alpha: 0.6),
         backgroundColor: const Color(0xFF1C1917),
         onTap: (index) {
           setState(() {
@@ -787,12 +810,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 48),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -10,6 +10,34 @@ import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import 'sign_contract_screen.dart';
 
+bool _isContractRealtimeEvent(String? type, dynamic data) {
+  if (type == 'contract_deposit_paid' ||
+      type == 'invoice_paid' ||
+      type == 'invoice_issued' ||
+      type == 'invoice_reissued') {
+    return true;
+  }
+
+  if (type != 'notification_sent' || data is! Map) {
+    return false;
+  }
+
+  final title = data['title']?.toString().toLowerCase() ?? '';
+  final content = data['content']?.toString().toLowerCase() ?? '';
+  final text = '$title $content';
+
+  return title == 'hợp đồng hết hạn' ||
+      title == 'hợp đồng mới được tạo' ||
+      text.contains('thanh toán đặt cọc') ||
+      text.contains('tiền cọc') ||
+      text.contains('chuyển phòng') ||
+      text.contains('mã chuyển phòng') ||
+      text.contains('thương lượng') ||
+      text.contains('chấp thuận') ||
+      text.contains('đồng ý') ||
+      text.contains('từ chối');
+}
+
 class TenantContractScreen extends StatefulWidget {
   const TenantContractScreen({super.key});
 
@@ -17,24 +45,32 @@ class TenantContractScreen extends StatefulWidget {
   State<TenantContractScreen> createState() => _TenantContractScreenState();
 }
 
-class _TenantContractScreenState extends State<TenantContractScreen> {
+class _TenantContractScreenState extends State<TenantContractScreen> with WidgetsBindingObserver {
   StreamSubscription? _wsSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final contractController = context.read<ContractController>();
       contractController.fetchContracts('tenant');
 
       // Lắng nghe WebSocket để tự động reload khi có thay đổi thanh toán/hợp đồng.
       final wsService = context.read<WebSocketService>();
+      final tenantId = context.read<AuthController>().currentTenant?.id;
+      if (tenantId != null) {
+        wsService.ensureTenantNotificationChannel(tenantId);
+      }
+
       _wsSubscription = wsService.notificationsStream.listen((event) {
         final type = event['type']?.toString();
         final data = event['data'];
 
-        if (type == 'contract_deposit_paid' || type == 'invoice_paid' || _isContractPaymentNotification(type, data)) {
-          debugPrint('WS Event: Contract payment update received ($type). Reloading contracts...');
+        if (_isContractRealtimeEvent(type, data)) {
+          debugPrint(
+            'WS Event: Contract payment update received ($type). Reloading contracts...',
+          );
           contractController.fetchContracts('tenant');
         }
       });
@@ -43,25 +79,17 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _wsSubscription?.cancel();
     super.dispose();
   }
 
-  bool _isContractPaymentNotification(String? type, dynamic data) {
-    if (type != 'notification_sent' || data is! Map) {
-      return false;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      debugPrint('WS: App resumed, reloading contracts for tenant...');
+      context.read<ContractController>().fetchContracts('tenant');
     }
-
-    final title = data['title']?.toString().toLowerCase() ?? '';
-    final content = data['content']?.toString().toLowerCase() ?? '';
-    final text = '$title $content';
-
-    return title == 'hợp đồng hết hạn' ||
-        title == 'hợp đồng mới được tạo' ||
-        text.contains('thanh toán đặt cọc') ||
-        text.contains('tiền cọc') ||
-        text.contains('chuyển phòng') ||
-        text.contains('mã chuyển phòng');
   }
 
   String _formatCurrency(double amount) {
@@ -79,15 +107,36 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
     final contractController = context.watch<ContractController>();
     final contracts = contractController.contracts;
 
-    final activeContracts = contracts.where((c) => (c.status == Contract.STATUS_ACTIVE && c.isStaying != false) || c.status == Contract.STATUS_DRAFT).toList();
-    final inactiveContracts = contracts.where((c) => (c.status == Contract.STATUS_ACTIVE && c.isStaying == false) || c.status == Contract.STATUS_EXPIRED || c.status == Contract.STATUS_LIQUIDATED || c.status == Contract.STATUS_CANCELLED).toList();
+    final activeContracts = contracts
+        .where(
+          (c) =>
+              (c.status == Contract.STATUS_ACTIVE && c.isStaying != false) ||
+              c.status == Contract.STATUS_DRAFT,
+        )
+        .toList();
+    final inactiveContracts = contracts
+        .where(
+          (c) =>
+              (c.status == Contract.STATUS_ACTIVE && c.isStaying == false) ||
+              c.status == Contract.STATUS_EXPIRED ||
+              c.status == Contract.STATUS_LIQUIDATED ||
+              c.status == Contract.STATUS_CANCELLED,
+        )
+        .toList();
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         backgroundColor: const Color(0xFFF7F6F0),
         appBar: AppBar(
-          title: const Text('Hợp đồng của tôi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+          title: const Text(
+            'Hợp đồng của tôi',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: Colors.white,
+            ),
+          ),
           backgroundColor: const Color(0xFF1C1917),
           elevation: 0,
           bottom: PreferredSize(
@@ -113,8 +162,14 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                 ),
                 labelColor: const Color(0xFF1C1917),
                 unselectedLabelColor: Colors.white.withOpacity(0.65),
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
                 tabs: const [
@@ -129,8 +184,11 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
           children: [
             Positioned.fill(child: CustomPaint(painter: GridPainter())),
             if (contractController.isLoading && contracts.isEmpty)
-              const Center(child: CircularProgressIndicator(color: Color(0xFF1C1917)))
-            else if (contracts.isEmpty && contractController.errorMessage != null)
+              const Center(
+                child: CircularProgressIndicator(color: Color(0xFF1C1917)),
+              )
+            else if (contracts.isEmpty &&
+                contractController.errorMessage != null)
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -140,14 +198,20 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                       _buildErrorDisplay(contractController),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
-                        onPressed: () => contractController.fetchContracts('tenant'),
+                        onPressed: () =>
+                            contractController.fetchContracts('tenant'),
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Thử lại'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1C1917),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ],
@@ -157,8 +221,18 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
             else
               TabBarView(
                 children: [
-                  _buildContractList(activeContracts, tenant, context, contractController),
-                  _buildContractList(inactiveContracts, tenant, context, contractController),
+                  _buildContractList(
+                    activeContracts,
+                    tenant,
+                    context,
+                    contractController,
+                  ),
+                  _buildContractList(
+                    inactiveContracts,
+                    tenant,
+                    context,
+                    contractController,
+                  ),
                 ],
               ),
           ],
@@ -167,7 +241,12 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
     );
   }
 
-  Widget _buildContractList(List<Contract> filteredContracts, Tenant? tenant, BuildContext context, ContractController contractController) {
+  Widget _buildContractList(
+    List<Contract> filteredContracts,
+    Tenant? tenant,
+    BuildContext context,
+    ContractController contractController,
+  ) {
     if (filteredContracts.isEmpty) {
       return RefreshIndicator(
         color: const Color(0xFF1C1917),
@@ -180,7 +259,11 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
             child: const Center(
               child: Text(
                 'Không tìm thấy thông tin hợp đồng.',
-                style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),
@@ -212,7 +295,11 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Color(0xFFDC2626),
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -225,7 +312,11 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, color: Color(0xFF991B1B), size: 18),
+            icon: const Icon(
+              Icons.close_rounded,
+              color: Color(0xFF991B1B),
+              size: 18,
+            ),
             onPressed: () => controller.clearError(),
             constraints: const BoxConstraints(),
             padding: EdgeInsets.zero,
@@ -235,13 +326,22 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
     );
   }
 
-  Widget _buildContractCard(Contract contract, Tenant? tenant, BuildContext context) {
+  Widget _buildContractCard(
+    Contract contract,
+    Tenant? tenant,
+    BuildContext context,
+  ) {
     Color statusColor = Colors.grey;
-    if (contract.status == Contract.STATUS_ACTIVE) statusColor = const Color(0xFF16A34A);
-    if (contract.status == Contract.STATUS_EXPIRED) statusColor = const Color(0xFFD97706);
-    if (contract.status == Contract.STATUS_LIQUIDATED) statusColor = const Color(0xFF2563EB);
-    if (contract.status == Contract.STATUS_CANCELLED) statusColor = const Color(0xFFDC2626);
-    if (contract.status == Contract.STATUS_DRAFT) statusColor = const Color(0xFF4B5563);
+    if (contract.status == Contract.STATUS_ACTIVE)
+      statusColor = const Color(0xFF16A34A);
+    if (contract.status == Contract.STATUS_EXPIRED)
+      statusColor = const Color(0xFFD97706);
+    if (contract.status == Contract.STATUS_LIQUIDATED)
+      statusColor = const Color(0xFF2563EB);
+    if (contract.status == Contract.STATUS_CANCELLED)
+      statusColor = const Color(0xFFDC2626);
+    if (contract.status == Contract.STATUS_DRAFT)
+      statusColor = const Color(0xFF4B5563);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -266,7 +366,10 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TenantContractDetailScreen(contract: contract, tenant: tenant),
+                  builder: (context) => TenantContractDetailScreen(
+                    contract: contract,
+                    tenant: tenant,
+                  ),
                 ),
               );
             },
@@ -292,11 +395,16 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                       ),
                       const SizedBox(width: 12),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
                           color: statusColor.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: statusColor.withOpacity(0.25)),
+                          border: Border.all(
+                            color: statusColor.withOpacity(0.25),
+                          ),
                         ),
                         child: Text(
                           contract.statusLabel,
@@ -312,7 +420,11 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.home_work_rounded, size: 16, color: Color(0xFF78716C)),
+                      const Icon(
+                        Icons.home_work_rounded,
+                        size: 16,
+                        color: Color(0xFF78716C),
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Phòng ${contract.roomNumber}',
@@ -327,7 +439,11 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF78716C)),
+                      const Icon(
+                        Icons.calendar_month_rounded,
+                        size: 16,
+                        color: Color(0xFF78716C),
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         '${contract.startDate} -> ${contract.endDate ?? "Vô thời hạn"}',
@@ -340,16 +456,19 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                   ),
                   if (contract.status == Contract.STATUS_DRAFT &&
                       (tenant == null ||
-                       tenant.identityNumber.isEmpty ||
-                       tenant.identityDate == null ||
-                       tenant.identityDate!.isEmpty ||
-                       tenant.identityPlace == null ||
-                       tenant.identityPlace!.isEmpty ||
-                       tenant.permanentAddress == null ||
-                       tenant.permanentAddress!.isEmpty)) ...[
+                          tenant.identityNumber.isEmpty ||
+                          tenant.identityDate == null ||
+                          tenant.identityDate!.isEmpty ||
+                          tenant.identityPlace == null ||
+                          tenant.identityPlace!.isEmpty ||
+                          tenant.permanentAddress == null ||
+                          tenant.permanentAddress!.isEmpty)) ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(10),
@@ -357,7 +476,11 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                       ),
                       child: Row(
                         children: const [
-                          Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 16),
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Color(0xFFDC2626),
+                            size: 16,
+                          ),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -413,7 +536,11 @@ class _TenantContractScreenState extends State<TenantContractScreen> {
                             ),
                           ),
                           SizedBox(width: 4),
-                          Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Color(0xFF1C1917)),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 12,
+                            color: Color(0xFF1C1917),
+                          ),
                         ],
                       ),
                     ],
@@ -439,10 +566,54 @@ class TenantContractDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<TenantContractDetailScreen> createState() => _TenantContractDetailScreenState();
+  State<TenantContractDetailScreen> createState() =>
+      _TenantContractDetailScreenState();
 }
 
-class _TenantContractDetailScreenState extends State<TenantContractDetailScreen> {
+class _TenantContractDetailScreenState
+    extends State<TenantContractDetailScreen> with WidgetsBindingObserver {
+  StreamSubscription? _wsSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final contractController = context.read<ContractController>();
+      final wsService = context.read<WebSocketService>();
+      final tenantId =
+          context.read<AuthController>().currentTenant?.id ?? widget.tenant?.id;
+      if (tenantId != null) {
+        wsService.ensureTenantNotificationChannel(tenantId);
+      }
+
+      _wsSubscription = wsService.notificationsStream.listen((event) {
+        final type = event['type']?.toString();
+        if (!mounted || !_isContractRealtimeEvent(type, event['data'])) return;
+
+        debugPrint(
+          'WS Event: Tenant contract detail update received ($type). Reloading contracts...',
+        );
+        contractController.fetchContracts('tenant');
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _wsSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      debugPrint('WS: App resumed in contract detail, reloading contracts for tenant...');
+      context.read<ContractController>().fetchContracts('tenant');
+    }
+  }
+
   String _formatCurrency(double amount) {
     final str = amount.toStringAsFixed(0);
     final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
@@ -452,13 +623,21 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
 
   void _showSupplementInfoDialog(BuildContext context, Tenant? tenant) {
     final formKey = GlobalKey<FormState>();
-    final fullNameController = TextEditingController(text: tenant?.fullName ?? widget.contract.tenantName);
-    final identityNumberController = TextEditingController(text: tenant?.identityNumber ?? '');
+    final fullNameController = TextEditingController(
+      text: tenant?.fullName ?? widget.contract.tenantName,
+    );
+    final identityNumberController = TextEditingController(
+      text: tenant?.identityNumber ?? '',
+    );
     final identityDateController = TextEditingController();
-    final identityPlaceController = TextEditingController(text: tenant?.identityPlace ?? '');
-    final permanentAddressController = TextEditingController(text: tenant?.permanentAddress ?? '');
+    final identityPlaceController = TextEditingController(
+      text: tenant?.identityPlace ?? '',
+    );
+    final permanentAddressController = TextEditingController(
+      text: tenant?.permanentAddress ?? '',
+    );
     DateTime? selectedDate;
-    
+
     final idDate = tenant?.identityDate;
     if (idDate != null && idDate.isNotEmpty) {
       try {
@@ -481,7 +660,9 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
             Future<void> pickDate() async {
               final DateTime? picked = await showDatePicker(
                 context: context,
-                initialDate: selectedDate ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
+                initialDate:
+                    selectedDate ??
+                    DateTime.now().subtract(const Duration(days: 365 * 18)),
                 firstDate: DateTime(1900),
                 lastDate: DateTime.now(),
               );
@@ -498,10 +679,16 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
 
             return AlertDialog(
               backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: const Text(
                 'Bổ sung thông tin cá nhân',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917), fontSize: 16),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1C1917),
+                  fontSize: 16,
+                ),
               ),
               content: Form(
                 key: formKey,
@@ -511,19 +698,33 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     children: [
                       TextFormField(
                         controller: fullNameController,
-                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
-                        decoration: const InputDecoration(labelText: 'Họ và tên'),
-                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập họ và tên' : null,
+                        style: const TextStyle(
+                          color: Color(0xFF1C1917),
+                          fontSize: 14,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Họ và tên',
+                        ),
+                        validator: (val) => val == null || val.trim().isEmpty
+                            ? 'Vui lòng nhập họ và tên'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: identityNumberController,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
-                        decoration: const InputDecoration(labelText: 'Số CMND/CCCD/Hộ chiếu'),
+                        style: const TextStyle(
+                          color: Color(0xFF1C1917),
+                          fontSize: 14,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Số CMND/CCCD/Hộ chiếu',
+                        ),
                         validator: (val) {
-                          if (val == null || val.trim().isEmpty) return 'Vui lòng nhập số định danh';
-                          if (val.trim().length < 9) return 'Số định danh không hợp lệ';
+                          if (val == null || val.trim().isEmpty)
+                            return 'Vui lòng nhập số định danh';
+                          if (val.trim().length < 9)
+                            return 'Số định danh không hợp lệ';
                           return null;
                         },
                       ),
@@ -533,29 +734,46 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                         child: IgnorePointer(
                           child: TextFormField(
                             controller: identityDateController,
-                            style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
+                            style: const TextStyle(
+                              color: Color(0xFF1C1917),
+                              fontSize: 14,
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Ngày cấp',
                               suffixIcon: Icon(Icons.calendar_today, size: 16),
                             ),
-                            validator: (val) => val == null || val.isEmpty ? 'Vui lòng chọn ngày cấp' : null,
+                            validator: (val) => val == null || val.isEmpty
+                                ? 'Vui lòng chọn ngày cấp'
+                                : null,
                           ),
                         ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: identityPlaceController,
-                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
+                        style: const TextStyle(
+                          color: Color(0xFF1C1917),
+                          fontSize: 14,
+                        ),
                         decoration: const InputDecoration(labelText: 'Nơi cấp'),
-                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập nơi cấp' : null,
+                        validator: (val) => val == null || val.trim().isEmpty
+                            ? 'Vui lòng nhập nơi cấp'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: permanentAddressController,
                         maxLines: 2,
-                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 14),
-                        decoration: const InputDecoration(labelText: 'Địa chỉ thường trú'),
-                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập địa chỉ thường trú' : null,
+                        style: const TextStyle(
+                          color: Color(0xFF1C1917),
+                          fontSize: 14,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Địa chỉ thường trú',
+                        ),
+                        validator: (val) => val == null || val.trim().isEmpty
+                            ? 'Vui lòng nhập địa chỉ thường trú'
+                            : null,
                       ),
                     ],
                   ),
@@ -564,7 +782,10 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('HỦY', style: TextStyle(color: Colors.grey)),
+                  child: const Text(
+                    'HỦY',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
                 TextButton(
                   onPressed: auth.isLoading
@@ -572,19 +793,27 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                       : () async {
                           if (!formKey.currentState!.validate()) return;
                           if (selectedDate == null) return;
-                          
+
                           final year = selectedDate!.year.toString();
-                          final month = selectedDate!.month.toString().padLeft(2, '0');
-                          final day = selectedDate!.day.toString().padLeft(2, '0');
+                          final month = selectedDate!.month.toString().padLeft(
+                            2,
+                            '0',
+                          );
+                          final day = selectedDate!.day.toString().padLeft(
+                            2,
+                            '0',
+                          );
                           final dateDbStr = '$year-$month-$day';
 
                           final success = await auth.updateTenantProfile(
                             fullName: fullNameController.text.trim(),
-                            identityNumber: identityNumberController.text.trim(),
+                            identityNumber: identityNumberController.text
+                                .trim(),
                             identityType: 1, // CCCD
                             identityDate: dateDbStr,
                             identityPlace: identityPlaceController.text.trim(),
-                            permanentAddress: permanentAddressController.text.trim(),
+                            permanentAddress: permanentAddressController.text
+                                .trim(),
                           );
 
                           if (success) {
@@ -592,20 +821,27 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Bổ sung thông tin cá nhân thành công!'),
+                                  content: Text(
+                                    'Bổ sung thông tin cá nhân thành công!',
+                                  ),
                                   backgroundColor: Colors.green,
                                   behavior: SnackBarBehavior.floating,
                                 ),
                               );
                               // Refresh auth user session and contract listing
                               context.read<AuthController>().checkSession();
-                              context.read<ContractController>().fetchContracts('tenant');
+                              context.read<ContractController>().fetchContracts(
+                                'tenant',
+                              );
                             }
                           } else {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(auth.errorMessage ?? 'Cập nhật thất bại. Vui lòng thử lại.'),
+                                  content: Text(
+                                    auth.errorMessage ??
+                                        'Cập nhật thất bại. Vui lòng thử lại.',
+                                  ),
                                   backgroundColor: Colors.redAccent,
                                   behavior: SnackBarBehavior.floating,
                                 ),
@@ -617,9 +853,18 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                       ? const SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(color: Color(0xFF1C1917), strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1C1917),
+                            strokeWidth: 2,
+                          ),
                         )
-                      : const Text('LƯU LẠI', style: TextStyle(color: Color(0xFF1C1917), fontWeight: FontWeight.bold)),
+                      : const Text(
+                          'LƯU LẠI',
+                          style: TextStyle(
+                            color: Color(0xFF1C1917),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
             );
@@ -638,9 +883,12 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
     );
     final authController = context.watch<AuthController>();
     final tenant = authController.currentTenant ?? widget.tenant;
-    final hasPaymentDue = contract.status == Contract.STATUS_ACTIVE && contract.paymentDueAmount > 0;
+    final hasPaymentDue =
+        contract.status == Contract.STATUS_ACTIVE &&
+        contract.paymentDueAmount > 0;
 
-    final isProfileIncomplete = tenant == null ||
+    final isProfileIncomplete =
+        tenant == null ||
         tenant.identityNumber.isEmpty ||
         tenant.identityDate == null ||
         tenant.identityDate!.isEmpty ||
@@ -652,7 +900,10 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
       appBar: AppBar(
-        title: Text(contract.contractCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          contract.contractCode,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: const Color(0xFF1C1917),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
@@ -662,7 +913,10 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       bottomNavigationBar: contract.status == Contract.STATUS_DRAFT
           ? SafeArea(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   border: Border(
@@ -676,7 +930,11 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Icon(Icons.hourglass_empty_rounded, color: Color(0xFFD97706), size: 18),
+                            Icon(
+                              Icons.hourglass_empty_rounded,
+                              color: Color(0xFFD97706),
+                              size: 18,
+                            ),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -694,15 +952,27 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                       )
                     : Row(
                         children: [
-                          if (contract.negotiationStatus == null || contract.negotiationStatus == 0 || contract.negotiationStatus == 3) ...[
+                          if (contract.negotiationStatus == null ||
+                              contract.negotiationStatus == 0 ||
+                              contract.negotiationStatus == 3) ...[
                             OutlinedButton.icon(
-                              onPressed: () => _showNegotiationDialog(context, contract, contractController),
+                              onPressed: () => _showNegotiationDialog(
+                                context,
+                                contract,
+                                contractController,
+                              ),
                               icon: const Icon(Icons.handshake_rounded),
                               label: const Text('Thương lượng'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFF1C1917),
-                                side: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
-                                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                side: const BorderSide(
+                                  color: Color(0xFF1C1917),
+                                  width: 1.5,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                  horizontal: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -716,7 +986,8 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                                 final signed = await Navigator.push<bool>(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => SignContractScreen(contract: contract),
+                                    builder: (context) =>
+                                        SignContractScreen(contract: contract),
                                   ),
                                 );
                                 if (signed == true) {
@@ -726,12 +997,17 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                               icon: const Icon(Icons.draw_rounded),
                               label: const Text(
                                 'KÝ HỢP ĐỒNG THUÊ PHÒNG',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF1C1917),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -760,20 +1036,28 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     _buildErrorDisplay(contractController),
                     const SizedBox(height: 16),
                   ],
-                  if (contract.status == Contract.STATUS_DRAFT && contract.negotiationStatus == 1) ...[
+                  if (contract.status == Contract.STATUS_DRAFT &&
+                      contract.negotiationStatus == 1) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFFBEB),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+                        border: Border.all(
+                          color: const Color(0xFFFDE68A),
+                          width: 1.5,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: const [
-                              Icon(Icons.hourglass_empty_rounded, color: Color(0xFFD97706), size: 20),
+                              Icon(
+                                Icons.hourglass_empty_rounded,
+                                color: Color(0xFFD97706),
+                                size: 20,
+                              ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -801,20 +1085,28 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     ),
                     const SizedBox(height: 16),
                   ],
-                  if (contract.status == Contract.STATUS_DRAFT && contract.negotiationStatus == 2) ...[
+                  if (contract.status == Contract.STATUS_DRAFT &&
+                      contract.negotiationStatus == 2) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFECFDF5),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
+                        border: Border.all(
+                          color: const Color(0xFFA7F3D0),
+                          width: 1.5,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: const [
-                              Icon(Icons.check_circle_outline_rounded, color: Color(0xFF059669), size: 20),
+                              Icon(
+                                Icons.check_circle_outline_rounded,
+                                color: Color(0xFF059669),
+                                size: 20,
+                              ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -842,20 +1134,28 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     ),
                     const SizedBox(height: 16),
                   ],
-                  if (contract.status == Contract.STATUS_DRAFT && contract.negotiationStatus == 3) ...[
+                  if (contract.status == Contract.STATUS_DRAFT &&
+                      contract.negotiationStatus == 3) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+                        border: Border.all(
+                          color: const Color(0xFFFCA5A5),
+                          width: 1.5,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: const [
-                              Icon(Icons.cancel_outlined, color: Color(0xFFDC2626), size: 20),
+                              Icon(
+                                Icons.cancel_outlined,
+                                color: Color(0xFFDC2626),
+                                size: 20,
+                              ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -883,20 +1183,28 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     ),
                     const SizedBox(height: 16),
                   ],
-                  if (contract.status == Contract.STATUS_DRAFT && isProfileIncomplete) ...[
+                  if (contract.status == Contract.STATUS_DRAFT &&
+                      isProfileIncomplete) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFFBEB),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+                        border: Border.all(
+                          color: const Color(0xFFFDE68A),
+                          width: 1.5,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: const [
-                              Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 20),
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Color(0xFFD97706),
+                                size: 20,
+                              ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -924,20 +1232,28 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     ),
                     const SizedBox(height: 16),
                   ],
-                  if (contract.status == Contract.STATUS_ACTIVE && isProfileIncomplete) ...[
+                  if (contract.status == Contract.STATUS_ACTIVE &&
+                      isProfileIncomplete) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+                        border: Border.all(
+                          color: const Color(0xFFFCA5A5),
+                          width: 1.5,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: const [
-                              Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
+                              Icon(
+                                Icons.error_outline_rounded,
+                                color: Color(0xFFDC2626),
+                                size: 20,
+                              ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -964,14 +1280,19 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: () => _showSupplementInfoDialog(context, tenant),
+                              onPressed: () =>
+                                  _showSupplementInfoDialog(context, tenant),
                               icon: const Icon(Icons.edit_note_rounded),
                               label: const Text('BỔ SUNG THÔNG TIN NGAY'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFDC2626),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                                 elevation: 0,
                               ),
                             ),
@@ -1019,7 +1340,11 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Color(0xFFDC2626),
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1032,7 +1357,11 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, color: Color(0xFF991B1B), size: 18),
+            icon: const Icon(
+              Icons.close_rounded,
+              color: Color(0xFF991B1B),
+              size: 18,
+            ),
             onPressed: () => controller.clearError(),
             constraints: const BoxConstraints(),
             padding: EdgeInsets.zero,
@@ -1044,12 +1373,16 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
 
   Widget _buildPaymentPanel(Contract contract, ContractController controller) {
     final isTransferSettlement = contract.hasTransferSettlementDue;
-    final paymentTitle = isTransferSettlement ? 'Thanh toán khoản chuyển phòng (VietQR)' : 'Thanh toán đặt cọc (VietQR)';
+    final transferSettlement = contract.transferSettlement;
+    final paymentTitle = isTransferSettlement
+        ? 'Thanh toán khoản chuyển phòng (VietQR)'
+        : 'Thanh toán đặt cọc (VietQR)';
     final paymentDescription = isTransferSettlement
-        ? 'Khoản chuyển phòng còn thiếu sẽ dùng mã chuyển phòng TRF-* làm nội dung. Vui lòng quét mã hoặc chuyển khoản đúng thông tin bên dưới:'
+        ? 'Khoản chuyển phòng dùng mã TRF-* làm nội dung. Hệ thống sẽ tự tách tiền vào cọc mới trước, phần còn lại ghi nhận phí/khấu trừ.'
         : 'Để kích hoạt hợp đồng, vui lòng quét mã VietQR bên dưới hoặc thực hiện chuyển khoản với thông tin:';
     final paymentAmount = contract.paymentDueAmount;
     final paymentReference = contract.paymentReferenceCode;
+    final paymentQrUrl = contract.paymentQrUrl;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -1057,10 +1390,13 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBEB), // Light amber background
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5), // Amber border
+        border: Border.all(
+          color: const Color(0xFFFDE68A),
+          width: 1.5,
+        ), // Amber border
         boxShadow: [
           BoxShadow(
-            color: Colors.amber.withOpacity(0.04),
+            color: Colors.amber.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -1071,7 +1407,11 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
         children: [
           Row(
             children: [
-              const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFD97706), size: 24),
+              const Icon(
+                Icons.qr_code_scanner_rounded,
+                color: Color(0xFFD97706),
+                size: 24,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1106,11 +1446,31 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
             child: Column(
               children: [
                 _buildPaymentDetailRow(
-                  'Số tiền:',
+                  isTransferSettlement
+                      ? 'Tổng còn phải thanh toán:'
+                      : 'Số tiền:',
                   _formatCurrency(paymentAmount),
                   isBold: true,
                   valueColor: const Color(0xFFDC2626),
                 ),
+                if (isTransferSettlement && transferSettlement != null) ...[
+                  const Divider(height: 20, color: Color(0xFFFEF3C7)),
+                  _buildPaymentDetailRow(
+                    'Cọc mới còn thiếu:',
+                    _formatCurrency(transferSettlement.depositRemainingAmount),
+                    valueColor: transferSettlement.depositRemainingAmount > 0
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF16A34A),
+                  ),
+                  const Divider(height: 20, color: Color(0xFFFEF3C7)),
+                  _buildPaymentDetailRow(
+                    'Phí/khấu trừ còn thiếu:',
+                    _formatCurrency(transferSettlement.extraRemainingAmount),
+                    valueColor: transferSettlement.extraRemainingAmount > 0
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF16A34A),
+                  ),
+                ],
                 const Divider(height: 20, color: Color(0xFFFEF3C7)),
                 _buildPaymentDetailRowWithCopy(
                   'Nội dung chuyển khoản:',
@@ -1119,17 +1479,18 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                 ),
                 if (isTransferSettlement) ...[
                   const Divider(height: 20, color: Color(0xFFFEF3C7)),
-                  _buildPaymentDetailRow(
-                    'Mã hợp đồng:',
-                    contract.contractCode,
-                  ),
+                  _buildPaymentDetailRow('Mã hợp đồng:', contract.contractCode),
                 ],
               ],
             ),
           ),
+          if (isTransferSettlement) ...[
+            const SizedBox(height: 12),
+            _buildTransferSettlementNote(),
+          ],
           const SizedBox(height: 20),
           // QR Image if present
-          if (contract.depositQrUrl != null && contract.depositQrUrl!.isNotEmpty)
+          if (paymentQrUrl != null && paymentQrUrl.isNotEmpty)
             Center(
               child: Container(
                 padding: const EdgeInsets.all(12),
@@ -1139,7 +1500,7 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                   border: Border.all(color: const Color(0xFFFDE68A), width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -1148,7 +1509,7 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Image.network(
-                    contract.depositQrUrl!,
+                    paymentQrUrl,
                     height: 220,
                     width: 220,
                     fit: BoxFit.contain,
@@ -1162,7 +1523,7 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                             color: const Color(0xFFD97706),
                             value: loadingProgress.expectedTotalBytes != null
                                 ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
+                                      loadingProgress.expectedTotalBytes!
                                 : null,
                           ),
                         ),
@@ -1175,11 +1536,18 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Icon(Icons.broken_image_rounded, color: Colors.grey, size: 48),
+                            Icon(
+                              Icons.broken_image_rounded,
+                              color: Colors.grey,
+                              size: 48,
+                            ),
                             SizedBox(height: 8),
                             Text(
                               'Không thể tải ảnh QR',
-                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
@@ -1199,7 +1567,9 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Đã cập nhật trạng thái hợp đồng mới nhất.'),
+                          content: Text(
+                            'Đã cập nhật trạng thái hợp đồng mới nhất.',
+                          ),
                           backgroundColor: Color(0xFF1C1917),
                           behavior: SnackBarBehavior.floating,
                         ),
@@ -1235,24 +1605,47 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
     );
   }
 
-  Widget _buildPaymentDetailRow(String label, String value, {bool isBold = false, Color? valueColor}) {
+  Widget _buildPaymentDetailRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? valueColor,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF78716C), fontSize: 13, fontWeight: FontWeight.w500)),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-            color: valueColor ?? const Color(0xFF1C1917),
-            fontSize: 13,
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF78716C),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: valueColor ?? const Color(0xFF1C1917),
+              fontSize: 13,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPaymentDetailRowWithCopy(String label, String value, BuildContext context) {
+  Widget _buildPaymentDetailRowWithCopy(
+    String label,
+    String value,
+    BuildContext context,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1260,7 +1653,14 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: Color(0xFF78716C), fontSize: 13, fontWeight: FontWeight.w500)),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF78716C),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               const SizedBox(height: 4),
               SelectableText(
                 value,
@@ -1275,7 +1675,11 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.copy_rounded, color: Color(0xFF92400E), size: 20),
+          icon: const Icon(
+            Icons.copy_rounded,
+            color: Color(0xFF92400E),
+            size: 20,
+          ),
           onPressed: () {
             Clipboard.setData(ClipboardData(text: value));
             ScaffoldMessenger.of(context).showSnackBar(
@@ -1289,6 +1693,173 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildTransferSettlementNote() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Icon(
+            Icons.account_balance_wallet_outlined,
+            color: Color(0xFFEA580C),
+            size: 18,
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Sau khi SePay ghi nhận, backend ưu tiên bù cọc mới còn thiếu; phần dư của giao dịch mới ghi vào phí chuyển phòng/khấu trừ.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: Color(0xFF9A3412),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransferSettlementCard(TransferSettlement settlement) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.swap_horiz_rounded,
+                  color: Color(0xFFD97706),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Quyết toán chuyển phòng',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF92400E),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildInfoRow(
+            'Mã chuyển phòng:',
+            settlement.transferCode.isNotEmpty ? settlement.transferCode : '—',
+            valueColor: const Color(0xFF92400E),
+            isBold: true,
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Cọc mới phải bù:',
+            _formatCurrency(settlement.depositDueAmount),
+            valueColor: const Color(0xFF1C1917),
+            isBold: true,
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Đã ghi vào cọc:',
+            _formatCurrency(settlement.depositPaidAmount),
+            valueColor: const Color(0xFF16A34A),
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Cọc mới còn thiếu:',
+            _formatCurrency(settlement.depositRemainingAmount),
+            valueColor: settlement.depositRemainingAmount > 0
+                ? const Color(0xFFDC2626)
+                : const Color(0xFF16A34A),
+            isBold: true,
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Phí chuyển phòng:',
+            _formatCurrency(settlement.transferFee),
+            valueColor: const Color(0xFF92400E),
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Khấu trừ:',
+            _formatCurrency(settlement.deductionAmount),
+            valueColor: const Color(0xFF92400E),
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Phí/khấu trừ phải thu:',
+            _formatCurrency(settlement.extraChargeAmount),
+            valueColor: const Color(0xFF1C1917),
+            isBold: true,
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Đã ghi vào phí/khấu trừ:',
+            _formatCurrency(settlement.extraPaidAmount),
+            valueColor: const Color(0xFF16A34A),
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Phí/khấu trừ còn thiếu:',
+            _formatCurrency(settlement.extraRemainingAmount),
+            valueColor: settlement.extraRemainingAmount > 0
+                ? const Color(0xFFDC2626)
+                : const Color(0xFF16A34A),
+            isBold: true,
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Đã thanh toán tổng:',
+            _formatCurrency(settlement.settlementPaidAmount),
+            valueColor: const Color(0xFF16A34A),
+          ),
+          const Divider(height: 20, color: Color(0xFFFEF3C7)),
+          _buildInfoRow(
+            'Còn phải thanh toán:',
+            _formatCurrency(settlement.settlementRemainingAmount),
+            valueColor: settlement.settlementRemainingAmount > 0
+                ? const Color(0xFFDC2626)
+                : const Color(0xFF16A34A),
+            isBold: true,
+          ),
+          if (settlement.settlementPaymentStatusLabel != null &&
+              settlement.settlementPaymentStatusLabel!.isNotEmpty) ...[
+            const Divider(height: 20, color: Color(0xFFFEF3C7)),
+            _buildInfoRow(
+              'Trạng thái:',
+              settlement.settlementPaymentStatusLabel!,
+              valueColor: const Color(0xFFD97706),
+              isBold: true,
+            ),
+          ],
+          const SizedBox(height: 12),
+          _buildTransferSettlementNote(),
+        ],
+      ),
     );
   }
 
@@ -1353,7 +1924,11 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
           const SizedBox(height: 16),
           Row(
             children: [
-              const Icon(Icons.home_work_rounded, color: Color(0xFFE4E2D7), size: 20),
+              const Icon(
+                Icons.home_work_rounded,
+                color: Color(0xFFE4E2D7),
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1378,7 +1953,12 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       children: [
         const Text(
           'THÔNG TIN CHI TIẾT',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 1.0),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF78716C),
+            letterSpacing: 1.0,
+          ),
         ),
         const SizedBox(height: 12),
         Container(
@@ -1397,17 +1977,30 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
           ),
           child: Column(
             children: [
-              _buildInfoRow('Khách thuê đại diện:', contract.tenantName, isBold: true),
+              _buildInfoRow(
+                'Khách thuê đại diện:',
+                contract.tenantName,
+                isBold: true,
+              ),
               const Divider(height: 20, color: Color(0xFFF1F0EA)),
-              _buildInfoRow('Số điện thoại:', contract.representativeTenant?.phone ?? tenant?.phone ?? ''),
+              _buildInfoRow(
+                'Số điện thoại:',
+                contract.representativeTenant?.phone ?? tenant?.phone ?? '',
+              ),
               const Divider(height: 20, color: Color(0xFFF1F0EA)),
-              _buildInfoRow('Email:', contract.representativeTenant?.email ?? tenant?.email ?? ''),
+              _buildInfoRow(
+                'Email:',
+                contract.representativeTenant?.email ?? tenant?.email ?? '',
+              ),
               const Divider(height: 20, color: Color(0xFFF1F0EA)),
               _buildInfoRow('Ngày bắt đầu:', contract.startDate),
               const Divider(height: 20, color: Color(0xFFF1F0EA)),
               _buildInfoRow('Ngày hết hạn:', contract.endDate ?? 'Vô thời hạn'),
               const Divider(height: 20, color: Color(0xFFF1F0EA)),
-              _buildInfoRow('Chu kỳ đóng tiền:', 'Ngày ${contract.billingCycleDay} hàng tháng'),
+              _buildInfoRow(
+                'Chu kỳ đóng tiền:',
+                'Ngày ${contract.billingCycleDay} hàng tháng',
+              ),
             ],
           ),
         ),
@@ -1424,7 +2017,12 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       children: [
         const Text(
           'THÔNG TIN TÀI CHÍNH',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 1.0),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF78716C),
+            letterSpacing: 1.0,
+          ),
         ),
         const SizedBox(height: 12),
         Container(
@@ -1456,7 +2054,7 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                 valueColor: const Color(0xFF1C1917),
                 isBold: true,
               ),
-              if (hasDepositDue) ...[
+              if (hasDepositDue && transferSettlement == null) ...[
                 const Divider(height: 20, color: Color(0xFFF1F0EA)),
                 _buildInfoRow(
                   'Cọc còn thiếu:',
@@ -1467,43 +2065,41 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
               ],
               if (transferSettlement != null) ...[
                 const Divider(height: 20, color: Color(0xFFF1F0EA)),
-                _buildInfoRow(
-                  'Mã chuyển phòng:',
-                  transferSettlement.transferCode.isNotEmpty ? transferSettlement.transferCode : '—',
-                  valueColor: const Color(0xFF92400E),
-                  isBold: true,
-                ),
-                const Divider(height: 20, color: Color(0xFFF1F0EA)),
-                _buildInfoRow(
-                  'Còn thiếu chuyển phòng:',
-                  _formatCurrency(transferSettlement.settlementRemainingAmount),
-                  valueColor: transferSettlement.settlementRemainingAmount > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
-                  isBold: true,
-                ),
+                _buildTransferSettlementCard(transferSettlement),
               ],
               const Divider(height: 20, color: Color(0xFFF1F0EA)),
               _buildInfoRow(
                 'Trạng thái cọc:',
                 depositPaid ? 'Đã nhận cọc' : 'Chưa thanh toán cọc',
-                valueColor: depositPaid ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                valueColor: depositPaid
+                    ? const Color(0xFF16A34A)
+                    : const Color(0xFFDC2626),
                 isBold: true,
               ),
-              if (contract.paymentStatusLabel != null && contract.paymentStatusLabel!.isNotEmpty) ...[
+              if (contract.paymentStatusLabel != null &&
+                  contract.paymentStatusLabel!.isNotEmpty) ...[
                 const Divider(height: 20, color: Color(0xFFF1F0EA)),
                 _buildInfoRow(
                   'Trạng thái thanh toán:',
                   contract.paymentStatusLabel!,
-                  valueColor: depositPaid ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+                  valueColor: depositPaid
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFD97706),
                 ),
               ],
-              if (contract.roomServices != null && contract.roomServices!.isNotEmpty) ...[
+              if (contract.roomServices != null &&
+                  contract.roomServices!.isNotEmpty) ...[
                 const Divider(height: 20, color: Color(0xFFF1F0EA)),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: const [
-                        Icon(Icons.room_service_rounded, size: 16, color: Color(0xFF78716C)),
+                        Icon(
+                          Icons.room_service_rounded,
+                          size: 16,
+                          color: Color(0xFF78716C),
+                        ),
                         SizedBox(width: 8),
                         Text(
                           'CÁC DỊCH VỤ CỦA PHÒNG',
@@ -1518,7 +2114,9 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     ),
                     const SizedBox(height: 10),
                     ...contract.roomServices!.map((svc) {
-                      final priceVal = svc['price'] != null ? double.tryParse(svc['price'].toString()) ?? 0.0 : 0.0;
+                      final priceVal = svc['price'] != null
+                          ? double.tryParse(svc['price'].toString()) ?? 0.0
+                          : 0.0;
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
@@ -1526,11 +2124,18 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                           children: [
                             Text(
                               svc['name']?.toString() ?? '',
-                              style: const TextStyle(fontSize: 13, color: Color(0xFF44403C)),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF44403C),
+                              ),
                             ),
                             Text(
                               '${_formatCurrency(priceVal)} / ${svc['unit_name'] ?? 'tháng'}',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1C1917),
+                              ),
                             ),
                           ],
                         ),
@@ -1555,7 +2160,12 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       children: [
         const Text(
           'TỆP ĐÍNH KÈM HỢP ĐỒNG',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 1.0),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF78716C),
+            letterSpacing: 1.0,
+          ),
         ),
         const SizedBox(height: 12),
         ...files.asMap().entries.map((entry) {
@@ -1584,8 +2194,12 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
             child: Row(
               children: [
                 Icon(
-                  isPdf ? Icons.picture_as_pdf_rounded : Icons.description_rounded,
-                  color: isPdf ? const Color(0xFFDC2626) : const Color(0xFF1C1917),
+                  isPdf
+                      ? Icons.picture_as_pdf_rounded
+                      : Icons.description_rounded,
+                  color: isPdf
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF1C1917),
                   size: 24,
                 ),
                 const SizedBox(width: 12),
@@ -1612,7 +2226,11 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.copy_rounded, color: Color(0xFF1C1917), size: 20),
+                  icon: const Icon(
+                    Icons.copy_rounded,
+                    color: Color(0xFF1C1917),
+                    size: 20,
+                  ),
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: url));
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1676,19 +2294,34 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
     );
   }
 
-  Widget _buildInfoRow(String label, String value, {Color? valueColor, bool isBold = false}) {
+  Widget _buildInfoRow(
+    String label,
+    String value, {
+    Color? valueColor,
+    bool isBold = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-              color: valueColor ?? const Color(0xFF1C1917),
-              fontSize: 13,
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+                color: valueColor ?? const Color(0xFF1C1917),
+                fontSize: 13,
+              ),
             ),
           ),
         ],
@@ -1698,11 +2331,16 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
 
   Widget _buildStatusBadge(int status, String label) {
     Color color = Colors.grey;
-    if (status == Contract.STATUS_ACTIVE) color = const Color(0xFF16A34A); // Green
-    if (status == Contract.STATUS_EXPIRED) color = const Color(0xFFD97706); // Amber
-    if (status == Contract.STATUS_LIQUIDATED) color = const Color(0xFF2563EB); // Blue
-    if (status == Contract.STATUS_CANCELLED) color = const Color(0xFFDC2626); // Red
-    if (status == Contract.STATUS_DRAFT) color = const Color(0xFF4B5563); // Gray-600
+    if (status == Contract.STATUS_ACTIVE)
+      color = const Color(0xFF16A34A); // Green
+    if (status == Contract.STATUS_EXPIRED)
+      color = const Color(0xFFD97706); // Amber
+    if (status == Contract.STATUS_LIQUIDATED)
+      color = const Color(0xFF2563EB); // Blue
+    if (status == Contract.STATUS_CANCELLED)
+      color = const Color(0xFFDC2626); // Red
+    if (status == Contract.STATUS_DRAFT)
+      color = const Color(0xFF4B5563); // Gray-600
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1713,34 +2351,67 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
       ),
       child: Text(
         label,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 
-  void _showNegotiationDialog(BuildContext context, Contract contract, ContractController controller) {
-    final roomPriceController = TextEditingController(text: contract.roomPrice.toStringAsFixed(0));
-    
+  void _showNegotiationDialog(
+    BuildContext context,
+    Contract contract,
+    ContractController controller,
+  ) {
+    final roomPriceController = TextEditingController(
+      text: contract.roomPrice.toStringAsFixed(0),
+    );
+
     // Maintain a list of controllers for service prices
     final serviceControllers = <int, TextEditingController>{};
     final serviceNames = <int, String>{};
-    final serviceMetered = <int, bool>{};
+    final serviceOriginalPrices = <int, double>{};
+    final serviceUnits = <int, String>{};
 
     final servicesList = contract.roomServices ?? [];
     for (var svc in servicesList) {
       final sId = svc['id'] as int;
       final chargeMethod = svc['charge_method'] as int? ?? 0;
-      
-      // Determine if service is electricity/water (metered)
-      final slug = svc['slug']?.toString()?.toLowerCase() ?? '';
-      final isMetered = chargeMethod == 2 || // CHARGE_METHOD_BY_METER
-                        ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat'].contains(slug);
+
+      // Skip metered services (electricity/water) - cannot be negotiated
+      final slug = svc['slug']?.toString().toLowerCase() ?? '';
+      final name = svc['name']?.toString().toLowerCase() ?? '';
+      final isMetered =
+          chargeMethod == 1 || // CHARGE_METHOD_BY_METER
+          [
+            'electric',
+            'water',
+            'electricity',
+            'dien-sinh-hoat',
+            'nuoc-sinh-hoat',
+            'dien',
+            'nuoc',
+            'tien-dien',
+            'tien-nuoc',
+            'dien-nuoc',
+          ].contains(slug) ||
+          name.contains('điện') ||
+          name.contains('nước');
+
+      if (isMetered) continue;
 
       serviceNames[sId] = svc['name']?.toString() ?? '';
-      serviceMetered[sId] = isMetered;
+      final priceVal = svc['price'] != null
+          ? double.tryParse(svc['price'].toString()) ?? 0.0
+          : 0.0;
+      serviceOriginalPrices[sId] = priceVal;
+      serviceUnits[sId] = svc['unit']?.toString() ?? 'tháng';
 
-      final priceVal = svc['price'] != null ? double.tryParse(svc['price'].toString()) ?? 0.0 : 0.0;
-      serviceControllers[sId] = TextEditingController(text: priceVal.toStringAsFixed(0));
+      serviceControllers[sId] = TextEditingController(
+        text: priceVal.toStringAsFixed(0),
+      );
     }
 
     showModalBottomSheet(
@@ -1763,6 +2434,17 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1782,15 +2464,24 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Vui lòng nhập giá thuê phòng và giá các dịch vụ mong muốn để gửi đề xuất thương lượng tới quản lý. Lưu ý giá điện và nước tính theo chỉ số tòa nhà nên không thể thay đổi.',
-                  style: TextStyle(fontSize: 12.5, color: Color(0xFF78716C), height: 1.4),
+                  'Vui lòng nhập giá thuê phòng và giá các dịch vụ mong muốn để gửi đề xuất thương lượng tới quản lý.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF78716C),
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Room Price Input
                 const Text(
                   'GIÁ THUÊ PHÒNG ĐỀ XUẤT',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 0.5),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF78716C),
+                    letterSpacing: 0.5,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -1799,66 +2490,92 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                   decoration: InputDecoration(
                     hintText: 'Nhập giá phòng...',
                     suffixText: 'đ',
+                    helperText: 'Giá gốc: ${_formatCurrency(contract.roomPrice)}',
+                    helperStyle: const TextStyle(
+                      color: Color(0xFFEAB308),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF1C1917),
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
 
-                // Services Price Inputs
-                if (servicesList.isNotEmpty) ...[
+                // Services Price Inputs (only non-metered services)
+                if (serviceControllers.isNotEmpty) ...[
                   const Text(
                     'ĐỀ XUẤT GIÁ CÁC DỊCH VỤ',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 0.5),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF78716C),
+                      letterSpacing: 0.5,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  ...servicesList.map((svc) {
-                    final sId = svc['id'] as int;
-                    final isMetered = serviceMetered[sId] ?? false;
+                  ...serviceControllers.entries.map((entry) {
+                    final sId = entry.key;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Row(
                         children: [
                           Expanded(
                             flex: 3,
-                            child: Text(
-                              serviceNames[sId] ?? '',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: isMetered ? const Color(0xFF78716C) : const Color(0xFF1C1917),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  serviceNames[sId] ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1C1917),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Gốc: ${_formatCurrency(serviceOriginalPrices[sId] ?? 0)} / ${serviceUnits[sId]}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF78716C),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             flex: 2,
                             child: TextField(
-                              controller: serviceControllers[sId],
+                              controller: entry.value,
                               keyboardType: TextInputType.number,
-                              enabled: !isMetered,
                               decoration: InputDecoration(
                                 suffixText: 'đ',
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
-                                ),
-                                disabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Color(0xFFF5F5F4)),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFE4E2D7),
+                                  ),
                                 ),
                               ),
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isMetered ? const Color(0xFF78716C) : const Color(0xFF1C1917),
-                              ),
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF1C1917),
+                                  fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
@@ -1870,10 +2587,23 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
 
                 ElevatedButton(
                   onPressed: () async {
-                    final roomPrice = double.tryParse(roomPriceController.text) ?? 0.0;
+                    final roomPrice =
+                        double.tryParse(roomPriceController.text) ?? 0.0;
                     if (roomPrice <= 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vui lòng nhập giá phòng hợp lệ')),
+                        const SnackBar(
+                          content: Text('Vui lòng nhập giá phòng hợp lệ'),
+                        ),
+                      );
+                      return;
+                    }
+                    if (roomPrice > contract.roomPrice) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Giá đề xuất không được lớn hơn giá phòng gốc (${_formatCurrency(contract.roomPrice)})',
+                          ),
+                        ),
                       );
                       return;
                     }
@@ -1882,15 +2612,37 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     for (var entry in serviceControllers.entries) {
                       final sId = entry.key;
                       final price = double.tryParse(entry.value.text) ?? 0.0;
-                      proposedServices.add({
-                        'service_id': sId,
-                        'price': price,
-                      });
+                      if (price < 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Giá dịch vụ không được âm'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      final originalPrice = serviceOriginalPrices[sId] ?? 0.0;
+                      if (price > originalPrice) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Giá đề xuất cho dịch vụ "${serviceNames[sId]}" không được lớn hơn giá gốc (${_formatCurrency(originalPrice)})',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
+                      proposedServices.add({'service_id': sId, 'price': price});
                     }
 
                     Navigator.pop(context);
-                    
-                    final success = await controller.negotiateContract(contract.id, roomPrice, proposedServices);
+
+                    final success = await controller.negotiateContract(
+                      contract.id,
+                      roomPrice,
+                      proposedServices,
+                    );
                     if (success) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -1901,7 +2653,10 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(controller.errorMessage ?? 'Không thể gửi yêu cầu thương lượng.'),
+                          content: Text(
+                            controller.errorMessage ??
+                                'Không thể gửi yêu cầu thương lượng.',
+                          ),
                           backgroundColor: const Color(0xFFDC2626),
                         ),
                       );

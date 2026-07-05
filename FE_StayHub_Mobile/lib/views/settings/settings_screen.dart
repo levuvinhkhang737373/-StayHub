@@ -196,7 +196,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final String displayName = isAdmin ? (admin?.fullName ?? 'Admin') : (tenant?.fullName ?? 'Khách thuê');
     final String displaySubtitle = isAdmin 
         ? (admin?.roleLabel ?? 'Quản lý tòa nhà') 
-        : 'Khách thuê • Phòng ${tenant?.roomNumber ?? "Chưa rõ"}';
+        : 'Khách thuê • Phòng ${tenant?.roomNumber ?? "Chưa có phòng"}';
     final String? avatarUrl = isAdmin ? admin?.avatarUrl : tenant?.avatarUrl;
     final String initial = displayName.isNotEmpty ? displayName.substring(0, 1).toUpperCase() : 'U';
 

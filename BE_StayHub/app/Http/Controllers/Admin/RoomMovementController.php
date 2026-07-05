@@ -7,11 +7,15 @@ use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
+use App\Helpers\DecimalMoney;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RoomMovement\IndexRequest;
+use App\Http\Requests\Admin\RoomMovement\SettlementCashPaymentRequest;
 use App\Http\Requests\Admin\RoomMovement\UpdateTransferDateRequest;
 use App\Http\Resources\Admin\RoomMovementResource;
 use App\Models\Admin;
+use App\Models\Contract;
+use App\Models\ContractDepositTransaction;
 use App\Models\Notification;
 use App\Models\RoomMovement;
 use Carbon\Carbon;
@@ -177,6 +181,111 @@ class RoomMovementController extends Controller
         }
     }
 
+    public function recordSettlementCashPayment(SettlementCashPaymentRequest $request, int $roomMovement): JsonResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $admin = $request->user('admin');
+
+            if (! $admin || ! $this->canViewRoomMovements($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền thu tiền chuyển phòng', 403, null, 403);
+            }
+
+            $notifications = collect();
+
+            $result = DB::transaction(function () use ($validated, $admin, $request, $roomMovement, &$notifications): array {
+                $movement = $this->baseQuery($admin)
+                    ->whereKey($roomMovement)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $movement) {
+                    return ['error' => ApiResponse::responseJson(false, 'Không tìm thấy lịch chuyển phòng', 404, null, 404)];
+                }
+
+                $validationError = $this->validateSettlementCashPayment($movement);
+                if ($validationError) {
+                    return ['error' => $validationError];
+                }
+
+                if (! $this->canCollectSettlementCashPayment($admin, $movement)) {
+                    return ['error' => ApiResponse::responseJson(false, 'Chỉ admin của tòa nhà phòng đến hoặc super admin mới được thu tiền mặt chuyển phòng', 403, null, 403)];
+                }
+
+                $references = collect($movement->settlement_payment_references ?? []);
+                $remainingAmount = $this->settlementRemainingAmount($movement);
+                $destinationContract = $this->destinationContractForSettlement($movement);
+
+                if (DecimalMoney::isPositive($this->settlementDepositRemainingAmount($movement, $references)) && ! $destinationContract) {
+                    return ['error' => ApiResponse::responseJson(false, 'Không tìm thấy hợp đồng đích để ghi nhận cọc chuyển phòng', 422, null, 422)];
+                }
+
+                $allocation = $this->allocateSettlementPayment($movement, $references, $remainingAmount, $destinationContract);
+                $reference = $this->makeCashSettlementReference($movement, $remainingAmount, $allocation, $admin, $validated['note'] ?? null);
+
+                $this->recordSettlementDepositCashPayment($destinationContract, $allocation['deposit_amount'], $reference['reference'], $validated['note'] ?? null, $admin);
+
+                $updatedReferences = $references->push($reference)->values()->all();
+                $settlementDueAmount = DecimalMoney::normalize($movement->settlement_due_amount);
+                $transferMovements = $this->baseQuery($admin)
+                    ->where('transfer_code', $movement->transfer_code)
+                    ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+                    ->where('status', RoomMovement::STATUS_EXECUTED)
+                    ->lockForUpdate()
+                    ->get();
+
+                $transferMovements->each(fn (RoomMovement $transferMovement): bool => $transferMovement->forceFill([
+                    'settlement_paid_amount' => $settlementDueAmount,
+                    'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+                    'settlement_payment_references' => $updatedReferences,
+                ])->save());
+
+                $freshMovements = $this->baseQuery($admin)
+                    ->whereKey($transferMovements->pluck('id'))
+                    ->orderBy('id')
+                    ->get();
+
+                AdminActivityLogger::write($admin, 'Thu tiền mặt chuyển phòng', RoomMovement::class, $movement->id, [
+                    'transfer_code' => $movement->transfer_code,
+                    'settlement_paid_amount' => (string) $movement->settlement_paid_amount,
+                    'settlement_payment_status' => (int) $movement->settlement_payment_status,
+                ], [
+                    'transfer_code' => $movement->transfer_code,
+                    'amount' => $remainingAmount,
+                    'deposit_amount' => $allocation['deposit_amount'],
+                    'extra_amount' => $allocation['extra_amount'],
+                    'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_CASH,
+                    'note' => $validated['note'] ?? null,
+                ], $request);
+
+                $notifications = $this->createSettlementCashPaymentNotifications($freshMovements, $remainingAmount, $admin);
+
+                return [
+                    'movement' => $freshMovements->firstWhere('id', $movement->id) ?: $freshMovements->first(),
+                    'movements' => $freshMovements,
+                    'transfer_code' => $movement->transfer_code,
+                    'reference' => $reference,
+                ];
+            });
+
+            if (isset($result['error'])) {
+                return $result['error'];
+            }
+
+            $this->broadcastNotifications($notifications);
+
+            return ApiResponse::responseJson(true, 'Thu tiền mặt chuyển phòng thành công', 200, [
+                'transfer_code' => $result['transfer_code'],
+                'movement' => new RoomMovementResource($result['movement']),
+                'movements' => RoomMovementResource::collection($result['movements'])->resolve(),
+                'reference' => $result['reference'],
+            ], 200);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
     private function movementQuery(Admin $admin, array $validated): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -273,6 +382,151 @@ class RoomMovementController extends Controller
     private function canViewRoomMovements(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
+    }
+
+    private function validateSettlementCashPayment(RoomMovement $movement): ?JsonResponse
+    {
+        if ((int) $movement->movement_type !== RoomMovement::MOVEMENT_TYPE_TRANSFER || blank($movement->transfer_code)) {
+            return ApiResponse::responseJson(false, 'Chỉ được thu tiền cho lịch chuyển phòng', 422, null, 422);
+        }
+
+        if ((int) $movement->status !== RoomMovement::STATUS_EXECUTED) {
+            return ApiResponse::responseJson(false, 'Chỉ được thu tiền cho lịch chuyển phòng đã thực thi', 422, null, 422);
+        }
+
+        if (! in_array((int) $movement->settlement_payment_status, [
+            RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+            RoomMovement::SETTLEMENT_PAYMENT_STATUS_PARTIAL,
+        ], true)) {
+            return ApiResponse::responseJson(false, 'Khoản chuyển phòng đã được thanh toán đủ', 422, null, 422);
+        }
+
+        if (! DecimalMoney::isPositive($this->settlementRemainingAmount($movement))) {
+            return ApiResponse::responseJson(false, 'Khoản chuyển phòng đã được thanh toán đủ', 422, null, 422);
+        }
+
+        return null;
+    }
+
+    private function canCollectSettlementCashPayment(Admin $admin, RoomMovement $movement): bool
+    {
+        if (AdminScope::isSuperAdmin($admin)) {
+            return true;
+        }
+
+        $destinationBuildingId = $movement->toRoom?->building_id;
+
+        return $destinationBuildingId !== null
+            && AdminScope::ensureBuildingAccess($admin, (int) $destinationBuildingId);
+    }
+
+    private function settlementRemainingAmount(RoomMovement $movement): string
+    {
+        return DecimalMoney::maxZero(DecimalMoney::subtract($movement->settlement_due_amount ?? '0', $movement->settlement_paid_amount ?? '0'));
+    }
+
+    private function destinationContractForSettlement(RoomMovement $movement): ?Contract
+    {
+        if (! $movement->destination_contract_id) {
+            return null;
+        }
+
+        return Contract::query()->lockForUpdate()->find($movement->destination_contract_id);
+    }
+
+    private function allocateSettlementPayment(RoomMovement $movement, Collection $references, string $appliedAmount, ?Contract $destinationContract): array
+    {
+        $depositRemaining = $this->settlementDepositRemainingAmount($movement, $references);
+        $depositAmount = $destinationContract
+            ? DecimalMoney::min($appliedAmount, $depositRemaining)
+            : '0.00';
+
+        return [
+            'deposit_amount' => $depositAmount,
+            'extra_amount' => DecimalMoney::maxZero(DecimalMoney::subtract($appliedAmount, $depositAmount)),
+        ];
+    }
+
+    private function settlementDepositRemainingAmount(RoomMovement $movement, Collection $references): string
+    {
+        $depositPaidBySettlement = DecimalMoney::add($references->pluck('deposit_amount')->all());
+
+        return DecimalMoney::maxZero(DecimalMoney::subtract($movement->deposit_due_amount ?? '0', $depositPaidBySettlement));
+    }
+
+    private function makeCashSettlementReference(RoomMovement $movement, string $amount, array $allocation, Admin $admin, ?string $note): array
+    {
+        $paidAt = now();
+        $safeTransferCode = preg_replace('/[^A-Za-z0-9\-]/', '', (string) $movement->transfer_code) ?: (string) $movement->id;
+
+        return [
+            'reference' => 'CASH-'.$safeTransferCode.'-'.$paidAt->format('YmdHis'),
+            'amount' => DecimalMoney::normalize($amount),
+            'deposit_amount' => DecimalMoney::normalize($allocation['deposit_amount']),
+            'extra_amount' => DecimalMoney::normalize($allocation['extra_amount']),
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_CASH,
+            'paid_at' => $paidAt->toDateTimeString(),
+            'collected_by' => $admin->id,
+            'collector_name' => $admin->full_name ?: $admin->username,
+            'note' => $note,
+        ];
+    }
+
+    private function recordSettlementDepositCashPayment(?Contract $destinationContract, string $depositAmount, string $reference, ?string $note, Admin $admin): void
+    {
+        if (! $destinationContract || ! DecimalMoney::isPositive($depositAmount)) {
+            return;
+        }
+
+        $destinationContract->depositTransactions()->create([
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => $depositAmount,
+            'transaction_date' => now()->toDateString(),
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_CASH,
+            'transaction_reference' => $reference,
+            'note' => filled($note)
+                ? 'Thu cọc chuyển phòng bằng tiền mặt. Ghi chú: '.$note
+                : 'Thu cọc chuyển phòng bằng tiền mặt.',
+            'created_by' => $admin->id,
+        ]);
+    }
+
+    private function createSettlementCashPaymentNotifications(EloquentCollection $movements, string $amount, Admin $admin): Collection
+    {
+        $amountText = number_format(DecimalMoney::toIntegerAmount($amount), 0, ',', '.').' VND';
+        $firstMovement = $movements->first();
+        $room = $firstMovement?->toRoom;
+        $building = $room?->building;
+
+        $tenantNotifications = $movements
+            ->unique('tenant_id')
+            ->map(fn (RoomMovement $movement): Notification => Notification::query()->create([
+                'title' => 'Thanh toán chuyển phòng thành công',
+                'content' => "Admin {$admin->full_name} đã ghi nhận tiền mặt {$amountText} cho mã chuyển phòng {$movement->transfer_code}. Trạng thái: Đã thanh toán.",
+                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                'target_type' => Notification::TARGET_TYPE_TENANT,
+                'building_id' => $movement->toRoom?->building_id,
+                'room_id' => $movement->to_room_id,
+                'tenant_id' => $movement->tenant_id,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => $admin->id,
+            ]));
+
+        $adminNotification = Notification::query()->create([
+            'title' => 'Thu tiền mặt chuyển phòng',
+            'content' => 'Mã chuyển phòng '.($firstMovement?->transfer_code ?? 'không rõ').' tại phòng '.($room?->room_number ?? 'chưa rõ').' - tòa nhà '.($building?->name ?? 'chưa rõ')." đã thu tiền mặt {$amountText}.",
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_ADMIN,
+            'building_id' => $room?->building_id,
+            'room_id' => $room?->id,
+            'target_admin_id' => null,
+            'published_at' => now(),
+            'status' => Notification::STATUS_SENT,
+            'created_by' => $admin->id,
+        ]);
+
+        return $tenantNotifications->push($adminNotification)->values();
     }
 
     private function createTransferDateChangedNotifications(EloquentCollection $movements, ?Carbon $oldDate, Carbon $newDate, Admin $admin, ?string $note): Collection

@@ -41,7 +41,7 @@ export function CreateRoomScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [areaError, setAreaError] = useState<string | null>(null);
   const [floorError, setFloorError] = useState<string | null>(null);
-  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal();
+  const { confirmState, isConfirmLoading, closeConfirm } = useConfirmModal();
 
   const validateFloor = (buildingId: string, floorVal: string) => {
     if (!buildingId) {
@@ -199,16 +199,10 @@ export function CreateRoomScreen() {
 
     try {
       await createAdminRoom(data);
-      showConfirm({
-        title: 'Thành công',
-        message: 'Tạo phòng mới thành công!',
-        confirmLabel: 'Đồng ý',
-        hideCancel: true,
-        onConfirm: () => {
-          closeConfirm();
-          navigate('/admin/rooms');
-        },
-        variant: 'info',
+      navigate('/admin/rooms', {
+        state: {
+          successMessage: 'Tạo phòng mới thành công!'
+        }
       });
     } catch (error: any) {
       console.error(error);

@@ -27,3 +27,7 @@ Schedule::command('room-transfers:execute-scheduled')
     ->dailyAt('00:10')
     ->timezone('Asia/Ho_Chi_Minh')
     ->withoutOverlapping();
+Schedule::command('room-transfers:notify-utility-cutoffs')
+    ->dailyAt('07:00')
+    ->timezone('Asia/Ho_Chi_Minh')
+    ->withoutOverlapping();

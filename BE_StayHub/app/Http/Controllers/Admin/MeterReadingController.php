@@ -12,12 +12,16 @@ use App\Http\Requests\Admin\MeterReading\InitRequest;
 use App\Http\Requests\Admin\MeterReading\StoreRequest;
 use App\Http\Resources\Admin\MeterImageAnalysisResource;
 use App\Models\Building;
+use App\Models\Contract;
 use App\Models\MeterDevice;
 use App\Models\MeterReading;
 use App\Models\Room;
+use App\Models\RoomMovement;
 use App\Models\ServicePrice;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -50,16 +54,9 @@ class MeterReadingController extends Controller
                 }
             }
 
-            // 1. Fetch all rooms in this building with active contracts
-            $rooms = Room::query()
-                ->where('building_id', $buildingId)
-                ->where('status', Room::STATUS_ACTIVE)
-                ->with(['contracts' => function ($q) {
-                    $q->where('status', 1); // Active contract
-                }, 'contracts.tenants'])
-                ->get();
-
-            $targetDate = \Illuminate\Support\Carbon::create($year, $month, 1)->endOfMonth()->toDateString();
+            $periodStart = Carbon::create($year, $month, 1)->startOfDay();
+            $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
+            $targetDate = $periodEnd->toDateString();
 
             // 2. Get active service prices for electricity and water in this building
             $servicePrices = ServicePrice::query()
@@ -88,77 +85,8 @@ class MeterReadingController extends Controller
                     ];
                 });
 
-            // 3. For each room, load its meter devices and find:
-            // - The latest reading BEFORE or AT the current target month/year
-            // - Any existing reading for the target month/year
-            $roomsData = [];
-            foreach ($rooms as $room) {
-                $activeContract = $room->contracts->first();
-                $tenantName = $activeContract && $activeContract->tenants->isNotEmpty()
-                    ? $activeContract->tenants->first()->full_name
-                    : null;
-
-                $meters = MeterDevice::query()
-                    ->where('room_id', $room->id)
-                    ->whereIn('status', [MeterDevice::STATUS_ACTIVE, MeterDevice::STATUS_INACTIVE])
-                    ->with('service')
-                    ->get();
-
-                $metersData = [];
-                foreach ($meters as $meter) {
-                    // Check if there is an existing reading for this month/year
-                    $existingReading = MeterReading::query()
-                        ->where('meter_device_id', $meter->id)
-                        ->where('billing_month', $month)
-                        ->where('billing_year', $year)
-                        ->first();
-
-                    // Find previous reading (latest reading before target month/year)
-                    $previousReadingRecord = MeterReading::query()
-                        ->where('meter_device_id', $meter->id)
-                        ->where(function ($query) use ($year, $month) {
-                            $query->where('billing_year', '<', $year)
-                                ->orWhere(function ($q) use ($year, $month) {
-                                    $q->where('billing_year', $year)
-                                        ->where('billing_month', '<', $month);
-                                });
-                        })
-                        ->orderByDesc('billing_year')
-                        ->orderByDesc('billing_month')
-                        ->first();
-
-                    $previousReading = $previousReadingRecord
-                        ? (float)$previousReadingRecord->current_reading
-                        : (float)$meter->initial_reading;
-
-                    $metersData[] = [
-                        'id' => $meter->id,
-                        'meter_code' => $meter->meter_code,
-                        'meter_type' => $meter->meter_type,
-                        'service_id' => $meter->service_id,
-                        'service_name' => $meter->service->name,
-                        'previous_reading' => $previousReading,
-                        'existing_reading' => $existingReading ? [
-                            'id' => $existingReading->id,
-                            'current_reading' => (float)$existingReading->current_reading,
-                            'consumption' => (float)$existingReading->consumption,
-                            'reading_date' => $existingReading->reading_date ? $existingReading->reading_date->format('Y-m-d') : null,
-                            'status' => $existingReading->status,
-                            'image_path' => $existingReading->image_path,
-                            'image_url' => $existingReading->image_path ? ImageHelper::load($existingReading->image_path) : null,
-                            'note' => $existingReading->note,
-                        ] : null,
-                    ];
-                }
-
-                $roomsData[] = [
-                    'room_id' => $room->id,
-                    'room_number' => $room->room_number,
-                    'tenant_name' => $tenantName,
-                    'contract_id' => $activeContract ? $activeContract->id : null,
-                    'meters' => $metersData,
-                ];
-            }
+            $transferFinalizations = $this->transferFinalizationContexts($buildingId, $periodStart, $periodEnd);
+            $roomsData = $this->meterReadingRooms($buildingId, $month, $year, $transferFinalizations);
 
             return ApiResponse::responseJson(true, 'Dữ liệu chốt điện nước', 200, [
                 'rooms' => $roomsData,
@@ -168,6 +96,208 @@ class MeterReadingController extends Controller
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
+    }
+
+    private function meterReadingRooms(int $buildingId, int $month, int $year, Collection $transferFinalizations): array
+    {
+        $rooms = Room::query()
+            ->where('building_id', $buildingId)
+            ->where('status', Room::STATUS_ACTIVE)
+            ->with([
+                'contracts' => fn ($query) => $query->where('status', Contract::STATUS_ACTIVE)->with('tenants'),
+            ])
+            ->orderBy('floor')
+            ->orderBy('room_number')
+            ->get();
+
+        $roomsData = [];
+        $includedContractIds = [];
+
+        foreach ($rooms as $room) {
+            $activeContract = $room->contracts->first();
+
+            if (! $activeContract) {
+                continue;
+            }
+
+            $context = $transferFinalizations->get((int) $activeContract->id);
+            $roomsData[] = $this->roomReadingPayload($room, $activeContract, $month, $year, $context);
+            $includedContractIds[] = (int) $activeContract->id;
+        }
+
+        $transferFinalizations
+            ->reject(fn (array $context, int $contractId): bool => in_array($contractId, $includedContractIds, true))
+            ->each(function (array $context) use (&$roomsData, $month, $year): void {
+                $sourceContract = $context['source_contract'];
+                $room = $sourceContract?->room;
+
+                if (! $sourceContract || ! $room || $this->hasInvoiceForPeriod($sourceContract, $month, $year)) {
+                    return;
+                }
+
+                $roomsData[] = $this->roomReadingPayload($room, $sourceContract, $month, $year, $context);
+            });
+
+        return $roomsData;
+    }
+
+    private function transferFinalizationContexts(int $buildingId, Carbon $periodStart, Carbon $periodEnd): Collection
+    {
+        return RoomMovement::query()
+            ->with(['tenant:id,full_name', 'sourceContract.room.building', 'sourceContract.contractTenants.tenant'])
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED, RoomMovement::STATUS_EXECUTED])
+            ->whereBetween('movement_date', [
+                $periodStart->copy()->addDay()->toDateString(),
+                $periodEnd->copy()->addDay()->toDateString(),
+            ])
+            ->whereNotNull('source_contract_id')
+            ->whereHas('fromRoom', fn (Builder $query): Builder => $query->where('building_id', $buildingId))
+            ->orderBy('movement_date')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (RoomMovement $movement): string => $movement->transfer_code ?: 'movement-'.$movement->id)
+            ->map(fn (Collection $movements): ?array => $this->transferFinalizationContext($movements))
+            ->filter()
+            ->keyBy(fn (array $context): int => (int) $context['source_contract']->id);
+    }
+
+    private function transferFinalizationContext(Collection $movements): ?array
+    {
+        $firstMovement = $movements->first();
+        $sourceContract = $firstMovement?->sourceContract;
+
+        if (! $sourceContract) {
+            return null;
+        }
+
+        $movingTenantIds = $movements
+            ->pluck('tenant_id')
+            ->map(fn ($tenantId): int => (int) $tenantId)
+            ->unique()
+            ->values();
+
+        if ($movingTenantIds->isEmpty()) {
+            return null;
+        }
+
+        $movementDate = Carbon::parse($firstMovement->movement_date)->startOfDay();
+        $cutoffDate = $movementDate->copy()->subDay();
+
+        return [
+            'source_contract' => $sourceContract,
+            'transfer_code' => $firstMovement->transfer_code,
+            'movement_date' => $movementDate->toDateString(),
+            'utility_cutoff_date' => $cutoffDate->toDateString(),
+            'status' => (int) $firstMovement->status,
+            'tenant_names' => $sourceContract->contractTenants
+                ->map(fn ($row): ?string => $row->tenant?->full_name)
+                ->filter()
+                ->values()
+                ->all(),
+            'moving_tenant_names' => $movements->map(fn (RoomMovement $movement): ?string => $movement->tenant?->full_name)->filter()->values()->all(),
+        ];
+    }
+
+    private function roomReadingPayload(Room $room, Contract $contract, int $month, int $year, ?array $transferContext = null): array
+    {
+        $tenantName = $transferContext && ! empty($transferContext['tenant_names'])
+            ? implode(', ', $transferContext['tenant_names'])
+            : $this->contractTenantName($contract);
+
+        return [
+            'room_id' => $room->id,
+            'room_number' => $room->room_number,
+            'tenant_name' => $tenantName,
+            'contract_id' => $contract->id,
+            'contract_code' => $contract->contract_code,
+            'contract_status' => (int) $contract->status,
+            'is_transfer_finalization' => $transferContext !== null,
+            'should_finalize_before_transfer' => $transferContext !== null,
+            'transfer_code' => $transferContext['transfer_code'] ?? null,
+            'movement_date' => $transferContext['movement_date'] ?? null,
+            'utility_cutoff_date' => $transferContext['utility_cutoff_date'] ?? null,
+            'cutoff_reason' => $transferContext
+                ? 'Hợp đồng cũ sẽ được quyết toán trước khi chuyển phòng. Chốt điện/nước đến ngày trước ngày chuyển để lập hóa đơn cuối kỳ.'
+                : null,
+            'meters' => $this->metersForRoom($room, $month, $year),
+        ];
+    }
+
+    private function contractTenantName(Contract $contract): ?string
+    {
+        $tenants = $contract->relationLoaded('tenants')
+            ? $contract->tenants
+            : $contract->tenants()->get();
+
+        return $tenants->isNotEmpty() ? $tenants->first()->full_name : null;
+    }
+
+    private function metersForRoom(Room $room, int $month, int $year): array
+    {
+        return MeterDevice::query()
+            ->where('room_id', $room->id)
+            ->whereIn('status', [MeterDevice::STATUS_ACTIVE, MeterDevice::STATUS_INACTIVE])
+            ->with('service')
+            ->get()
+            ->map(fn (MeterDevice $meter): array => $this->meterPayload($meter, $month, $year))
+            ->values()
+            ->all();
+    }
+
+    private function meterPayload(MeterDevice $meter, int $month, int $year): array
+    {
+        $existingReading = MeterReading::query()
+            ->where('meter_device_id', $meter->id)
+            ->where('billing_month', $month)
+            ->where('billing_year', $year)
+            ->first();
+
+        $previousReadingRecord = MeterReading::query()
+            ->where('meter_device_id', $meter->id)
+            ->where(function ($query) use ($year, $month) {
+                $query->where('billing_year', '<', $year)
+                    ->orWhere(function ($q) use ($year, $month) {
+                        $q->where('billing_year', $year)
+                            ->where('billing_month', '<', $month);
+                    });
+            })
+            ->orderByDesc('billing_year')
+            ->orderByDesc('billing_month')
+            ->first();
+
+        return [
+            'id' => $meter->id,
+            'meter_code' => $meter->meter_code,
+            'meter_type' => $meter->meter_type,
+            'service_id' => $meter->service_id,
+            'service_name' => $meter->service?->name,
+            'previous_reading' => $previousReadingRecord ? (float) $previousReadingRecord->current_reading : (float) $meter->initial_reading,
+            'existing_reading' => $existingReading ? $this->existingReadingPayload($existingReading) : null,
+        ];
+    }
+
+    private function existingReadingPayload(MeterReading $reading): array
+    {
+        return [
+            'id' => $reading->id,
+            'current_reading' => (float) $reading->current_reading,
+            'consumption' => (float) $reading->consumption,
+            'reading_date' => $reading->reading_date ? $reading->reading_date->format('Y-m-d') : null,
+            'status' => $reading->status,
+            'image_path' => $reading->image_path,
+            'image_url' => $reading->image_path ? ImageHelper::load($reading->image_path) : null,
+            'note' => $reading->note,
+        ];
+    }
+
+    private function hasInvoiceForPeriod(Contract $contract, int $month, int $year): bool
+    {
+        return $contract->invoices()
+            ->where('billing_month', $month)
+            ->where('billing_year', $year)
+            ->where('status', '!=', \App\Models\Invoice::STATUS_CANCELLED)
+            ->exists();
     }
 
     public function analyzeImage(AnalyzeImageRequest $request): JsonResponse
@@ -267,7 +397,7 @@ class MeterReadingController extends Controller
 
             $currentYear = now()->year;
             $currentMonth = now()->month;
-            if ($year < $currentYear || ($year === $currentYear && $month < $currentMonth)) {
+            if (($year < $currentYear || ($year === $currentYear && $month < $currentMonth)) && ! $this->isTransferCutoffReading($meter, $month, $year, $validated['reading_date'])) {
                 return ApiResponse::responseJson(false, 'Không thể chốt chỉ số cho tháng cũ.', 422, null, 422);
             }
 
@@ -339,6 +469,22 @@ class MeterReadingController extends Controller
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
+    }
+
+    private function isTransferCutoffReading(MeterDevice $meter, int $month, int $year, string $readingDate): bool
+    {
+        $readingDateCarbon = Carbon::parse($readingDate)->startOfDay();
+
+        if ((int) $readingDateCarbon->month !== $month || (int) $readingDateCarbon->year !== $year) {
+            return false;
+        }
+
+        return RoomMovement::query()
+            ->where('from_room_id', $meter->room_id)
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED])
+            ->whereDate('movement_date', $readingDateCarbon->copy()->addDay()->toDateString())
+            ->exists();
     }
 
     private function analyzeMeterImage(string $imagePath, int $meterType, ?float $previousReading = null): array

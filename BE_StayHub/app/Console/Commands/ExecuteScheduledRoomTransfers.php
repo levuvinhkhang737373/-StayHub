@@ -108,6 +108,8 @@ class ExecuteScheduledRoomTransfers extends Command
                 return $this->blockTransfer($movements, 'Không tìm thấy phòng đích để thực hiện chuyển phòng.');
             }
 
+            $oldBillingEndDate = $movementDate->copy()->subDay();
+
             if ($this->hasUnpaidOldDebt($sourceContract, $movementDate)) {
                 return $this->blockTransfer($movements, 'Hợp đồng/phòng cũ còn hóa đơn chưa thanh toán, vui lòng thanh toán hết nợ cũ trước khi chuyển phòng.');
             }
@@ -131,11 +133,15 @@ class ExecuteScheduledRoomTransfers extends Command
 
             $destinationActiveContract = $this->activeDestinationContract($toRoom);
             $remainingRows = $activeRows->whereNotIn('tenant_id', $tenantIds)->values();
-            $representativeTenantId = $this->representativeTenantId($sourceContract, $activeRows);
-            $movingRepresentative = in_array($representativeTenantId, $tenantIds, true);
             $movingAll = $remainingRows->isEmpty();
             $usesOldDepositSettlement = $movingAll;
-            $oldBillingEndDate = $movementDate->copy()->subDay();
+
+            if (! $this->hasPaidFinalInvoiceForTransfer($sourceContract, $movementDate)) {
+                $this->createFinalInvoiceRequiredNotification($movements, $sourceContract, $oldBillingEndDate);
+
+                return $this->blockTransfer($movements, 'Vui lòng chốt điện/nước, lập và thanh toán hóa đơn cuối cho hợp đồng/phòng cũ đến ngày '.$oldBillingEndDate->format('d/m/Y').' trước khi chuyển phòng.');
+            }
+
             $createdBy = (int) $sourceContract->created_by;
             $admin = Admin::query()->find($createdBy) ?: Admin::query()->first();
 
@@ -144,7 +150,7 @@ class ExecuteScheduledRoomTransfers extends Command
             }
 
             $remainingContract = null;
-            if ($movingRepresentative && ! $movingAll) {
+            if (! $movingAll) {
                 $remainingContract = $this->createRemainingContract($sourceContract, $remainingRows, $oldBillingEndDate, $admin);
             }
 
@@ -158,15 +164,13 @@ class ExecuteScheduledRoomTransfers extends Command
 
             $settlement = $this->settlement($sourceContract, $destinationContract, $payload, $toRoom, $destinationActiveContract !== null, $usesOldDepositSettlement);
             $this->writeDepositSettlement($sourceContract, $destinationContract, $settlement, $movementDate, $admin);
-            $this->closeSourceContractRows($sourceContract, $movingRows, $activeRows, $oldBillingEndDate, $movingRepresentative, $movingAll);
+            $this->closeSourceContractRows($sourceContract, $activeRows, $oldBillingEndDate);
 
             $sourceContract->refresh();
-            if ($movingAll || $movingRepresentative) {
-                $sourceContract->forceFill([
-                    'status' => Contract::STATUS_LIQUIDATED,
-                    'actual_end_date' => $oldBillingEndDate->toDateString(),
-                ])->save();
-            }
+            $sourceContract->forceFill([
+                'status' => Contract::STATUS_LIQUIDATED,
+                'actual_end_date' => $oldBillingEndDate->toDateString(),
+            ])->save();
 
             $this->refreshRoomOccupants((int) $sourceContract->room_id);
             $this->refreshRoomOccupants((int) $toRoom->id);
@@ -193,6 +197,23 @@ class ExecuteScheduledRoomTransfers extends Command
             ])->save());
 
             $notifications = $this->createTransferExecutedNotifications($movements->fresh(), $sourceContract, $destinationContract, $toRoom, $admin);
+
+            if ($remainingContract) {
+                $remainingNotifications = $remainingRows->map(fn ($row): Notification => Notification::query()->create([
+                    'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                    'target_type' => Notification::TARGET_TYPE_TENANT,
+                    'status' => Notification::STATUS_SENT,
+                    'building_id' => $sourceContract->room?->building_id,
+                    'room_id' => $sourceContract->room_id,
+                    'tenant_id' => $row->tenant_id,
+                    'title' => 'Hợp đồng mới được tạo',
+                    'content' => "Hợp đồng mới mã {$remainingContract->contract_code} cho phòng {$sourceContract->room?->room_number} đã được tạo và đang chờ bạn ký.",
+                    'published_at' => now(),
+                    'created_by' => $admin->id,
+                ]));
+                $notifications = $notifications->merge($remainingNotifications);
+            }
+
             DB::afterCommit(fn (): mixed => $this->broadcastNotifications($notifications));
 
             return [
@@ -283,7 +304,7 @@ class ExecuteScheduledRoomTransfers extends Command
             'deposit_amount' => $sourceContract->deposit_amount,
             'status' => Contract::STATUS_PENDING_SIGN,
             'payment_status' => Contract::PAYMENT_STATUS_SUCCESS,
-            'note' => 'Hợp đồng mới cho người còn ở lại sau khi đại diện chuyển phòng.',
+            'note' => 'Hợp đồng mới cho người còn ở lại sau khi chuyển phòng.',
             'created_by' => $admin->id,
             'parent_contract_id' => $sourceContract->parent_contract_id ?: $sourceContract->id,
         ]);
@@ -404,16 +425,18 @@ class ExecuteScheduledRoomTransfers extends Command
 
         if (! $usesOldDepositSettlement) {
             $depositDueAmount = $hasDestinationActiveContract ? '0.00' : DecimalMoney::maxZero(DecimalMoney::subtract($newDepositAmount, $destinationContract->deposit_balance));
+            $extraChargeAmount = DecimalMoney::add([$deductionAmount, $transferFee]);
 
             return [
                 'old_balance' => $oldBalance,
-                'deduction_amount' => '0.00',
-                'transfer_fee' => '0.00',
+                'deduction_amount' => $deductionAmount,
+                'transfer_fee' => $transferFee,
                 'transfer_amount' => '0.00',
                 'manual_refund_amount' => '0.00',
                 'deposit_due_amount' => $depositDueAmount,
-                'extra_charge_amount' => '0.00',
-                'settlement_due_amount' => $depositDueAmount,
+                'extra_charge_amount' => $extraChargeAmount,
+                'settlement_due_amount' => DecimalMoney::add([$depositDueAmount, $extraChargeAmount]),
+                'is_partial_transfer' => true,
             ];
         }
 
@@ -446,7 +469,7 @@ class ExecuteScheduledRoomTransfers extends Command
 
     private function writeDepositSettlement(Contract $sourceContract, Contract $destinationContract, array $settlement, Carbon $movementDate, Admin $admin): void
     {
-        if (DecimalMoney::isPositive($settlement['deduction_amount'])) {
+        if (DecimalMoney::isPositive($settlement['deduction_amount']) && empty($settlement['is_partial_transfer'])) {
             $sourceContract->depositTransactions()->create([
                 'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
                 'amount' => $settlement['deduction_amount'],
@@ -500,11 +523,9 @@ class ExecuteScheduledRoomTransfers extends Command
         $destinationContract->refresh()->updatePaymentStatus();
     }
 
-    private function closeSourceContractRows(Contract $sourceContract, EloquentCollection $movingRows, EloquentCollection $activeRows, Carbon $oldBillingEndDate, bool $movingRepresentative, bool $movingAll): void
+    private function closeSourceContractRows(Contract $sourceContract, EloquentCollection $activeRows, Carbon $oldBillingEndDate): void
     {
-        $rowsToClose = ($movingAll || $movingRepresentative) ? $activeRows : $movingRows;
-
-        foreach ($rowsToClose as $row) {
+        foreach ($activeRows as $row) {
             $row->forceFill([
                 'leave_date' => $oldBillingEndDate->toDateString(),
                 'billing_end_date' => $oldBillingEndDate->toDateString(),
@@ -512,17 +533,15 @@ class ExecuteScheduledRoomTransfers extends Command
             ])->save();
         }
 
-        if ($movingAll || $movingRepresentative) {
-            $sourceContract->contractVehicles()
-                ->where('is_active', true)
-                ->lockForUpdate()
-                ->get()
-                ->each(fn (ContractVehicle $vehicle): bool => $vehicle->forceFill([
-                    'ended_at' => $oldBillingEndDate->toDateString(),
-                    'billing_end_date' => $oldBillingEndDate->toDateString(),
-                    'is_active' => false,
-                ])->save());
-        }
+        $sourceContract->contractVehicles()
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->get()
+            ->each(fn (ContractVehicle $vehicle): bool => $vehicle->forceFill([
+                'ended_at' => $oldBillingEndDate->toDateString(),
+                'billing_end_date' => $oldBillingEndDate->toDateString(),
+                'is_active' => false,
+            ])->save());
     }
 
     private function blockTransfer(Collection $movements, string $reason): array
@@ -544,17 +563,81 @@ class ExecuteScheduledRoomTransfers extends Command
 
     private function hasUnpaidOldDebt(Contract $contract, Carbon $movementDate): bool
     {
+        $finalInvoiceCutoffDate = $movementDate->copy()->subDay();
+
         return Invoice::query()
             ->where('contract_id', $contract->id)
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE])
-            ->where(function ($query) use ($movementDate): void {
+            ->where(function ($query) use ($movementDate, $finalInvoiceCutoffDate): void {
                 $query->where('billing_year', '<', $movementDate->year)
                     ->orWhere(function ($sameYearQuery) use ($movementDate): void {
                         $sameYearQuery->where('billing_year', $movementDate->year)
                             ->where('billing_month', '<', $movementDate->month);
                     });
+
+                if ($finalInvoiceCutoffDate->year !== $movementDate->year || $finalInvoiceCutoffDate->month !== $movementDate->month) {
+                    return;
+                }
+
+                $query->orWhere(function ($sameMonthFinalQuery) use ($finalInvoiceCutoffDate): void {
+                    $sameMonthFinalQuery->where('billing_year', $finalInvoiceCutoffDate->year)
+                        ->where('billing_month', $finalInvoiceCutoffDate->month)
+                        ->whereDate('period_end', $finalInvoiceCutoffDate->toDateString());
+                });
             })
             ->exists();
+    }
+
+    private function hasPaidFinalInvoiceForTransfer(Contract $contract, Carbon $movementDate): bool
+    {
+        return Invoice::query()
+            ->where('contract_id', $contract->id)
+            ->where('billing_year', $movementDate->copy()->subDay()->year)
+            ->where('billing_month', $movementDate->copy()->subDay()->month)
+            ->whereDate('period_end', $movementDate->copy()->subDay()->toDateString())
+            ->where('status', Invoice::STATUS_PAID)
+            ->exists();
+    }
+
+    private function createFinalInvoiceRequiredNotification(Collection $movements, Contract $sourceContract, Carbon $cutoffDate): void
+    {
+        $movement = $movements->first();
+        $room = $sourceContract->room;
+
+        if (! $movement || ! $room) {
+            return;
+        }
+
+        $movementDate = Carbon::parse($movement->movement_date)->startOfDay();
+        $actionUrl = '/admin/meter-readings?'.http_build_query([
+            'building_id' => $room->building_id,
+            'billing_month' => $cutoffDate->month,
+            'billing_year' => $cutoffDate->year,
+            'room_id' => $room->id,
+            'contract_id' => $sourceContract->id,
+            'cutoff_date' => $cutoffDate->toDateString(),
+            'transfer_code' => $movement->transfer_code,
+        ]);
+
+        $notification = Notification::query()->firstOrCreate(
+            [
+                'title' => 'Cần thanh toán hóa đơn chốt chuyển phòng',
+                'action_url' => $actionUrl,
+            ],
+            [
+                'content' => "Lịch chuyển phòng {$movement->transfer_code} của phòng {$room->room_number} đang bị chặn vì chưa có hóa đơn cuối đã thanh toán đến ngày {$cutoffDate->format('d/m/Y')} cho hợp đồng {$sourceContract->contract_code}.",
+                'notification_type' => Notification::NOTIFICATION_TYPE_WARNING,
+                'target_type' => Notification::TARGET_TYPE_ADMIN,
+                'building_id' => $room->building_id,
+                'room_id' => $room->id,
+                'tenant_id' => null,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => $movement->created_by,
+            ]
+        );
+
+        DB::afterCommit(fn (): mixed => event(new NotificationSent($notification)));
     }
 
     private function activeTenantCount(int $contractId): int
@@ -565,17 +648,6 @@ class ExecuteScheduledRoomTransfers extends Command
             ->whereNull('leave_date')
             ->distinct('tenant_id')
             ->count('tenant_id');
-    }
-
-    private function representativeTenantId(Contract $contract, EloquentCollection $activeRows): ?int
-    {
-        if ($contract->representative_tenant_id) {
-            return (int) $contract->representative_tenant_id;
-        }
-
-        return $activeRows
-            ->sortBy(fn (ContractTenant $row): string => ($row->join_date?->toDateString() ?? '9999-12-31').'-'.str_pad((string) $row->id, 10, '0', STR_PAD_LEFT))
-            ->first()?->tenant_id;
     }
 
     private function refreshRoomOccupants(int $roomId): void

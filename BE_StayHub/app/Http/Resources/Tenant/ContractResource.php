@@ -153,11 +153,54 @@ class ContractResource extends JsonResource
             return null;
         }
 
+        $remainingAmount = DecimalMoney::maxZero(DecimalMoney::subtract($movement->settlement_due_amount, $movement->settlement_paid_amount));
+        $depositDueAmount = $movement->deposit_due_amount === null ? '0.00' : (string) $movement->deposit_due_amount;
+        $extraChargeAmount = $movement->extra_charge_amount === null ? '0.00' : (string) $movement->extra_charge_amount;
+        $paymentSplit = $this->settlementPaymentSplit($movement, $depositDueAmount);
+
         return [
             'transfer_code' => $movement->transfer_code,
+            'deposit_due_amount' => $depositDueAmount,
+            'deposit_paid_amount' => $paymentSplit['deposit_paid_amount'],
+            'deposit_remaining_amount' => DecimalMoney::maxZero(DecimalMoney::subtract($depositDueAmount, $paymentSplit['deposit_paid_amount'])),
+            'extra_charge_amount' => $extraChargeAmount,
+            'extra_paid_amount' => $paymentSplit['extra_paid_amount'],
+            'extra_remaining_amount' => DecimalMoney::maxZero(DecimalMoney::subtract($extraChargeAmount, $paymentSplit['extra_paid_amount'])),
+            'transfer_fee' => $movement->transfer_fee === null ? '0.00' : (string) $movement->transfer_fee,
+            'deduction_amount' => $movement->deduction_amount === null ? '0.00' : (string) $movement->deduction_amount,
+            'deposit_transfer_amount' => $movement->deposit_transfer_amount === null ? '0.00' : (string) $movement->deposit_transfer_amount,
+            'deposit_refund_amount' => $movement->deposit_refund_amount === null ? '0.00' : (string) $movement->deposit_refund_amount,
+            'manual_refund_amount' => $movement->manual_refund_amount === null ? '0.00' : (string) $movement->manual_refund_amount,
             'settlement_due_amount' => (string) $movement->settlement_due_amount,
             'settlement_paid_amount' => (string) $movement->settlement_paid_amount,
-            'settlement_remaining_amount' => DecimalMoney::maxZero(DecimalMoney::subtract($movement->settlement_due_amount, $movement->settlement_paid_amount)),
+            'settlement_remaining_amount' => $remainingAmount,
+            'settlement_payment_status' => $movement->settlement_payment_status,
+            'settlement_payment_status_label' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_LABELS[$movement->settlement_payment_status] ?? null,
+            'settlement_qr_url' => DecimalMoney::isPositive($remainingAmount)
+                ? VietQRHelper::generateLink(null, null, null, $remainingAmount, $movement->transfer_code)
+                : null,
+        ];
+    }
+
+    private function settlementPaymentSplit(RoomMovement $movement, string $depositDueAmount): array
+    {
+        $references = collect($movement->settlement_payment_references ?? []);
+        $depositPaidAmount = DecimalMoney::add($references->pluck('deposit_amount')->all());
+        $extraPaidAmount = DecimalMoney::add($references->pluck('extra_amount')->all());
+
+        if (DecimalMoney::isPositive($depositPaidAmount) || DecimalMoney::isPositive($extraPaidAmount)) {
+            return [
+                'deposit_paid_amount' => $depositPaidAmount,
+                'extra_paid_amount' => $extraPaidAmount,
+            ];
+        }
+
+        $paidAmount = $movement->settlement_paid_amount === null ? '0.00' : (string) $movement->settlement_paid_amount;
+        $inferredDepositPaidAmount = DecimalMoney::min($paidAmount, $depositDueAmount);
+
+        return [
+            'deposit_paid_amount' => $inferredDepositPaidAmount,
+            'extra_paid_amount' => DecimalMoney::maxZero(DecimalMoney::subtract($paidAmount, $inferredDepositPaidAmount)),
         ];
     }
 

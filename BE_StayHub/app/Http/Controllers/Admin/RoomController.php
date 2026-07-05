@@ -373,11 +373,13 @@ class RoomController extends Controller
 
         $this->assertScheduleIsAllowed($admin, $tenantIds, $sourceContract, $fromRoom, $toRoom, $movementDate);
         $this->assertNoPendingTransfers($tenantIds);
+        $this->assertNoPendingTransferForSourceContract((int) $sourceContract->id);
 
         $transferCode = $this->generateTransferCode($movementDate);
         $payload = $this->scheduledPayload($validated, $tenantIds, $movementDate, $toRoom);
         $movements = $this->createPendingMovements($transferCode, $sourceContract, $fromRoom, $toRoom, $activeRows, $payload, $admin);
-        $notifications = $this->createTransferScheduledNotifications($movements, $sourceContract, $toRoom, $admin);
+        $notifications = $this->createTransferScheduledNotifications($movements, $sourceContract, $toRoom, $admin)
+            ->merge($this->createDueUtilityCutoffNotifications($movements, $sourceContract, $fromRoom, $admin));
 
         AdminActivityLogger::write(
             $admin,
@@ -535,17 +537,42 @@ class RoomController extends Controller
         }
     }
 
+    private function assertNoPendingTransferForSourceContract(int $sourceContractId): void
+    {
+        $hasPendingTransfer = RoomMovement::query()
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->where('source_contract_id', $sourceContractId)
+            ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED])
+            ->exists();
+
+        if ($hasPendingTransfer) {
+            throw ValidationException::withMessages(['tenant_ids' => 'Hợp đồng/phòng cũ đã có lịch chuyển phòng đang chờ quyết toán. Vui lòng xử lý lịch đó trước.']);
+        }
+    }
+
     private function hasUnpaidOldDebt(Contract $contract, Carbon $movementDate): bool
     {
+        $finalInvoiceCutoffDate = $movementDate->copy()->subDay();
+
         return Invoice::query()
             ->where('contract_id', $contract->id)
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIALLY_PAID, Invoice::STATUS_OVERDUE])
-            ->where(function ($query) use ($movementDate): void {
+            ->where(function ($query) use ($movementDate, $finalInvoiceCutoffDate): void {
                 $query->where('billing_year', '<', $movementDate->year)
                     ->orWhere(function ($sameYearQuery) use ($movementDate): void {
                         $sameYearQuery->where('billing_year', $movementDate->year)
                             ->where('billing_month', '<', $movementDate->month);
                     });
+
+                if ($finalInvoiceCutoffDate->year !== $movementDate->year || $finalInvoiceCutoffDate->month !== $movementDate->month) {
+                    return;
+                }
+
+                $query->orWhere(function ($sameMonthFinalQuery) use ($finalInvoiceCutoffDate): void {
+                    $sameMonthFinalQuery->where('billing_year', $finalInvoiceCutoffDate->year)
+                        ->where('billing_month', $finalInvoiceCutoffDate->month)
+                        ->whereDate('period_end', $finalInvoiceCutoffDate->toDateString());
+                });
             })
             ->exists();
     }
@@ -638,6 +665,55 @@ class RoomController extends Controller
             'status' => Notification::STATUS_SENT,
             'created_by' => $admin->id,
         ]));
+    }
+
+    private function createDueUtilityCutoffNotifications(Collection $movements, Contract $sourceContract, Room $fromRoom, Admin $admin): Collection
+    {
+        $movement = $movements->first();
+        $movementDate = Carbon::parse($movement->movement_date)->startOfDay();
+        $cutoffDate = $movementDate->copy()->subDay();
+
+        if ($cutoffDate->isFuture()) {
+            return collect();
+        }
+
+        return collect([$this->createUtilityCutoffNotification($movement, $sourceContract, $fromRoom, $admin, $movementDate, $cutoffDate)]);
+    }
+
+    private function createUtilityCutoffNotification(RoomMovement $movement, Contract $sourceContract, Room $fromRoom, Admin $admin, Carbon $movementDate, Carbon $cutoffDate): Notification
+    {
+        $actionUrl = $this->utilityCutoffActionUrl($movement, $sourceContract, $fromRoom, $movementDate, $cutoffDate);
+
+        return Notification::query()->firstOrCreate(
+            [
+                'title' => 'Cần chốt điện nước chuyển phòng',
+                'action_url' => $actionUrl,
+            ],
+            [
+                'content' => "Phòng {$fromRoom->room_number} có lịch chuyển phòng {$movement->transfer_code} ngày {$movementDate->format('d/m/Y')}. Vui lòng nhập chỉ số điện/nước đến ngày {$cutoffDate->format('d/m/Y')} và lập hóa đơn cuối cho hợp đồng cũ {$sourceContract->contract_code}.",
+                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                'target_type' => Notification::TARGET_TYPE_ADMIN,
+                'building_id' => $fromRoom->building_id,
+                'room_id' => $fromRoom->id,
+                'tenant_id' => null,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => $admin->id,
+            ]
+        );
+    }
+
+    private function utilityCutoffActionUrl(RoomMovement $movement, Contract $sourceContract, Room $fromRoom, Carbon $movementDate, Carbon $cutoffDate): string
+    {
+        return '/admin/meter-readings?'.http_build_query([
+            'building_id' => $fromRoom->building_id,
+            'billing_month' => $cutoffDate->month,
+            'billing_year' => $cutoffDate->year,
+            'room_id' => $fromRoom->id,
+            'contract_id' => $sourceContract->id,
+            'cutoff_date' => $cutoffDate->toDateString(),
+            'transfer_code' => $movement->transfer_code,
+        ]);
     }
 
     private function broadcastNotifications(Collection $notifications): void

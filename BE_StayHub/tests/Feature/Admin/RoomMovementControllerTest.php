@@ -106,6 +106,8 @@ class RoomMovementControllerTest extends TestCase
             'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_TRANSFER_OUT,
         ]);
 
+        $this->createPaidFinalInvoice($oldContract, $fromRoom, $admin, Carbon::parse($movementDate)->subDay()->toDateString(), 'INV-FINAL-OLD-MOVE');
+
         $this->artisan('room-transfers:execute-scheduled', ['--date' => $movementDate, '--code' => $transferCode])
             ->assertExitCode(0);
 
@@ -339,6 +341,8 @@ class RoomMovementControllerTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
+        $this->createPaidFinalInvoice($oldContract, $fromRoom, $admin, now('Asia/Ho_Chi_Minh')->copy()->subDay()->toDateString(), 'INV-FINAL-METER-GUARD');
+
         $response = $this->actingAs($admin, 'admin')
             ->postJson('/api/v1/admin/room-transfers/tenant', [
                 'tenant_id' => $tenant->id,
@@ -413,6 +417,8 @@ class RoomMovementControllerTest extends TestCase
 
         $response->assertStatus(201);
         $transferCode = (string) $response->json('result.transfer_code');
+
+        $this->createPaidFinalInvoice($oldContract, $fromRoom, $admin, Carbon::parse($movementDate)->subDay()->toDateString(), 'INV-FINAL-VEHICLE-MOVE');
 
         $this->artisan('room-transfers:execute-scheduled', ['--date' => $movementDate, '--code' => $transferCode])
             ->assertExitCode(0);
@@ -521,6 +527,8 @@ class RoomMovementControllerTest extends TestCase
         ]);
         $movement = RoomMovement::create($this->movementPayload($tenant, $contract, $fromRoom, $toRoom, $admin, 'TRF-2026-07-TODAY', '2026-07-20', RoomMovement::STATUS_PENDING));
 
+        $this->createPaidFinalInvoice($contract, $fromRoom, $admin, '2026-07-09', 'INV-FINAL-RESCHEDULE-TODAY');
+
         $response = $this->actingAs($admin, 'admin')->patchJson("/api/v1/admin/room-movements/{$movement->id}/transfer-date", [
             'movement_date' => '2026-07-10',
         ]);
@@ -566,6 +574,263 @@ class RoomMovementControllerTest extends TestCase
             'movement_date' => '2026-07-09',
         ])->assertStatus(422)
             ->assertJsonPath('message', 'Ngày chuyển phòng không được nhỏ hơn ngày hiện tại.');
+    }
+
+    public function test_admin_can_record_full_cash_payment_for_transfer_extra_charge_only(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-10 09:00:00', 'Asia/Ho_Chi_Minh'));
+        Event::fake([NotificationSent::class]);
+
+        $admin = $this->createAdmin('super_cash_extra', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa thu tiền mặt', 'toa-thu-tien-mat');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'C101', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'C102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_cash_extra');
+        $sourceContract = $this->createContract($fromRoom, $admin, 'HD-CASH-EXTRA-SOURCE');
+        $destinationContract = $this->createContract($toRoom, $admin, 'HD-CASH-EXTRA-DEST');
+
+        $movement = RoomMovement::create(array_merge(
+            $this->movementPayload($tenant, $sourceContract, $fromRoom, $toRoom, $admin, 'TRF-CASH-EXTRA-001', '2026-07-10', RoomMovement::STATUS_EXECUTED),
+            [
+                'contract_id' => $destinationContract->id,
+                'destination_contract_id' => $destinationContract->id,
+                'transfer_fee' => '200000.00',
+                'deduction_amount' => '300000.00',
+                'extra_charge_amount' => '500000.00',
+                'settlement_due_amount' => '500000.00',
+                'settlement_paid_amount' => '0.00',
+                'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+                'settlement_payment_references' => [],
+                'executed_at' => '2026-07-10 09:30:00',
+            ]
+        ));
+
+        $response = $this->actingAs($admin, 'admin')->postJson("/api/v1/admin/room-movements/{$movement->id}/settlement-cash-payment", [
+            'note' => 'Thu đủ tại quầy lễ tân',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('result.movement.settlement_payment_status', RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID)
+            ->assertJsonPath('result.reference.amount', '500000.00')
+            ->assertJsonPath('result.reference.deposit_amount', '0.00')
+            ->assertJsonPath('result.reference.extra_amount', '500000.00')
+            ->assertJsonPath('result.reference.payment_method', ContractDepositTransaction::PAYMENT_METHOD_CASH)
+            ->assertJsonPath('result.reference.collected_by', $admin->id)
+            ->assertJsonPath('result.reference.note', 'Thu đủ tại quầy lễ tân');
+
+        $movement->refresh();
+        $this->assertSame('500000.00', (string) $movement->settlement_paid_amount);
+        $this->assertSame(RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID, (int) $movement->settlement_payment_status);
+        $this->assertSame('500000.00', $movement->settlement_payment_references[0]['extra_amount']);
+        $this->assertSame(ContractDepositTransaction::PAYMENT_METHOD_CASH, $movement->settlement_payment_references[0]['payment_method']);
+
+        $this->assertDatabaseMissing('contract_deposit_transactions', [
+            'contract_id' => $destinationContract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+        ]);
+        Event::assertDispatched(NotificationSent::class, 2);
+    }
+
+    public function test_admin_cash_transfer_payment_splits_deposit_and_extra_charge(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00', 'Asia/Ho_Chi_Minh'));
+        Event::fake([NotificationSent::class]);
+
+        $admin = $this->createAdmin('super_cash_split', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa thu tách khoản', 'toa-thu-tach-khoan');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'S101', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'S102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_cash_split');
+        $sourceContract = $this->createContract($fromRoom, $admin, 'HD-CASH-SPLIT-SOURCE');
+        $destinationContract = Contract::create([
+            'contract_code' => 'HD-CASH-SPLIT-DEST',
+            'room_id' => $toRoom->id,
+            'start_date' => '2026-07-10',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $admin->id,
+        ]);
+
+        $movement = RoomMovement::create(array_merge(
+            $this->movementPayload($tenant, $sourceContract, $fromRoom, $toRoom, $admin, 'TRF-CASH-SPLIT-001', '2026-07-10', RoomMovement::STATUS_EXECUTED),
+            [
+                'contract_id' => $destinationContract->id,
+                'destination_contract_id' => $destinationContract->id,
+                'transfer_fee' => '200000.00',
+                'deduction_amount' => '300000.00',
+                'deposit_due_amount' => '3000000.00',
+                'extra_charge_amount' => '500000.00',
+                'settlement_due_amount' => '3500000.00',
+                'settlement_paid_amount' => '0.00',
+                'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+                'settlement_payment_references' => [],
+                'executed_at' => '2026-07-10 10:30:00',
+            ]
+        ));
+
+        $response = $this->actingAs($admin, 'admin')->postJson("/api/v1/admin/room-movements/{$movement->id}/settlement-cash-payment");
+
+        $response->assertOk()
+            ->assertJsonPath('result.reference.amount', '3500000.00')
+            ->assertJsonPath('result.reference.deposit_amount', '3000000.00')
+            ->assertJsonPath('result.reference.extra_amount', '500000.00')
+            ->assertJsonPath('result.reference.payment_method', ContractDepositTransaction::PAYMENT_METHOD_CASH);
+
+        $this->assertDatabaseHas('contract_deposit_transactions', [
+            'contract_id' => $destinationContract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => '3000000.00',
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_CASH,
+            'created_by' => $admin->id,
+        ]);
+
+        $movement->refresh();
+        $this->assertSame('3500000.00', (string) $movement->settlement_paid_amount);
+        $this->assertSame(RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID, (int) $movement->settlement_payment_status);
+        $this->assertSame('3000000.00', $movement->settlement_payment_references[0]['deposit_amount']);
+        $this->assertSame('500000.00', $movement->settlement_payment_references[0]['extra_amount']);
+        Event::assertDispatched(NotificationSent::class, 2);
+    }
+
+    public function test_only_destination_building_admin_or_super_admin_can_collect_transfer_cash_payment(): void
+    {
+        $sourceAdmin = $this->createAdmin('source_cash_manager', Admin::ROLE_BUILDING_MANAGER);
+        $destinationAdmin = $this->createAdmin('destination_cash_manager', Admin::ROLE_BUILDING_MANAGER);
+        $sourceBuilding = $this->createBuilding($sourceAdmin, 'Tòa nguồn thu tiền', 'toa-nguon-thu-tien');
+        $destinationBuilding = $this->createBuilding($destinationAdmin, 'Tòa đích thu tiền', 'toa-dich-thu-tien');
+        $roomType = $this->createRoomType($sourceAdmin);
+        $fromRoom = $this->createRoom($sourceBuilding, $roomType, $sourceAdmin, 'P101', 1);
+        $toRoom = $this->createRoom($destinationBuilding, $roomType, $destinationAdmin, 'P201', 0);
+        $tenant = $this->createTenant($sourceAdmin, $sourceBuilding, 'tenant_cash_permission');
+        $sourceContract = $this->createContract($fromRoom, $sourceAdmin, 'HD-CASH-PERMISSION-SOURCE');
+        $destinationContract = $this->createContract($toRoom, $destinationAdmin, 'HD-CASH-PERMISSION-DEST');
+
+        $movement = RoomMovement::create(array_merge(
+            $this->movementPayload($tenant, $sourceContract, $fromRoom, $toRoom, $sourceAdmin, 'TRF-CASH-PERMISSION-001', '2026-07-10', RoomMovement::STATUS_EXECUTED),
+            [
+                'contract_id' => $destinationContract->id,
+                'destination_contract_id' => $destinationContract->id,
+                'extra_charge_amount' => '500000.00',
+                'settlement_due_amount' => '500000.00',
+                'settlement_paid_amount' => '0.00',
+                'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+                'settlement_payment_references' => [],
+                'executed_at' => '2026-07-10 09:00:00',
+            ]
+        ));
+
+        $this->actingAs($sourceAdmin, 'admin')->postJson("/api/v1/admin/room-movements/{$movement->id}/settlement-cash-payment")
+            ->assertStatus(403)
+            ->assertJsonPath('message', 'Chỉ admin của tòa nhà phòng đến hoặc super admin mới được thu tiền mặt chuyển phòng');
+
+        $movement->refresh();
+        $this->assertSame('0.00', (string) $movement->settlement_paid_amount);
+        $this->assertSame(RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING, (int) $movement->settlement_payment_status);
+
+        $this->actingAs($destinationAdmin, 'admin')->postJson("/api/v1/admin/room-movements/{$movement->id}/settlement-cash-payment")
+            ->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('result.reference.amount', '500000.00')
+            ->assertJsonPath('result.reference.collected_by', $destinationAdmin->id);
+    }
+
+    public function test_admin_cash_transfer_payment_rejects_client_amount_payload(): void
+    {
+        $admin = $this->createAdmin('super_cash_amount', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa chặn nhập số tiền', 'toa-chan-nhap-so-tien');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'A301', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'A302', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_cash_amount');
+        $sourceContract = $this->createContract($fromRoom, $admin, 'HD-CASH-AMOUNT-SOURCE');
+        $destinationContract = $this->createContract($toRoom, $admin, 'HD-CASH-AMOUNT-DEST');
+
+        $movement = RoomMovement::create(array_merge(
+            $this->movementPayload($tenant, $sourceContract, $fromRoom, $toRoom, $admin, 'TRF-CASH-AMOUNT-001', '2026-07-10', RoomMovement::STATUS_EXECUTED),
+            [
+                'contract_id' => $destinationContract->id,
+                'destination_contract_id' => $destinationContract->id,
+                'extra_charge_amount' => '500000.00',
+                'settlement_due_amount' => '500000.00',
+                'settlement_paid_amount' => '0.00',
+                'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+                'settlement_payment_references' => [],
+                'executed_at' => '2026-07-10 09:00:00',
+            ]
+        ));
+
+        $this->actingAs($admin, 'admin')->postJson("/api/v1/admin/room-movements/{$movement->id}/settlement-cash-payment", [
+            'amount' => 100000,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Số tiền thu chuyển phòng được hệ thống tự tính, không được gửi từ giao diện.');
+
+        $movement->refresh();
+        $this->assertSame('0.00', (string) $movement->settlement_paid_amount);
+        $this->assertSame(RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING, (int) $movement->settlement_payment_status);
+    }
+
+    public function test_admin_cash_transfer_payment_rejects_invalid_transfer_states(): void
+    {
+        $admin = $this->createAdmin('super_cash_invalid', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa chặn thu tiền mặt', 'toa-chan-thu-tien-mat');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'I101', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'I102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_cash_invalid');
+        $sourceContract = $this->createContract($fromRoom, $admin, 'HD-CASH-INVALID-SOURCE');
+        $destinationContract = $this->createContract($toRoom, $admin, 'HD-CASH-INVALID-DEST');
+
+        $pendingMovement = RoomMovement::create(array_merge(
+            $this->movementPayload($tenant, $sourceContract, $fromRoom, $toRoom, $admin, 'TRF-CASH-PENDING-001', '2026-07-20', RoomMovement::STATUS_PENDING),
+            [
+                'destination_contract_id' => $destinationContract->id,
+                'settlement_due_amount' => '500000.00',
+                'settlement_paid_amount' => '0.00',
+                'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+            ]
+        ));
+
+        $this->actingAs($admin, 'admin')->postJson("/api/v1/admin/room-movements/{$pendingMovement->id}/settlement-cash-payment")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Chỉ được thu tiền cho lịch chuyển phòng đã thực thi');
+
+        $paidMovement = RoomMovement::create(array_merge(
+            $this->movementPayload($tenant, $sourceContract, $fromRoom, $toRoom, $admin, 'TRF-CASH-PAID-001', '2026-07-10', RoomMovement::STATUS_EXECUTED),
+            [
+                'destination_contract_id' => $destinationContract->id,
+                'settlement_due_amount' => '500000.00',
+                'settlement_paid_amount' => '500000.00',
+                'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+                'executed_at' => '2026-07-10 09:00:00',
+            ]
+        ));
+
+        $this->actingAs($admin, 'admin')->postJson("/api/v1/admin/room-movements/{$paidMovement->id}/settlement-cash-payment")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Khoản chuyển phòng đã được thanh toán đủ');
+
+        $missingDestinationMovement = RoomMovement::create(array_merge(
+            $this->movementPayload($tenant, $sourceContract, $fromRoom, $toRoom, $admin, 'TRF-CASH-NO-DEST-001', '2026-07-10', RoomMovement::STATUS_EXECUTED),
+            [
+                'destination_contract_id' => null,
+                'deposit_due_amount' => '3000000.00',
+                'settlement_due_amount' => '3000000.00',
+                'settlement_paid_amount' => '0.00',
+                'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+                'executed_at' => '2026-07-10 09:00:00',
+            ]
+        ));
+
+        $this->actingAs($admin, 'admin')->postJson("/api/v1/admin/room-movements/{$missingDestinationMovement->id}/settlement-cash-payment")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Không tìm thấy hợp đồng đích để ghi nhận cọc chuyển phòng');
     }
 
     private function createAdmin(string $username, int $role): Admin
@@ -659,6 +924,27 @@ class RoomMovementControllerTest extends TestCase
             'room_price' => '3500000.00',
             'deposit_amount' => '0.00',
             'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $admin->id,
+        ]);
+    }
+
+    private function createPaidFinalInvoice(Contract $contract, Room $room, Admin $admin, string $cutoffDate, string $invoiceCode): Invoice
+    {
+        $cutoff = Carbon::parse($cutoffDate)->startOfDay();
+
+        return Invoice::create([
+            'invoice_code' => $invoiceCode,
+            'contract_id' => $contract->id,
+            'room_id' => $room->id,
+            'billing_month' => $cutoff->month,
+            'billing_year' => $cutoff->year,
+            'period_start' => $cutoff->copy()->startOfMonth()->toDateString(),
+            'period_end' => $cutoff->toDateString(),
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '0.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '0.00',
+            'status' => Invoice::STATUS_PAID,
             'created_by' => $admin->id,
         ]);
     }

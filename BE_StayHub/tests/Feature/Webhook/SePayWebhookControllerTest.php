@@ -346,6 +346,99 @@ class SePayWebhookControllerTest extends TestCase
         Event::assertDispatched(NotificationSent::class);
     }
 
+    public function test_sepay_webhook_splits_transfer_payment_between_deposit_and_extra_charge(): void
+    {
+        Config::set('services.sepay.webhook_token', 'test-token-123');
+        Event::fake([ContractDepositPaid::class, NotificationSent::class]);
+
+        $room = $this->contract->room()->with('building')->firstOrFail();
+        $tenant = Tenant::create([
+            'username' => 'transfer_split_tenant',
+            'full_name' => 'Transfer Split Tenant',
+            'email' => 'transfer-split-tenant@stayhub.local',
+            'phone' => '0912222444',
+            'password' => bcrypt('password'),
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '123123123124',
+            'date_of_birth' => '2000-01-01',
+            'building_id' => $room->building_id,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $destinationContract = Contract::create([
+            'contract_code' => 'HD-TRANSFER-SPLIT',
+            'room_id' => $room->id,
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => 3500000,
+            'deposit_amount' => 3000000,
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomMovement::create([
+            'transfer_code' => 'TRF-2026-07-0002',
+            'tenant_id' => $tenant->id,
+            'contract_id' => $destinationContract->id,
+            'source_contract_id' => $this->contract->id,
+            'destination_contract_id' => $destinationContract->id,
+            'from_room_id' => $room->id,
+            'to_room_id' => $room->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_EXECUTED,
+            'movement_date' => '2026-07-01 00:00:00',
+            'old_room_final_amount' => '4000000.00',
+            'transfer_fee' => '200000.00',
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '300000.00',
+            'manual_refund_amount' => '0.00',
+            'deposit_due_amount' => '3000000.00',
+            'extra_charge_amount' => '500000.00',
+            'settlement_due_amount' => '3500000.00',
+            'settlement_paid_amount' => '0.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PENDING,
+            'settlement_payment_references' => [],
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->postJson('/api/v1/sepay-webhook', [
+            'id' => 100002,
+            'gateway' => 'MBBank',
+            'amount' => 3500000,
+            'transferType' => 'in',
+            'content' => 'Thanh toan TRF-2026-07-0002',
+            'code' => 'FT-TRF-SPLIT-001',
+        ], [
+            'Authorization' => 'Apikey test-token-123'
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => true,
+                'message' => 'Xử lý thanh toán chuyển phòng thành công.'
+            ]);
+
+        $this->assertDatabaseHas('contract_deposit_transactions', [
+            'contract_id' => $destinationContract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => '3000000.00',
+            'transaction_reference' => 'FT-TRF-SPLIT-001',
+        ]);
+
+        $movement = RoomMovement::query()->where('transfer_code', 'TRF-2026-07-0002')->firstOrFail();
+        $this->assertSame('3500000.00', (string) $movement->settlement_paid_amount);
+        $this->assertSame(RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID, $movement->settlement_payment_status);
+        $this->assertSame('3000000.00', $movement->settlement_payment_references[0]['deposit_amount']);
+        $this->assertSame('500000.00', $movement->settlement_payment_references[0]['extra_amount']);
+
+        Event::assertDispatched(ContractDepositPaid::class);
+        Event::assertDispatched(NotificationSent::class);
+    }
+
     private function createTenantForContract(Contract $contract, string $suffix): Tenant
     {
         $tenant = Tenant::create([

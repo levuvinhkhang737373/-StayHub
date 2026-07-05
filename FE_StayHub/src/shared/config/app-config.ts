@@ -33,11 +33,7 @@ function resolveReverbPort(): number {
   if (window.location.hostname === 'stayhub.id.vn' || window.location.hostname === 'www.stayhub.id.vn') {
     return 443
   }
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return window.location.port ? Number(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80)
-  }
-
-  return 8009
+  return window.location.port ? Number(window.location.port) : 8080
 }
 
 export const appConfig = {

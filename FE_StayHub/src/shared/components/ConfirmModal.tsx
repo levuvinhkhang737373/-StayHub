@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, HelpCircle, Info, Trash2, X } from "lucide-react";
+import { AlertTriangle, Info, Trash2, X } from "lucide-react";
 import { cn } from "../lib/utils/cn";
 
 export interface ConfirmModalProps {

@@ -98,6 +98,7 @@ export function InvoicesScreen() {
   const [currentPage, setCurrentPage] = useState(1)
   const [paginationMeta, setPaginationMeta] = useState<ReturnType<typeof normalizeInvoices>['meta']>(null)
   const [invoices, setInvoices] = useState<AdminInvoiceResource[]>([])
+  const [stats, setStats] = useState<{ total_unpaid: number; total_paid: number; total_count: number } | null>(null)
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [rooms, setRooms] = useState<RoomOption[]>([])
   const [contracts, setContracts] = useState<AdminContractResource[]>([])
@@ -153,7 +154,7 @@ export function InvoicesScreen() {
   }, [successMessage, errorMessage])
 
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
-  const filterBuildingOptions = useMemo(() => [{ value: '', label: isSuperAdmin ? 'Tất cả tòa nhà' : 'Tòa nhà được phân quyền', tone: 'default' as const }, ...buildingOptions], [buildingOptions, isSuperAdmin])
+  const filterBuildingOptions = useMemo(() => isSuperAdmin ? [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingOptions] : buildingOptions, [buildingOptions, isSuperAdmin])
   const roomOptions = useMemo(
     () => rooms.map((room) => ({ value: room.id, label: `Phòng ${room.room_number || room.id}`, tone: 'default' as const })),
     [rooms]
@@ -238,6 +239,10 @@ export function InvoicesScreen() {
       const { data, meta } = normalizeInvoices(response.result)
       setInvoices(data)
       setPaginationMeta(meta)
+
+      if (response.result && 'stats' in response.result) {
+        setStats((response.result as any).stats)
+      }
 
       if (meta?.last_page && currentPage > meta.last_page) {
         setCurrentPage(meta.last_page)
@@ -369,10 +374,10 @@ export function InvoicesScreen() {
             </button>
           </div>
 
-          <div className="relative mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard label="Tổng hóa đơn" value={metrics.total} tone="neutral" />
-            <MetricCard label="Còn phải thu/trang" value={metrics.unpaid} tone="amber" />
-            <MetricCard label="Đã thanh toán/trang" value={metrics.paid} tone="emerald" />
+          <div className="relative mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <MetricCard label="Tổng hóa đơn" value={stats?.total_count ?? metrics.total} tone="neutral" />
+            <MetricCard label="Còn phải thu" value={stats?.total_unpaid ?? 0} tone="amber" />
+            <MetricCard label="Đã thanh toán" value={stats?.total_paid ?? 0} tone="emerald" />
           </div>
         </div>
       </section>

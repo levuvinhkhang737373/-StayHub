@@ -7,7 +7,6 @@ use App\Models\Building;
 use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
@@ -181,7 +180,7 @@ class TenantContractSigningTest extends TestCase
         ]);
     }
 
-    public function test_tenant_signing_transfer_contract_issues_prorated_new_room_invoice(): void
+    public function test_tenant_signing_transfer_contract_does_not_issue_separate_new_room_invoice(): void
     {
         $oldRoom = Room::create([
             'building_id' => $this->building->id,
@@ -255,26 +254,10 @@ class TenantContractSigningTest extends TestCase
 
         $response->assertStatus(200);
 
-        $invoice = Invoice::query()->where('contract_id', $this->contract->id)->first();
+        $this->assertSame(0, Invoice::query()->where('contract_id', $this->contract->id)->count());
 
-        $this->assertNotNull($invoice);
-        $this->assertSame(6, $invoice->billing_month);
-        $this->assertSame(2026, $invoice->billing_year);
-        $this->assertSame('2026-06-16', $invoice->period_start->toDateString());
-        $this->assertSame('2026-06-30', $invoice->period_end->toDateString());
-        $this->assertSame('1800000.00', (string) $invoice->total_amount);
-        $this->assertSame(Invoice::STATUS_UNPAID, (int) $invoice->status);
-
-        $this->assertDatabaseHas('invoice_items', [
-            'invoice_id' => $invoice->id,
-            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
-            'unit_price' => '3600000.00',
-            'amount' => '1800000.00',
-        ]);
-
-        $this->assertDatabaseHas('notifications', [
+        $this->assertDatabaseMissing('notifications', [
             'title' => 'Hóa đơn phòng mới đã được phát hành',
-            'target_type' => \App\Models\Notification::TARGET_TYPE_TENANT,
             'room_id' => $this->room->id,
             'tenant_id' => $this->tenant->id,
         ]);

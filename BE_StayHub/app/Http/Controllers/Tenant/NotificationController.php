@@ -35,30 +35,26 @@ class NotificationController extends Controller
             $buildingId = $currentRoom?->building_id ?? $tenant->building_id;
             $roomId = $currentRoom?->id ?? $tenant->room_id;
             $joinDate = $currentRoomRelation?->join_date ? \Illuminate\Support\Carbon::parse($currentRoomRelation->join_date)->startOfDay() : null;
+            $tenantCreatedAt = \Illuminate\Support\Carbon::parse($tenant->created_at)->startOfDay();
+            $dateLimit = $joinDate && $joinDate->greaterThan($tenantCreatedAt) ? $joinDate : $tenantCreatedAt;
 
             // Truy vấn các thông báo phù hợp với phạm vi của khách thuê
             $notifications = Notification::query()
                 ->where('status', Notification::STATUS_SENT)
-                ->where(function ($q) use ($tenant, $buildingId, $roomId, $joinDate) {
-                    $q->where(function ($sub) use ($joinDate) {
-                          $sub->where('target_type', Notification::TARGET_TYPE_ALL);
-                          if ($joinDate) {
-                              $sub->where('published_at', '>=', $joinDate);
-                          }
+                ->where(function ($q) use ($tenant, $buildingId, $roomId, $dateLimit) {
+                    $q->where(function ($sub) use ($dateLimit) {
+                          $sub->where('target_type', Notification::TARGET_TYPE_ALL)
+                              ->where('published_at', '>=', $dateLimit);
                       })
-                      ->orWhere(function ($sub) use ($buildingId, $joinDate) {
+                      ->orWhere(function ($sub) use ($buildingId, $dateLimit) {
                           $sub->where('target_type', Notification::TARGET_TYPE_BUILDING)
-                              ->where('building_id', $buildingId);
-                          if ($joinDate) {
-                              $sub->where('published_at', '>=', $joinDate);
-                          }
+                              ->where('building_id', $buildingId)
+                              ->where('published_at', '>=', $dateLimit);
                       })
-                      ->orWhere(function ($sub) use ($roomId, $joinDate) {
+                      ->orWhere(function ($sub) use ($roomId, $dateLimit) {
                           $sub->where('target_type', Notification::TARGET_TYPE_ROOM)
-                              ->where('room_id', $roomId);
-                          if ($joinDate) {
-                              $sub->where('published_at', '>=', $joinDate);
-                          }
+                              ->where('room_id', $roomId)
+                              ->where('published_at', '>=', $dateLimit);
                       })
                       ->orWhere(function ($sub) use ($tenant) {
                           $sub->where('target_type', Notification::TARGET_TYPE_TENANT)
@@ -143,30 +139,26 @@ class NotificationController extends Controller
             $buildingId = $currentRoom?->building_id ?? $tenant->building_id;
             $roomId = $currentRoom?->id ?? $tenant->room_id;
             $joinDate = $currentRoomRelation?->join_date ? \Illuminate\Support\Carbon::parse($currentRoomRelation->join_date)->startOfDay() : null;
+            $tenantCreatedAt = \Illuminate\Support\Carbon::parse($tenant->created_at)->startOfDay();
+            $dateLimit = $joinDate && $joinDate->greaterThan($tenantCreatedAt) ? $joinDate : $tenantCreatedAt;
 
             // Tìm toàn bộ danh sách thông báo chưa đọc của tenant
             $notificationIds = Notification::query()
                 ->where('status', Notification::STATUS_SENT)
-                ->where(function ($q) use ($tenant, $buildingId, $roomId, $joinDate) {
-                    $q->where(function ($sub) use ($joinDate) {
-                          $sub->where('target_type', Notification::TARGET_TYPE_ALL);
-                          if ($joinDate) {
-                              $sub->where('published_at', '>=', $joinDate);
-                          }
+                ->where(function ($q) use ($tenant, $buildingId, $roomId, $dateLimit) {
+                    $q->where(function ($sub) use ($dateLimit) {
+                          $sub->where('target_type', Notification::TARGET_TYPE_ALL)
+                              ->where('published_at', '>=', $dateLimit);
                       })
-                      ->orWhere(function ($sub) use ($buildingId, $joinDate) {
+                      ->orWhere(function ($sub) use ($buildingId, $dateLimit) {
                           $sub->where('target_type', Notification::TARGET_TYPE_BUILDING)
-                              ->where('building_id', $buildingId);
-                          if ($joinDate) {
-                              $sub->where('published_at', '>=', $joinDate);
-                          }
+                              ->where('building_id', $buildingId)
+                              ->where('published_at', '>=', $dateLimit);
                       })
-                      ->orWhere(function ($sub) use ($roomId, $joinDate) {
+                      ->orWhere(function ($sub) use ($roomId, $dateLimit) {
                           $sub->where('target_type', Notification::TARGET_TYPE_ROOM)
-                              ->where('room_id', $roomId);
-                          if ($joinDate) {
-                              $sub->where('published_at', '>=', $joinDate);
-                          }
+                              ->where('room_id', $roomId)
+                              ->where('published_at', '>=', $dateLimit);
                       })
                       ->orWhere(function ($sub) use ($tenant) {
                           $sub->where('target_type', Notification::TARGET_TYPE_TENANT)

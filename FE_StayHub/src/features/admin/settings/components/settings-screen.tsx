@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
-import { Link } from 'react-router-dom'
+
 import { Edit3, Eye, Plus, RefreshCw, Search, Settings, Trash2, X, Power } from 'lucide-react'
 import { formatDate } from '../../../../shared/lib/utils/format'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -127,7 +127,12 @@ export function SettingsScreen() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const buildingItems = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
-  const filterBuildingOptions = useMemo(() => [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingItems], [buildingItems])
+  const filterBuildingOptions = useMemo(
+    () => isSuperAdmin
+      ? [{ value: '', label: 'Tất cả tòa nhà', tone: 'default' as const }, ...buildingItems]
+      : buildingItems,
+    [buildingItems, isSuperAdmin]
+  )
   const formBuildingOptions = useMemo(() => isSuperAdmin ? [{ value: '', label: 'Dùng chung toàn hệ thống', tone: 'warning' as const }, ...buildingItems] : buildingItems, [buildingItems, isSuperAdmin])
   const allowedBuildingIds = useMemo(() => buildings.map((building) => Number(building.id)), [buildings])
   const hasManagedBuildings = isSuperAdmin || buildings.length > 0
@@ -160,6 +165,10 @@ export function SettingsScreen() {
 
       setSettings(nextSettings)
       setBuildings(visibleBuildings)
+      
+      if (!isSuperAdmin && !selectedBuildingId && visibleBuildings[0]?.id) {
+        setSelectedBuildingId(String(visibleBuildings[0].id))
+      }
 
       if (!isSuperAdmin && visibleBuildings.length === 1) {
         setForm((current) => ({ ...current, building_id: current.building_id || String(visibleBuildings[0].id) }))
@@ -341,7 +350,7 @@ export function SettingsScreen() {
 
   const clearFilters = () => {
     setKeyword('')
-    setSelectedBuildingId('')
+    setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
     setSelectedPublic('')
   }
 

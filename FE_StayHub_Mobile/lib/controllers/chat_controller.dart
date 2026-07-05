@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart' as dio;
 import '../models/chat.dart';
 import '../services/api_service.dart';
 
@@ -102,17 +104,18 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> sendTenantMessage(String body) async {
-    await _sendMessage('/tenant/chat/messages', body, isTenant: true);
+  Future<void> sendTenantMessage(String body, {List<File>? images}) async {
+    await _sendMessage('/tenant/chat/messages', body, isTenant: true, images: images);
   }
 
-  Future<void> sendAdminMessage(int conversationId, String body) async {
-    await _sendMessage('/admin/chat/conversations/$conversationId/messages', body, isTenant: false);
+  Future<void> sendAdminMessage(int conversationId, String body, {List<File>? images}) async {
+    await _sendMessage('/admin/chat/conversations/$conversationId/messages', body, isTenant: false, images: images);
   }
 
-  Future<void> _sendMessage(String path, String body, {required bool isTenant}) async {
+  Future<void> _sendMessage(String path, String body, {required bool isTenant, List<File>? images}) async {
     final trimmed = body.trim();
-    if (trimmed.isEmpty || _isSending) return;
+    if (trimmed.isEmpty && (images == null || images.isEmpty)) return;
+    if (_isSending) return;
 
     final optimistic = ChatMessage(
       id: DateTime.now().microsecondsSinceEpoch * -1,
@@ -123,6 +126,7 @@ class ChatController extends ChangeNotifier {
       body: trimmed,
       createdAt: DateTime.now().toIso8601String(),
       optimistic: true,
+      attachments: images != null ? images.map((img) => img.path).toList() : const [],
     );
 
     _messages = [..._messages, optimistic];
@@ -131,9 +135,29 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      dynamic postData;
+      if (images != null && images.isNotEmpty) {
+        final formData = dio.FormData();
+        if (trimmed.isNotEmpty) {
+          formData.fields.add(MapEntry('body', trimmed));
+        }
+        for (final img in images) {
+          formData.files.add(MapEntry(
+            'images[]',
+            await dio.MultipartFile.fromFile(
+              img.path,
+              filename: img.path.split('/').last,
+            ),
+          ));
+        }
+        postData = formData;
+      } else {
+        postData = {'body': trimmed};
+      }
+
       final response = await _apiService.post<Map<String, dynamic>>(
         path,
-        data: {'body': trimmed},
+        data: postData,
         fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
       );
       final result = response.result;

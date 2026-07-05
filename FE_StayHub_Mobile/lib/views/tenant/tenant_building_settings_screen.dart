@@ -20,6 +20,42 @@ class _TenantBuildingSettingsScreenState extends State<TenantBuildingSettingsScr
     _fetchSettings();
   }
 
+  List<Map<String, dynamic>> _groupSettings(List<Map<String, dynamic>> rawSettings) {
+    final Map<String, Map<String, dynamic>> grouped = {};
+    
+    for (final item in rawSettings) {
+      final label = item['setting_label'] ?? 'Cấu hình';
+      final value = item['setting_value'] ?? '';
+      final description = item['description'] ?? '';
+      final buildingName = item['building_name'];
+      
+      if (!grouped.containsKey(label)) {
+        grouped[label] = {
+          'setting_label': label,
+          'description': description,
+          'values': <Map<String, dynamic>>[],
+        };
+      }
+      
+      final existingDesc = grouped[label]!['description'] as String;
+      if (existingDesc.isEmpty) {
+        grouped[label]!['description'] = description;
+      } else if (description.isNotEmpty && !existingDesc.contains(description)) {
+        grouped[label]!['description'] = '$existingDesc\n$description';
+      }
+      
+      final List<Map<String, dynamic>> valuesList = List<Map<String, dynamic>>.from(grouped[label]!['values'] as List);
+      valuesList.add({
+        'value': value,
+        'building_name': buildingName,
+        'is_global': buildingName == null,
+      });
+      grouped[label]!['values'] = valuesList;
+    }
+    
+    return grouped.values.toList();
+  }
+
   Future<void> _fetchSettings() async {
     if (!mounted) return;
     setState(() {
@@ -37,9 +73,10 @@ class _TenantBuildingSettingsScreenState extends State<TenantBuildingSettingsScr
       if (response.status && response.result != null) {
         if (mounted) {
           setState(() {
-            _settings = response.result!
+            final raw = response.result!
                 .map((item) => Map<String, dynamic>.from(item as Map))
                 .toList();
+            _settings = _groupSettings(raw);
             _isLoading = false;
           });
         }
@@ -187,10 +224,8 @@ class _TenantBuildingSettingsScreenState extends State<TenantBuildingSettingsScr
       itemBuilder: (context, index) {
         final setting = _settings[index];
         final label = setting['setting_label'] ?? 'Cấu hình';
-        final value = setting['setting_value'] ?? '';
         final description = setting['description'] ?? 'Chưa có mô tả chi tiết.';
-        final buildingName = setting['building_name'];
-        final isGlobal = buildingName == null;
+        final values = List<Map<String, dynamic>>.from(setting['values'] ?? []);
         
         final icon = _getIconForLabel(label);
         final color = _getColorForLabel(label);
@@ -221,34 +256,13 @@ class _TenantBuildingSettingsScreenState extends State<TenantBuildingSettingsScr
                     ),
                     const SizedBox(width: 14),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            label,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1C1917),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isGlobal ? const Color(0xFFE7E5E4) : const Color(0xFFFEF08A),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              isGlobal ? 'Hệ thống chung' : buildingName,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: isGlobal ? const Color(0xFF57534E) : const Color(0xFF854D0E),
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1C1917),
+                        ),
                       ),
                     ),
                   ],
@@ -263,17 +277,52 @@ class _TenantBuildingSettingsScreenState extends State<TenantBuildingSettingsScr
                     letterSpacing: 1.0,
                   ),
                 ),
-                const SizedBox(height: 6),
-                SelectableText(
-                  value,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: color,
-                  ),
+                const SizedBox(height: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: values.map<Widget>((valEntry) {
+                    final valText = valEntry['value'] ?? '';
+                    final bName = valEntry['building_name'];
+                    final isGlob = valEntry['is_global'] == true;
+                    
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: SelectableText(
+                              valText,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: color,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isGlob ? const Color(0xFFE7E5E4) : const Color(0xFFFEF08A),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              isGlob ? 'Hệ thống chung' : bName,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isGlob ? const Color(0xFF57534E) : const Color(0xFF854D0E),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
                 if (description.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   const Text(
                     'MÔ TẢ / HƯỚNG DẪN',
                     style: TextStyle(

@@ -1,36 +1,120 @@
 import 'tenant.dart';
 import 'room.dart';
 
-double _toDouble(dynamic value) => double.tryParse(value?.toString() ?? '0') ?? 0.0;
+double _toDouble(dynamic value) =>
+    double.tryParse(value?.toString() ?? '0') ?? 0.0;
+int? _toNullableInt(dynamic value) =>
+    value == null ? null : int.tryParse(value.toString());
 
 class TransferSettlement {
   final String transferCode;
+  final double depositDueAmount;
+  final double depositPaidAmount;
+  final double depositRemainingAmount;
+  final double extraChargeAmount;
+  final double extraPaidAmount;
+  final double extraRemainingAmount;
+  final double transferFee;
+  final double deductionAmount;
+  final double depositTransferAmount;
+  final double depositRefundAmount;
+  final double manualRefundAmount;
   final double settlementDueAmount;
   final double settlementPaidAmount;
   final double settlementRemainingAmount;
+  final int? settlementPaymentStatus;
+  final String? settlementPaymentStatusLabel;
+  final String? settlementQrUrl;
 
   const TransferSettlement({
     required this.transferCode,
+    required this.depositDueAmount,
+    required this.depositPaidAmount,
+    required this.depositRemainingAmount,
+    required this.extraChargeAmount,
+    required this.extraPaidAmount,
+    required this.extraRemainingAmount,
+    required this.transferFee,
+    required this.deductionAmount,
+    required this.depositTransferAmount,
+    required this.depositRefundAmount,
+    required this.manualRefundAmount,
     required this.settlementDueAmount,
     required this.settlementPaidAmount,
     required this.settlementRemainingAmount,
+    this.settlementPaymentStatus,
+    this.settlementPaymentStatusLabel,
+    this.settlementQrUrl,
   });
 
   factory TransferSettlement.fromJson(Map<String, dynamic> json) {
+    final settlementDueAmount = _toDouble(json['settlement_due_amount']);
+    final settlementPaidAmount = _toDouble(json['settlement_paid_amount']);
+    final settlementRemainingAmount = _toDouble(
+      json['settlement_remaining_amount'],
+    );
+    final depositDueAmount = _toDouble(json['deposit_due_amount']);
+    final depositPaidAmount = _toDouble(json['deposit_paid_amount']);
+    final explicitDepositRemainingAmount =
+        json.containsKey('deposit_remaining_amount')
+        ? _toDouble(json['deposit_remaining_amount'])
+        : (depositDueAmount - depositPaidAmount)
+              .clamp(0.0, double.infinity)
+              .toDouble();
+    final extraChargeAmount = _toDouble(json['extra_charge_amount']);
+    final extraPaidAmount = _toDouble(json['extra_paid_amount']);
+    final explicitExtraRemainingAmount =
+        json.containsKey('extra_remaining_amount')
+        ? _toDouble(json['extra_remaining_amount'])
+        : (extraChargeAmount - extraPaidAmount)
+              .clamp(0.0, double.infinity)
+              .toDouble();
+
     return TransferSettlement(
       transferCode: json['transfer_code'] as String? ?? '',
-      settlementDueAmount: _toDouble(json['settlement_due_amount']),
-      settlementPaidAmount: _toDouble(json['settlement_paid_amount']),
-      settlementRemainingAmount: _toDouble(json['settlement_remaining_amount']),
+      depositDueAmount: depositDueAmount,
+      depositPaidAmount: depositPaidAmount,
+      depositRemainingAmount: explicitDepositRemainingAmount,
+      extraChargeAmount: extraChargeAmount,
+      extraPaidAmount: extraPaidAmount,
+      extraRemainingAmount: explicitExtraRemainingAmount,
+      transferFee: _toDouble(json['transfer_fee']),
+      deductionAmount: _toDouble(json['deduction_amount']),
+      depositTransferAmount: _toDouble(json['deposit_transfer_amount']),
+      depositRefundAmount: _toDouble(json['deposit_refund_amount']),
+      manualRefundAmount: _toDouble(json['manual_refund_amount']),
+      settlementDueAmount: settlementDueAmount,
+      settlementPaidAmount: settlementPaidAmount,
+      settlementRemainingAmount: settlementRemainingAmount,
+      settlementPaymentStatus: _toNullableInt(
+        json['settlement_payment_status'],
+      ),
+      settlementPaymentStatusLabel:
+          json['settlement_payment_status_label'] as String?,
+      settlementQrUrl: json['settlement_qr_url'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'transfer_code': transferCode,
+      'deposit_due_amount': depositDueAmount,
+      'deposit_paid_amount': depositPaidAmount,
+      'deposit_remaining_amount': depositRemainingAmount,
+      'extra_charge_amount': extraChargeAmount,
+      'extra_paid_amount': extraPaidAmount,
+      'extra_remaining_amount': extraRemainingAmount,
+      'transfer_fee': transferFee,
+      'deduction_amount': deductionAmount,
+      'deposit_transfer_amount': depositTransferAmount,
+      'deposit_refund_amount': depositRefundAmount,
+      'manual_refund_amount': manualRefundAmount,
       'settlement_due_amount': settlementDueAmount,
       'settlement_paid_amount': settlementPaidAmount,
       'settlement_remaining_amount': settlementRemainingAmount,
+      'settlement_payment_status': settlementPaymentStatus,
+      'settlement_payment_status_label': settlementPaymentStatusLabel,
+      'settlement_qr_url': settlementQrUrl,
     };
   }
 }
@@ -56,7 +140,8 @@ class Contract {
   final double roomPrice;
   final double depositAmount;
   final double depositDueAmount;
-  final int status; // 1: Active, 2: Expired, 3: Liquidated, 4: Cancelled, 0: Draft/Pending
+  final int
+  status; // 1: Active, 2: Expired, 3: Liquidated, 4: Cancelled, 0: Draft/Pending
   final List<String>? contractFiles;
   final String? note;
   final int? createdBy;
@@ -66,13 +151,13 @@ class Contract {
   final Room? room;
   final String? tenantSignedAt;
   final String? tenantSignatureUrl;
-  
+
   // Negotiation fields
   final int? negotiationStatus;
   final double? proposedRoomPrice;
   final List<dynamic>? proposedServices;
   final List<dynamic>? roomServices;
-  
+
   // Payment fields
   final bool isDepositPaid;
   final int? paymentStatus;
@@ -120,11 +205,21 @@ class Contract {
   // Alias fields for backward compatibility
   int get tenantId => representativeTenantId;
   double get rentalPrice => roomPrice;
-  bool get hasTransferSettlementDue => transferSettlement != null && transferSettlement!.settlementRemainingAmount > 0;
-  double get paymentDueAmount => hasTransferSettlementDue ? transferSettlement!.settlementRemainingAmount : depositDueAmount;
-  String get paymentReferenceCode => hasTransferSettlementDue && transferSettlement!.transferCode.isNotEmpty
+  bool get hasTransferSettlementDue =>
+      transferSettlement != null &&
+      transferSettlement!.settlementRemainingAmount > 0;
+  double get paymentDueAmount => hasTransferSettlementDue
+      ? transferSettlement!.settlementRemainingAmount
+      : depositDueAmount;
+  String get paymentReferenceCode =>
+      hasTransferSettlementDue && transferSettlement!.transferCode.isNotEmpty
       ? transferSettlement!.transferCode
       : 'COC $contractCode';
+  String? get paymentQrUrl =>
+      hasTransferSettlementDue &&
+          transferSettlement?.settlementQrUrl?.isNotEmpty == true
+      ? transferSettlement!.settlementQrUrl
+      : depositQrUrl;
 
   factory Contract.fromJson(Map<String, dynamic> json) {
     // Deserialize contract files if present (handling Map list from API)
@@ -142,9 +237,13 @@ class Contract {
     }
 
     final depositAmountValue = _toDouble(json['deposit_amount']);
-    final isDepositPaidValue = json['is_deposit_paid'] == true || json['is_deposit_paid'] == 1;
-    final transferSettlement = json['transfer_settlement'] is Map<String, dynamic>
-        ? TransferSettlement.fromJson(json['transfer_settlement'] as Map<String, dynamic>)
+    final isDepositPaidValue =
+        json['is_deposit_paid'] == true || json['is_deposit_paid'] == 1;
+    final transferSettlement =
+        json['transfer_settlement'] is Map<String, dynamic>
+        ? TransferSettlement.fromJson(
+            json['transfer_settlement'] as Map<String, dynamic>,
+          )
         : null;
 
     return Contract(
@@ -152,7 +251,10 @@ class Contract {
       contractCode: json['contract_code'] as String? ?? '',
       roomId: json['room_id'] as int? ?? 0,
       roomNumber: json['room_number'] as String? ?? '',
-      representativeTenantId: json['representative_tenant_id'] as int? ?? json['tenant_id'] as int? ?? 0,
+      representativeTenantId:
+          json['representative_tenant_id'] as int? ??
+          json['tenant_id'] as int? ??
+          0,
       tenantName: json['tenant_name'] as String? ?? '',
       startDate: json['start_date'] as String? ?? '',
       endDate: json['end_date'] as String?,
@@ -160,7 +262,9 @@ class Contract {
       billingCycleDay: json['billing_cycle_day'] as int? ?? 1,
       roomPrice: json['room_price'] != null
           ? _toDouble(json['room_price'])
-          : (json['rental_price'] != null ? _toDouble(json['rental_price']) : 0.0),
+          : (json['rental_price'] != null
+                ? _toDouble(json['rental_price'])
+                : 0.0),
       depositAmount: depositAmountValue,
       depositDueAmount: json['deposit_due_amount'] != null
           ? _toDouble(json['deposit_due_amount'])
@@ -172,13 +276,19 @@ class Contract {
       roomCode: json['room_code'] as String?,
       representativeName: json['representative_name'] as String?,
       representativeTenant: json['representative_tenant'] != null
-          ? Tenant.fromJson(json['representative_tenant'] as Map<String, dynamic>)
+          ? Tenant.fromJson(
+              json['representative_tenant'] as Map<String, dynamic>,
+            )
           : null,
-      room: json['room'] != null ? Room.fromJson(json['room'] as Map<String, dynamic>) : null,
+      room: json['room'] != null
+          ? Room.fromJson(json['room'] as Map<String, dynamic>)
+          : null,
       tenantSignedAt: json['tenant_signed_at'] as String?,
       tenantSignatureUrl: json['tenant_signature_url'] as String?,
       negotiationStatus: json['negotiation_status'] as int?,
-      proposedRoomPrice: json['proposed_room_price'] != null ? _toDouble(json['proposed_room_price']) : null,
+      proposedRoomPrice: json['proposed_room_price'] != null
+          ? _toDouble(json['proposed_room_price'])
+          : null,
       proposedServices: json['proposed_services'] as List<dynamic>?,
       roomServices: json['room_services'] as List<dynamic>?,
       isDepositPaid: isDepositPaidValue,
