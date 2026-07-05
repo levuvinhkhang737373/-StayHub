@@ -1107,9 +1107,7 @@ export function MeterReadingsScreen() {
                   <h2 className="mt-1 text-lg font-black tracking-tight text-[#24170d]">
                     Có {transferFinalizationRooms.length} phòng/hợp đồng cần nhập điện nước và lập hóa đơn cuối trước ngày chuyển.
                   </h2>
-                  <p className="mt-1.5 text-sm font-bold leading-6 text-[#6f6254]">
-                    Backend chỉ cho execute lịch chuyển khi hóa đơn cũ đã được lập đúng ngày cắt và thanh toán xong. Bấm từng dòng để chốt số, sau đó lập hóa đơn chốt.
-                  </p>
+
                 </div>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[360px]">
@@ -1272,8 +1270,8 @@ export function MeterReadingsScreen() {
                                 room.should_finalize_before_transfer
                                   ? 'bg-amber-600 text-white hover:bg-amber-700 focus:ring-amber-200 shadow-sm shadow-amber-900/10'
                                   : (isChotElec && isChotWater)
-                                  ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15 focus:ring-[#3d2a18]/10'
-                                  : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] focus:ring-[#24170d]/20 shadow-sm shadow-[#24170d]/10'
+                                    ? 'border border-[#3d2a18]/10 bg-white/80 text-[#8b5e34] hover:bg-[#f3c56b]/15 focus:ring-[#3d2a18]/10'
+                                    : 'bg-[#24170d] text-[#fff4df] hover:bg-[#3d2a18] focus:ring-[#24170d]/20 shadow-sm shadow-[#24170d]/10'
                               )}
                             >
                               {(isChotElec && isChotWater) ? (
