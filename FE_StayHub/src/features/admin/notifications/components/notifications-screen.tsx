@@ -362,21 +362,40 @@ export function NotificationsScreen() {
           {/* Main List */}
           <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
             <div className="border-b border-[#3d2a18]/10 bg-[#fff7e8]/72 p-4 sm:p-5">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <AdminSelect value={selectedTargetType} options={filterTargetTypeOptions} onChange={(val) => setSelectedTargetType(String(val))} />
-                <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} onChange={(val) => setSelectedBuildingId(String(val))} />
-                <div className="relative min-w-0">
-                  <AdminSelect value={selectedStatus} options={filterStatusOptions} onChange={(val) => setSelectedStatus(String(val))} />
-                  {(selectedStatus || selectedTargetType || selectedBuildingId) && (
-                    <button 
-                      type="button" 
-                      onClick={clearFilters} 
-                      className="absolute -right-2 -top-1 inline-flex h-6 items-center justify-center gap-1 rounded-full bg-rose-100 px-2 text-[10px] font-black text-rose-700 hover:bg-rose-200"
-                    >
-                      Xóa bộ lọc
-                    </button>
-                  )}
-                </div>
+              <div className="flex flex-wrap items-center gap-3">
+                      <div className="min-w-[220px] flex-1">
+                        <AdminSelect
+                          value={selectedTargetType}
+                          options={filterTargetTypeOptions}
+                          onChange={(val) => setSelectedTargetType(String(val))}
+                        />
+                      </div>
+
+                      <div className="min-w-[220px] flex-1">
+                        <AdminSelect
+                          value={selectedBuildingId}
+                          options={filterBuildingOptions}
+                          onChange={(val) => setSelectedBuildingId(String(val))}
+                        />
+                      </div>
+
+                      <div className="min-w-[220px] flex-1">
+                        <AdminSelect
+                          value={selectedStatus}
+                          options={filterStatusOptions}
+                          onChange={(val) => setSelectedStatus(String(val))}
+                        />
+                      </div>
+
+                      {(selectedStatus || selectedTargetType || selectedBuildingId) && (
+                        <button
+                          type="button"
+                          onClick={clearFilters}
+                          className="inline-flex h-10 items-center justify-center rounded-xl bg-rose-100 px-4 text-sm font-black text-rose-700 transition hover:bg-rose-200"
+                        >
+                          Xóa bộ lọc
+                        </button>
+                      )}
               </div>
             </div>
 
