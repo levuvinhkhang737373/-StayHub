@@ -130,17 +130,39 @@ export function InvoicePreviewModal({ invoice, isIssuing, onClose, onConfirm }: 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8">
-                  {items.map((item, index) => (
-                    <tr key={`${item.item_type}-${item.description}-${index}`} className="text-[#24170d]">
-                      <td className="px-4 py-3">
-                        <p className="font-black">{item.description}</p>
-                        <p className="mt-1 text-xs font-bold text-[#8b5e34]/65">{item.item_type_label || item.service_name || 'Khoản thu'}</p>
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold tabular-nums">{item.quantity}</td>
-                      <td className="px-4 py-3 text-right font-bold tabular-nums">{formatCurrency(item.unit_price)}</td>
-                      <td className={cn('px-4 py-3 text-right font-black tabular-nums', Number(item.amount) < 0 ? 'text-rose-600' : 'text-[#0f766e]')}>{formatCurrency(item.amount)}</td>
-                    </tr>
-                  ))}
+                  {items.map((item, index) => {
+                    const q = Number(item.quantity) || 0
+                    const up = Number(item.unit_price) || 0
+                    const amt = Number(item.amount) || 0
+                    const expected = q * up
+                    const isProrated = q > 0 && up > 0 && Math.abs(expected - amt) > 1
+
+                    const displayQuantity = isProrated ? 1 : q
+                    const displayUnitPrice = isProrated ? amt : up
+
+                    return (
+                      <tr key={`${item.item_type}-${item.description}-${index}`} className="text-[#24170d]">
+                        <td className="px-4 py-3">
+                          <p className="font-black">{item.description}</p>
+                          <p className="mt-1 text-xs font-bold text-[#8b5e34]/65">{item.item_type_label || item.service_name || 'Khoản thu'}</p>
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold tabular-nums">
+                          {displayQuantity}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold tabular-nums">
+                          <div className="font-black text-[#24170d]">{formatCurrency(displayUnitPrice)}</div>
+                          {isProrated && (
+                            <div className="text-[10px] text-stone-500/85 font-medium leading-4">
+                              Gốc: {formatCurrency(expected)}/tháng
+                            </div>
+                          )}
+                        </td>
+                        <td className={cn('px-4 py-3 text-right font-black tabular-nums', Number(item.amount) < 0 ? 'text-rose-600' : 'text-[#0f766e]')}>
+                          {formatCurrency(item.amount)}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

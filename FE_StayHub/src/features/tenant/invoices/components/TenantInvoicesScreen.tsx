@@ -603,38 +603,56 @@ export function TenantInvoicesScreen() {
                         </tr>
                       </thead>
                       <tbody>
-                        {detailInvoice.items?.map((item) => (
-                          <tr key={item.id} className="border-b border-[#3d2a18]/5 last:border-0 hover:bg-slate-50 transition-colors font-bold text-[#24170d]">
-                            <td className="p-3 max-w-[200px]">
-                              <div>{item.description}</div>
-                              {item.item_type_label && (
-                                <span className="text-[10px] text-[#8b5e34]/60 bg-[#3d2a18]/5 px-1.5 py-0.5 rounded-md font-bold mt-1 inline-block">
-                                  {item.item_type_label}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-3 text-right text-[#8b5e34]">{Number(item.quantity)}</td>
-                            <td className="p-3 text-right text-[#8b5e34]">{formatMoney(item.unit_price)}</td>
-                            <td className="p-3 text-right font-black">
-                              {formatMoney(item.amount)}
-                            </td>
-                            <td className="p-3 text-right">
-                              {item.meter_reading?.image_url ? (
-                                <a
-                                  href={item.meter_reading.image_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#eab308]/35 bg-[#eab308]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8a5a00] transition hover:bg-[#eab308]/20"
-                                  title={`Cũ: ${item.meter_reading.previous_reading} · Mới: ${item.meter_reading.current_reading} · Dùng: ${item.meter_reading.consumption}`}
-                                >
-                                  <Camera className="h-3.5 w-3.5" /> Xem ảnh
-                                </a>
-                              ) : (
-                                <span className="text-[10px] font-bold text-slate-300">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                        {detailInvoice.items?.map((item) => {
+                          const q = Number(item.quantity) || 0
+                          const up = Number(item.unit_price) || 0
+                          const amt = Number(item.amount) || 0
+                          const expected = q * up
+                          const isProrated = q > 0 && up > 0 && Math.abs(expected - amt) > 1
+
+                          const displayQuantity = isProrated ? 1 : q
+                          const displayUnitPrice = isProrated ? amt : up
+
+                          return (
+                            <tr key={item.id} className="border-b border-[#3d2a18]/5 last:border-0 hover:bg-slate-50 transition-colors font-bold text-[#24170d]">
+                              <td className="p-3 max-w-[200px]">
+                                <div>{item.description}</div>
+                                {item.item_type_label && (
+                                  <span className="text-[10px] text-[#8b5e34]/60 bg-[#3d2a18]/5 px-1.5 py-0.5 rounded-md font-bold mt-1 inline-block">
+                                    {item.item_type_label}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right text-[#8b5e34]">{displayQuantity}</td>
+                              <td className="p-3 text-right text-[#8b5e34]">
+                                <div className="font-black text-[#24170d]">{formatMoney(displayUnitPrice)}</div>
+                                {isProrated && (
+                                  <div className="text-[10px] text-stone-500/85 font-medium leading-4">
+                                    Gốc: {formatMoney(expected)}/tháng
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-right font-black">
+                                {formatMoney(item.amount)}
+                              </td>
+                              <td className="p-3 text-right">
+                                {item.meter_reading?.image_url ? (
+                                  <a
+                                    href={item.meter_reading.image_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#eab308]/35 bg-[#eab308]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8a5a00] transition hover:bg-[#eab308]/20"
+                                    title={`Cũ: ${item.meter_reading.previous_reading} · Mới: ${item.meter_reading.current_reading} · Dùng: ${item.meter_reading.consumption}`}
+                                  >
+                                    <Camera className="h-3.5 w-3.5" /> Xem ảnh
+                                  </a>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-slate-300">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
