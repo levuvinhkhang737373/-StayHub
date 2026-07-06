@@ -892,7 +892,39 @@ function InvoiceDetailModal({ invoice, isLoading, isSaving, onClose, onCancel, o
             <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]"><tr><th className="px-4 py-3">Khoản mục</th><th className="px-4 py-3">SL</th><th className="px-4 py-3">Đơn giá</th><th className="px-4 py-3 text-right">Thành tiền</th></tr></thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-white/65">
-                {(invoice.items || []).map((item) => <tr key={item.id}><td className="px-4 py-3 font-black text-[#24170d]"><p>{item.description}</p><p className="font-bold text-[#8b5e34]/70">{item.item_type_label}</p></td><td className="px-4 py-3 font-bold">{item.quantity}</td><td className="px-4 py-3 font-bold">{formatCurrency(item.unit_price)}</td><td className="px-4 py-3 text-right font-black">{formatCurrency(item.amount)}</td></tr>)}
+                {(invoice.items || []).map((item) => {
+                  const q = Number(item.quantity) || 0
+                  const up = Number(item.unit_price) || 0
+                  const amt = Number(item.amount) || 0
+                  const expected = q * up
+                  const isProrated = q > 0 && up > 0 && Math.abs(expected - amt) > 1
+
+                  const displayQuantity = isProrated ? 1 : q
+                  const displayUnitPrice = isProrated ? amt : up
+
+                  return (
+                    <tr key={item.id}>
+                      <td className="px-4 py-3 font-black text-[#24170d]">
+                        <p>{item.description}</p>
+                        <p className="font-bold text-[#8b5e34]/70">{item.item_type_label}</p>
+                      </td>
+                      <td className="px-4 py-3 font-bold">
+                        {displayQuantity}
+                      </td>
+                      <td className="px-4 py-3 font-bold">
+                        <div className="font-black text-[#24170d]">{formatCurrency(displayUnitPrice)}</div>
+                        {isProrated && (
+                          <div className="text-[10px] text-stone-500/85 font-medium leading-4">
+                            Gốc: {formatCurrency(expected)}/tháng
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black">
+                        {formatCurrency(item.amount)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
