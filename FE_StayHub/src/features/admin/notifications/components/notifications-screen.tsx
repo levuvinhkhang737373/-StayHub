@@ -327,7 +327,7 @@ export function NotificationsScreen() {
               <button 
                 type="button" 
                 onClick={openCreateForm} 
-                className="inline-flex w-fit self-end xl:self-auto h-9 items-center justify-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]"
+                className="inline-flex w-full sm:w-fit justify-center h-9 items-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]"
               >
                 <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm thông báo
               </button>
@@ -437,37 +437,68 @@ export function NotificationsScreen() {
                         }
                         navigate(link);
                       }}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#3d2a18]/10 bg-white hover:border-[#f3c56b]/40 cursor-pointer hover:bg-stone-50/50 transition"
+                      className="group flex flex-col justify-between gap-4 rounded-2xl border border-[#3d2a18]/10 bg-white p-4 sm:p-5 hover:border-[#f3c56b]/40 cursor-pointer hover:bg-stone-50/50 transition sm:flex-row sm:items-center"
                     >
-                      <div className="min-w-0 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 text-stone-600">
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 text-stone-600">
                             {notificationTypeLabels[notif.notification_type] || 'Hệ thống'}
                           </span>
-                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[#f3c56b]/15 text-[#8a4f18]">
+                          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[#f3c56b]/15 text-[#8a4f18]">
                             Mục tiêu: {targetTypeLabels[notif.target_type] || 'Tất cả'}
                           </span>
                           <StatusBadge status={notif.status} label={notif.status_label || statusLabels[notif.status]} />
                         </div>
 
-                        <h3 className="text-base font-black text-[#24170d]">{notif.title}</h3>
-                        <p className="text-xs text-[#6f6254] font-medium whitespace-pre-wrap">{notif.content}</p>
+                        <div className="space-y-1">
+                          <h3 className="text-sm sm:text-base font-black text-[#24170d] leading-snug">{notif.title}</h3>
+                          <p className="text-xs text-[#6f6254] font-medium leading-relaxed whitespace-pre-wrap">{notif.content}</p>
+                        </div>
 
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1.5 text-[10px] font-bold text-stone-500">
-                          {notif.building_name && (
-                            <span className="flex items-center gap-1"><Building className="h-3 w-3" /> Tòa: {notif.building_name}</span>
-                          )}
-                          {notif.room_number && (
-                            <span className="flex items-center gap-1"><Building className="h-3 w-3" /> Phòng: {notif.room_number}</span>
-                          )}
-                          {notif.tenant_name && (
-                            <span className="flex items-center gap-1"><User className="h-3 w-3" /> Khách: {notif.tenant_name}</span>
-                          )}
-                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Ngày tạo: {formatDateTime(notif.created_at)}</span>
+                        <div className="border-t border-stone-100 pt-2 mt-2 sm:border-0 sm:pt-0 sm:mt-0">
+                          {/* Desktop metadata */}
+                          <div className="hidden sm:flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold text-stone-500">
+                            {notif.building_name && (
+                              <span className="flex items-center gap-1"><Building className="h-3 w-3" /> Tòa: {notif.building_name}</span>
+                            )}
+                            {notif.room_number && (
+                              <span className="flex items-center gap-1"><Building className="h-3 w-3" /> Phòng: {notif.room_number}</span>
+                            )}
+                            {notif.tenant_name && (
+                              <span className="flex items-center gap-1"><User className="h-3 w-3" /> Khách: {notif.tenant_name}</span>
+                            )}
+                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Ngày tạo: {formatDateTime(notif.created_at)}</span>
+                          </div>
+
+                          {/* Mobile metadata grid */}
+                          <div className="block sm:hidden grid grid-cols-2 gap-2.5 text-[10px] font-semibold text-stone-500">
+                            {notif.building_name && (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-[#8b5e34]/70">Tòa nhà</span>
+                                <span className="font-bold text-[#24170d] truncate">{notif.building_name}</span>
+                              </div>
+                            )}
+                            {notif.room_number && (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-[#8b5e34]/70">Phòng ở</span>
+                                <span className="font-bold text-[#24170d] truncate">Phòng {notif.room_number}</span>
+                              </div>
+                            )}
+                            {notif.tenant_name && (
+                              <div className="flex flex-col gap-0.5 col-span-2 border-t border-stone-100/60 pt-1.5 mt-0.5">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-[#8b5e34]/70">Khách thuê</span>
+                                <span className="font-bold text-[#24170d] truncate">{notif.tenant_name}</span>
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-0.5 col-span-2 border-t border-stone-100/60 pt-1.5 mt-0.5">
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-[#8b5e34]/70">Ngày gửi</span>
+                              <span className="font-bold text-[#24170d]">{formatDateTime(notif.created_at)}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex gap-2 self-end sm:self-center">
+                      <div className="flex gap-2 self-end sm:self-center shrink-0 border-t border-stone-100 w-full pt-3 justify-end sm:border-0 sm:w-auto sm:pt-0">
                         {notif.status !== 2 && (
                           <button 
                             type="button" 
@@ -475,11 +506,11 @@ export function NotificationsScreen() {
                               e.stopPropagation();
                               openEditForm(notif);
                             }}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95"
                             title="Sửa bản nháp"
                             aria-label={`Sửa bản nháp thông báo ${notif.title}`}
                           >
-                            <Edit3 className="h-5 w-5" />
+                            <Edit3 className="h-4.5 w-4.5" />
                           </button>
                         )}
                         <button 
@@ -488,11 +519,11 @@ export function NotificationsScreen() {
                             e.stopPropagation();
                             void handleDelete(notif.id);
                           }}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95"
                           title="Xóa thông báo"
                           aria-label={`Xóa thông báo ${notif.title}`}
                         >
-                          <Trash2 className="h-5 w-5" />
+                          <Trash2 className="h-4.5 w-4.5" />
                         </button>
                       </div>
                     </div>

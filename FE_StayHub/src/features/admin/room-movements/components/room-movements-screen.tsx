@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowRightLeft, Banknote, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowRightLeft, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -45,8 +45,8 @@ const perPageOptions = [
   { value: 100, label: '100 dòng', tone: 'default' as const },
 ]
 
-const tableHeadCellClass = 'whitespace-nowrap px-5 py-4 align-middle'
-const tableBodyCellClass = 'whitespace-nowrap px-5 py-4 align-middle'
+const tableHeadCellClass = 'whitespace-nowrap px-3 py-3.5 align-middle text-[9.5px]'
+const tableBodyCellClass = 'whitespace-nowrap px-3 py-3.5 align-middle text-[12.5px]'
 
 export function RoomMovementsScreen() {
   const { session } = useAdminSession()
@@ -353,9 +353,9 @@ export function RoomMovementsScreen() {
 
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left">
-              <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+              <thead className="bg-[#24170d] text-[9.5px] font-black uppercase tracking-[0.12em] text-[#f8e8c8]">
                 <tr>
-                  <th scope="col" className={cn(tableHeadCellClass, 'pl-5')}>Thời điểm</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'pl-4')}>Thời điểm</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Mã lịch</th>
                   <th scope="col" className={tableHeadCellClass}>Khách thuê</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Luồng phòng</th>
@@ -364,7 +364,7 @@ export function RoomMovementsScreen() {
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Quyết toán</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Hợp đồng</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Người xử lý</th>
-                  <th scope="col" className={cn(tableHeadCellClass, 'pr-5 text-right')}>Chi tiết</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'pr-4 text-right')}>Chi tiết</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -378,8 +378,8 @@ export function RoomMovementsScreen() {
 
                 {!isLoading && movements.map((movement) => (
                   <tr key={movement.id} className="group transition hover:bg-[#f3c56b]/10">
-                    <td className={cn(tableBodyCellClass, 'pl-5 text-[13px] font-black text-[#24170d]')}>
-                      <div className="flex items-start gap-2">
+                    <td className={cn(tableBodyCellClass, 'pl-4 text-[13px] font-black text-[#24170d]')}>
+                      <div className="flex items-start gap-1.5">
                         <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5e34]" />
                         {(() => {
                           const dateTimeStr = formatDateTime(movement.movement_date)
@@ -390,16 +390,16 @@ export function RoomMovementsScreen() {
                           return (
                             <div className="flex flex-col leading-tight">
                               <span className="whitespace-nowrap tabular-nums text-[13px] font-black text-[#24170d]">{date}</span>
-                              {time && <span className="mt-0.5 whitespace-nowrap tabular-nums text-[11px] font-bold text-[#8b5e34]">{time}</span>}
+                              {time && <span className="mt-0.5 whitespace-nowrap tabular-nums text-[10.5px] font-bold text-[#8b5e34]">{time}</span>}
                             </div>
                           )
                         })()}
                       </div>
                     </td>
                     <td className={cn(tableBodyCellClass, 'text-center text-[12px] font-black text-[#24170d]')}>
-                      <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.transfer_code || '—'}</span>
+                      <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-2.5 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.transfer_code || '—'}</span>
                     </td>
-                    <td className={tableBodyCellClass}>
+                    <td className={cn(tableBodyCellClass, 'max-w-[140px]')}>
                       <p className="truncate text-[13px] font-black leading-5 text-[#24170d]" title={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}>{movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`}</p>
                       <p className="mt-1 truncate text-[11px] font-bold text-[#6f6254]" title={movement.tenant?.phone || movement.tenant?.email || '—'}>{movement.tenant?.phone || movement.tenant?.email || '—'}</p>
                     </td>
@@ -414,10 +414,14 @@ export function RoomMovementsScreen() {
                     <td className={cn(tableBodyCellClass, 'text-center text-[12px] font-black text-[#24170d]')}>
                       <span className="inline-flex whitespace-nowrap rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-3 py-1 text-[11px] font-black leading-4 text-[#3d2a18]">{movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')}</span>
                     </td>
-                    <td className={cn(tableBodyCellClass, 'text-center truncate text-[12px] font-black leading-5 text-[#6f6254]')} title={movement.creator_name || '—'}>{movement.creator_name || '—'}</td>
-                    <td className={cn(tableBodyCellClass, 'pr-5 text-right')}>
-                      <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
-                        <Eye className="h-5 w-5" />
+                    <td className={cn(tableBodyCellClass, 'text-center text-[12px] font-black text-[#6f6254]')}>
+                      <p className="max-w-[110px] truncate mx-auto" title={movement.creator_name || '—'}>
+                        {movement.creator_name || '—'}
+                      </p>
+                    </td>
+                    <td className={cn(tableBodyCellClass, 'pr-4 text-right')}>
+                      <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
+                        <Eye className="h-4.5 w-4.5" />
                       </button>
                     </td>
                   </tr>
@@ -562,11 +566,11 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
       <button type="button" aria-label="Đóng chi tiết lịch sử" onClick={onClose} className="absolute inset-0 bg-[#120b06]/75 backdrop-blur-sm" />
-      <aside className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-[#f3c56b]/25 bg-[#fffaf1] shadow-2xl shadow-black/30">
+      <aside className="relative z-10 max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] border border-[#f3c56b]/25 bg-[#fffaf1] shadow-2xl shadow-black/30">
         <div className="sticky top-0 z-10 rounded-t-[2rem] bg-[#24170d] p-5 text-[#fff4df] shadow-xl shadow-black/15">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Chi tiết ledger</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Chi tiết biến động</p>
               <h2 id="room-movement-detail-title" className="mt-2 text-2xl font-black tracking-tight">{movement.tenant?.full_name || movement.tenant?.username || `Khách #${movement.tenant_id}`}</h2>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-[#f8e8c8]/78">
                 <span>{formatDateTime(movement.movement_date)} · {movement.movement_type_label || 'Biến động phòng'}</span>
@@ -579,119 +583,116 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
           </div>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="space-y-4 p-4 lg:p-5">
           {isLoading && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">Đang tải chi tiết...</div>}
           {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
-          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Lịch chuyển</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <DetailTile label="Mã chuyển" value={movement.transfer_code || '—'} />
-              <DetailTile label="Trạng thái" value={<StatusBadge movement={movement} />} />
-              <DetailTile label="Ngày chuyển" value={formatDateTime(movement.movement_date)} />
-              <DetailTile label="Đã execute lúc" value={formatDateTime(movement.executed_at)} />
-              <DetailTile label="Người xử lý" value={movement.creator_name || '—'} />
-              <DetailTile label="Thanh toán settlement" value={movement.settlement_payment_status_label || '—'} />
-            </div>
-          </section>
+          <div className="grid gap-4 lg:grid-cols-[1fr_1.3fr] items-stretch">
+            {/* Left Column: Lịch chuyển, Luồng phòng, Meter Readings & Notes */}
+            <div className="flex flex-col gap-4 h-full min-h-full">
+              <div className="flex-1 flex flex-col justify-between rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4 shadow-sm">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Lịch chuyển</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2.5">
+                    <DetailTile label="Mã chuyển" value={movement.transfer_code || '—'} />
+                    <DetailTile label="Trạng thái" value={<StatusBadge movement={movement} />} />
+                    <DetailTile label="Ngày chuyển" value={formatDateTime(movement.movement_date)} />
+                    <DetailTile label="Đã execute lúc" value={formatDateTime(movement.executed_at)} />
+                    <DetailTile label="Người xử lý" value={movement.creator_name || '—'} />
+                    <DetailTile label="Thanh toán" value={movement.settlement_payment_status_label || '—'} />
+                  </div>
+                </div>
 
-          <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Luồng phòng</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <DetailTile label="Phòng cũ" value={roomLabel(movement.from_room, '—')} />
-              <DetailTile label="Phòng mới" value={roomLabel(movement.to_room, 'Trả phòng')} />
-              <DetailTile label="Hợp đồng ghi nhận" value={movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')} />
-              <DetailTile label="Hợp đồng nguồn" value={movement.source_contract?.contract_code || (movement.source_contract_id ? `#${movement.source_contract_id}` : '—')} />
-              <DetailTile label="H�            <div className="border-b border-[#3d2a18]/10 bg-[#24170d] px-4 py-3 text-[#fff4df]">
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Cọc & thanh toán chuyển phòng</p>
+                <div className="mt-6 border-t border-[#3d2a18]/10 pt-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Luồng phòng</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2.5">
+                    <DetailTile label="Phòng cũ" value={roomLabel(movement.from_room, '—')} />
+                    <DetailTile label="Phòng mới" value={roomLabel(movement.to_room, 'Trả phòng')} />
+                    <DetailTile label="Hợp đồng nguồn" value={movement.source_contract?.contract_code || (movement.source_contract_id ? `#${movement.source_contract_id}` : '—')} />
+                    <DetailTile label="Hợp đồng đích" value={movement.destination_contract?.contract_code || (movement.destination_contract_id ? `#${movement.destination_contract_id}` : '—')} />
+                    <DetailTile label="Hợp đồng ghi nhận" value={movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')} />
+                    <DetailTile label="Loại biến động" value={movement.movement_type_label || '—'} />
+                  </div>
+                </div>
+              </div>
+
+              {hasMeterReadings && (
+                <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Chỉ số chốt</p>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <DetailTile label="Điện" value={movement.final_electric_reading || '—'} />
+                    <DetailTile label="Nước" value={movement.final_water_reading || '—'} />
+                  </div>
+                </section>
+              )}
+
+              {movement.failure_reason && (
+                <section className="rounded-[1.5rem] border border-rose-200 bg-rose-50 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-700/70">Lý do bị chặn / lỗi</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-rose-700">{movement.failure_reason}</p>
+                </section>
+              )}
+
+              {movement.note && (
+                <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Ghi chú</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-[#3d2a18]">{movement.note}</p>
+                </section>
+              )}
             </div>
 
-            <div className="grid gap-4 p-4 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="space-y-3">
-                <div className="rounded-[1.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cọc hợp đồng cũ</p>
-                      <h3 className="mt-1 text-lg font-black text-[#24170d]">{settlementBreakdown.oldDepositTitle}</h3>
+            {/* Right Column: Cọc & thanh toán chuyển phòng */}
+            <div className="space-y-4">
+              <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cọc & thanh toán chuyển phòng</p>
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-[1.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-3.5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Cọc hợp đồng cũ</p>
+                        <h3 className="mt-1 text-lg font-black text-[#24170d]">{settlementBreakdown.oldDepositTitle}</h3>
+                      </div>
+                      <span className={cn('rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]', settlementBreakdown.usesOldDeposit ? 'bg-[#0f766e]/10 text-[#0f5f59]' : 'bg-[#8b5e34]/10 text-[#8b5e34]')}>
+                        {settlementBreakdown.usesOldDeposit ? 'Có dùng cọc cũ' : 'Không dùng cọc cũ'}
+                      </span>
                     </div>
-                    <span className={cn('rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]', settlementBreakdown.usesOldDeposit ? 'bg-[#0f766e]/10 text-[#0f5f59]' : 'bg-[#8b5e34]/10 text-[#8b5e34]')}>
-                      {settlementBreakdown.usesOldDeposit ? 'Có dùng cọc cũ' : 'Không dùng cọc cũ'}
-                    </span>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <MoneyTile label="Số dư cọc cũ" value={movement.old_room_final_amount} tone="neutral" compact />
+                      <MoneyTile label="Cọc chuyển sang" value={movement.deposit_transfer_amount} tone="success" compact />
+                      <MoneyTile label="Hoàn cọc dư" value={settlementBreakdown.refundAmount} tone="warning" compact />
+                    </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <MoneyTile label="Số dư cọc cũ" value={movement.old_room_final_amount} tone="neutral" compact />
-                    <MoneyTile label="Cọc chuyển sang" value={movement.deposit_transfer_amount} tone="success" compact />
-                    <MoneyTile label="Hoàn cọc dư" value={settlementBreakdown.refundAmount} tone="warning" compact />
+
+                  <div className="rounded-[1.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-3.5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Khoản cần thu từ khách</p>
+                    <div className="mt-3 space-y-2">
+                      <SettlementLine label="Cọc mới còn thiếu" value={movement.deposit_due_amount} tone="danger" />
+                      <SettlementLine label="Phí/khấu trừ thu thêm" value={movement.extra_charge_amount} tone="danger" />
+                      <SettlementLine label="Khấu trừ admin nhập" value={settlementBreakdown.deductionInputAmount} tone="muted" />
+                      <SettlementLine label="Phí chuyển phòng admin nhập" value={movement.transfer_fee} tone="muted" />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.5rem] border border-[#f3c56b]/30 bg-[#2b1a0f] p-3.5 text-[#fff4df] shadow-xl shadow-[#24170d]/15">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Quyết toán</p>
+                    <p className="mt-3 text-4xl font-black tabular-nums tracking-tight text-white">{formatCurrency(movement.settlement_remaining_amount)}</p>
+                    <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Còn phải thanh toán trên tổng {formatCurrency(movement.settlement_due_amount)}</p>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <MiniMetric label="Đã thanh toán" value={movement.settlement_paid_amount} tone="success" />
+                      <MiniMetric label="Trạng thái" value={movement.settlement_payment_status_label || '—'} />
+                    </div>
+
+                    {canCollectCash && (
+                      <button type="button" onClick={() => onOpenCashPayment(movement)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#7ddfd3]/25 bg-[#0f766e] px-4 py-3 text-sm font-black text-white transition hover:bg-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#7ddfd3]/20 active:scale-[0.99]">
+                        <HandCoins className="h-4 w-4" /> Thu tiền mặt
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                <div className="rounded-[1.25rem] border border-[#3d2a18]/10 bg-[#fffaf1] p-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Khoản cần thu từ khách</p>
-                  <div className="mt-3 space-y-2">
-                    <SettlementLine label="Cọc mới còn thiếu" value={movement.deposit_due_amount} tone="danger" />
-                    <SettlementLine label="Phí/khấu trừ thu thêm" value={movement.extra_charge_amount} tone="danger" />
-                    <SettlementLine label="Khấu trừ admin nhập" value={settlementBreakdown.deductionInputAmount} tone="muted" />
-                    <SettlementLine label="Phí chuyển phòng admin nhập" value={movement.transfer_fee} tone="muted" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[1.5rem] border border-[#f3c56b]/30 bg-[#2b1a0f] p-4 text-[#fff4df] shadow-xl shadow-[#24170d]/15">
-                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">QR settlement</p>
-                <p className="mt-3 text-4xl font-black tabular-nums tracking-tight text-white">{formatCurrency(movement.settlement_remaining_amount)}</p>
-                <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Còn phải thanh toán trên tổng {formatCurrency(movement.settlement_due_amount)}</p>
-
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <MiniMetric label="Đã thanh toán" value={movement.settlement_paid_amount} tone="success" />
-                  <MiniMetric label="Trạng thái" value={movement.settlement_payment_status_label || '—'} />
-                </div>            <MiniMetric label="Trạng thái" value={movement.settlement_payment_status_label || '—'} />
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/8 p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]/55">Sau khi SePay ghi nhận</p>
-                  <p className="mt-2 text-xs font-bold leading-5 text-[#f8e8c8]/78">Tiền thanh toán được ưu tiên ghi vào cọc mới còn thiếu, phần dư của giao dịch mới ghi vào phí/khấu trừ chuyển phòng.</p>
-                </div>
-
-                {movement.settlement_qr_url ? (
-                  <a href={movement.settlement_qr_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-[#f3c56b] px-4 py-3 text-sm font-black text-[#24170d] transition hover:bg-[#ffd783] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/30">
-                    Mở mã QR thanh toán
-                  </a>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-center text-sm font-black text-[#f8e8c8]/65">Không phát sinh QR</div>
-                )}
-
-                {canCollectCash && (
-                  <button type="button" onClick={() => onOpenCashPayment(movement)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#7ddfd3]/25 bg-[#0f766e] px-4 py-3 text-sm font-black text-white transition hover:bg-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#7ddfd3]/20 active:scale-[0.99]">
-                    <HandCoins className="h-4 w-4" /> Thu tiền mặt
-                  </button>
-                )}
-              </div>
+              </section>
             </div>
-          </section>
-
-          {movement.failure_reason && (
-            <section className="rounded-[1.5rem] border border-rose-200 bg-rose-50 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-700/70">Lý do bị chặn / lỗi</p>
-              <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-rose-700">{movement.failure_reason}</p>
-            </section>
-          )}
-
-          {hasMeterReadings && (
-            <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Chỉ số chốt</p>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <DetailTile label="Điện" value={movement.final_electric_reading || '—'} />
-                <DetailTile label="Nước" value={movement.final_water_reading || '—'} />
-              </div>
-            </section>
-          )}
-
-          {movement.note && (
-            <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Ghi chú</p>
-              <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-[#3d2a18]">{movement.note}</p>
-            </section>
-          )}
+          </div>
         </div>
       </aside>
     </div>
@@ -779,8 +780,8 @@ function MoneyTile({ label, value, tone, compact = false }: { label: string; val
 
   return (
     <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3 shadow-sm">
-      <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/60"><Banknote className="h-3.5 w-3.5" /> {label}</p>
-      <p className={cn('mt-1 font-black tabular-nums', compact ? 'text-base' : 'text-lg', toneClassName)}>{formatCurrency(value)}</p>
+      <p className="text-[9px] font-black uppercase tracking-[0.06em] text-[#8b5e34]/60 whitespace-nowrap leading-tight">{label}</p>
+      <p className={cn('mt-2 font-black tabular-nums leading-none whitespace-nowrap', compact ? 'text-base' : 'text-lg', toneClassName)}>{formatCurrency(value)}</p>
     </div>
   )
 }
@@ -798,7 +799,7 @@ function SettlementLine({ label, value, tone, helper }: { label: string; value?:
 
   return (
     <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/65 px-3 py-2.5">
-      <div className="flex items-start justify-between gap-3">
+      <div className={cn("flex justify-between gap-3", helper ? "items-start" : "items-center")}>
         <div>
           <p className="text-xs font-black text-[#24170d]">{label}</p>
           {helper && <p className="mt-0.5 text-[11px] font-bold leading-4 text-[#6f6254]">{helper}</p>}
@@ -820,8 +821,8 @@ function MiniMetric({ label, value, tone = 'neutral' }: { label: string; value?:
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/8 p-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#f8e8c8]/50">{label}</p>
-      <p className={cn('mt-1 text-sm font-black tabular-nums', toneClassName)}>{isMoneyLike(value) ? formatCurrency(value) : value || '—'}</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#f8e8c8]/50 whitespace-nowrap">{label}</p>
+      <p className={cn('mt-1.5 text-sm font-black tabular-nums whitespace-nowrap', toneClassName)}>{isMoneyLike(value) ? formatCurrency(value) : value || '—'}</p>
     </div>
   )
 }

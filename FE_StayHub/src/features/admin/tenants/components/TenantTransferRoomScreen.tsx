@@ -1361,11 +1361,20 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] p-5 text-[#fff4df] shadow-2xl shadow-[#6b3f1d]/16">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3c56b]">Thanh toán thủ công</p>
-            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">Admin tự xử lý phiếu chi</h3>
-            <div className="mt-4 space-y-3">
-              <SummaryLine label="Mã chuyển" value={transferCode || '—'} />
-              <SummaryLine label="Hoàn tay" value={formatCurrency(manualRefundAmount)} accent />
-              <SummaryLine label="Settlement QR" value={formatCurrency(settlementDueAmount)} accent />
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] leading-tight">Admin tự xử lý phiếu chi</h3>
+            <div className="mt-5 space-y-3.5 border-t border-white/10 pt-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-[#f8e8c8]/70">Mã chuyển</span>
+                <span className="font-black text-white tabular-nums">{transferCode || '—'}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-[#f8e8c8]/70">Hoàn tay</span>
+                <span className="font-black text-[#f3c56b] tabular-nums">{formatCurrency(manualRefundAmount)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-[#f8e8c8]/70">Settlement QR</span>
+                <span className="font-black text-[#7ddfd3] tabular-nums">{formatCurrency(settlementDueAmount)}</span>
+              </div>
             </div>
             <div className="mt-5 rounded-[1.5rem] border border-[#f3c56b]/20 bg-[#f3c56b]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
               Không có phiếu chi auto. Admin tự tạo phiếu chi cho phần hoàn cọc nếu cần.

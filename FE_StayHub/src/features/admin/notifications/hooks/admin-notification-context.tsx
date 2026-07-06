@@ -141,14 +141,39 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
     playChimeSound()
 
     // Add toast notification
-    setToasts((prev) => [...prev, newNotif])
+    setToasts((prev) => {
+      if (notif.type === 'chat') {
+        const filtered = prev.filter((t) => !(t.type === 'chat' && t.link === notif.link))
+        return [...filtered, newNotif]
+      }
+      return [...prev, newNotif]
+    })
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== newNotif.id))
     }, 6000)
 
     // Prepend and cap at 50 notifications to prevent localStorage bloat
     setNotifications((prev) => {
-      const updated = [newNotif, ...prev].slice(0, 50)
+      let updated: ReceivedNotification[]
+      if (notif.type === 'chat') {
+        const existingIdx = prev.findIndex((n) => n.type === 'chat' && n.link === notif.link)
+        if (existingIdx !== -1) {
+          const existing = prev[existingIdx]
+          const updatedNotif: ReceivedNotification = {
+            ...existing,
+            description: notif.description,
+            read: false,
+            createdAt: new Date().toISOString(),
+          }
+          const filtered = prev.filter((_, idx) => idx !== existingIdx)
+          updated = [updatedNotif, ...filtered].slice(0, 50)
+        } else {
+          updated = [newNotif, ...prev].slice(0, 50)
+        }
+      } else {
+        updated = [newNotif, ...prev].slice(0, 50)
+      }
+
       if (adminId) {
         localStorage.setItem(`stayhub_admin_notifications_${adminId}`, JSON.stringify(updated))
       }
@@ -278,6 +303,11 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
             }
 
+            // Skip chat notifications if the current admin is a superadmin
+            if (Number(notification.notification_type) === 6 && isSuperAdmin) {
+              return
+            }
+
             addNotification({
               title: notification.title,
               description: notification.content,
@@ -320,6 +350,9 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
     adminChatChannel.listen('.NotificationSent', (event: any) => {
       const notification = event.notification
       if (!notification || Number(notification.notification_type) !== 6) return
+
+      const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
+      if (isSuperAdmin) return
 
       window.dispatchEvent(new CustomEvent('notification-refresh', { detail: notification }))
       addNotification({
