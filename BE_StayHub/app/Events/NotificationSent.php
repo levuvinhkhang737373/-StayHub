@@ -78,7 +78,7 @@ class NotificationSent implements ShouldBroadcast
                 'id' => $this->notification->id,
                 'title' => $this->notification->title,
                 'content' => $this->notification->content,
-                'action_url' => $this->notification->action_url,
+                'action_url' => $this->notification->actionUrl(),
                 'notification_type' => $this->notification->notification_type,
                 'notification_type_label' => \App\Models\Notification::NOTIFICATION_TYPE_LABELS[$this->notification->notification_type] ?? 'Khác',
                 'target_type' => $this->notification->target_type,

@@ -208,6 +208,7 @@ class ExecuteScheduledRoomTransfers extends Command
                     'tenant_id' => $row->tenant_id,
                     'title' => 'Hợp đồng mới được tạo',
                     'content' => "Hợp đồng mới mã {$remainingContract->contract_code} cho phòng {$sourceContract->room?->room_number} đã được tạo và đang chờ bạn ký.",
+                    'action_url' => '/admin/contracts?contract_code=' . urlencode((string) $remainingContract->contract_code),
                     'published_at' => now(),
                     'created_by' => $admin->id,
                 ]));
@@ -669,6 +670,7 @@ class ExecuteScheduledRoomTransfers extends Command
             'content' => "Bạn đã được chuyển sang phòng {$toRoom->room_number}. ".($destinationContract->status === Contract::STATUS_PENDING_SIGN ? 'Hợp đồng mới đang chờ ký.' : 'Bạn đã được thêm vào hợp đồng phòng mới.'),
             'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
             'target_type' => Notification::TARGET_TYPE_TENANT,
+            'action_url' => '/admin/room-movements?movement_id=' . $movement->id,
             'building_id' => $toRoom->building_id,
             'room_id' => $toRoom->id,
             'tenant_id' => $movement->tenant_id,
@@ -685,6 +687,7 @@ class ExecuteScheduledRoomTransfers extends Command
             'content' => "Lịch chuyển phòng {$movement->transfer_code} chưa thể thực hiện. Lý do: {$reason}",
             'notification_type' => Notification::NOTIFICATION_TYPE_WARNING,
             'target_type' => Notification::TARGET_TYPE_TENANT,
+            'action_url' => '/admin/room-movements?movement_id=' . $movement->id,
             'building_id' => $movement->toRoom?->building_id,
             'room_id' => $movement->to_room_id,
             'tenant_id' => $movement->tenant_id,

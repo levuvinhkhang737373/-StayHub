@@ -292,6 +292,7 @@ class ChatController extends Controller
             'content' => 'Phòng ' . ($conversation->room?->room_number ?? $conversation->room_id) . ': ' . str($bodyText)->limit(160)->toString(),
             'notification_type' => Notification::NOTIFICATION_TYPE_CHAT,
             'target_type' => Notification::TARGET_TYPE_TENANT,
+            'action_url' => '/admin/chat?conversation_id=' . $conversation->id,
             'building_id' => $conversation->building_id,
             'room_id' => $conversation->room_id,
             'tenant_id' => $conversation->tenant_id,

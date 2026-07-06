@@ -262,6 +262,7 @@ class FireSafetyCameraAnalyzer
                 'content' => $content,
                 'notification_type' => Notification::NOTIFICATION_TYPE_WARNING,
                 'target_type' => Notification::TARGET_TYPE_ADMIN,
+                'action_url' => '/admin/fire-safety?panel=alerts&alert_id=' . $alert->id,
                 'building_id' => $alert->building_id,
                 'target_admin_id' => $adminId,
                 'status' => Notification::STATUS_SENT,

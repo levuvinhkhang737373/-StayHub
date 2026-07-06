@@ -58,6 +58,7 @@ export function RoomMovementsScreen() {
   const tenantIdFilter = searchParams.get('tenant_id') || ''
   const contractIdFilter = searchParams.get('contract_id') || ''
   const keywordFilter = searchParams.get('keyword') || ''
+  const movementIdParam = searchParams.get('movement_id') || ''
   const deepLinkFilterKey = `${tenantIdFilter}:${contractIdFilter}:${keywordFilter}`
   const [keyword, setKeyword] = useState(keywordFilter)
   const [movementType, setMovementType] = useState<string | number>('')
@@ -126,6 +127,13 @@ export function RoomMovementsScreen() {
   useEffect(() => {
     queueMicrotask(() => setKeyword(keywordFilter))
   }, [keywordFilter])
+
+  useEffect(() => {
+    const movementId = Number(movementIdParam)
+    if (!Number.isFinite(movementId) || movementId <= 0) return
+
+    void openDetail({ id: movementId } as AdminRoomMovementResource)
+  }, [movementIdParam])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

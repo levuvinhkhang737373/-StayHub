@@ -1,5 +1,6 @@
 import type { Dispatch, FormEvent, ReactNode, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
   Building2,
@@ -30,6 +31,7 @@ import {
   bulkUpdateSecurityCameraMonitoring,
   createSecurityCamera,
   deleteSecurityCamera,
+  fetchFireSafetyAlertDetail,
   fetchFireSafetyAlerts,
   fetchSecurityCameras,
   markFalseFireSafetyAlert,
@@ -127,6 +129,9 @@ function toPayload(form: CameraForm): SecurityCameraPayload {
 
 export function FireSafetyScreen() {
   const { session } = useAdminSession()
+  const [searchParams] = useSearchParams()
+  const panelParam = searchParams.get('panel')
+  const alertIdParam = searchParams.get('alert_id')
   const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
   const managedBuildings = useMemo(() => session?.admin?.managed_buildings || [], [session?.admin?.managed_buildings])
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
@@ -138,7 +143,7 @@ export function FireSafetyScreen() {
   const [alertPaginationMeta, setAlertPaginationMeta] = useState<AdminPaginationMeta | null>(null)
   const [alertCurrentPage, setAlertCurrentPage] = useState(1)
   const [alertPerPage, setAlertPerPage] = useState(5)
-  const [activePanel, setActivePanel] = useState<ActivePanel>('cameras')
+  const [activePanel, setActivePanel] = useState<ActivePanel>(panelParam === 'alerts' || alertIdParam ? 'alerts' : 'cameras')
   const [selectedBuildingId, setSelectedBuildingId] = useState(isSuperAdmin ? '' : managedBuildings?.[0]?.id ? String(managedBuildings[0].id) : '')
   const [keyword, setKeyword] = useState('')
   const [form, setForm] = useState<CameraForm>(DEFAULT_FORM)
@@ -217,6 +222,40 @@ export function FireSafetyScreen() {
   useEffect(() => {
     void Promise.resolve().then(loadData)
   }, [loadData])
+
+  useEffect(() => {
+    if (panelParam === 'alerts' || alertIdParam) {
+      queueMicrotask(() => setActivePanel('alerts'))
+    }
+  }, [alertIdParam, panelParam])
+
+  useEffect(() => {
+    const alertId = Number(alertIdParam)
+    if (!Number.isFinite(alertId) || alertId <= 0) return
+
+    let isMounted = true
+
+    async function openAlertSnapshot() {
+      try {
+        const response = await fetchFireSafetyAlertDetail(alertId)
+        if (!isMounted) return
+        const alert = response.result
+        if (alert?.snapshot_url) {
+          setViewingImageSrc(alert.snapshot_url)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof ApiError ? err.message : 'Không thể tải chi tiết cảnh báo AI camera.')
+        }
+      }
+    }
+
+    void openAlertSnapshot()
+
+    return () => {
+      isMounted = false
+    }
+  }, [alertIdParam])
 
   useEffect(() => {
     const refresh = () => loadData()

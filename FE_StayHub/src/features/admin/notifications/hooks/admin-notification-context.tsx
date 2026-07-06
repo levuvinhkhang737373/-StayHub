@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { fetchAdminNotifications } from '../services/notification.service'
+import { resolveNotificationActionPath } from '../utils/notification-link'
 
 export interface ReceivedNotification {
   id: string
@@ -80,26 +81,13 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               notifType = 'chat'
             }
 
-            const scMatch = (item.content || '').match(/(SC-\d{6})/i)
-            const invMatch = (item.content || '').match(/(INV-[A-Z0-9-]+)/i)
-            const hdMatch = (item.content || '').match(/(HD-[A-Z0-9-]+)/i)
-
-            let link = '/admin/contracts'
-            if (item.notification_type === 1) {
-              link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
-            } else if (item.notification_type === 2) {
-              link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
-            } else if (item.notification_type === 6) {
-              link = item.tenant_id ? `/admin/chat?tenant_id=${item.tenant_id}` : '/admin/chat'
-            } else {
-              link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
-            }
+            const link = resolveNotificationActionPath(item)
 
             return {
               id: notifId,
               title: item.title,
               description: item.content || '',
-              link,
+              link: link || undefined,
               read: localItem ? localItem.read : false,
               createdAt: item.created_at,
               type: notifType,
@@ -286,22 +274,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           window.dispatchEvent(new CustomEvent('notification-refresh'))
 
           if (Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
-            const scMatch = (notification.content || '').match(/(SC-\d{6})/i)
-            const invMatch = (notification.content || '').match(/(INV-[A-Z0-9-]+)/i)
-            const hdMatch = (notification.content || '').match(/(HD-[A-Z0-9-]+)/i)
-
-            let link = '/admin/contracts'
-            if (notification.notification_type === 1) {
-              link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
-            } else if (notification.notification_type === 2) {
-              link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
-            } else if (notification.notification_type === 4) {
-              link = '/admin/fire-safety'
-            } else if (notification.notification_type === 6) {
-              link = notification.tenant_id ? `/admin/chat?tenant_id=${notification.tenant_id}` : '/admin/chat'
-            } else {
-              link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
-            }
+            const link = resolveNotificationActionPath(notification)
 
             // Skip chat notifications if the current admin is a superadmin
             if (Number(notification.notification_type) === 6 && isSuperAdmin) {
@@ -311,7 +284,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
             addNotification({
               title: notification.title,
               description: notification.content,
-              link,
+              link: link || undefined,
               type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : notification.notification_type === 6 ? 'chat' : 'system',
             })
           }
@@ -358,7 +331,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       addNotification({
         title: notification.title || 'Tin nhắn mới',
         description: notification.content || 'Bạn có tin nhắn chat mới.',
-        link: notification.tenant_id ? `/admin/chat?tenant_id=${notification.tenant_id}` : '/admin/chat',
+        link: resolveNotificationActionPath(notification) || (notification.tenant_id ? `/admin/chat?tenant_id=${notification.tenant_id}` : '/admin/chat'),
         type: 'chat',
       })
     })

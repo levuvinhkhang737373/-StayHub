@@ -94,4 +94,94 @@ class Notification extends Model
     {
         return $this->belongsToMany(Tenant::class, 'notification_reads')->withPivot('read_at');
     }
+
+    public function actionUrl(): ?string
+    {
+        if (filled($this->action_url)) {
+            return $this->action_url;
+        }
+
+        return match ((int) $this->notification_type) {
+            self::NOTIFICATION_TYPE_MAINTENANCE => $this->maintenanceActionUrl(),
+            self::NOTIFICATION_TYPE_INVOICE => $this->invoiceActionUrl(),
+            self::NOTIFICATION_TYPE_WARNING => $this->warningActionUrl(),
+            self::NOTIFICATION_TYPE_CHAT => $this->chatActionUrl(),
+            default => $this->systemActionUrl(),
+        };
+    }
+
+    private function maintenanceActionUrl(): string
+    {
+        if (preg_match('/(SC-\d{6})/i', (string) $this->content, $matches)) {
+            return '/admin/maintenance?request_code=' . urlencode($matches[1]);
+        }
+
+        return $this->relatedIdUrl('/admin/maintenance', $this->idFromContent('/y[eê]u c[ầa]u[^#A-Z0-9]*(?:#|m[ãa]\s*)?(\d+)/iu'));
+    }
+
+    private function invoiceActionUrl(): string
+    {
+        if (preg_match('/(INV-[A-Z0-9-]+)/i', (string) $this->content, $matches)) {
+            return '/admin/invoices?invoice_code=' . urlencode($matches[1]);
+        }
+
+        return '/admin/invoices';
+    }
+
+    private function warningActionUrl(): string
+    {
+        if (preg_match('/AI\s*Camera|camera|lửa|khói|hút thuốc/iu', (string) ($this->title . ' ' . $this->content))) {
+            return '/admin/fire-safety?panel=alerts';
+        }
+
+        return $this->systemActionUrl() ?? '/admin/fire-safety';
+    }
+
+    private function chatActionUrl(): string
+    {
+        return $this->tenant_id ? '/admin/chat?tenant_id=' . $this->tenant_id : '/admin/chat';
+    }
+
+    private function systemActionUrl(): ?string
+    {
+        if (preg_match('/(HD-[A-Z0-9-]+)/i', (string) $this->content, $matches)) {
+            return '/admin/contracts?contract_code=' . urlencode($matches[1]);
+        }
+
+        if (preg_match('/(INV-[A-Z0-9-]+)/i', (string) $this->content, $matches)) {
+            return '/admin/invoices?invoice_code=' . urlencode($matches[1]);
+        }
+
+        if (preg_match('/(SC-\d{6})/i', (string) $this->content, $matches)) {
+            return '/admin/maintenance?request_code=' . urlencode($matches[1]);
+        }
+
+        if (preg_match('/(TRF-[A-Z0-9-]+)/i', (string) $this->content, $matches)) {
+            return '/admin/room-movements?keyword=' . urlencode($matches[1]);
+        }
+
+        if (preg_match('/chuyển phòng/iu', (string) $this->title)) {
+            return '/admin/room-movements';
+        }
+
+        if (preg_match('/hợp đồng/iu', (string) $this->title)) {
+            return '/admin/contracts';
+        }
+
+        return null;
+    }
+
+    private function relatedIdUrl(string $path, ?int $id): string
+    {
+        return $id ? $path . '?id=' . $id : $path;
+    }
+
+    private function idFromContent(string $pattern): ?int
+    {
+        if (preg_match($pattern, (string) $this->content, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return null;
+    }
 }

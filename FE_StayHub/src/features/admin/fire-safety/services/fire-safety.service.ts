@@ -90,6 +90,13 @@ export async function fetchFireSafetyAlerts(params: FireSafetyAlertFilters = {})
   })
 }
 
+export async function fetchFireSafetyAlertDetail(alertId: number) {
+  return apiRequest<FireSafetyAlertResource>({
+    url: `admin/fire-safety-alerts/${alertId}`,
+    method: 'GET',
+  })
+}
+
 export async function acknowledgeFireSafetyAlert(alertId: number) {
   return apiRequest<FireSafetyAlertResource>({
     url: `admin/fire-safety-alerts/${alertId}/acknowledge`,

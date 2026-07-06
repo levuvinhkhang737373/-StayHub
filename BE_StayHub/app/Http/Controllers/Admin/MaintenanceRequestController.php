@@ -194,6 +194,7 @@ class MaintenanceRequestController extends Controller
                     'content' => "Yêu cầu sửa chữa '{$maintenance->title}' của phòng bạn đã chuyển sang trạng thái: {$statusLabel}.",
                     'notification_type' => Notification::NOTIFICATION_TYPE_MAINTENANCE,
                     'target_type' => Notification::TARGET_TYPE_ROOM,
+                    'action_url' => '/admin/maintenance?id=' . $maintenance->id,
                     'room_id' => $maintenance->room_id,
                     'building_id' => $maintenance->room?->building_id,
                     'status' => Notification::STATUS_SENT,

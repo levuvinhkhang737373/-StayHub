@@ -27,6 +27,7 @@ import type {
   AdminNotificationResource
 } from '../types/notification-api.model'
 import { NotificationModal, type NotificationFormValues } from './notification-modal'
+import { resolveNotificationActionPath } from '../utils/notification-link'
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
   if (!result) return []
@@ -422,21 +423,7 @@ export function NotificationsScreen() {
                   {notifications.map((notif) => (
                     <div 
                       key={notif.id} 
-                      onClick={() => {
-                        const scMatch = (notif.content || '').match(/(SC-\d{6})/i)
-                        const invMatch = (notif.content || '').match(/(INV-[A-Z0-9-]+)/i)
-                        const hdMatch = (notif.content || '').match(/(HD-[A-Z0-9-]+)/i)
-
-                        let link = '/admin/contracts'
-                        if (notif.notification_type === 1) {
-                          link = scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
-                        } else if (notif.notification_type === 2) {
-                          link = invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
-                        } else {
-                          link = hdMatch ? `/admin/contracts?contract_code=${hdMatch[1]}` : '/admin/contracts'
-                        }
-                        navigate(link);
-                      }}
+                      onClick={() => navigate(resolveNotificationActionPath(notif) || '/admin/notifications')}
                       className="group flex flex-col justify-between gap-4 rounded-2xl border border-[#3d2a18]/10 bg-white p-4 sm:p-5 hover:border-[#f3c56b]/40 cursor-pointer hover:bg-stone-50/50 transition sm:flex-row sm:items-center"
                     >
                       <div className="min-w-0 flex-1 space-y-2">

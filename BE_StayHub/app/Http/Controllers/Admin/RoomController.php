@@ -663,6 +663,7 @@ class RoomController extends Controller
             'content' => "Bạn được lên lịch chuyển từ phòng {$sourceContract->room?->room_number} sang phòng {$toRoom->room_number} vào ngày " . Carbon::parse($movement->movement_date)->format('d/m/Y') . '.',
             'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
             'target_type' => Notification::TARGET_TYPE_TENANT,
+            'action_url' => '/admin/room-movements?movement_id=' . $movement->id,
             'building_id' => $toRoom->building_id,
             'room_id' => $toRoom->id,
             'tenant_id' => $movement->tenant_id,

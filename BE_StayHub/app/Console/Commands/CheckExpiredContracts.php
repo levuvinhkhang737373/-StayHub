@@ -83,6 +83,7 @@ class CheckExpiredContracts extends Command
                     'content' => "Hợp đồng {$contract->contract_code} tại phòng " . ($contract->room?->room_number ?? 'không rõ') . " đã hết thời hạn.",
                     'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
                     'target_type' => Notification::TARGET_TYPE_ADMIN,
+                    'action_url' => '/admin/contracts?contract_code=' . urlencode((string) $contract->contract_code),
                     'building_id' => $contract->room?->building_id,
                     'room_id' => $contract->room_id,
                     'published_at' => now(),
