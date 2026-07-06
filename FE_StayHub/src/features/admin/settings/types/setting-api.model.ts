@@ -1,5 +1,20 @@
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 
+export interface AdminSettingPaginationMeta {
+  current_page?: number
+  from?: number | null
+  last_page?: number
+  path?: string
+  per_page?: number
+  to?: number | null
+  total?: number
+}
+
+export interface AdminSettingPaginator {
+  data: AdminSettingResource[]
+  meta?: AdminSettingPaginationMeta | null
+}
+
 export interface AdminSettingResource {
   id: number
   building_id?: number | null

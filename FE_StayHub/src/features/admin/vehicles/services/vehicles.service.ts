@@ -24,7 +24,7 @@ export async function fetchAdminVehicles(
   } = {},
 ) {
   return apiRequest<AdminPaginator<AdminVehicleResource>>({
-    url: `admin/vehicles${buildQuery({ per_page: 100, ...params })}`,
+    url: `admin/vehicles${buildQuery(params)}`,
     method: 'GET',
   })
 }

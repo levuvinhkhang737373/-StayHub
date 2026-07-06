@@ -2,15 +2,23 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\MaintenanceRequestAssigned;
+use App\Events\MaintenanceRequestCompleted;
+use App\Events\MaintenanceRequestProcessing;
+use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\MaintenanceRequest\IndexRequest;
 use App\Http\Requests\Admin\MaintenanceRequest\StatusRequest;
 use App\Http\Resources\Admin\MaintenanceRequestResource;
 use App\Models\MaintenanceRequest;
 use App\Models\MaintenanceRequestLog;
+use App\Models\Notification;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,59 +30,52 @@ class MaintenanceRequestController extends Controller
     /**
      * Danh sách tất cả yêu cầu sửa chữa (Dành cho Admin)
      */
-    public function index(Request $request): JsonResponse
+    public function index(IndexRequest $request): JsonResponse
     {
+        $validated = $request->validated();
+
         try {
             $admin = $request->user('admin');
             if (! $admin) {
                 return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập chức năng này', 403, null, 403);
             }
 
-            // Lọc theo tòa nhà, phòng, trạng thái hoặc từ khóa tìm kiếm
             $query = MaintenanceRequest::query()
                 ->with(['tenant', 'room.building', 'assignee', 'logs.creator', 'feedbacks']);
 
             $query = AdminScope::applyMaintenanceRequestScope($query, $admin);
 
-            $query->when($request->filled('status'), function ($q) use ($request) {
-                $q->where('status', $request->integer('status'));
+            $query->when(isset($validated['status']), function (Builder $q) use ($validated): void {
+                $q->where('status', $validated['status']);
             })
-                ->when($request->filled('building_id'), function ($q) use ($request) {
-                    $q->whereHas('room', function ($rq) use ($request) {
-                        $rq->where('building_id', $request->integer('building_id'));
+                ->when(isset($validated['building_id']), function (Builder $q) use ($validated): void {
+                    $q->whereHas('room', function (Builder $rq) use ($validated): void {
+                        $rq->where('building_id', $validated['building_id']);
                     });
                 })
-                ->when($request->filled('room_number'), function ($q) use ($request) {
-                    $q->whereHas('room', function ($rq) use ($request) {
-                        $rq->where('room_number', 'like', '%' . $request->input('room_number') . '%');
+                ->when(! empty($validated['room_number']), function (Builder $q) use ($validated): void {
+                    $q->whereHas('room', function (Builder $rq) use ($validated): void {
+                        $rq->where('room_number', 'like', '%'.$validated['room_number'].'%');
                     });
                 })
-                ->when($request->filled('keyword'), function ($q) use ($request) {
-                    $keyword = '%' . $request->input('keyword') . '%';
-                    $q->where(function ($sub) use ($keyword) {
+                ->when(! empty($validated['keyword']), function (Builder $q) use ($validated): void {
+                    $keyword = '%'.$validated['keyword'].'%';
+                    $q->where(function (Builder $sub) use ($keyword): void {
                         $sub->where('title', 'like', $keyword)
                             ->orWhere('description', 'like', $keyword)
                             ->orWhere('request_code', 'like', $keyword)
-                            ->orWhereHas('tenant', function ($t) use ($keyword) {
+                            ->orWhereHas('tenant', function (Builder $t) use ($keyword): void {
                                 $t->where('full_name', 'like', $keyword)
                                     ->orWhere('phone', 'like', $keyword);
                             });
                     });
                 });
 
-            $requests = $query->orderByDesc('created_at')->paginate($request->integer('per_page', 20));
+            $requests = $query->orderByDesc('created_at')->paginate($validated['per_page'] ?? 20);
 
-            return ApiResponse::responseJson(true, 'Danh sách yêu cầu sửa chữa', 200, [
-                'data' => MaintenanceRequestResource::collection($requests->items())->resolve(),
-                'pagination' => [
-                    'current_page' => $requests->currentPage(),
-                    'per_page' => $requests->perPage(),
-                    'total' => $requests->total(),
-                    'last_page' => $requests->lastPage(),
-                ]
-            ], 200);
+            return ApiResponse::responseJson(true, 'Danh sách yêu cầu sửa chữa', 200, $this->paginatedResource($requests), 200);
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
@@ -102,14 +103,13 @@ class MaintenanceRequestController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết phiếu sửa chữa', 200, new MaintenanceRequestResource($maintenance), 200);
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
 
     /**
      * Phân công nhân viên sửa chữa
      */
-
 
     /**
      * Cập nhật trạng thái phiếu sửa chữa
@@ -142,7 +142,7 @@ class MaintenanceRequestController extends Controller
 
                 // Nếu trạng thái đổi sang Đã hoàn thành (4) và có đính kèm ảnh
                 if ($newStatus === MaintenanceRequest::STATUS_COMPLETED && $request->hasFile('after_image')) {
-                    $folder = 'maintenance/requests/' . $maintenance->request_code . '/after';
+                    $folder = 'maintenance/requests/'.$maintenance->request_code.'/after';
                     $afterImagePath = ImageHelper::storeOnDisk($request->file('after_image'), $folder, self::IMAGE_DISK);
 
                     // Giữ ảnh trước (nếu có)
@@ -189,14 +189,14 @@ class MaintenanceRequestController extends Controller
                 $statusLabel = MaintenanceRequest::STATUS_LABELS[$newStatus] ?? 'Khác';
 
                 // Tạo thông báo cho toàn bộ khách thuê trong phòng
-                $notification = \App\Models\Notification::query()->create([
+                $notification = Notification::query()->create([
                     'title' => 'Cập nhật yêu cầu sửa chữa',
                     'content' => "Yêu cầu sửa chữa '{$maintenance->title}' của phòng bạn đã chuyển sang trạng thái: {$statusLabel}.",
-                    'notification_type' => \App\Models\Notification::NOTIFICATION_TYPE_MAINTENANCE,
-                    'target_type' => \App\Models\Notification::TARGET_TYPE_ROOM,
+                    'notification_type' => Notification::NOTIFICATION_TYPE_MAINTENANCE,
+                    'target_type' => Notification::TARGET_TYPE_ROOM,
                     'room_id' => $maintenance->room_id,
                     'building_id' => $maintenance->room?->building_id,
-                    'status' => \App\Models\Notification::STATUS_SENT,
+                    'status' => Notification::STATUS_SENT,
                     'published_at' => now(),
                 ]);
 
@@ -213,17 +213,39 @@ class MaintenanceRequestController extends Controller
 
             // Phát sự kiện Broadcast tùy theo trạng thái
             if ($newStatus === MaintenanceRequest::STATUS_PROCESSING) {
-                broadcast(new \App\Events\MaintenanceRequestProcessing($maintenance));
+                broadcast(new MaintenanceRequestProcessing($maintenance));
             } elseif ($newStatus === MaintenanceRequest::STATUS_COMPLETED) {
-                broadcast(new \App\Events\MaintenanceRequestCompleted($maintenance));
+                broadcast(new MaintenanceRequestCompleted($maintenance));
             } else {
-                broadcast(new \App\Events\MaintenanceRequestAssigned($maintenance));
+                broadcast(new MaintenanceRequestAssigned($maintenance));
             }
-            broadcast(new \App\Events\NotificationSent($notification));
+            broadcast(new NotificationSent($notification));
 
             return ApiResponse::responseJson(true, 'Cập nhật trạng thái thành công', 200, new MaintenanceRequestResource($maintenance), 200);
         } catch (\Exception $e) {
-            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
+    }
+
+    private function paginatedResource(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'data' => MaintenanceRequestResource::collection($paginator->items())->resolve(),
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
+            ],
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'last_page' => $paginator->lastPage(),
+                'path' => $paginator->path(),
+                'per_page' => $paginator->perPage(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
+        ];
     }
 }

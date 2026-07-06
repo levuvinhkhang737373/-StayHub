@@ -9,6 +9,7 @@ import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-se
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminPagination, type AdminPaginationMeta } from '../../shared/components/AdminPagination'
 import {
   createAdminSetting,
   deleteAdminSetting,
@@ -72,6 +73,9 @@ export function SettingsScreen() {
   const [selectedBuildingId, setSelectedBuildingId] = useState('')
   const [selectedPublic, setSelectedPublic] = useState('')
   const [settings, setSettings] = useState<AdminSettingResource[]>([])
+  const [perPage, setPerPage] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [editingSetting, setEditingSetting] = useState<AdminSettingResource | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -147,7 +151,8 @@ export function SettingsScreen() {
           keyword: keyword.trim() || undefined,
           building_id: selectedBuildingId ? Number(selectedBuildingId) : undefined,
           is_public: selectedPublic === '' ? undefined : selectedPublic === '1',
-          per_page: 100,
+          per_page: perPage,
+          page: currentPage,
         }),
         fetchAdminBuildings({ per_page: 100 }),
       ])
@@ -162,9 +167,15 @@ export function SettingsScreen() {
         if (!setting.building_id) return false
         return nextAllowedBuildingIds.has(Number(setting.building_id))
       })
+      const meta = Array.isArray(settingResponse.result) ? null : settingResponse.result?.meta ?? null
 
       setSettings(nextSettings)
+      setPaginationMeta(meta)
       setBuildings(visibleBuildings)
+
+      if (meta?.last_page && currentPage > meta.last_page) {
+        setCurrentPage(meta.last_page)
+      }
       
       if (!isSuperAdmin && !selectedBuildingId && visibleBuildings[0]?.id) {
         setSelectedBuildingId(String(visibleBuildings[0].id))
@@ -178,7 +189,7 @@ export function SettingsScreen() {
     } finally {
       setIsLoading(false)
     }
-  }, [isSuperAdmin, keyword, selectedBuildingId, selectedPublic, session?.admin.id])
+  }, [currentPage, isSuperAdmin, keyword, perPage, selectedBuildingId, selectedPublic, session?.admin.id])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -352,6 +363,27 @@ export function SettingsScreen() {
     setKeyword('')
     setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
     setSelectedPublic('')
+    setCurrentPage(1)
+  }
+
+  const updateKeywordFilter = (value: string) => {
+    setKeyword(value)
+    setCurrentPage(1)
+  }
+
+  const updateBuildingFilter = (value: string) => {
+    setSelectedBuildingId(value)
+    setCurrentPage(1)
+  }
+
+  const updatePublicFilter = (value: string) => {
+    setSelectedPublic(value)
+    setCurrentPage(1)
+  }
+
+  const changePerPage = (nextPerPage: number) => {
+    setPerPage(nextPerPage)
+    setCurrentPage(1)
   }
 
   return (
@@ -375,7 +407,7 @@ export function SettingsScreen() {
             </div>
 
             <div className="relative mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <MetricCard label="Tổng cài đặt" value={settings.length} tone="neutral" />
+              <MetricCard label="Tổng cài đặt" value={paginationMeta?.total ?? settings.length} tone="neutral" />
               <MetricCard label="Công khai" value={publicSettings} tone="emerald" />
               <MetricCard label={isSuperAdmin ? 'Dùng chung' : 'Thuộc tòa'} value={isSuperAdmin ? globalSettings : buildingSettings} tone="amber" />
             </div>
@@ -408,14 +440,14 @@ export function SettingsScreen() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <div className="relative min-w-0 flex-1">
                   <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-                  <input type="text" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm tên, khóa, giá trị hoặc mô tả..." className={`${inputClass} pl-11 pr-28`} />
+                  <input type="text" value={keyword} onChange={(event) => updateKeywordFilter(event.target.value)} placeholder="Tìm tên, khóa, giá trị hoặc mô tả..." className={`${inputClass} pl-11 pr-28`} />
                   <button type="button" onClick={clearFilters} className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20">
                     <X className="h-3.5 w-3.5" /> Xóa lọc
                   </button>
                 </div>
                 <div className="grid w-full gap-3 sm:grid-cols-2 lg:ml-auto lg:w-lg">
-                  <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} onChange={(nextValue) => setSelectedBuildingId(String(nextValue))} />
-                  <AdminSelect value={selectedPublic} options={publicOptions} onChange={(nextValue) => setSelectedPublic(String(nextValue))} />
+                  <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} onChange={(nextValue) => updateBuildingFilter(String(nextValue))} />
+                  <AdminSelect value={selectedPublic} options={publicOptions} onChange={(nextValue) => updatePublicFilter(String(nextValue))} />
                 </div>
               </div>
             </div>
@@ -488,6 +520,17 @@ export function SettingsScreen() {
                 </tbody>
               </table>
             </div>
+
+            <AdminPagination
+              meta={paginationMeta}
+              currentPage={currentPage}
+              perPage={perPage}
+              totalItems={settings.length}
+              itemLabel="cài đặt"
+              isLoading={isLoading}
+              onPageChange={setCurrentPage}
+              onPerPageChange={changePerPage}
+            />
           </section>
 
           {isFormOpen && (

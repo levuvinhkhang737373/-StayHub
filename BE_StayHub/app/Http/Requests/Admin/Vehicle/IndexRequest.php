@@ -27,6 +27,7 @@ class IndexRequest extends FormRequest
             'without_reserved_contract' => ['nullable', 'boolean'],
             'keyword' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
         ];
     }
 
@@ -45,6 +46,8 @@ class IndexRequest extends FormRequest
             'per_page.integer' => 'Số lượng bản ghi mỗi trang không hợp lệ.',
             'per_page.min' => 'Số lượng bản ghi mỗi trang tối thiểu là 1.',
             'per_page.max' => 'Số lượng bản ghi mỗi trang tối đa là 100.',
+            'page.integer' => 'Trang hiện tại không hợp lệ.',
+            'page.min' => 'Trang hiện tại tối thiểu là 1.',
         ];
     }
 

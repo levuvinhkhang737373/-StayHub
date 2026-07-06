@@ -1,5 +1,5 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
-import type { AdminSettingPayload, AdminSettingResource } from '../types/setting-api.model'
+import type { AdminSettingPayload, AdminSettingPaginator, AdminSettingResource } from '../types/setting-api.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
   const query = new URLSearchParams()
@@ -20,10 +20,11 @@ export async function fetchAdminSettings(
     only_global?: boolean
     is_public?: boolean
     per_page?: number
+    page?: number
   } = {},
 ) {
-  return apiRequest<AdminSettingResource[]>({
-    url: `admin/settings${buildQuery({ per_page: 100, ...params })}`,
+  return apiRequest<AdminSettingPaginator>({
+    url: `admin/settings${buildQuery(params)}`,
     method: 'GET',
   })
 }

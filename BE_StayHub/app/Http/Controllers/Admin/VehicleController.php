@@ -16,6 +16,7 @@ use App\Models\Admin;
 use App\Models\Contract;
 use App\Models\Tenant;
 use App\Models\Vehicle;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,7 +41,7 @@ class VehicleController extends Controller
 
             $vehicles = $this->queryVehicles($validated, $admin)->paginate($validated['per_page'] ?? 20);
 
-            return ApiResponse::responseJson(true, 'Danh sách phương tiện', 200, VehicleResource::collection($vehicles), 200);
+            return ApiResponse::responseJson(true, 'Danh sách phương tiện', 200, $this->paginatedResource($vehicles), 200);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
@@ -335,5 +336,27 @@ class VehicleController extends Controller
     private function canMutateVehicles(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
+    }
+
+    private function paginatedResource(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'data' => VehicleResource::collection($paginator->items())->resolve(),
+            'links' => [
+                'first' => $paginator->url(1),
+                'last' => $paginator->url($paginator->lastPage()),
+                'prev' => $paginator->previousPageUrl(),
+                'next' => $paginator->nextPageUrl(),
+            ],
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'last_page' => $paginator->lastPage(),
+                'path' => $paginator->path(),
+                'per_page' => $paginator->perPage(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
+        ];
     }
 }

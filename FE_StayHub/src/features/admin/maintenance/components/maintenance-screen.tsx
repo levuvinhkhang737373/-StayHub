@@ -20,6 +20,7 @@ import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-se
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminPagination, type AdminPaginationMeta } from '../../shared/components/AdminPagination'
 import {
   fetchAdminMaintenanceRequests,
   fetchAdminMaintenanceDetail,
@@ -74,6 +75,9 @@ export function MaintenanceScreen() {
   const [roomNumber, setRoomNumber] = useState('')
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [requests, setRequests] = useState<AdminMaintenanceRequestResource[]>([])
+  const [perPage, setPerPage] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -139,12 +143,12 @@ export function MaintenanceScreen() {
 
   // Metrics
   const metrics = useMemo(() => {
-    const total = requests.length
+    const total = paginationMeta?.total ?? requests.length
     const created = requests.filter((r) => Number(r.status) === 1).length
     const processing = requests.filter((r) => Number(r.status) === 3).length
     const completed = requests.filter((r) => Number(r.status) === 4).length
     return { total, created, processing, completed }
-  }, [requests])
+  }, [paginationMeta?.total, requests])
 
   const loadBuildingsAndStaff = useCallback(async () => {
     try {
@@ -168,24 +172,33 @@ export function MaintenanceScreen() {
         status: selectedStatus ? Number(selectedStatus) : undefined,
         building_id: selectedBuildingId ? Number(selectedBuildingId) : undefined,
         room_number: roomNumber.trim() || undefined,
+        per_page: perPage,
+        page: currentPage,
       })
 
       // Parse requests from paginated result and coerce legacy status 2 to 3
       if (response.result && Array.isArray(response.result)) {
         const coerced = response.result.map(r => ({ ...r, status: Number(r.status) === 2 ? 3 : Number(r.status) }))
         setRequests(coerced)
+        setPaginationMeta(null)
       } else if (response.result?.data) {
         const coerced = response.result.data.map(r => ({ ...r, status: Number(r.status) === 2 ? 3 : Number(r.status) }))
         setRequests(coerced)
+        const meta = response.result.meta ?? response.result.pagination ?? null
+        setPaginationMeta(meta)
+        if (meta?.last_page && currentPage > meta.last_page) {
+          setCurrentPage(meta.last_page)
+        }
       } else {
         setRequests([])
+        setPaginationMeta(null)
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách phiếu sửa chữa.')
     } finally {
       setIsLoading(false)
     }
-  }, [keyword, selectedStatus, selectedBuildingId, roomNumber])
+  }, [currentPage, keyword, perPage, roomNumber, selectedBuildingId, selectedStatus])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -289,6 +302,32 @@ export function MaintenanceScreen() {
     setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
     setSelectedStatus('')
     setRoomNumber('')
+    setCurrentPage(1)
+  }
+
+  const updateKeywordFilter = (value: string) => {
+    setKeyword(value)
+    setCurrentPage(1)
+  }
+
+  const updateRoomNumberFilter = (value: string) => {
+    setRoomNumber(value)
+    setCurrentPage(1)
+  }
+
+  const updateBuildingFilter = (value: string) => {
+    setSelectedBuildingId(value)
+    setCurrentPage(1)
+  }
+
+  const updateStatusFilter = (value: string) => {
+    setSelectedStatus(value)
+    setCurrentPage(1)
+  }
+
+  const changePerPage = (nextPerPage: number) => {
+    setPerPage(nextPerPage)
+    setCurrentPage(1)
   }
 
   return (
@@ -349,7 +388,7 @@ export function MaintenanceScreen() {
                 <input
                   type="text"
                   value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
+                  onChange={(event) => updateKeywordFilter(event.target.value)}
                   placeholder="Tìm theo mã sự cố, tên phòng, mô tả hoặc tên khách..."
                   className={`${inputClass} pl-11 pr-28`}
                 />
@@ -368,14 +407,14 @@ export function MaintenanceScreen() {
                 <input
                   type="text"
                   value={roomNumber}
-                  onChange={(e) => setRoomNumber(e.target.value)}
+                  onChange={(e) => updateRoomNumberFilter(e.target.value)}
                   placeholder="Số phòng..."
                   className={inputClass}
                 />
                 {isSuperAdmin && (
-                  <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} onChange={(val) => setSelectedBuildingId(String(val))} />
+                  <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} onChange={(val) => updateBuildingFilter(String(val))} />
                 )}
-                <AdminSelect value={selectedStatus} options={statusOptions} onChange={(val) => setSelectedStatus(String(val))} />
+                <AdminSelect value={selectedStatus} options={statusOptions} onChange={(val) => updateStatusFilter(String(val))} />
               </div>
             </div>
           </div>
@@ -478,6 +517,17 @@ export function MaintenanceScreen() {
               </div>
             )}
           </div>
+
+          <AdminPagination
+            meta={paginationMeta}
+            currentPage={currentPage}
+            perPage={perPage}
+            totalItems={requests.length}
+            itemLabel="phiếu bảo trì"
+            isLoading={isLoading}
+            onPageChange={setCurrentPage}
+            onPerPageChange={changePerPage}
+          />
         </section>
       </section>
 

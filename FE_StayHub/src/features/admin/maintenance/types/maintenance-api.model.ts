@@ -69,6 +69,15 @@ export interface AdminMaintenanceStatusPayload {
 
 export interface AdminMaintenancePaginator {
   data: AdminMaintenanceRequestResource[]
+  meta?: {
+    current_page?: number
+    from?: number | null
+    last_page?: number
+    path?: string
+    per_page?: number
+    to?: number | null
+    total?: number
+  } | null
   pagination?: {
     current_page: number
     per_page: number

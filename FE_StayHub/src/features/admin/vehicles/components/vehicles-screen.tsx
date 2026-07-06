@@ -6,6 +6,7 @@ import { Car, Bike, Fuel, Zap, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X } 
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminPagination, type AdminPaginationMeta } from '../../shared/components/AdminPagination'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
   fetchAdminVehicles,
@@ -72,6 +73,9 @@ export function VehiclesScreen() {
   const [keyword, setKeyword] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
+  const [perPage, setPerPage] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -121,15 +125,22 @@ export function VehiclesScreen() {
         keyword: keyword.trim() || undefined,
         vehicle_type: selectedType ? Number(selectedType) : undefined,
         is_active: selectedStatus === '' ? undefined : selectedStatus === '1',
+        per_page: perPage,
+        page: currentPage,
       })
       const list = Array.isArray(response.result) ? response.result : (response.result?.data || [])
       setVehicles(list)
+      const meta = Array.isArray(response.result) ? null : response.result?.meta ?? null
+      setPaginationMeta(meta)
+      if (meta?.last_page && currentPage > meta.last_page) {
+        setCurrentPage(meta.last_page)
+      }
     } catch (error) {
       setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
     } finally {
       setIsLoading(false)
     }
-  }, [keyword, selectedType, selectedStatus])
+  }, [keyword, selectedType, selectedStatus, perPage, currentPage])
 
   useEffect(() => {
     void loadTenants()
@@ -178,13 +189,13 @@ export function VehiclesScreen() {
   }, [successMessage, errorMessage])
 
   const metrics = useMemo(() => {
-    const total = vehicles.length
+    const total = paginationMeta?.total ?? vehicles.length
     const motorbikes = vehicles.filter((v) => Number(v.vehicle_type) === 1).length
     const bicycles = vehicles.filter((v) => Number(v.vehicle_type) === 2).length
     const cars = vehicles.filter((v) => Number(v.vehicle_type) === 3).length
     const electrics = vehicles.filter((v) => Number(v.vehicle_type) === 4).length
     return { total, motorbikes, bicycles, cars, electrics }
-  }, [vehicles])
+  }, [paginationMeta?.total, vehicles])
 
   const tenantSelectOptions = useMemo(() => {
     if (!form.building_id) return []
@@ -216,6 +227,27 @@ export function VehiclesScreen() {
     setKeyword('')
     setSelectedType('')
     setSelectedStatus('')
+    setCurrentPage(1)
+  }
+
+  const updateKeywordFilter = (value: string) => {
+    setKeyword(value)
+    setCurrentPage(1)
+  }
+
+  const updateTypeFilter = (value: string) => {
+    setSelectedType(value)
+    setCurrentPage(1)
+  }
+
+  const updateStatusFilter = (value: string) => {
+    setSelectedStatus(value)
+    setCurrentPage(1)
+  }
+
+  const changePerPage = (nextPerPage: number) => {
+    setPerPage(nextPerPage)
+    setCurrentPage(1)
   }
 
   const updateForm = (key: keyof AdminVehicleFormValues, value: string | number | boolean) => {
@@ -441,15 +473,15 @@ export function VehiclesScreen() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="relative min-w-0">
                   <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-                  <input type="text" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm biển số, khách thuê, hãng..." className={`${inputClass} pl-11 pr-24`} />
+                  <input type="text" value={keyword} onChange={(event) => updateKeywordFilter(event.target.value)} placeholder="Tìm biển số, khách thuê, hãng..." className={`${inputClass} pl-11 pr-24`} />
                   {hasActiveFilters && (
                     <button type="button" onClick={clearFilters} className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20">
                       Xóa lọc
                     </button>
                   )}
                 </div>
-                <AdminSelect value={selectedType} options={filterVehicleTypeOptions} onChange={(nextValue) => setSelectedType(String(nextValue))} />
-                <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => setSelectedStatus(String(nextValue))} />
+                <AdminSelect value={selectedType} options={filterVehicleTypeOptions} onChange={(nextValue) => updateTypeFilter(String(nextValue))} />
+                <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => updateStatusFilter(String(nextValue))} />
               </div>
             </div>
 
@@ -538,6 +570,17 @@ export function VehiclesScreen() {
                 </tbody>
               </table>
             </div>
+
+            <AdminPagination
+              meta={paginationMeta}
+              currentPage={currentPage}
+              perPage={perPage}
+              totalItems={vehicles.length}
+              itemLabel="phương tiện"
+              isLoading={isLoading}
+              onPageChange={setCurrentPage}
+              onPerPageChange={changePerPage}
+            />
           </section>
 
         </div>
