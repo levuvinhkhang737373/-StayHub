@@ -9,7 +9,8 @@ import {
   Clock, 
   Building, 
   User,
-  Edit3
+  Edit3,
+  CheckCheck
 } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
@@ -19,6 +20,7 @@ import type { AdminBuildingResource } from '../../facilities/types/facility-api.
 import { fetchAdminTenants } from '../../tenants/services/tenants.service'
 import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { AdminPagination, type AdminPaginationMeta } from '../../shared/components/AdminPagination'
 import {
   fetchAdminNotifications,
   deleteAdminNotification
@@ -28,6 +30,7 @@ import type {
 } from '../types/notification-api.model'
 import { NotificationModal, type NotificationFormValues } from './notification-modal'
 import { resolveNotificationActionPath } from '../utils/notification-link'
+import { useAdminNotifications } from '../hooks/admin-notification-context'
 
 function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[] {
   if (!result) return []
@@ -77,6 +80,7 @@ export function NotificationsScreen() {
   const navigate = useNavigate()
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
+  const { notifications: receivedNotifications, markAllAsRead, markAsRead } = useAdminNotifications()
 
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedTargetType, setSelectedTargetType] = useState('')
@@ -88,6 +92,15 @@ export function NotificationsScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
+  const [stats, setStats] = useState<{ total: number; sent: number; draft: number; cancelled: number } | null>(null)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedStatus, selectedTargetType, selectedBuildingId])
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -152,12 +165,15 @@ export function NotificationsScreen() {
 
   // Metrics
   const metrics = useMemo(() => {
+    if (stats) {
+      return stats
+    }
     const total = notifications.length
     const sent = notifications.filter((n) => Number(n.status) === 2).length
     const draft = notifications.filter((n) => Number(n.status) === 1).length
     const cancelled = notifications.filter((n) => Number(n.status) === 3).length
     return { total, sent, draft, cancelled }
-  }, [notifications])
+  }, [notifications, stats])
 
   const loadResources = useCallback(async () => {
     try {
@@ -188,21 +204,32 @@ export function NotificationsScreen() {
         status: selectedStatus ? Number(selectedStatus) : undefined,
         target_type: selectedTargetType ? Number(selectedTargetType) : undefined,
         building_id: selectedBuildingId ? Number(selectedBuildingId) : undefined,
+        page: currentPage,
+        per_page: perPage,
       })
 
-      if (response.result && Array.isArray(response.result)) {
-        setNotifications(response.result)
-      } else if (response.result?.data) {
-        setNotifications(response.result.data)
+      if (response.result) {
+        const result = response.result as any
+        if (Array.isArray(result)) {
+          setNotifications(result)
+          setPaginationMeta(null)
+          setStats(null)
+        } else {
+          setNotifications(result.data || [])
+          setPaginationMeta(result.pagination || null)
+          setStats(result.stats || null)
+        }
       } else {
         setNotifications([])
+        setPaginationMeta(null)
+        setStats(null)
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách thông báo.')
     } finally {
       setIsLoading(false)
     }
-  }, [selectedStatus, selectedTargetType, selectedBuildingId])
+  }, [selectedStatus, selectedTargetType, selectedBuildingId, currentPage, perPage])
 
   useEffect(() => {
     void loadResources()
@@ -303,6 +330,37 @@ export function NotificationsScreen() {
     })
   }
 
+  // Delete all notifications
+  const handleDeleteAll = () => {
+    if (notifications.length === 0) return
+    showConfirm({
+      title: 'Xóa tất cả thông báo',
+      message: `Bạn có chắc chắn muốn xóa tất cả ${notifications.length} thông báo hiện tại? Hành động này không thể hoàn tác.`,
+      confirmLabel: 'Xóa tất cả',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+          await Promise.all(notifications.map((n) => deleteAdminNotification(n.id)))
+          setSuccessMessage('Xóa tất cả thông báo thành công.')
+          void loadNotifications()
+        } catch (e) {
+          setErrorMessage(e instanceof Error ? e.message : 'Không thể xóa thông báo.')
+        } finally {
+          setIsConfirmLoading(false)
+          closeConfirm()
+        }
+      },
+      variant: 'danger',
+    })
+  }
+
+  const changePerPage = (nextPerPage: number) => {
+    setPerPage(nextPerPage)
+    setCurrentPage(1)
+  }
+
   const clearFilters = () => {
     setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
     setSelectedStatus('')
@@ -325,13 +383,29 @@ export function NotificationsScreen() {
                   Thông báo
                 </h1>
               </div>
-              <button 
-                type="button" 
-                onClick={openCreateForm} 
-                className="inline-flex w-full sm:w-fit justify-center h-9 items-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]"
-              >
-                <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm thông báo
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
+                <button 
+                  type="button" 
+                  onClick={markAllAsRead} 
+                  className="inline-flex w-full sm:w-fit justify-center h-9 items-center gap-2 rounded-xl border border-[#f3c56b]/35 bg-[#f3c56b]/10 px-4 text-sm font-black text-[#f3c56b] transition hover:bg-[#f3c56b]/20 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.98]"
+                >
+                  <CheckCheck className="h-4 w-4" /> Đọc tất cả
+                </button>
+                <button 
+                  type="button" 
+                  onClick={handleDeleteAll} 
+                  className="inline-flex w-full sm:w-fit justify-center h-9 items-center gap-2 rounded-xl border border-rose-500/35 bg-rose-500/10 px-4 text-sm font-black text-rose-300 transition hover:bg-rose-500/20 focus:outline-none focus:ring-4 focus:ring-rose-500/20 active:scale-[0.98]"
+                >
+                  <Trash2 className="h-4 w-4" /> Xóa tất cả
+                </button>
+                <button 
+                  type="button" 
+                  onClick={openCreateForm} 
+                  className="inline-flex w-full sm:w-fit justify-center h-9 items-center gap-2 rounded-xl bg-[#f3c56b] px-4 text-sm font-black text-[#24170d] shadow-xl shadow-[#a65f16]/20 transition-all hover:bg-[#ffd56f] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/35 active:scale-[0.98]"
+                >
+                  <Plus className="h-4 w-4 stroke-[2.8]" /> Thêm thông báo
+                </button>
+              </div>
             </div>
 
             {/* Metrics */}
@@ -420,22 +494,32 @@ export function NotificationsScreen() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
-                  {notifications.map((notif) => (
-                    <div 
-                      key={notif.id} 
-                      onClick={() => navigate(resolveNotificationActionPath(notif) || '/admin/notifications')}
-                      className="group flex flex-col justify-between gap-4 rounded-2xl border border-[#3d2a18]/10 bg-white p-4 sm:p-5 hover:border-[#f3c56b]/40 cursor-pointer hover:bg-stone-50/50 transition sm:flex-row sm:items-center"
-                    >
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 text-stone-600">
-                            {notificationTypeLabels[notif.notification_type] || 'Hệ thống'}
-                          </span>
-                          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[#f3c56b]/15 text-[#8a4f18]">
-                            Mục tiêu: {targetTypeLabels[notif.target_type] || 'Tất cả'}
-                          </span>
-                          <StatusBadge status={notif.status} label={notif.status_label || statusLabels[notif.status]} />
-                        </div>
+                  {notifications.map((notif) => {
+                    const isUnread = receivedNotifications.find((rn) => rn.id === String(notif.id))?.read === false
+                    return (
+                      <div 
+                        key={notif.id} 
+                        onClick={() => {
+                          markAsRead(String(notif.id))
+                          navigate(resolveNotificationActionPath(notif) || '/admin/notifications')
+                        }}
+                        className={cn(
+                          "group flex flex-col justify-between gap-4 rounded-2xl border p-4 sm:p-5 cursor-pointer transition sm:flex-row sm:items-center",
+                          isUnread 
+                            ? "border-[#f3c56b]/50 bg-[#f3c56b]/5 hover:bg-[#f3c56b]/10 shadow-sm"
+                            : "border-[#3d2a18]/10 bg-white hover:border-[#f3c56b]/40 hover:bg-stone-50/50"
+                        )}
+                      >
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 text-stone-600">
+                              {notificationTypeLabels[notif.notification_type] || 'Hệ thống'}
+                            </span>
+                            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[#f3c56b]/15 text-[#8a4f18]">
+                              Mục tiêu: {targetTypeLabels[notif.target_type] || 'Tất cả'}
+                            </span>
+                            <StatusBadge status={notif.status} label={notif.status_label || statusLabels[notif.status]} />
+                          </div>
 
                         <div className="space-y-1">
                           <h3 className="text-sm sm:text-base font-black text-[#24170d] leading-snug">{notif.title}</h3>
@@ -514,10 +598,22 @@ export function NotificationsScreen() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                  )
+                })}
                 </div>
               )}
             </div>
+
+            <AdminPagination
+              meta={paginationMeta}
+              currentPage={currentPage}
+              perPage={perPage}
+              totalItems={notifications.length}
+              itemLabel="thông báo"
+              isLoading={isLoading}
+              onPageChange={setCurrentPage}
+              onPerPageChange={changePerPage}
+            />
           </section>
 
           <NotificationModal

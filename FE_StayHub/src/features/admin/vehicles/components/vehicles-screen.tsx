@@ -136,7 +136,9 @@ export function VehiclesScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
+      if (keyword.trim() !== '') {
+        setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
+      }
     } finally {
       setIsLoading(false)
     }

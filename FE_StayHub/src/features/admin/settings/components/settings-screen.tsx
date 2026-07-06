@@ -185,7 +185,9 @@ export function SettingsScreen() {
         setForm((current) => ({ ...current, building_id: current.building_id || String(visibleBuildings[0].id) }))
       }
     } catch (error) {
-      setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể tải danh sách cài đặt tòa nhà.'))
+      if (keyword.trim() !== '') {
+        setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể tải danh sách cài đặt tòa nhà.'))
+      }
     } finally {
       setIsLoading(false)
     }

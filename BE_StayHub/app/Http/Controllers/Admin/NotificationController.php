@@ -41,6 +41,28 @@ class NotificationController extends Controller
                 ->orderByDesc('created_at')
                 ->paginate($request->integer('per_page', 20));
 
+            $statsQuery = $this->accessibleQuery($admin)
+                ->when($request->filled('target_type'), function ($q) use ($request) {
+                    $q->where('target_type', $request->integer('target_type'));
+                })
+                ->when($request->filled('building_id'), function ($q) use ($request) {
+                    $q->where('building_id', $request->integer('building_id'));
+                });
+
+            $statsData = $statsQuery->selectRaw('
+                COUNT(*) as total,
+                COUNT(CASE WHEN status = 1 THEN 1 END) as draft,
+                COUNT(CASE WHEN status = 2 THEN 1 END) as sent,
+                COUNT(CASE WHEN status = 3 THEN 1 END) as cancelled
+            ')->first();
+
+            $stats = [
+                'total' => $statsData ? (int) $statsData->total : 0,
+                'draft' => $statsData ? (int) $statsData->draft : 0,
+                'sent' => $statsData ? (int) $statsData->sent : 0,
+                'cancelled' => $statsData ? (int) $statsData->cancelled : 0,
+            ];
+
             return ApiResponse::responseJson(true, 'Danh sách thông báo', 200, [
                 'data' => NotificationResource::collection($notifications->items())->resolve(),
                 'pagination' => [
@@ -48,7 +70,8 @@ class NotificationController extends Controller
                     'per_page' => $notifications->perPage(),
                     'total' => $notifications->total(),
                     'last_page' => $notifications->lastPage(),
-                ]
+                ],
+                'stats' => $stats,
             ], 200);
 
         } catch (\Exception $e) {

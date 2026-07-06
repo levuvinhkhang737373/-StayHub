@@ -61,7 +61,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           }
         }
 
-        const res = await fetchAdminNotifications({ per_page: 50 })
+        const res = await fetchAdminNotifications({ per_page: 500 })
         if (!isMounted) return
 
         if (res.status && res.result) {
@@ -154,12 +154,12 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
             createdAt: new Date().toISOString(),
           }
           const filtered = prev.filter((_, idx) => idx !== existingIdx)
-          updated = [updatedNotif, ...filtered].slice(0, 50)
+          updated = [updatedNotif, ...filtered].slice(0, 500)
         } else {
-          updated = [newNotif, ...prev].slice(0, 50)
+          updated = [newNotif, ...prev].slice(0, 500)
         }
       } else {
-        updated = [newNotif, ...prev].slice(0, 50)
+        updated = [newNotif, ...prev].slice(0, 500)
       }
 
       if (adminId) {
