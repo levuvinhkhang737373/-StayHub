@@ -34,6 +34,38 @@ class _ContractsScreenState extends State<ContractsScreen> {
     return parseMoney(value);
   }
 
+  InputDecoration _inputDecoration({required String labelText, String? helperText, IconData? prefixIcon}) {
+    return InputDecoration(
+      labelText: labelText,
+      helperText: helperText,
+      prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 18, color: const Color(0xFF1C1917)) : null,
+      filled: true,
+      fillColor: const Color(0xFFFDFDFD),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+      ),
+      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey),
+    );
+  }
+
   void _showAddContractDialog() {
     final formKey = GlobalKey<FormState>();
     final codeController = TextEditingController();
@@ -69,7 +101,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                   
                   TextFormField(
                     controller: codeController,
-                    decoration: const InputDecoration(labelText: 'Số Hợp đồng', border: OutlineInputBorder()),
+                    decoration: _inputDecoration(labelText: 'Số Hợp đồng', prefixIcon: Icons.assignment_outlined),
                     validator: (val) => val == null || val.isEmpty ? 'Nhập số hợp đồng' : null,
                   ),
                   const SizedBox(height: 12),
@@ -79,7 +111,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                       Expanded(
                         child: TextFormField(
                           controller: roomController,
-                          decoration: const InputDecoration(labelText: 'Số phòng', border: OutlineInputBorder()),
+                          decoration: _inputDecoration(labelText: 'Số phòng', prefixIcon: Icons.meeting_room_outlined),
                           validator: (val) => val == null || val.isEmpty ? 'Nhập phòng' : null,
                         ),
                       ),
@@ -87,7 +119,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                       Expanded(
                         child: TextFormField(
                           controller: tenantController,
-                          decoration: const InputDecoration(labelText: 'Tên khách đại diện', border: OutlineInputBorder()),
+                          decoration: _inputDecoration(labelText: 'Tên khách đại diện', prefixIcon: Icons.person_outline),
                           validator: (val) => val == null || val.isEmpty ? 'Nhập tên khách' : null,
                         ),
                       ),
@@ -100,14 +132,14 @@ class _ContractsScreenState extends State<ContractsScreen> {
                       Expanded(
                         child: TextFormField(
                           controller: startController,
-                          decoration: const InputDecoration(labelText: 'Ngày bắt đầu', border: OutlineInputBorder()),
+                          decoration: _inputDecoration(labelText: 'Ngày bắt đầu', prefixIcon: Icons.calendar_today_outlined),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
                           controller: endController,
-                          decoration: const InputDecoration(labelText: 'Ngày kết thúc', border: OutlineInputBorder()),
+                          decoration: _inputDecoration(labelText: 'Ngày kết thúc', prefixIcon: Icons.calendar_today_outlined),
                         ),
                       ),
                     ],
@@ -121,7 +153,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                           controller: priceController,
                           keyboardType: TextInputType.number,
                           inputFormatters: [CurrencyInputFormatter()],
-                          decoration: const InputDecoration(labelText: 'Giá thuê (đ/tháng)', border: OutlineInputBorder()),
+                          decoration: _inputDecoration(labelText: 'Giá thuê (đ/tháng)', prefixIcon: Icons.payments_outlined),
                           validator: (val) => val == null || val.isEmpty ? 'Nhập giá' : null,
                         ),
                       ),
@@ -131,7 +163,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                           controller: depositController,
                           keyboardType: TextInputType.number,
                           inputFormatters: [CurrencyInputFormatter()],
-                          decoration: const InputDecoration(labelText: 'Tiền đặt cọc (đ)', border: OutlineInputBorder()),
+                          decoration: _inputDecoration(labelText: 'Tiền đặt cọc (đ)', prefixIcon: Icons.wallet_outlined),
                           validator: (val) => val == null || val.isEmpty ? 'Nhập cọc' : null,
                         ),
                       ),
@@ -192,7 +224,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
           title: const Text('Gia hạn hợp đồng'),
           content: TextField(
             controller: controller,
-            decoration: const InputDecoration(labelText: 'Ngày hết hạn mới', border: OutlineInputBorder()),
+            decoration: _inputDecoration(labelText: 'Ngày hết hạn mới', prefixIcon: Icons.calendar_today_outlined),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
@@ -287,14 +319,18 @@ class _ContractsScreenState extends State<ContractsScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: roomController,
-                    decoration: const InputDecoration(labelText: 'Số phòng mới', border: OutlineInputBorder()),
+                    decoration: _inputDecoration(labelText: 'Số phòng mới', prefixIcon: Icons.swap_horiz_rounded),
                     validator: (value) => value == null || value.trim().isEmpty ? 'Vui lòng nhập số phòng mới' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: movementDateController,
                     readOnly: true,
-                    decoration: const InputDecoration(labelText: 'Ngày chuyển cố định', border: OutlineInputBorder(), helperText: 'Chỉ cho chuyển vào ngày 01 của tháng kế tiếp'),
+                    decoration: _inputDecoration(
+                      labelText: 'Ngày chuyển cố định',
+                      prefixIcon: Icons.calendar_today_outlined,
+                      helperText: 'Chỉ cho chuyển vào ngày 01 của tháng kế tiếp',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -304,7 +340,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                           controller: deductionController,
                           keyboardType: TextInputType.number,
                           inputFormatters: [CurrencyInputFormatter()],
-                          decoration: const InputDecoration(labelText: 'Khấu trừ hư hao', border: OutlineInputBorder()),
+                          decoration: _inputDecoration(labelText: 'Khấu trừ hư hao', prefixIcon: Icons.money_off_outlined),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -313,7 +349,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
                           controller: feeController,
                           keyboardType: TextInputType.number,
                           inputFormatters: [CurrencyInputFormatter()],
-                          decoration: const InputDecoration(labelText: 'Phí chuyển', border: OutlineInputBorder()),
+                          decoration: _inputDecoration(labelText: 'Phí chuyển', prefixIcon: Icons.local_taxi_outlined),
                         ),
                       ),
                     ],
@@ -323,14 +359,14 @@ class _ContractsScreenState extends State<ContractsScreen> {
                     controller: depositController,
                     keyboardType: TextInputType.number,
                     inputFormatters: [CurrencyInputFormatter()],
-                    decoration: const InputDecoration(labelText: 'Cọc phòng mới (tuỳ chọn)', border: OutlineInputBorder()),
+                    decoration: _inputDecoration(labelText: 'Cọc phòng mới (tuỳ chọn)', prefixIcon: Icons.wallet_outlined),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: noteController,
                     minLines: 2,
                     maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Ghi chú', border: OutlineInputBorder()),
+                    decoration: _inputDecoration(labelText: 'Ghi chú', prefixIcon: Icons.note_outlined),
                   ),
                   const SizedBox(height: 20),
                   Row(
@@ -498,11 +534,11 @@ class _ContractsScreenState extends State<ContractsScreen> {
                 const SizedBox(height: 12),
 
                 // Details
-                _buildInfoRow('Khách thuê:', contract.tenantName),
-                _buildInfoRow('Phòng:', 'Phòng ${contract.roomNumber}'),
-                _buildInfoRow('Thời hạn:', '${contract.startDate} -> ${contract.endDate}'),
-                _buildInfoRow('Giá thuê:', '${formatMoney(contract.rentalPrice)} / tháng'),
-                _buildInfoRow('Đặt cọc:', formatMoney(contract.depositAmount)),
+                _buildInfoRow(Icons.person_outline, 'Khách thuê:', contract.tenantName),
+                _buildInfoRow(Icons.meeting_room_outlined, 'Phòng:', 'Phòng ${contract.roomNumber}'),
+                _buildInfoRow(Icons.calendar_today_outlined, 'Thời hạn:', '${contract.startDate} -> ${contract.endDate ?? "Chưa rõ"}'),
+                _buildInfoRow(Icons.payments_outlined, 'Giá thuê:', '${formatMoney(contract.rentalPrice)} / tháng', iconColor: const Color(0xFFEAB308)),
+                _buildInfoRow(Icons.wallet_outlined, 'Đặt cọc:', formatMoney(contract.depositAmount)),
                 
                 // Actions strip
                 if (contract.status == Contract.STATUS_ACTIVE || contract.status == Contract.STATUS_EXPIRED) ...[
@@ -574,13 +610,19 @@ class _ContractsScreenState extends State<ContractsScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(IconData icon, String label, String value, {Color? iconColor}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6.0),
+      padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Row(
+            children: [
+              Icon(icon, size: 16, color: iconColor ?? const Color(0xFF8B5E34).withValues(alpha: 0.7)),
+              const SizedBox(width: 8),
+              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
+            ],
+          ),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1C1917), fontSize: 13)),
         ],
       ),
@@ -596,14 +638,15 @@ class _ContractsScreenState extends State<ContractsScreen> {
     if (contract.status == Contract.STATUS_DRAFT) color = Colors.grey; // Draft
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
       ),
       child: Text(
-        contract.statusLabel,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        contract.statusLabel.toUpperCase(),
+        style: TextStyle(color: color, fontSize: 9.5, fontWeight: FontWeight.bold, letterSpacing: 0.5),
       ),
     );
   }
