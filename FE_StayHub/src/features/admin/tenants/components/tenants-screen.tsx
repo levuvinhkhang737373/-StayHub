@@ -159,7 +159,9 @@ export function TenantsScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê.'))
+      if (keyword.trim() !== '') {
+        setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê.'))
+      }
     } finally {
       setIsLoading(false)
     }

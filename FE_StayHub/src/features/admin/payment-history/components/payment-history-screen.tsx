@@ -24,6 +24,7 @@ import { fetchAdminContracts } from '../../contracts/services/contracts.service'
 import type { AdminContractResource } from '../../contracts/types/contract-api.model'
 import { fetchAdminRooms } from '../../rooms/services/rooms.service'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
+import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { confirmPaymentHistoryInvoicePayment, fetchAdminPaymentHistory } from '../services/payment-history.service'
 import type { AdminPaymentHistoryPaginationMeta, AdminPaymentHistoryRecord, AdminPaymentHistorySummary, PaymentHistoryAmountDirection, PaymentHistorySourceType, PaymentHistoryStatusGroup } from '../types/payment-history.model'
@@ -331,8 +332,8 @@ export function PaymentHistoryScreen() {
       {/* ── Filters + Table combined section ── */}
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
         <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-          <div className="grid gap-3 lg:grid-cols-[minmax(12rem,1.15fr)_repeat(3,minmax(100px,0.75fr))]">
-            <div className="relative min-w-0">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="relative min-w-0 sm:col-span-2 lg:col-span-2">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
               <input
                 value={keyword}
@@ -347,23 +348,19 @@ export function PaymentHistoryScreen() {
             <AdminSelect value={selectedSourceType} options={sourceTypeOptions} onChange={(value) => { setSelectedSourceType(String(value)); setSelectedDepositType(''); resetPage() }} />
             <AdminSelect value={selectedStatusGroup} options={statusGroupOptions} onChange={(value) => { setSelectedStatusGroup(String(value)); resetPage() }} />
             <AdminSelect value={selectedPaymentMethod} options={paymentMethodOptions} onChange={(value) => { setSelectedPaymentMethod(String(value)); resetPage() }} />
-          </div>
-          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(100px,14rem)_minmax(100px,14rem)_minmax(100px,14rem)_minmax(100px,14rem)_minmax(100px,14rem)_1fr]">
             <AdminSelect value={selectedBuildingId} options={filterBuildingOptions} onChange={(value) => { setSelectedBuildingId(String(value)); setSelectedRoomId(''); setSelectedContractId(''); resetPage() }} disabled={!isSuperAdmin && Boolean(managedBuildingId)} />
             <AdminSelect value={selectedRoomId} options={roomOptions} onChange={(value) => { setSelectedRoomId(String(value)); resetPage() }} disabled={!selectedBuildingId} />
             <AdminSelect value={selectedContractId} options={contractOptions} onChange={(value) => { setSelectedContractId(String(value)); resetPage() }} />
             <AdminSelect value={selectedDirection} options={amountDirectionOptions} onChange={(value) => { setSelectedDirection(String(value)); resetPage() }} />
             <AdminSelect value={selectedDepositType} options={depositTransactionTypeOptions} onChange={(value) => { setSelectedDepositType(String(value)); resetPage() }} disabled={selectedSourceType !== 'deposit_transaction'} />
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:max-w-xl">
-            <label className="relative block">
-              <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-              <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); resetPage() }} className={`${inputClass} pl-11`} />
-            </label>
-            <label className="relative block">
-              <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
-              <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); resetPage() }} className={`${inputClass} pl-11`} />
-            </label>
+            <div className="relative block">
+              <CalendarDays className="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
+              <AdminDateInput value={dateFrom} onChange={(value) => { setDateFrom(value); resetPage() }} placeholder="Từ ngày" className={`${inputClass} pl-11`} />
+            </div>
+            <div className="relative block">
+              <CalendarDays className="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
+              <AdminDateInput value={dateTo} onChange={(value) => { setDateTo(value); resetPage() }} placeholder="Đến ngày" className={`${inputClass} pl-11`} />
+            </div>
           </div>
         </div>
 

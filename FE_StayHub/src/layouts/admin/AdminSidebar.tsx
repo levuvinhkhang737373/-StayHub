@@ -1,10 +1,15 @@
-import { useMemo, useState } from 'react'
-import { LogOut, User } from 'lucide-react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { LogOut, User, Bell, MessageCircle } from 'lucide-react'
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { logoutAdmin } from '../../features/admin/auth/services/admin-auth.service'
 import { AdminNavList } from '../../features/admin/shared/components/AdminNavList'
 import { getAdminRoleLabel, getVisibleAdminNavItems } from '../../features/admin/shared/config/admin-navigation'
 import { AccountSettingsModal } from './AccountSettingsModal'
+import { useAdminNotifications } from '../../features/admin/notifications/hooks/admin-notification-context'
+import { useAdminSocket } from '../../shared/lib/socket/socket-context'
+import { fetchAdminChatConversations } from '../../features/shared/chat/services/chat.service'
+import { cn } from '../../shared/lib/utils/cn'
 
 export function AdminSidebar() {
   const { clearSession, session } = useAdminSession()
@@ -13,6 +18,45 @@ export function AdminSidebar() {
   const visibleItems = useMemo(() => getVisibleAdminNavItems(session?.admin.role), [session?.admin.role])
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const location = useLocation()
+  const { echo } = useAdminSocket()
+  const { unreadCount: notificationUnreadCount } = useAdminNotifications()
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const res = await fetchAdminChatConversations({ per_page: 100 })
+      if (res.status && res.result?.data) {
+        const total = res.result.data.reduce((sum, item) => sum + Number(item.admin_unread_count || 0), 0)
+        setChatUnreadCount(total)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!session?.admin?.id) return
+    void loadUnreadCount()
+  }, [session?.admin?.id, loadUnreadCount])
+
+  useEffect(() => {
+    if (!echo || !session?.admin?.id) return
+
+    const channel = echo.private(`chat.admin.${session.admin.id}`)
+    const handleUpdate = () => {
+      void loadUnreadCount()
+    }
+
+    channel.listen('.ChatMessageSent', handleUpdate)
+    channel.listen('.ChatConversationRead', handleUpdate)
+
+    return () => {
+      channel.stopListening('.ChatMessageSent')
+      channel.stopListening('.ChatConversationRead')
+    }
+  }, [echo, session?.admin?.id, loadUnreadCount])
 
   async function handleLogout() {
     if (isLoggingOut) return
@@ -42,6 +86,54 @@ export function AdminSidebar() {
           <div className="min-w-0">
             <h1 className="text-xl font-black leading-none tracking-[-0.045em] text-[#24170d]">StayHub</h1>
           </div>
+        </div>
+      </div>
+
+      {/* Combined Action Pill (Facebook-like Chat & Notifications) */}
+      <div className="relative shrink-0 px-4 pb-3">
+        <div className="flex items-center rounded-full border border-[#3d2a18]/10 bg-white/45 p-1 shadow-md shadow-[#6b3f1d]/5 backdrop-blur-md">
+          {/* Chat Link */}
+          <Link
+            to="/admin/chat"
+            className={cn(
+              "relative flex flex-1 h-10 items-center justify-center rounded-full transition-all duration-200 active:scale-95",
+              location.pathname.startsWith('/admin/chat')
+                ? "bg-[#24170d] text-[#fff4df] shadow-md shadow-black/10"
+                : "text-[#8b5e34] hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
+            )}
+            aria-label="Đoạn chat"
+            title="Đoạn chat"
+          >
+            <MessageCircle className="h-5 w-5 stroke-[2.5]" />
+            {chatUnreadCount > 0 && (
+              <span className="absolute right-5 top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-black text-white ring-1 ring-white">
+                {chatUnreadCount}
+              </span>
+            )}
+          </Link>
+
+          {/* Vertical Divider */}
+          <div className="h-5 w-[1px] bg-[#3d2a18]/12 shrink-0" />
+
+          {/* Notifications Link */}
+          <Link
+            to="/admin/notifications"
+            className={cn(
+              "relative flex flex-1 h-10 items-center justify-center rounded-full transition-all duration-200 active:scale-95",
+              location.pathname.startsWith('/admin/notifications')
+                ? "bg-[#24170d] text-[#fff4df] shadow-md shadow-black/10"
+                : "text-[#8b5e34] hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
+            )}
+            aria-label="Thông báo"
+            title="Thông báo"
+          >
+            <Bell className="h-5 w-5 stroke-[2.5]" />
+            {notificationUnreadCount > 0 && (
+              <span className="absolute right-5 top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-black text-white ring-1 ring-white">
+                {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+              </span>
+            )}
+          </Link>
         </div>
       </div>
 

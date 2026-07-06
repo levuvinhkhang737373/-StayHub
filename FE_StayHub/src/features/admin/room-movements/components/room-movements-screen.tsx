@@ -611,15 +611,16 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                   </div>
                 </div>
 
-                <div className="mt-6 border-t border-[#3d2a18]/10 pt-4">
+                 <div className="mt-6 border-t border-[#3d2a18]/10 pt-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Luồng phòng</p>
                   <div className="mt-3 grid grid-cols-2 gap-2.5">
+                    <div className="col-span-2">
+                      <DetailTile label="Loại biến động" value={movement.movement_type_label || '—'} />
+                    </div>
                     <DetailTile label="Phòng cũ" value={roomLabel(movement.from_room, '—')} />
-                    <DetailTile label="Phòng mới" value={roomLabel(movement.to_room, 'Trả phòng')} />
                     <DetailTile label="Hợp đồng nguồn" value={movement.source_contract?.contract_code || (movement.source_contract_id ? `#${movement.source_contract_id}` : '—')} />
+                    <DetailTile label="Phòng mới" value={roomLabel(movement.to_room, 'Trả phòng')} />
                     <DetailTile label="Hợp đồng đích" value={movement.destination_contract?.contract_code || (movement.destination_contract_id ? `#${movement.destination_contract_id}` : '—')} />
-                    <DetailTile label="Hợp đồng ghi nhận" value={movement.contract?.contract_code || (movement.contract_id ? `#${movement.contract_id}` : '—')} />
-                    <DetailTile label="Loại biến động" value={movement.movement_type_label || '—'} />
                   </div>
                 </div>
               </div>

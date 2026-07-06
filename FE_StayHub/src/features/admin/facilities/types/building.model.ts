@@ -43,6 +43,7 @@ export interface Building {
   images_count?: number
   manager_name?: string | null
   manager_phone?: string | null
+  manager_email?: string | null
   rooms_count?: number
 
   service_prices_count?: number

@@ -127,7 +127,9 @@ export function RoomTypesScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách loại phòng.')
+      if (keyword.trim() !== '') {
+        setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách loại phòng.')
+      }
     } finally {
       setIsLoading(false)
     }

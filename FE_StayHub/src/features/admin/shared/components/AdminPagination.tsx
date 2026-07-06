@@ -51,10 +51,9 @@ export function AdminPagination({ meta, currentPage, perPage, totalItems, itemLa
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <label className="flex items-center gap-2 text-sm font-black text-[#6f6254]">
-          Mỗi trang
-          <AdminSelect value={perPage} options={perPageOptions} className="w-36" menuPlacement="top" onChange={(nextValue) => onPerPageChange(Number(nextValue))} />
-        </label>
+        <div className="w-36">
+          <AdminSelect value={perPage} options={perPageOptions} menuPlacement="top" onChange={(nextValue) => onPerPageChange(Number(nextValue))} />
+        </div>
 
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => onPageChange(Math.max(1, safeCurrentPage - 1))} disabled={safeCurrentPage <= 1} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 text-[#8b5e34] transition hover:border-[#f3c56b] hover:text-[#a65f16] disabled:cursor-not-allowed disabled:opacity-40" aria-label="Trang trước">

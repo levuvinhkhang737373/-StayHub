@@ -194,7 +194,9 @@ export function MaintenanceScreen() {
         setPaginationMeta(null)
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách phiếu sửa chữa.')
+      if (keyword.trim() !== '') {
+        setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách phiếu sửa chữa.')
+      }
     } finally {
       setIsLoading(false)
     }

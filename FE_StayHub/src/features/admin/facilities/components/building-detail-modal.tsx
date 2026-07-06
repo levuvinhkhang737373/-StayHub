@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import type { FC } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Clock, LayoutDashboard, MapPin, Phone, User, X } from 'lucide-react'
+import { Clock, Mail, MapPin, Phone, User, X } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
 import type { Building } from '../types/building.model'
@@ -166,14 +166,22 @@ export const BuildingDetailModal: FC<BuildingDetailModalProps> = ({ isOpen, onCl
                         <p className="mt-1 text-base font-black text-white">{building?.manager_name || 'Chưa phân công'}</p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <a href={`tel:${building?.manager_phone || ''}`} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white transition-all hover:bg-white hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-amber-200/20">
-                        <Phone className="h-4 w-4" />
-                      </a>
-                      <button type="button" className="flex h-11 items-center gap-2 rounded-full bg-amber-300 px-5 text-[11px] font-black uppercase tracking-tight text-stone-950 transition-all hover:bg-amber-200 focus:outline-none focus:ring-4 focus:ring-amber-200/30">
-                        <LayoutDashboard className="h-3.5 w-3.5" />
-                        <span>Thống kê</span>
-                      </button>
+                    <div className="flex flex-col gap-2 text-xs text-white/80 sm:items-start">
+                      {building?.manager_phone && (
+                        <a href={`tel:${building.manager_phone}`} className="flex items-center gap-2 transition hover:text-amber-200">
+                          <Phone className="h-3.5 w-3.5 text-amber-200" />
+                          <span className="font-semibold">{building.manager_phone}</span>
+                        </a>
+                      )}
+                      {building?.manager_email && (
+                        <a href={`mailto:${building.manager_email}`} className="flex items-center gap-2 transition hover:text-amber-200">
+                          <Mail className="h-3.5 w-3.5 text-amber-200" />
+                          <span className="font-semibold">{building.manager_email}</span>
+                        </a>
+                      )}
+                      {!building?.manager_phone && !building?.manager_email && (
+                        <span className="text-xs font-semibold text-white/40">Chưa có thông tin liên hệ</span>
+                      )}
                     </div>
                   </div>
                 </section>

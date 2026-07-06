@@ -26,6 +26,7 @@ export function mapBuildingResourceToBuilding(building: AdminBuildingResource | 
     description: detail.description || null,
     manager_name: building.manager_name || detail.manager?.full_name || null,
     manager_phone: detail.manager?.phone || null,
+    manager_email: detail.manager?.email || null,
     created_at: building.created_at || null,
     updated_at: building.updated_at || null,
     images_count: building.images_count,

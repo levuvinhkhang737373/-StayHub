@@ -107,7 +107,9 @@ export function ExpenseCategoriesScreen() {
 
       setExpenseCategories(getResourceList(response.result))
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh mục chi phí.')
+      if (keyword.trim() !== '') {
+        setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh mục chi phí.')
+      }
     } finally {
       setIsLoading(false)
     }

@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { Menu, User, X } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { Menu, User, X, Bell, MessageCircle } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { logoutAdmin } from '../../features/admin/auth/services/admin-auth.service'
 import { AdminNavList } from '../../features/admin/shared/components/AdminNavList'
 import { getActiveAdminNavItem, getAdminRoleLabel, getVisibleAdminNavItems } from '../../features/admin/shared/config/admin-navigation'
 import { AccountSettingsModal } from './AccountSettingsModal'
+import { useAdminNotifications } from '../../features/admin/notifications/hooks/admin-notification-context'
+import { useAdminSocket } from '../../shared/lib/socket/socket-context'
+import { fetchAdminChatConversations } from '../../features/shared/chat/services/chat.service'
+import { cn } from '../../shared/lib/utils/cn'
 
 export function AdminHeader() {
   const location = useLocation()
@@ -18,6 +22,44 @@ export function AdminHeader() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const { echo } = useAdminSocket()
+  const { unreadCount: notificationUnreadCount } = useAdminNotifications()
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const res = await fetchAdminChatConversations({ per_page: 100 })
+      if (res.status && res.result?.data) {
+        const total = res.result.data.reduce((sum, item) => sum + Number(item.admin_unread_count || 0), 0)
+        setChatUnreadCount(total)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!session?.admin?.id) return
+    void loadUnreadCount()
+  }, [session?.admin?.id, loadUnreadCount])
+
+  useEffect(() => {
+    if (!echo || !session?.admin?.id) return
+
+    const channel = echo.private(`chat.admin.${session.admin.id}`)
+    const handleUpdate = () => {
+      void loadUnreadCount()
+    }
+
+    channel.listen('.ChatMessageSent', handleUpdate)
+    channel.listen('.ChatConversationRead', handleUpdate)
+
+    return () => {
+      channel.stopListening('.ChatMessageSent')
+      channel.stopListening('.ChatConversationRead')
+    }
+  }, [echo, session?.admin?.id, loadUnreadCount])
   const drawerRef = useRef<HTMLDivElement | null>(null)
   const menuButtonRef = useRef<HTMLButtonElement | null>(null)
   const openedPathnameRef = useRef(location.pathname)
@@ -90,12 +132,12 @@ export function AdminHeader() {
             ref={menuButtonRef}
             type="button"
             onClick={() => setIsDrawerOpen(true)}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/65 text-[#8b5e34] shadow-sm transition hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#f3c56b]/20"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/65 text-[#8b5e34] transition hover:border-[#f3c56b]/40 hover:bg-[#f3c56b]/10 hover:text-[#24170d] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#f3c56b]/15"
             aria-label="Mở menu quản trị"
             aria-haspopup="dialog"
             aria-expanded={isDrawerOpen}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-[18px] w-[18px]" />
           </button>
 
           <div className="min-w-0 flex-1">
@@ -103,14 +145,59 @@ export function AdminHeader() {
             <h1 className="truncate text-base font-black tracking-[-0.025em] text-[#24170d] sm:text-lg">{activeItem?.label || 'StayHub Admin'}</h1>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsAccountModalOpen(true)}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/65 text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#0f766e]/15"
-            aria-label="Mở cài đặt tài khoản"
-          >
-            <User className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Combined Action Pill (Facebook-like Chat & Notifications) */}
+            <div className="flex items-center rounded-full border border-[#3d2a18]/10 bg-white/45 p-0.5 shadow-md shadow-[#6b3f1d]/5 backdrop-blur-md">
+              <Link
+                to="/admin/chat"
+                className={cn(
+                  "relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-95",
+                  location.pathname.startsWith('/admin/chat')
+                    ? "bg-[#24170d] text-[#fff4df]"
+                    : "text-[#8b5e34] hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
+                )}
+                aria-label="Đoạn chat"
+                title="Đoạn chat"
+              >
+                <MessageCircle className="h-[18px] w-[18px] stroke-[2.5]" />
+                {chatUnreadCount > 0 && (
+                  <span className="absolute right-1 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[8px] font-black text-white ring-1 ring-white">
+                    {chatUnreadCount}
+                  </span>
+                )}
+              </Link>
+
+              <div className="h-4 w-[1px] bg-[#3d2a18]/12 shrink-0" />
+
+              <Link
+                to="/admin/notifications"
+                className={cn(
+                  "relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-95",
+                  location.pathname.startsWith('/admin/notifications')
+                    ? "bg-[#24170d] text-[#fff4df]"
+                    : "text-[#8b5e34] hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
+                )}
+                aria-label="Thông báo"
+                title="Thông báo"
+              >
+                <Bell className="h-[18px] w-[18px] stroke-[2.5]" />
+                {notificationUnreadCount > 0 && (
+                  <span className="absolute right-1 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[8px] font-black text-white ring-1 ring-white">
+                    {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                  </span>
+                )}
+              </Link>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAccountModalOpen(true)}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/65 text-[#8b5e34] transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#0f766e]/15"
+              aria-label="Mở cài đặt tài khoản"
+            >
+              <User className="h-5 w-5 stroke-[2.5]" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -152,8 +239,58 @@ export function AdminHeader() {
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/60 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-100"
                   aria-label="Đóng menu quản trị"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-5 w-5 stroke-[2.5]" />
                 </button>
+              </div>
+
+              {/* Icon Bar like Facebook in drawer */}
+              <div className="relative shrink-0 px-4 pb-3">
+                <div className="flex items-center rounded-full border border-[#3d2a18]/10 bg-white/45 p-1 shadow-md shadow-[#6b3f1d]/5 backdrop-blur-md">
+                  {/* Chat Link */}
+                  <Link
+                    to="/admin/chat"
+                    onClick={closeDrawer}
+                    className={cn(
+                      "relative flex flex-1 h-10 items-center justify-center rounded-full transition-all duration-200 active:scale-95",
+                      location.pathname.startsWith('/admin/chat')
+                        ? "bg-[#24170d] text-[#fff4df] shadow-md shadow-black/10"
+                        : "text-[#8b5e34] hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
+                    )}
+                    aria-label="Đoạn chat"
+                    title="Đoạn chat"
+                  >
+                    <MessageCircle className="h-5 w-5 stroke-[2.5]" />
+                    {chatUnreadCount > 0 && (
+                      <span className="absolute right-5 top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-black text-white ring-1 ring-white">
+                        {chatUnreadCount}
+                      </span>
+                    )}
+                  </Link>
+
+                  {/* Vertical Divider */}
+                  <div className="h-5 w-[1px] bg-[#3d2a18]/12 shrink-0" />
+
+                  {/* Notifications Link */}
+                  <Link
+                    to="/admin/notifications"
+                    onClick={closeDrawer}
+                    className={cn(
+                      "relative flex flex-1 h-10 items-center justify-center rounded-full transition-all duration-200 active:scale-95",
+                      location.pathname.startsWith('/admin/notifications')
+                        ? "bg-[#24170d] text-[#fff4df] shadow-md shadow-black/10"
+                        : "text-[#8b5e34] hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
+                    )}
+                    aria-label="Thông báo"
+                    title="Thông báo"
+                  >
+                    <Bell className="h-5 w-5 stroke-[2.5]" />
+                    {notificationUnreadCount > 0 && (
+                      <span className="absolute right-5 top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-black text-white ring-1 ring-white">
+                        {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                      </span>
+                    )}
+                  </Link>
+                </div>
               </div>
 
               <AdminNavList items={visibleItems} variant="drawer" onNavigate={closeDrawer} />

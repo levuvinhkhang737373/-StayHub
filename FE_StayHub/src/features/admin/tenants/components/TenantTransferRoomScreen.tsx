@@ -223,7 +223,11 @@ export function TenantTransferRoomScreen() {
           if (!isMounted) return
           setTenantOptions([])
           setTenantOptionsMeta(null)
-          setTenantOptionsError(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê.'))
+          if (tenantKeyword.trim() !== '') {
+            setTenantOptionsError(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê.'))
+          } else {
+            setTenantOptionsError(null)
+          }
         })
         .finally(() => {
           if (!isMounted) return
@@ -1197,7 +1201,7 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
 
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-white/82 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur">
         <div className="p-4 sm:p-5">
-          {errorMessage && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
+          {keyword.trim() !== '' && errorMessage && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {isLoading && Array.from({ length: 9 }).map((_, index) => (
