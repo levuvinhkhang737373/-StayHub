@@ -63,11 +63,24 @@ export async function changeAdminPassword(payload: AdminChangePasswordPayload) {
   })
 }
 
-export async function updateAdminProfile(payload: { full_name: string; phone?: string }) {
+export async function updateAdminProfile(payload: { full_name: string; phone?: string; avatar?: File | null }) {
+  const formData = new FormData()
+  formData.append('_method', 'PATCH')
+  formData.append('full_name', payload.full_name)
+  if (payload.phone) {
+    formData.append('phone', payload.phone)
+  }
+  if (payload.avatar) {
+    formData.append('avatar', payload.avatar)
+  }
+
   return apiRequest<AdminLoginResult>({
     url: 'admin/profile',
-    method: 'PATCH',
-    data: payload,
+    method: 'POST',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   })
 }
 

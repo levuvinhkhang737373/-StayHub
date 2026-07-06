@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Admin;
 
+use App\Helpers\ImageHelper;
 use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -19,7 +20,7 @@ class AdminAuthResource extends JsonResource
             'full_name' => $this->full_name,
             'email' => $this->email,
             'phone' => $this->phone,
-            'avatar_url' => $this->avatar_url,
+            'avatar_url' => $this->avatar_url ? ImageHelper::load($this->avatar_url) : null,
             'image_path_faceid' => $this->image_path_faceid,
             'has_faceid' => filled($this->image_path_faceid),
             'role' => $this->role,

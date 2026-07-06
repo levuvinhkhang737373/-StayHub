@@ -5,6 +5,7 @@ import { logoutAdmin } from '../../features/admin/auth/services/admin-auth.servi
 import { AdminNavList } from '../../features/admin/shared/components/AdminNavList'
 import { getAdminRoleLabel, getVisibleAdminNavItems } from '../../features/admin/shared/config/admin-navigation'
 import { AccountSettingsModal } from './AccountSettingsModal'
+import { resolveAssetUrl } from '../../shared/lib/utils/asset-url'
 
 export function AdminSidebar() {
   const { clearSession, session } = useAdminSession()
@@ -55,8 +56,12 @@ export function AdminSidebar() {
           aria-label="Mở cài đặt tài khoản"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm">
-              <User className="h-5 w-5" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm">
+              {session?.admin.avatar_url ? (
+                <img src={resolveAssetUrl(session.admin.avatar_url)} alt="Avatar" className="h-full w-full object-cover" />
+              ) : (
+                <User className="h-5 w-5" />
+              )}
             </div>
             <div className="min-w-0 overflow-hidden">
               <p className="truncate text-xs font-black text-[#24170d]">{adminName}</p>

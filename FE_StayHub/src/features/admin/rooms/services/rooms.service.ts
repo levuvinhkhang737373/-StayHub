@@ -151,3 +151,21 @@ export async function fetchAssets()
     result: normalizeResultList<AssetResource>(response.result)
   };
 }
+
+export async function createAssetTemplate(payload: { name: string; default_unit_name?: number; description?: string }) {
+  return apiRequest<unknown>({
+    url: 'admin/asset-templates',
+    method: 'POST',
+    data: payload
+  });
+}
+
+export async function createRoomType(payload: { name: string; description?: string }) {
+  return apiRequest<unknown>({
+    url: 'admin/room-types',
+    method: 'POST',
+    data: payload
+  });
+}
+
+

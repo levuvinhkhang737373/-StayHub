@@ -508,7 +508,7 @@ class InvoiceController extends Controller
                         'payment_code' => $this->makePaymentCode(),
                         'invoice_id' => $invoiceModel->id,
                         'amount' => DecimalMoney::normalize($validated['amount']),
-                        'payment_date' => isset($validated['payment_date']) ? Carbon::parse($validated['payment_date']) : now(),
+                        'payment_date' => isset($validated['payment_date']) ? Carbon::parse($validated['payment_date'])->setTimeFrom(now()) : now(),
                         'payment_method' => $validated['payment_method'],
                         'transaction_reference' => $validated['transaction_reference'] ?? null,
                         'status' => Payment::STATUS_CONFIRMED,

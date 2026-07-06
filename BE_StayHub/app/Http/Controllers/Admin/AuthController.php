@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\ApiResponse;
+use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\AdminAuthResource;
 use App\Models\Admin;
@@ -321,16 +322,35 @@ class AuthController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
             }
 
-            $validated = $request->validate([
-                'full_name' => ['required', 'string', 'max:150'],
-                'phone'     => ['nullable', 'string', 'max:20'],
+            \Illuminate\Support\Facades\Log::info('Update Profile Request:', [
+                'has_file_avatar' => $request->hasFile('avatar'),
+                'avatar_file_details' => $request->file('avatar') ? [
+                    'original_name' => $request->file('avatar')->getClientOriginalName(),
+                    'mime_type' => $request->file('avatar')->getMimeType(),
+                    'size' => $request->file('avatar')->getSize(),
+                ] : null,
+                'params' => $request->all(),
             ]);
 
-            $oldData = $admin->only(['full_name', 'phone']);
+            $validated = $request->validate([
+                'full_name' => ['required', 'string', 'max:150'],
+                'phone'     => ['nullable', 'string', 'regex:/^(0[3|5|7|8|9])+([0-9]{8})$/'],
+                'avatar'    => ['nullable', 'image', 'max:5120'],
+            ], [
+                'phone.regex' => 'Số điện thoại không đúng định dạng Việt Nam (phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08, 09).',
+            ]);
+
+            $oldData = $admin->only(['full_name', 'phone', 'avatar_url']);
             
+            $avatarUrl = $admin->avatar_url;
+            if ($request->hasFile('avatar')) {
+                $avatarUrl = ImageHelper::update($request->file('avatar'), $admin->avatar_url, 'avatars');
+            }
+
             $admin->forceFill([
-                'full_name' => $validated['full_name'],
-                'phone'     => $validated['phone'],
+                'full_name'  => $validated['full_name'],
+                'phone'      => $validated['phone'],
+                'avatar_url' => $avatarUrl,
             ])->save();
 
             AdminActivityLogger::write(
@@ -339,7 +359,7 @@ class AuthController extends Controller
                 Admin::class,
                 $admin->id,
                 $oldData,
-                $admin->fresh()->only(['full_name', 'phone']),
+                $admin->fresh()->only(['full_name', 'phone', 'avatar_url']),
                 $request
             );
 

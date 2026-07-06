@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../controllers/auth_controller.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
@@ -21,23 +22,174 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Future<void> _handleUpdateAvatar() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null) return;
+
+    final authController = context.read<AuthController>();
+    final displayName = authController.isAdmin
+        ? authController.currentAdmin?.fullName
+        : authController.currentTenant?.fullName;
+    final phone = authController.isAdmin
+        ? authController.currentAdmin?.phone
+        : authController.currentTenant?.phone;
+
+    final success = await authController.updatePersonalProfile(
+      fullName: displayName ?? '',
+      phone: phone,
+      avatarFile: file,
+    );
+
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cập nhật ảnh đại diện thành công!'), backgroundColor: Colors.green),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authController.errorMessage ?? 'Cập nhật ảnh đại diện thất bại'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  void _showEditPhoneDialog() {
+    final authController = context.read<AuthController>();
+    final currentPhone = authController.isAdmin
+        ? authController.currentAdmin?.phone
+        : authController.currentTenant?.phone;
+    final displayName = authController.isAdmin
+        ? authController.currentAdmin?.fullName
+        : authController.currentTenant?.fullName;
+
+    final controller = TextEditingController(text: currentPhone);
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final auth = Provider.of<AuthController>(context);
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text(
+                'Cập nhật Số điện thoại',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+              ),
+              content: Form(
+                key: formKey,
+                child: TextFormField(
+                  controller: controller,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(color: Color(0xFF1C1917)),
+                  decoration: InputDecoration(
+                    labelText: 'Số điện thoại mới',
+                    filled: true,
+                    fillColor: const Color(0xFFF9F8F6),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1C1917)),
+                    ),
+                  ),
+                  validator: (val) {
+                    if (val == null || val.isEmpty) return 'Số điện thoại không được để trống';
+                    final phoneRegex = RegExp(r'^(0[3|5|7|8|9])+([0-9]{8})$');
+                    if (!phoneRegex.hasMatch(val.trim())) {
+                      return 'Đầu số VN (03/05/07/08/09) kèm 8 chữ số';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('HỦY', style: TextStyle(color: Colors.grey)),
+                ),
+                TextButton(
+                  onPressed: auth.isLoading
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+
+                          final success = await auth.updatePersonalProfile(
+                            fullName: displayName ?? '',
+                            phone: controller.text.trim(),
+                          );
+
+                          if (success && mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Cập nhật số điện thoại thành công!'), backgroundColor: Colors.green),
+                            );
+                          } else if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(auth.errorMessage ?? 'Cập nhật thất bại'),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                        },
+                  child: auth.isLoading
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(color: Color(0xFF1C1917), strokeWidth: 2),
+                        )
+                      : const Text('CẬP NHẬT', style: TextStyle(color: Color(0xFF1C1917), fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {VoidCallback? onTap}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: const TextStyle(color: Color(0xFF1C1917), fontSize: 13, fontWeight: FontWeight.w600),
-            ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        value,
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (onTap != null) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.edit_outlined, size: 14, color: Colors.grey),
+                    ]
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -242,16 +394,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     padding: const EdgeInsets.all(16.0),
                     child: Row(
                       children: [
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundColor: const Color(0xFF1C1917),
-                          backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                          child: avatarUrl == null
-                              ? Text(
-                                  initial,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20),
-                                )
-                              : null,
+                        GestureDetector(
+                          onTap: _handleUpdateAvatar,
+                          child: Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 28,
+                                backgroundColor: const Color(0xFF1C1917),
+                                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                child: avatarUrl == null
+                                    ? Text(
+                                        initial,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20),
+                                      )
+                                    : null,
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFEAB308),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt,
+                                    size: 12,
+                                    color: Color(0xFF1C1917),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -291,7 +466,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ? [
                               _buildInfoRow('Tên đăng nhập', admin?.username ?? ''),
                               _buildInfoRow('Email liên hệ', admin?.email ?? ''),
-                              _buildInfoRow('Số điện thoại', admin?.phone ?? 'Chưa cập nhật'),
+                              _buildInfoRow('Số điện thoại', admin?.phone ?? 'Chưa cập nhật', onTap: _showEditPhoneDialog),
                               _buildInfoRow('Giới tính', admin?.genderLabel ?? 'Chưa cập nhật'),
                               _buildInfoRow('Vai trò', admin?.roleLabel ?? 'Quản lý tòa nhà'),
                               _buildInfoRow('Địa chỉ', admin?.address ?? 'Chưa cập nhật'),
@@ -299,7 +474,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : [
                               _buildInfoRow('Tên đăng nhập', tenant?.username ?? ''),
                               _buildInfoRow('Email liên hệ', tenant?.email ?? ''),
-                              _buildInfoRow('Số điện thoại', tenant?.phone ?? 'Chưa cập nhật'),
+                              _buildInfoRow('Số điện thoại', tenant?.phone ?? 'Chưa cập nhật', onTap: _showEditPhoneDialog),
                               _buildInfoRow('Giới tính', tenant?.genderLabel ?? 'Chưa cập nhật'),
                               _buildInfoRow('Ngày sinh', tenant?.dateOfBirth ?? 'Chưa cập nhật'),
                               _buildInfoRow('CCCD/CMND', tenant?.identityNumber ?? 'Chưa cập nhật'),

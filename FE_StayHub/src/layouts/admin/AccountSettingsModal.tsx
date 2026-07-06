@@ -5,6 +5,7 @@ import { CheckCircle, Lock, ScanFace, Trash2, User, X } from 'lucide-react'
 import { changeAdminPassword, deleteAdminFaceId, registerAdminFaceId, updateAdminProfile } from '../../features/admin/auth/services/admin-auth.service'
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { cn } from '../../shared/lib/utils/cn'
+import { resolveAssetUrl } from '../../shared/lib/utils/asset-url'
 import { validateChangePasswordForm, validateDeleteFaceIdPassword, type ChangePasswordErrors, type ChangePasswordForm } from './account-settings.validation'
 
 interface AccountSettingsModalProps {
@@ -45,6 +46,10 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
   const [infoError, setInfoError] = useState<string | null>(null)
   const [isInfoSubmitting, setIsInfoSubmitting] = useState(false)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [isImageError, setIsImageError] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const isFaceRegistrationOpenRef = useRef(false)
@@ -58,8 +63,20 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       setPhone(admin.phone || '')
       setInfoMessage(null)
       setInfoError(null)
+      setAvatarFile(null)
+      setAvatarPreview(null)
+      setIsImageError(false)
     }
   }, [isOpen, admin])
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      setAvatarFile(file)
+      setAvatarPreview(URL.createObjectURL(file))
+      setIsImageError(false)
+    }
+  }
 
   const waitForCameraReady = useCallback(async (video: HTMLVideoElement) => {
     const startedAt = Date.now()
@@ -272,6 +289,15 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       return
     }
 
+    const phoneTrimmed = phone.trim()
+    if (phoneTrimmed) {
+      const phoneRegex = /^(0[3|5|7|8|9])+([0-9]{8})$/
+      if (!phoneRegex.test(phoneTrimmed)) {
+        setInfoError('Số điện thoại không đúng định dạng Việt Nam (phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08, 09)')
+        return
+      }
+    }
+
     setIsInfoSubmitting(true)
     setInfoError(null)
     setInfoMessage(null)
@@ -280,10 +306,13 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       const response = await updateAdminProfile({
         full_name: fullName.trim(),
         phone: phone.trim() || undefined,
+        avatar: avatarFile,
       })
 
       saveSession(response.result)
       setInfoMessage(response.message || 'Cập nhật thông tin cá nhân thành công')
+      setAvatarFile(null)
+      setAvatarPreview(null)
     } catch (error) {
       setInfoError(error instanceof Error ? error.message : 'Cập nhật thông tin cá nhân thất bại, vui lòng thử lại.')
     } finally {
@@ -344,11 +373,33 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
 
                     <div className="mb-6 flex items-center gap-6">
                       <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-[#fffaf1] bg-[#efe2cf]/70 shadow-lg shadow-[#6b3f1d]/12">
-                        <User className="h-10 w-10 text-[#8b5e34]" />
+                        {avatarPreview ? (
+                          <img src={avatarPreview} alt="Avatar Preview" className="h-full w-full object-cover" />
+                        ) : (admin?.avatar_url && !isImageError) ? (
+                          <img
+                            src={resolveAssetUrl(admin.avatar_url)}
+                            alt="Avatar"
+                            className="h-full w-full object-cover"
+                            onError={() => setIsImageError(true)}
+                          />
+                        ) : (
+                          <User className="h-10 w-10 text-[#8b5e34]" />
+                        )}
                       </div>
-                      <button type="button" className="cursor-pointer rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2 text-sm font-black text-[#3d2a18] transition-colors hover:bg-[#f3c56b]/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#f3c56b]/20">
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="cursor-pointer rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2 text-sm font-black text-[#3d2a18] transition-colors hover:bg-[#f3c56b]/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#f3c56b]/20"
+                      >
                         Đổi Avatar
                       </button>
+                      <input
+                        type="file"
+                        ref={avatarInputRef}
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleAvatarChange}
+                      />
                     </div>
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                       <div>
@@ -357,7 +408,16 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
                       </div>
                       <div>
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Số điện thoại</label>
-                        <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
+                        <input
+                          type="text"
+                          value={phone}
+                          maxLength={10}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9]/g, '')
+                            setPhone(val)
+                          }}
+                          className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                        />
                       </div>
                       <div className="md:col-span-2">
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Email (Không thể đổi)</label>
