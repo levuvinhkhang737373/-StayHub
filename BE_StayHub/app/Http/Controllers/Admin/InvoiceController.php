@@ -55,6 +55,13 @@ class InvoiceController extends Controller
         InvoiceItem::ITEM_TYPE_ADJUST_DECREASE,
     ];
 
+    private const DECREASE_ADJUSTMENT_ITEM_TYPES = [
+        InvoiceItem::ITEM_TYPE_DISCOUNT,
+        InvoiceItem::ITEM_TYPE_ADJUST_DECREASE,
+    ];
+
+    private const DECREASE_ADJUSTMENT_LIMIT_MESSAGE = 'Tổng giảm trừ không được vượt quá số tiền hóa đơn';
+
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -315,6 +322,10 @@ class InvoiceController extends Controller
 
         $items = array_merge($automaticItems['items'], $this->buildAdjustmentItems($validated['adjustments'] ?? []));
         $totalAmount = $this->calculateItemsTotal($items);
+
+        if ($message = $this->decreaseAdjustmentLimitMessage($items)) {
+            return ApiResponse::responseJson(false, $message, 422, null, 422);
+        }
 
         if (DecimalMoney::compare($totalAmount, '0') < 0) {
             return ApiResponse::responseJson(false, 'Tổng tiền hóa đơn không được âm', 422, null, 422);
@@ -1453,6 +1464,36 @@ class InvoiceController extends Controller
         return DecimalMoney::add(array_map(fn (array $item): string => (string) ($item['amount'] ?? '0'), $items));
     }
 
+    private function decreaseAdjustmentLimitMessage(array|Collection $items): ?string
+    {
+        $itemCollection = collect($items);
+
+        $invoiceAmount = DecimalMoney::add($itemCollection
+            ->reject(fn (array|InvoiceItem $item): bool => in_array((int) data_get($item, 'item_type'), self::ADJUSTMENT_ITEM_TYPES, true))
+            ->map(fn (array|InvoiceItem $item): string => (string) data_get($item, 'amount', '0'))
+            ->values()
+            ->all());
+
+        $decreaseAmount = DecimalMoney::add($itemCollection
+            ->filter(fn (array|InvoiceItem $item): bool => in_array((int) data_get($item, 'item_type'), self::DECREASE_ADJUSTMENT_ITEM_TYPES, true))
+            ->map(fn (array|InvoiceItem $item): string => $this->absoluteMoney(data_get($item, 'amount', '0')))
+            ->values()
+            ->all());
+
+        return DecimalMoney::compare($decreaseAmount, $invoiceAmount) > 0
+            ? self::DECREASE_ADJUSTMENT_LIMIT_MESSAGE
+            : null;
+    }
+
+    private function absoluteMoney(mixed $value): string
+    {
+        $amount = DecimalMoney::normalize($value);
+
+        return DecimalMoney::compare($amount, '0') < 0
+            ? DecimalMoney::subtract('0', $amount)
+            : $amount;
+    }
+
     private function markMeterReadingsInvoiced(Invoice $invoice): void
     {
         $readingIds = $invoice->items()
@@ -1685,6 +1726,11 @@ class InvoiceController extends Controller
     private function recalculateReissuedInvoice(Invoice $invoice, Admin $admin, string $reason, ?string $dueDate = null, bool $applyDueDate = false): void
     {
         $items = $invoice->items()->lockForUpdate()->get();
+
+        if ($message = $this->decreaseAdjustmentLimitMessage($items)) {
+            $this->failReissue($message);
+        }
+
         $totalAmount = $this->calculateItemsTotal($items->map(fn (InvoiceItem $item): array => [
             'amount' => (string) $item->amount,
         ])->all());

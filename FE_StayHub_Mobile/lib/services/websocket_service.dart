@@ -36,6 +36,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   int? _adminChatId;
   int? _tenantChatId;
   int? _conversationId;
+  bool _conversationUsesTenantSession = false;
 
   WebSocketService() {
     WidgetsBinding.instance.addObserver(this);
@@ -290,11 +291,10 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       final channel = _client!.privateChannel(
         _privateChannelName(channelName),
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
+          isTenantSession: true,
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _addDebugLog(
-              'Lỗi xác thực kênh $channelName: $exception',
-            );
+            _addDebugLog('Lỗi xác thực kênh $channelName: $exception');
             unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
@@ -311,8 +311,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
       // Bind to all relevant maintenance events broadcast by backend
       final List<StreamSubscription> subscriptions = [];
-      const maintenanceEvents =
-          StayHubRealtimeContract.adminMaintenanceEvents;
+      const maintenanceEvents = StayHubRealtimeContract.adminMaintenanceEvents;
 
       for (final eventName in maintenanceEvents) {
         final subscription = channel.bind(eventName).listen((event) {
@@ -496,11 +495,10 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       final channel = _client!.privateChannel(
         _privateChannelName(channelName),
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
+          isTenantSession: true,
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _addDebugLog(
-              'Lỗi xác thực kênh $channelName: $exception',
-            );
+            _addDebugLog('Lỗi xác thực kênh $channelName: $exception');
             unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
@@ -723,7 +721,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _subscribeToAdminBuildingChannel(int buildingId) async {
     if (_client == null || !_isConnected) return;
 
-    final channelName = StayHubRealtimeContract.adminBuildingChannel(buildingId);
+    final channelName = StayHubRealtimeContract.adminBuildingChannel(
+      buildingId,
+    );
     if (_activeChannels.containsKey(channelName)) return;
 
     try {
@@ -732,9 +732,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _addDebugLog(
-              'Lỗi xác thực kênh $channelName: $exception',
-            );
+            _addDebugLog('Lỗi xác thực kênh $channelName: $exception');
             unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
@@ -748,10 +746,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
               ? Map<String, dynamic>.from(decoded['contract'] as Map)
               : decoded;
           _onContractExpiredCallback?.call(contract);
-          _addNotificationEvent({
-            'type': 'contract_expired',
-            'data': contract,
-          });
+          _addNotificationEvent({'type': 'contract_expired', 'data': contract});
         }
       });
 
@@ -805,45 +800,71 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     int conversationId, {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
+    bool isTenantSession = false,
   }) {
     final channelName = StayHubRealtimeContract.chatConversationChannel(
       conversationId,
     );
     _conversationId = conversationId;
+    _conversationUsesTenantSession = isTenantSession;
     _onChatMessageCallbacks[channelName] = onMessage;
     if (onRead != null) {
       _onChatReadCallbacks[channelName] = onRead;
     }
     if (_isConnected) {
-      _subscribeToChatConversationChannel(conversationId);
+      _subscribeToChatConversationChannel(
+        conversationId,
+        isTenantSession: isTenantSession,
+      );
     } else {
       _ensureConnected();
     }
   }
 
-  Future<void> _subscribeToChatConversationChannel(int conversationId) async {
+  Future<void> _subscribeToChatConversationChannel(
+    int conversationId, {
+    bool isTenantSession = false,
+  }) async {
     await _subscribeToChatChannel(
       StayHubRealtimeContract.chatConversationChannel(conversationId),
+      isTenantSession: isTenantSession,
     );
   }
 
   Future<void> _subscribeToChatInboxChannel(String channelName) async {
-    await _subscribeToChatChannel(channelName);
+    await _subscribeToChatChannel(
+      channelName,
+      isTenantSession: channelName.startsWith(
+        StayHubRealtimeContract.chatTenantChannelPrefix,
+      ),
+    );
   }
 
-  Future<void> _subscribeToChatChannel(String channelName) async {
+  Future<void> _subscribeToChatChannel(
+    String channelName, {
+    bool isTenantSession = false,
+  }) async {
     if (_client == null || !_isConnected) return;
     if (_activeChannels.containsKey(channelName)) return;
+
+    final usesTenantSession =
+        isTenantSession ||
+        channelName.startsWith(
+          StayHubRealtimeContract.chatTenantChannelPrefix,
+        ) ||
+        (channelName.startsWith(
+              StayHubRealtimeContract.chatConversationChannelPrefix,
+            ) &&
+            _conversationUsesTenantSession);
 
     try {
       final channel = _client!.privateChannel(
         _privateChannelName(channelName),
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
+          isTenantSession: usesTenantSession,
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _addDebugLog(
-              'Lỗi xác thực kênh $channelName: $exception',
-            );
+            _addDebugLog('Lỗi xác thực kênh $channelName: $exception');
             unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
@@ -880,9 +901,10 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
           final decoded = _decodeEventData(event.data);
           if (decoded != null) {
             _addNotificationEvent({
-              'type': channelName.startsWith(
-                StayHubRealtimeContract.chatAdminChannelPrefix,
-              )
+              'type':
+                  channelName.startsWith(
+                    StayHubRealtimeContract.chatAdminChannelPrefix,
+                  )
                   ? 'admin_notification_sent'
                   : 'notification_sent',
               'data': decoded['notification'] ?? decoded,
@@ -1094,11 +1116,15 @@ class DioPrivateChannelAuthorizationDelegate
           PrivateChannelAuthorizationData
         > {
   final ApiService _apiService = ApiService();
+  final bool isTenantSession;
 
   @override
   final EndpointAuthFailedCallback? onAuthFailed;
 
-  DioPrivateChannelAuthorizationDelegate({this.onAuthFailed});
+  DioPrivateChannelAuthorizationDelegate({
+    this.isTenantSession = false,
+    this.onAuthFailed,
+  });
 
   @override
   Future<PrivateChannelAuthorizationData> authorizationData(
@@ -1109,6 +1135,9 @@ class DioPrivateChannelAuthorizationDelegate
       await _apiService.init();
       await _apiService.ensureCsrfTokenForAuth();
       final authHeaders = await _apiService.getAuthHeaders();
+      if (isTenantSession) {
+        authHeaders['X-StayHub-Tenant-Session'] = '1';
+      }
       debugPrint('WS Auth: Authorizing $channelName with socket $socketId');
 
       final response = await _apiService.client.post<Map<String, dynamic>>(

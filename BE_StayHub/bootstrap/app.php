@@ -2,10 +2,11 @@
 
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureTenantGuard;
-use Illuminate\Foundation\Application;
-use Illuminate\Foundation\Configuration\Exceptions;
+use App\Http\Middleware\UseTenantSessionLifetime;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+        $middleware->prepend(UseTenantSessionLifetime::class);
         $middleware->statefulApi();
         $middleware->api(prepend: [
             EncryptCookies::class,

@@ -72,6 +72,9 @@ const inputClass = 'h-11 w-full rounded-2xl border border-[#3d2a18]/10 bg-white/
 const textAreaClass = 'min-h-24 w-full rounded-2xl border border-[#3d2a18]/10 bg-white/80 px-4 py-3 text-sm font-bold text-[#24170d] outline-none transition placeholder:text-[#8b5e34]/45 focus:border-[#0f766e]/45 focus:ring-4 focus:ring-[#0f766e]/10 disabled:opacity-60'
 const nowPeriod = currentMonthYear()
 const editableInvoiceStatuses = [INVOICE_STATUS_UNPAID, INVOICE_STATUS_OVERDUE]
+const adjustmentItemTypes = [ITEM_TYPE_SURCHARGE, ITEM_TYPE_DISCOUNT, ITEM_TYPE_ADJUST_INCREASE, ITEM_TYPE_ADJUST_DECREASE]
+const decreaseAdjustmentItemTypes = [ITEM_TYPE_DISCOUNT, ITEM_TYPE_ADJUST_DECREASE]
+const decreaseAdjustmentLimitMessage = 'Tổng giảm trừ không được vượt quá số tiền hóa đơn.'
 const adjustmentItemTypeOptions = [
   { value: ITEM_TYPE_SURCHARGE, label: 'Phụ thu', tone: 'default' as const },
   { value: ITEM_TYPE_DISCOUNT, label: 'Giảm trừ', tone: 'warning' as const },
@@ -742,24 +745,35 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
       unit_price: formatMoneyInput(absDecimal(item.unit_price)),
     })))
 
-  const previewTotal = useMemo(() => {
+  const adjustmentSummary = useMemo(() => {
     const meterAmountById = new Map<number, number>()
     meterReadings.forEach((reading) => {
       meterAmountById.set(reading.meter_reading_id, Math.max(0, Number(reading.current_reading || 0) - Number(reading.previous_reading || 0)) * Number(reading.unit_price || 0))
     })
 
-    const baseTotal = (invoice.items || [])
-      .filter((item) => !(!item.service_id && !item.meter_reading_id && [ITEM_TYPE_SURCHARGE, ITEM_TYPE_DISCOUNT, ITEM_TYPE_ADJUST_INCREASE, ITEM_TYPE_ADJUST_DECREASE].includes(Number(item.item_type))))
+    const invoiceAmount = (invoice.items || [])
+      .filter((item) => !(!item.service_id && !item.meter_reading_id && adjustmentItemTypes.includes(Number(item.item_type))))
       .reduce((total, item) => total + (item.meter_reading_id && meterAmountById.has(Number(item.meter_reading_id)) ? meterAmountById.get(Number(item.meter_reading_id)) || 0 : Number(item.amount || 0)), 0)
 
-    const adjustmentTotal = adjustments.reduce((total, adjustment) => {
+    const adjustmentAmounts = adjustments.reduce((summary, adjustment) => {
       const rawAmount = Number(adjustment.quantity || 1) * Number(parseMoneyInput(adjustment.unit_price || '0'))
-      const signedAmount = [ITEM_TYPE_DISCOUNT, ITEM_TYPE_ADJUST_DECREASE].includes(Number(adjustment.item_type)) ? -rawAmount : rawAmount
-      return total + signedAmount
-    }, 0)
+      const isDecrease = decreaseAdjustmentItemTypes.includes(Number(adjustment.item_type))
 
-    return baseTotal + adjustmentTotal
+      return {
+        total: summary.total + (isDecrease ? -rawAmount : rawAmount),
+        decreaseTotal: summary.decreaseTotal + (isDecrease ? rawAmount : 0),
+      }
+    }, { total: 0, decreaseTotal: 0 })
+
+    return {
+      invoiceAmount,
+      decreaseTotal: adjustmentAmounts.decreaseTotal,
+      previewTotal: invoiceAmount + adjustmentAmounts.total,
+    }
   }, [adjustments, invoice.items, meterReadings])
+
+  const { invoiceAmount, decreaseTotal, previewTotal } = adjustmentSummary
+  const isDecreaseOverInvoiceAmount = decreaseTotal > invoiceAmount
 
   const updateMeterReading = (meterReadingId: number, field: keyof Pick<MeterReadingDraft, 'current_reading' | 'reading_date'>, value: string) => {
     setMeterReadings((current) => current.map((reading) => reading.meter_reading_id === meterReadingId ? { ...reading, [field]: value } : reading))
@@ -777,7 +791,7 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
     setAdjustments((current) => current.filter((adjustment) => adjustment.key !== key))
   }
 
-  const canSubmit = reason.trim().length > 0 && previewTotal >= 0 && meterReadings.every((reading) => Number(reading.current_reading || 0) >= Number(reading.previous_reading || 0))
+  const canSubmit = reason.trim().length > 0 && previewTotal >= 0 && !isDecreaseOverInvoiceAmount && meterReadings.every((reading) => Number(reading.current_reading || 0) >= Number(reading.previous_reading || 0))
 
   return (
     <ModalFrame title={`Chỉnh sửa & phát hành lại ${invoice.invoice_code}`} onClose={onClose} wide>
@@ -859,6 +873,11 @@ function EditInvoiceModal({ invoice, isSaving, onClose, onSubmit }: { invoice: A
         <aside className="h-fit rounded-3xl border border-[#0f766e]/20 bg-[#0f766e]/8 p-4 lg:sticky lg:top-4">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Preview phát hành lại</p>
           <p className="mt-2 text-3xl font-black tracking-tight text-[#24170d]">{formatCurrency(previewTotal)}</p>
+          <div className="mt-3 space-y-1 rounded-2xl bg-white/65 p-3 text-xs font-black text-[#6f6254]">
+            <div className="flex items-center justify-between gap-3"><span>Số tiền hóa đơn</span><span className="text-[#24170d]">{formatCurrency(invoiceAmount)}</span></div>
+            <div className="flex items-center justify-between gap-3"><span>Tổng giảm trừ</span><span className={cn(decreaseTotal > 0 ? 'text-rose-700' : 'text-[#24170d]')}>{formatCurrency(decreaseTotal)}</span></div>
+          </div>
+          {isDecreaseOverInvoiceAmount && <p className="mt-3 rounded-2xl bg-rose-50 p-3 text-xs font-black text-rose-700">{decreaseAdjustmentLimitMessage}</p>}
           {previewTotal < 0 && <p className="mt-3 rounded-2xl bg-rose-50 p-3 text-xs font-black text-rose-700">Tổng tiền không được âm.</p>}
           <button type="button" disabled={isSaving || !canSubmit} onClick={() => onSubmit({
             reason: reason.trim(),

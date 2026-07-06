@@ -924,7 +924,6 @@ function CameraFormModal({
                 <option value="0">Tắt giám sát</option>
                 <option value="1">Bật giám sát 24/24</option>
               </select>
-              <p className="mt-1.5 text-xs font-bold leading-5 text-[#8b5e34]/75">Nên Test cam và Quét ngay trước khi bật job nền 24/24.</p>
             </Field>
             <Field label="Trạng thái">
               <select value={form.status} onChange={(event) => onFormChange((prev) => ({ ...prev, status: Number(event.target.value), is_ai_enabled: Number(event.target.value) === 1 ? prev.is_ai_enabled : false }))} className={inputClass}>

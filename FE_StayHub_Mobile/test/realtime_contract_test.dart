@@ -9,44 +9,50 @@ void main() {
   final mobileRoot = Directory('${repoRoot.path}/FE_StayHub_Mobile');
 
   group('StayHub realtime contract', () {
-    test('normalizes all mobile private channels with Laravel private prefix', () {
-      final channelNames = [
-        StayHubRealtimeContract.adminMaintenanceChannel,
-        StayHubRealtimeContract.adminBuildingChannel(1),
-        StayHubRealtimeContract.tenantChannel(59),
-        StayHubRealtimeContract.chatAdminChannel(12),
-        StayHubRealtimeContract.chatTenantChannel(59),
-        StayHubRealtimeContract.chatConversationChannel(5),
-      ];
+    test(
+      'normalizes all mobile private channels with Laravel private prefix',
+      () {
+        final channelNames = [
+          StayHubRealtimeContract.adminMaintenanceChannel,
+          StayHubRealtimeContract.adminBuildingChannel(1),
+          StayHubRealtimeContract.tenantChannel(59),
+          StayHubRealtimeContract.chatAdminChannel(12),
+          StayHubRealtimeContract.chatTenantChannel(59),
+          StayHubRealtimeContract.chatConversationChannel(5),
+        ];
 
-      for (final channelName in channelNames) {
+        for (final channelName in channelNames) {
+          expect(
+            StayHubRealtimeContract.privateChannelName(channelName),
+            startsWith(StayHubRealtimeContract.privatePrefix),
+            reason:
+                '$channelName must be sent to Reverb as a private-* channel',
+          );
+        }
+
         expect(
-          StayHubRealtimeContract.privateChannelName(channelName),
-          startsWith(StayHubRealtimeContract.privatePrefix),
-          reason: '$channelName must be sent to Reverb as a private-* channel',
+          StayHubRealtimeContract.privateChannelName('private-tenant.59'),
+          'private-tenant.59',
         );
-      }
-
-      expect(
-        StayHubRealtimeContract.privateChannelName('private-tenant.59'),
-        'private-tenant.59',
-      );
-      expect(
-        StayHubRealtimeContract.privateChannelName('presence-room.1'),
-        'presence-room.1',
-      );
-    });
+        expect(
+          StayHubRealtimeContract.privateChannelName('presence-room.1'),
+          'presence-room.1',
+        );
+      },
+    );
 
     test('matches backend private broadcast channel declarations', () {
       final channelsFile = File('${backendRoot.path}/routes/channels.php');
       expect(channelsFile.existsSync(), isTrue);
       final channelsSource = channelsFile.readAsStringSync();
 
-      for (final pattern in StayHubRealtimeContract.backendPrivateChannelPatterns) {
+      for (final pattern
+          in StayHubRealtimeContract.backendPrivateChannelPatterns) {
         expect(
           channelsSource,
           contains("Broadcast::channel('$pattern'"),
-          reason: 'Mobile realtime contract must match Laravel channel $pattern',
+          reason:
+              'Mobile realtime contract must match Laravel channel $pattern',
         );
       }
     });
@@ -100,23 +106,29 @@ void main() {
       expect(
         privateBackendEvents.difference(supportedMobileEvents),
         isEmpty,
-        reason: 'Every backend private broadcast event must be handled by mobile',
+        reason:
+            'Every backend private broadcast event must be handled by mobile',
       );
     });
 
-    test('documents public events that mobile intentionally does not subscribe', () {
-      final eventSources = _backendEventSources(
-        Directory('${backendRoot.path}/app/Events'),
-      ).join('\n');
+    test(
+      'documents public events that mobile intentionally does not subscribe',
+      () {
+        final eventSources = _backendEventSources(
+          Directory('${backendRoot.path}/app/Events'),
+        ).join('\n');
 
-      for (final eventName
-          in StayHubRealtimeContract.intentionallyUnsupportedPublicEvents) {
-        expect(eventSources, contains("return '$eventName';"));
-      }
-    });
+        for (final eventName
+            in StayHubRealtimeContract.intentionallyUnsupportedPublicEvents) {
+          expect(eventSources, contains("return '$eventName';"));
+        }
+      },
+    );
 
     test('websocket service never passes raw private channel names', () {
-      final serviceFile = File('${mobileRoot.path}/lib/services/websocket_service.dart');
+      final serviceFile = File(
+        '${mobileRoot.path}/lib/services/websocket_service.dart',
+      );
       expect(serviceFile.existsSync(), isTrue);
       final lines = serviceFile.readAsLinesSync();
 
@@ -126,7 +138,8 @@ void main() {
         expect(
           callSnippet,
           contains('_privateChannelName(channelName)'),
-          reason: 'privateChannel call at line ${index + 1} must normalize private-* prefix',
+          reason:
+              'privateChannel call at line ${index + 1} must normalize private-* prefix',
         );
       }
 
@@ -150,6 +163,23 @@ void main() {
             'Realtime subscriptions must not use offline/fallback building data.',
       );
     });
+
+    test(
+      'tenant realtime auth requests include tenant session lifetime marker',
+      () {
+        final serviceFile = File(
+          '${mobileRoot.path}/lib/services/websocket_service.dart',
+        );
+        expect(serviceFile.existsSync(), isTrue);
+        final serviceSource = serviceFile.readAsStringSync();
+
+        expect(serviceSource, contains('isTenantSession: true'));
+        expect(
+          serviceSource,
+          contains("authHeaders['X-StayHub-Tenant-Session'] = '1'"),
+        );
+      },
+    );
   });
 }
 
@@ -163,7 +193,9 @@ Directory _findRepoRoot() {
 
     final parent = current.parent;
     if (parent.path == current.path) {
-      throw StateError('Cannot find RepoKyTucXaPhongTro root from ${Directory.current.path}');
+      throw StateError(
+        'Cannot find RepoKyTucXaPhongTro root from ${Directory.current.path}',
+      );
     }
     current = parent;
   }

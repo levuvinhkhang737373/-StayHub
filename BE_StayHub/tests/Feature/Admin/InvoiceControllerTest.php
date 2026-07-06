@@ -2107,6 +2107,135 @@ class InvoiceControllerTest extends TestCase
         Event::assertDispatched(\App\Events\InvoiceReissued::class, 2);
     }
 
+    public function test_admin_cannot_reissue_invoice_when_decrease_adjustments_exceed_invoice_amount(): void
+    {
+        Event::fake();
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-REISSUE-DISCOUNT-LIMIT',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '1000000.00',
+            'deposit_amount' => '1000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-02-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $invoice = Invoice::create([
+            'invoice_code' => 'INV-REISSUE-DISCOUNT-LIMIT',
+            'contract_id' => $contract->id,
+            'room_id' => $this->room->id,
+            'billing_month' => 2,
+            'billing_year' => 2026,
+            'period_start' => '2026-02-01',
+            'period_end' => '2026-02-28',
+            'previous_debt_amount' => '0.00',
+            'total_amount' => '1000000.00',
+            'paid_amount' => '0.00',
+            'remaining_amount' => '1000000.00',
+            'due_date' => '2026-03-05',
+            'status' => Invoice::STATUS_UNPAID,
+            'issued_at' => now(),
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $invoice->items()->create([
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'description' => 'Tiền phòng tháng 02/2026',
+            'quantity' => '1.00',
+            'unit_price' => '1000000.00',
+            'amount' => '1000000.00',
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/invoices/{$invoice->id}", [
+                'reason' => 'Kiểm tra giới hạn giảm trừ',
+                'adjustments' => [
+                    [
+                        'item_type' => InvoiceItem::ITEM_TYPE_SURCHARGE,
+                        'description' => 'Phụ thu thêm',
+                        'quantity' => '1',
+                        'unit_price' => '500000',
+                    ],
+                    [
+                        'item_type' => InvoiceItem::ITEM_TYPE_DISCOUNT,
+                        'description' => 'Giảm trừ vượt số tiền hóa đơn',
+                        'quantity' => '1',
+                        'unit_price' => '1200000',
+                    ],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Tổng giảm trừ không được vượt quá số tiền hóa đơn');
+
+        $this->assertDatabaseMissing('invoice_items', [
+            'invoice_id' => $invoice->id,
+            'item_type' => InvoiceItem::ITEM_TYPE_DISCOUNT,
+            'amount' => '-1200000.00',
+        ]);
+    }
+
+    public function test_admin_cannot_preview_invoice_when_decrease_adjustments_exceed_invoice_amount(): void
+    {
+        $this->electricityService->update(['is_active' => false]);
+        $this->waterService->update(['is_active' => false]);
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-PREVIEW-DISCOUNT-LIMIT',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-12-31',
+            'billing_cycle_day' => 5,
+            'room_price' => '1000000.00',
+            'deposit_amount' => '1000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-02-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/invoices/preview', [
+                'contract_id' => $contract->id,
+                'billing_month' => 2,
+                'billing_year' => 2026,
+                'adjustments' => [
+                    [
+                        'item_type' => InvoiceItem::ITEM_TYPE_SURCHARGE,
+                        'description' => 'Phụ thu thêm',
+                        'quantity' => '1',
+                        'unit_price' => '500000',
+                    ],
+                    [
+                        'item_type' => InvoiceItem::ITEM_TYPE_DISCOUNT,
+                        'description' => 'Giảm trừ vượt số tiền hóa đơn',
+                        'quantity' => '1',
+                        'unit_price' => '1200000',
+                    ],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Tổng giảm trừ không được vượt quá số tiền hóa đơn');
+    }
+
     public function test_admin_can_reissue_overdue_invoice_with_future_due_date_to_unpaid(): void
     {
         Event::fake();

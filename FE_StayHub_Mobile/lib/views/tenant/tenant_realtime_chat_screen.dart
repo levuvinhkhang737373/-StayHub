@@ -43,8 +43,6 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
     }
   }
 
-  
-
   @override
   void initState() {
     super.initState();
@@ -59,7 +57,10 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
   void _subscribeRealtime() {
     final auth = context.read<AuthController>();
     final tenantId = auth.currentTenant?.id;
-    final conversationId = context.read<ChatController>().activeConversation?.id;
+    final conversationId = context
+        .read<ChatController>()
+        .activeConversation
+        ?.id;
     final ws = context.read<WebSocketService>();
 
     if (tenantId != null) {
@@ -81,6 +82,7 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
     if (conversationId != null) {
       ws.subscribeToChatConversation(
         conversationId,
+        isTenantSession: true,
         onMessage: (payload) {
           if (!mounted) return;
           context.read<ChatController>().handleRealtimeMessage(payload);
@@ -107,7 +109,10 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
     final ws = context.read<WebSocketService>();
     final auth = context.read<AuthController>();
     final tenantId = auth.currentTenant?.id;
-    final conversationId = context.read<ChatController>().activeConversation?.id;
+    final conversationId = context
+        .read<ChatController>()
+        .activeConversation
+        ?.id;
 
     if (tenantId != null) {
       ws.unsubscribeFromTenantChat(tenantId);
@@ -141,7 +146,10 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
     setState(() {
       _selectedImages.clear();
     });
-    await context.read<ChatController>().sendTenantMessage(text, images: imagesToSend);
+    await context.read<ChatController>().sendTenantMessage(
+      text,
+      images: imagesToSend,
+    );
     _subscribeRealtime();
     _scrollToBottom();
   }
@@ -163,17 +171,28 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                 color: Color(0xFFF3C56B),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF24170D), size: 18),
+              child: const Icon(
+                Icons.chat_bubble_rounded,
+                color: Color(0xFF24170D),
+                size: 18,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Chat với quản lý', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  const Text(
+                    'Chat với quản lý',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
                   Text(
                     conversation?.managerName ?? 'StayHub',
-                    style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withOpacity(0.7),
+                      fontWeight: FontWeight.w700,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -187,10 +206,7 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFFFFAF1),
-              Color(0xFFF4EFE6),
-            ],
+            colors: [Color(0xFFFFFAF1), Color(0xFFF4EFE6)],
           ),
         ),
         child: Column(
@@ -199,70 +215,111 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF1F2),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF9F1239).withOpacity(0.1)),
+                  border: Border.all(
+                    color: const Color(0xFF9F1239).withOpacity(0.1),
+                  ),
                 ),
                 child: Text(
                   chatController.errorMessage!,
-                  style: const TextStyle(color: Color(0xFFBE123C), fontWeight: FontWeight.bold, fontSize: 13),
+                  style: const TextStyle(
+                    color: Color(0xFFBE123C),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             Expanded(
               child: chatController.isLoading
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF8B5E34)))
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF8B5E34),
+                      ),
+                    )
                   : chatController.messages.isEmpty
-                      ? const _EmptyChatState()
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.all(16),
-                          itemCount: chatController.messages.length,
-                          itemBuilder: (context, index) {
-                            final message = chatController.messages[index];
-                            final isMine = message.senderRole == 1;
+                  ? const _EmptyChatState()
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: chatController.messages.length,
+                      itemBuilder: (context, index) {
+                        final message = chatController.messages[index];
+                        final isMine = message.senderRole == 1;
 
-                            // Date separator logic
-                            final prevMessage = index > 0 ? chatController.messages[index - 1] : null;
-                            final currentDividerLabel = _getChatDividerLabel(message.createdAt);
-                            final prevDividerLabel = prevMessage != null ? _getChatDividerLabel(prevMessage.createdAt) : null;
-                            final showDateDivider = prevMessage == null || currentDividerLabel != prevDividerLabel;
+                        // Date separator logic
+                        final prevMessage = index > 0
+                            ? chatController.messages[index - 1]
+                            : null;
+                        final currentDividerLabel = _getChatDividerLabel(
+                          message.createdAt,
+                        );
+                        final prevDividerLabel = prevMessage != null
+                            ? _getChatDividerLabel(prevMessage.createdAt)
+                            : null;
+                        final showDateDivider =
+                            prevMessage == null ||
+                            currentDividerLabel != prevDividerLabel;
 
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (showDateDivider)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    child: Row(
-                                      children: [
-                                        Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                                          child: Text(
-                                            currentDividerLabel,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 1.5,
-                                              color: const Color(0xFF8B5E34).withOpacity(0.7),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
-                                      ],
-                                    ),
-                                  ),
-                                _MessageBubble(
-                                  message: message,
-                                  isMine: isMine,
-                                  allMessages: chatController.messages,
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (showDateDivider)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
                                 ),
-                              ],
-                            );
-                          },
-                        ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Divider(
+                                        color: const Color(
+                                          0xFF3D2A18,
+                                        ).withOpacity(0.15),
+                                        thickness: 1,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      child: Text(
+                                        currentDividerLabel,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.5,
+                                          color: const Color(
+                                            0xFF8B5E34,
+                                          ).withOpacity(0.7),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Divider(
+                                        color: const Color(
+                                          0xFF3D2A18,
+                                        ).withOpacity(0.15),
+                                        thickness: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            _MessageBubble(
+                              message: message,
+                              isMine: isMine,
+                              allMessages: chatController.messages,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
             ),
             SafeArea(
               top: false,
@@ -270,7 +327,11 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  border: Border(top: BorderSide(color: const Color(0xFF3D2A18).withOpacity(0.1))),
+                  border: Border(
+                    top: BorderSide(
+                      color: const Color(0xFF3D2A18).withOpacity(0.1),
+                    ),
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -282,7 +343,9 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFF4FBF9),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF8B5E34).withOpacity(0.15)),
+                          border: Border.all(
+                            color: const Color(0xFF8B5E34).withOpacity(0.15),
+                          ),
                         ),
                         padding: const EdgeInsets.all(8),
                         child: ListView.builder(
@@ -338,11 +401,18 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                         color: const Color(0xFFF0F2F5),
                         borderRadius: BorderRadius.circular(22),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.image_outlined, color: Color(0xFF8B5E34), size: 22),
+                            icon: const Icon(
+                              Icons.image_outlined,
+                              color: Color(0xFF8B5E34),
+                              size: 22,
+                            ),
                             onPressed: _pickImages,
                             visualDensity: VisualDensity.compact,
                           ),
@@ -355,16 +425,33 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                               onChanged: (val) => setState(() {}),
                               decoration: const InputDecoration(
                                 hintText: 'Aa',
-                                hintStyle: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.normal),
+                                hintStyle: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.normal,
+                                ),
                                 border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 6,
+                                ),
                               ),
-                              style: const TextStyle(fontSize: 15, color: Color(0xFF24170D)),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                color: Color(0xFF24170D),
+                              ),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.send_rounded, color: Color(0xFF8B5E34), size: 22),
-                            onPressed: (chatController.isSending || (_messageController.text.trim().isEmpty && _selectedImages.isEmpty))
+                            icon: const Icon(
+                              Icons.send_rounded,
+                              color: Color(0xFF8B5E34),
+                              size: 22,
+                            ),
+                            onPressed:
+                                (chatController.isSending ||
+                                    (_messageController.text.trim().isEmpty &&
+                                        _selectedImages.isEmpty))
                                 ? null
                                 : _send,
                             visualDensity: VisualDensity.compact,
@@ -396,13 +483,31 @@ class _EmptyChatState extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(18),
-              decoration: const BoxDecoration(color: Color(0xFFE0F2F1), shape: BoxShape.circle),
-              child: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF8B5E34), size: 36),
+              decoration: const BoxDecoration(
+                color: Color(0xFFE0F2F1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chat_bubble_rounded,
+                color: Color(0xFF8B5E34),
+                size: 36,
+              ),
             ),
             const SizedBox(height: 16),
-            const Text('Bạn cần hỗ trợ?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1C1917))),
+            const Text(
+              'Bạn cần hỗ trợ?',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1C1917),
+              ),
+            ),
             const SizedBox(height: 8),
-            const Text('Nhắn trực tiếp cho quản lý tòa nhà của bạn.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF57534E), height: 1.4)),
+            const Text(
+              'Nhắn trực tiếp cho quản lý tòa nhà của bạn.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF57534E), height: 1.4),
+            ),
           ],
         ),
       ),
@@ -415,7 +520,11 @@ class _MessageBubble extends StatelessWidget {
   final bool isMine;
   final List<ChatMessage> allMessages;
 
-  const _MessageBubble({required this.message, required this.isMine, required this.allMessages});
+  const _MessageBubble({
+    required this.message,
+    required this.isMine,
+    required this.allMessages,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -423,10 +532,14 @@ class _MessageBubble extends StatelessWidget {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Container(
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
+            ),
             padding: hasBody
                 ? const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
                 : EdgeInsets.zero,
@@ -435,10 +548,14 @@ class _MessageBubble extends StatelessWidget {
                   ? (isMine ? const Color(0xFF24170D) : Colors.white)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(23),
-              border: (hasBody && !isMine) ? Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1)) : null,
+              border: (hasBody && !isMine)
+                  ? Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1))
+                  : null,
             ),
             child: Column(
-              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 if (message.body.isNotEmpty)
                   Text(
@@ -453,7 +570,9 @@ class _MessageBubble extends StatelessWidget {
                   if (message.body.isNotEmpty) const SizedBox(height: 8),
                   if (message.attachments.length == 1)
                     Align(
-                      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isMine
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: MediaQuery.of(context).size.width * 0.76,
@@ -462,12 +581,18 @@ class _MessageBubble extends StatelessWidget {
                         child: Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1)),
+                            border: Border.all(
+                              color: const Color(0xFF3D2A18).withOpacity(0.1),
+                            ),
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: GestureDetector(
-                              onTap: () => _openImageGallery(context, message.attachments, 0),
+                              onTap: () => _openImageGallery(
+                                context,
+                                message.attachments,
+                                0,
+                              ),
                               child: _buildImage(message.attachments[0]),
                             ),
                           ),
@@ -478,19 +603,24 @@ class _MessageBubble extends StatelessWidget {
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 4,
-                        mainAxisSpacing: 4,
-                        childAspectRatio: 1.3,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 4,
+                            mainAxisSpacing: 4,
+                            childAspectRatio: 1.3,
+                          ),
                       itemCount: message.attachments.length,
                       itemBuilder: (context, idx) {
                         final url = message.attachments[idx];
                         return ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: GestureDetector(
-                            onTap: () => _openImageGallery(context, message.attachments, idx),
+                            onTap: () => _openImageGallery(
+                              context,
+                              message.attachments,
+                              idx,
+                            ),
                             child: _buildImage(url, fit: BoxFit.cover),
                           ),
                         );
@@ -503,7 +633,9 @@ class _MessageBubble extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
             child: Text(
-              message.optimistic ? 'Đang gửi...' : _formatTimeOnly(message.createdAt),
+              message.optimistic
+                  ? 'Đang gửi...'
+                  : _formatTimeOnly(message.createdAt),
               style: TextStyle(
                 fontSize: 9,
                 color: const Color(0xFF8B5E34).withOpacity(0.6),
@@ -532,7 +664,10 @@ class _MessageBubble extends StatelessWidget {
               child: SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5E34)),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF8B5E34),
+                ),
               ),
             ),
           );
@@ -550,12 +685,17 @@ class _MessageBubble extends StatelessWidget {
     return Image.file(File(url), fit: fit);
   }
 
-  void _openImageGallery(BuildContext context, List<String> urls, int initialIndex) {
+  void _openImageGallery(
+    BuildContext context,
+    List<String> urls,
+    int initialIndex,
+  ) {
     showDialog(
       context: context,
       useSafeArea: false,
       barrierColor: Colors.black.withOpacity(0.95),
-      builder: (context) => _ImageGalleryOverlay(urls: urls, initialIndex: initialIndex),
+      builder: (context) =>
+          _ImageGalleryOverlay(urls: urls, initialIndex: initialIndex),
     );
   }
 }
@@ -572,7 +712,8 @@ class _ImageGalleryOverlay extends StatefulWidget {
 
 class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
   late int _currentIndex;
-  final TransformationController _transformationController = TransformationController();
+  final TransformationController _transformationController =
+      TransformationController();
 
   @override
   void initState() {
@@ -624,7 +765,13 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                       url,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
-                        return const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 48));
+                        return const Center(
+                          child: Icon(
+                            Icons.broken_image,
+                            color: Colors.white54,
+                            size: 48,
+                          ),
+                        );
                       },
                     )
                   : Image.file(File(url), fit: BoxFit.contain),
@@ -640,7 +787,10 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
               children: [
                 // Zoom controls
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -651,25 +801,44 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                     children: [
                       GestureDetector(
                         onTap: () {
-                          final currentScale = _transformationController.value.getMaxScaleOnAxis();
+                          final currentScale = _transformationController.value
+                              .getMaxScaleOnAxis();
                           final newScale = (currentScale - 0.3).clamp(0.5, 5.0);
-                          _transformationController.value = Matrix4.identity()..scale(newScale);
+                          _transformationController.value = Matrix4.identity()
+                            ..scale(newScale);
                         },
-                        child: const Icon(Icons.zoom_out, color: Colors.white, size: 18),
+                        child: const Icon(
+                          Icons.zoom_out,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: _resetZoom,
-                        child: const Text('Reset', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        child: const Text(
+                          'Reset',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () {
-                          final currentScale = _transformationController.value.getMaxScaleOnAxis();
+                          final currentScale = _transformationController.value
+                              .getMaxScaleOnAxis();
                           final newScale = (currentScale + 0.3).clamp(0.5, 5.0);
-                          _transformationController.value = Matrix4.identity()..scale(newScale);
+                          _transformationController.value = Matrix4.identity()
+                            ..scale(newScale);
                         },
-                        child: const Icon(Icons.zoom_in, color: Colors.white, size: 18),
+                        child: const Icon(
+                          Icons.zoom_in,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
                     ],
                   ),
@@ -685,7 +854,11 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                       color: Colors.white.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],
@@ -709,7 +882,11 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white.withOpacity(0.05)),
                     ),
-                    child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
+                    child: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                 ),
               ),
@@ -732,7 +909,11 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white.withOpacity(0.05)),
                     ),
-                    child: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+                    child: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                 ),
               ),
@@ -746,14 +927,21 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
                     '${_currentIndex + 1} / ${widget.urls.length}',
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

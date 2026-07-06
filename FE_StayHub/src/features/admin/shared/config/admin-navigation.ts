@@ -57,7 +57,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'debts', label: 'Công nợ', icon: ScrollText, group: 'Tài chính & Báo cáo', href: '/admin/debts', access: 'all' },
   { id: 'payment_history', label: 'Lịch sử thanh toán', icon: WalletCards, group: 'Tài chính & Báo cáo', href: '/admin/payment-history', access: 'all' },
   { id: 'expenses', label: 'Phiếu chi', icon: CreditCard, group: 'Tài chính & Báo cáo', href: '/admin/expenses', access: 'all' },
-  { id: 'expense_categories', label: 'Danh mục chi phí', icon: Tags, group: 'Tài chính & Báo cáo', href: '/admin/expense-categories', access: 'all', readOnlyForAdmin: true },
+  { id: 'expense_categories', label: 'Danh mục phiếu chi', icon: Tags, group: 'Tài chính & Báo cáo', href: '/admin/expense-categories', access: 'all', readOnlyForAdmin: true },
   { id: 'financials', label: 'Báo cáo lợi nhuận', icon: BarChart3, group: 'Tài chính & Báo cáo', href: '/admin/financials', access: 'all' },
   { id: 'vehicles', label: 'Bãi xe & Phương tiện', icon: Car, group: 'Vận hành', href: '/admin/vehicles', access: 'all' },
   { id: 'fire_safety', label: 'AI Camera', icon: Camera, group: 'Vận hành', href: '/admin/fire-safety', access: 'all' },
