@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:dio/dio.dart';
 import '../models/admin.dart';
 import '../models/tenant.dart';
 import '../services/api_service.dart';
@@ -140,17 +143,10 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    // Mock response if API fails
-    if (_currentRole != null) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    }
-
     try {
+      final path = isAdmin ? '/admin/password' : '/tenant/password';
       final response = await _apiService.patch<Map<String, dynamic>>(
-        '/admin/password',
+        path,
         data: {
           'current_password': currentPassword,
           'new_password': newPassword,
@@ -160,8 +156,13 @@ class AuthController extends ChangeNotifier {
       );
 
       if (response.status && response.result != null) {
-        final adminData = response.result!['admin'];
-        _currentAdmin = Admin.fromJson(adminData as Map<String, dynamic>);
+        if (isAdmin) {
+          final adminData = response.result!['admin'];
+          _currentAdmin = Admin.fromJson(adminData as Map<String, dynamic>);
+        } else {
+          final tenantData = response.result!['tenant'];
+          _currentTenant = Tenant.fromJson(tenantData as Map<String, dynamic>);
+        }
         _isLoading = false;
         notifyListeners();
         return true;
@@ -323,6 +324,86 @@ class AuthController extends ChangeNotifier {
       _errorMessage = e.message;
     } catch (e) {
       _errorMessage = 'Lỗi đặt lại mật khẩu: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Cập nhật thông tin cá nhân (Họ tên, Số điện thoại, Avatar) cho Admin hoặc Tenant
+  Future<bool> updatePersonalProfile({
+    required String fullName,
+    String? phone,
+    XFile? avatarFile,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final Map<String, dynamic> dataMap = {
+        '_method': 'PATCH',
+        'full_name': fullName,
+      };
+
+      if (phone != null) {
+        dataMap['phone'] = phone;
+      }
+
+      if (avatarFile != null) {
+        if (kIsWeb) {
+          final bytes = await avatarFile.readAsBytes();
+          dataMap['avatar'] = MultipartFile.fromBytes(
+            bytes,
+            filename: avatarFile.name,
+          );
+        } else {
+          dataMap['avatar'] = await MultipartFile.fromFile(
+            avatarFile.path,
+            filename: avatarFile.name,
+          );
+        }
+      }
+
+      final formData = FormData.fromMap(dataMap);
+      final path = isAdmin ? '/admin/profile' : '/tenant/profile';
+
+      if (isAdmin) {
+        final response = await _apiService.post<Admin>(
+          path,
+          data: formData,
+          fromJsonT: (json) => Admin.fromJson(json['admin'] as Map<String, dynamic>),
+        );
+
+        if (response.status && response.result != null) {
+          _currentAdmin = response.result;
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        } else {
+          _errorMessage = response.message;
+        }
+      } else {
+        final response = await _apiService.post<Tenant>(
+          path,
+          data: formData,
+          fromJsonT: (json) => Tenant.fromJson(json['tenant'] as Map<String, dynamic>),
+        );
+
+        if (response.status && response.result != null) {
+          _currentTenant = response.result;
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        } else {
+          _errorMessage = response.message;
+        }
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi cập nhật hồ sơ: $e';
     }
 
     _isLoading = false;

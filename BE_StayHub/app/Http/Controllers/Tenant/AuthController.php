@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Tenant\Auth\LoginRequest;
 use App\Http\Resources\Tenant\TenantAuthResource;
 use App\Models\Tenant;
+use App\Helpers\ImageHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -105,20 +106,27 @@ class AuthController extends Controller
 
             $validated = $request->validate([
                 'full_name' => ['required', 'string', 'max:150'],
-                'identity_number' => ['required', 'string', 'max:30'],
-                'identity_type' => ['required', 'integer', 'in:1,2,3'],
-                'identity_date' => ['required', 'date_format:Y-m-d'],
-                'identity_place' => ['required', 'string', 'max:255'],
-                'permanent_address' => ['required', 'string', 'max:500'],
+                'phone'     => ['nullable', 'string', 'regex:/^(0[3|5|7|8|9])+([0-9]{8})$/'],
+                'avatar'    => ['nullable', 'image', 'max:5120'],
+                'identity_number' => ['sometimes', 'required', 'string', 'max:30'],
+                'identity_type' => ['sometimes', 'required', 'integer', 'in:1,2,3'],
+                'identity_date' => ['sometimes', 'required', 'date_format:Y-m-d'],
+                'identity_place' => ['sometimes', 'required', 'string', 'max:255'],
+                'permanent_address' => ['sometimes', 'required', 'string', 'max:500'],
             ], [
                 'full_name.required' => 'Họ và tên là bắt buộc.',
-                'identity_number.required' => 'Số CMND/CCCD là bắt buộc.',
-                'identity_date.required' => 'Ngày cấp là bắt buộc.',
-                'identity_place.required' => 'Nơi cấp là bắt buộc.',
-                'permanent_address.required' => 'Địa chỉ thường trú là bắt buộc.',
+                'phone.regex' => 'Số điện thoại không đúng định dạng Việt Nam (phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08, 09).',
             ]);
 
-            $tenant->update($validated);
+            $avatarUrl = $tenant->avatar_url;
+            if ($request->hasFile('avatar')) {
+                $avatarUrl = ImageHelper::update($request->file('avatar'), $tenant->avatar_url, 'avatars');
+            }
+
+            $updateData = collect($validated)->except(['avatar'])->toArray();
+            $updateData['avatar_url'] = $avatarUrl;
+
+            $tenant->update($updateData);
             $tenant->loadMissing(['currentContractTenant.contract.room.building']);
 
             return ApiResponse::responseJson(true, 'Cập nhật thông tin thành công', 200, new TenantAuthResource($tenant), 200);
@@ -289,6 +297,51 @@ class AuthController extends Controller
             return ApiResponse::responseJson(true, 'Danh sách cài đặt tòa nhà', 200, $data, 200);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
+    /**
+     * Đổi mật khẩu khách thuê hiện tại.
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        try {
+            $tenant = $request->user('tenant');
+            if (! $tenant) {
+                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+            }
+
+            $validated = $request->validate([
+                'current_password'          => ['required', 'string', 'min:6', 'max:255'],
+                'new_password'              => ['required', 'string', 'min:6', 'max:255', 'confirmed', 'different:current_password'],
+                'new_password_confirmation' => ['required', 'string', 'min:6', 'max:255'],
+            ], [
+                'current_password.required'          => 'Vui lòng nhập mật khẩu hiện tại.',
+                'current_password.min'               => 'Mật khẩu hiện tại tối thiểu 6 ký tự.',
+                'new_password.required'              => 'Vui lòng nhập mật khẩu mới.',
+                'new_password.min'                   => 'Mật khẩu mới tối thiểu 6 ký tự.',
+                'new_password.confirmed'             => 'Xác nhận mật khẩu mới không khớp.',
+                'new_password.different'             => 'Mật khẩu mới không được trùng mật khẩu hiện tại.',
+                'new_password_confirmation.required' => 'Vui lòng xác nhận mật khẩu mới.',
+                'new_password_confirmation.min'      => 'Xác nhận mật khẩu mới tối thiểu 6 ký tự.',
+            ]);
+
+            if (! Hash::check($validated['current_password'], $tenant->password)) {
+                return ApiResponse::responseJson(false, 'Mật khẩu hiện tại không chính xác', 422, null, 422);
+            }
+
+            $tenant->forceFill([
+                'password' => $validated['new_password'],
+            ])->save();
+
+            return ApiResponse::responseJson(true, 'Đổi mật khẩu thành công', 200, [
+                'tenant' => new TenantAuthResource($tenant->fresh()),
+            ], 200);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return ApiResponse::responseJson(false, $e->validator->errors()->first(), 422, $e->validator->errors(), 422);
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
 }

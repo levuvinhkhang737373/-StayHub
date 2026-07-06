@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, Search } from 'lucide-react'
+import { Check, ChevronDown, Search, Plus } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
 
 export interface AdminSelectOption {
@@ -24,6 +24,10 @@ interface AdminSelectProps {
   searchable?: boolean
   menuMinWidth?: number
   wrapLabel?: boolean
+  footerAction?: {
+    label: string
+    onClick: () => void
+  }
 }
 
 const toneClassNames: Record<NonNullable<AdminSelectOption['tone']>, string> = {
@@ -33,7 +37,7 @@ const toneClassNames: Record<NonNullable<AdminSelectOption['tone']>, string> = {
   danger: 'bg-rose-100 text-rose-700',
 }
 
-export function AdminSelect({ value, options, onChange, placeholder = 'Chọn giá trị', className, disabled = false, invalid = false, id, ariaDescribedBy, menuPlacement = 'bottom', searchable, menuMinWidth, wrapLabel = false }: AdminSelectProps) {
+export function AdminSelect({ value, options, onChange, placeholder = 'Chọn giá trị', className, disabled = false, invalid = false, id, ariaDescribedBy, menuPlacement = 'bottom', searchable, menuMinWidth, wrapLabel = false, footerAction }: AdminSelectProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -275,6 +279,22 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
               </div>
             )}
           </div>
+          {footerAction && (
+            <div className="border-t border-[#3d2a18]/10 mt-1.5 pt-1.5 px-1.5 pb-1 z-10 shrink-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsOpen(false)
+                  setSearchTerm('')
+                  footerAction.onClick()
+                }}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-3 py-2.5 text-center text-xs font-black uppercase tracking-wider text-[#f3c56b] transition hover:bg-[#3d2a18]"
+              >
+                <Plus className="h-3.5 w-3.5" /> {footerAction.label}
+              </button>
+            </div>
+          )}
         </div>,
         document.body
       )}

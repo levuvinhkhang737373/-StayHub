@@ -191,6 +191,7 @@ Route::prefix('tenant')->group(function (): void {
     Route::middleware(['auth.tenant'])->group(function (): void {
         Route::get('/me', [TenantAuthController::class, 'me']);
         Route::patch('/profile', [TenantAuthController::class, 'updateProfile']);
+        Route::patch('/password', [TenantAuthController::class, 'changePassword']);
         Route::post('/logout', [TenantAuthController::class, 'logout']);
         Route::get('utility-price-history', [TenantAuthController::class, 'utilityPriceHistory']);
         Route::get('utility-readings', [TenantAuthController::class, 'utilityReadings']);

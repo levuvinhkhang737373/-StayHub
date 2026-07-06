@@ -17,7 +17,13 @@ export function resolveAssetUrl(path: string | null | undefined): string {
         url.host = currentOrigin.host
       }
 
-      return url.toString()
+      if (url.hostname === window.location.hostname) {
+        url.protocol = window.location.protocol
+      }
+
+      const resolved = url.toString()
+      console.log('[DEBUG] resolveAssetUrl:', { input: path, output: resolved })
+      return resolved
     } catch {
       return path
     }

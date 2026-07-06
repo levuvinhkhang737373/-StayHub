@@ -1,8 +1,10 @@
 import { ArrowLeft, Building2, ImageIcon, Plus, Save, X, PackageOpen } from 'lucide-react';
-import { fetchAssets, fetchBuilding, fetchRoomType, fetchAdminRoomDetail, updateAdminRoom } from '../services/rooms.service';
+import { fetchAssets, fetchBuilding, fetchRoomType, fetchAdminRoomDetail, updateAdminRoom, createAssetTemplate, createRoomType } from '../services/rooms.service';
 import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../../../../shared/components/ConfirmModal';
 import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal';
+import { AnimatePresence, motion } from 'motion/react';
+
 import type { AssetResource, BuildingResource, RoomTypeResource, AdminRoomResource } from '../types/rooms.model';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AdminSelect } from '../../shared/components/AdminSelect';
@@ -49,6 +51,85 @@ export function UpdateRoomScreen() {
   const [areaError, setAreaError] = useState<string | null>(null);
   const [floorError, setFloorError] = useState<string | null>(null);
   const { confirmState, isConfirmLoading, showConfirm, closeConfirm } = useConfirmModal();
+
+  const [isAddingAsset, setIsAddingAsset] = useState(false);
+  const [newAssetName, setNewAssetName] = useState('');
+  const [newAssetUnit, setNewAssetUnit] = useState<number>(1);
+  const [newAssetDesc, setNewAssetDesc] = useState('');
+  const [isCreatingAsset, setIsCreatingAsset] = useState(false);
+  const [createAssetError, setCreateAssetError] = useState<string | null>(null);
+
+  const handleCreateAsset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAssetName.trim()) return;
+    setIsCreatingAsset(true);
+    setCreateAssetError(null);
+    try {
+      const res = await createAssetTemplate({
+        name: newAssetName.trim(),
+        default_unit_name: newAssetUnit,
+        description: newAssetDesc.trim(),
+      });
+      const newAsset = (res as any).result as AssetResource;
+      if (newAsset) {
+        setAssets((prev) => [...prev, newAsset]);
+        // Auto select the new asset
+        setSelectedAssets((prev) => {
+          const exists = prev.find((item) => item.template_id === newAsset.id);
+          if (exists) return prev;
+          return [...prev, { template_id: newAsset.id, name: newAsset.name, quantity: 1, note: '' }];
+        });
+        // Reset and close
+        setNewAssetName('');
+        setNewAssetUnit(1);
+        setNewAssetDesc('');
+        setIsAddingAsset(false);
+      }
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.response?.data?.message || err?.message || 'Đã xảy ra lỗi khi thêm tài sản mới.';
+      setCreateAssetError(msg);
+    } finally {
+      setIsCreatingAsset(false);
+    }
+  };
+
+  const [isAddingRoomType, setIsAddingRoomType] = useState(false);
+  const [newRoomTypeName, setNewRoomTypeName] = useState('');
+  const [newRoomTypeDesc, setNewRoomTypeDesc] = useState('');
+  const [isCreatingRoomType, setIsCreatingRoomType] = useState(false);
+  const [createRoomTypeError, setCreateRoomTypeError] = useState<string | null>(null);
+
+  const handleCreateRoomType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRoomTypeName.trim()) return;
+    setIsCreatingRoomType(true);
+    setCreateRoomTypeError(null);
+    try {
+      const res = await createRoomType({
+        name: newRoomTypeName.trim(),
+        description: newRoomTypeDesc.trim(),
+      });
+      const newRt = (res as any).result as RoomTypeResource;
+      if (newRt) {
+        setRoomTypes((prev) => [...prev, newRt]);
+        // Auto select the new room type
+        setFormData((prev) => ({ ...prev, room_type_id: String(newRt.id) }));
+        // Reset and close
+        setNewRoomTypeName('');
+        setNewRoomTypeDesc('');
+        setIsAddingRoomType(false);
+      }
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.response?.data?.message || err?.message || 'Đã xảy ra lỗi khi thêm loại phòng mới.';
+      setCreateRoomTypeError(msg);
+    } finally {
+      setIsCreatingRoomType(false);
+    }
+  };
+
+
 
   const validateFloor = (buildingId: string, floorVal: string) => {
     if (!buildingId) {
@@ -297,7 +378,8 @@ export function UpdateRoomScreen() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 text-[#24170d]">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6 text-[#24170d]">
       {/* Premium Header */}
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
         <div className="relative p-5 text-[#fff4df] lg:p-6">
@@ -381,13 +463,27 @@ export function UpdateRoomScreen() {
               </div>
 
               <div>
-                <label className={labelClass}>Loại phòng *</label>
+                <div className="flex justify-between items-center px-1 mb-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">Loại phòng *</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingRoomType(true)}
+                    disabled={!isBuildingSelected}
+                    className="text-[10px] font-black text-[#8b5e34] hover:text-[#24170d] transition disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    + Thêm loại phòng
+                  </button>
+                </div>
                 <AdminSelect
                   value={formData.room_type_id}
                   options={roomTypes.map((rt) => ({ value: rt.id, label: rt.name }))}
                   onChange={(val) => setFormData((prev) => ({ ...prev, room_type_id: String(val) }))}
                   placeholder="Chọn loại phòng"
                   disabled={!isBuildingSelected}
+                  footerAction={{
+                    label: 'Thêm loại phòng mới',
+                    onClick: () => setIsAddingRoomType(true)
+                  }}
                 />
               </div>
 
@@ -473,15 +569,25 @@ export function UpdateRoomScreen() {
 
           {/* Tài sản bàn giao */}
           <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-6 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
-            <div className="mb-6 flex items-center gap-3 border-b border-[#3d2a18]/10 pb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#24170d] text-[#fff4df]">
-                <PackageOpen className="h-5 w-5 text-[#f3c56b]" />
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-[#3d2a18]/10 pb-4 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#24170d] text-[#fff4df]">
+                  <PackageOpen className="h-5 w-5 text-[#f3c56b]" />
+                </div>
+                <div>
+                  <h2 className="font-black text-[#24170d]">Tài sản bàn giao</h2>
+                  <p className="mt-0.5 text-xs font-semibold text-[#8b5e34]/70">Chọn các trang thiết bị bàn giao kèm theo phòng này.</p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-black text-[#24170d]">Tài sản bàn giao</h2>
-                <p className="mt-0.5 text-xs font-semibold text-[#8b5e34]/70">Chọn các trang thiết bị bàn giao kèm theo phòng này.</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddingAsset(true)}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#24170d] px-4 text-xs font-black text-[#f3c56b] transition hover:bg-[#3d2a18]"
+              >
+                <Plus className="h-3.5 w-3.5" /> Thêm tài sản mới
+              </button>
             </div>
+
 
             <div>
               {/* Danh sách các tài sản để click chọn */}
@@ -636,5 +742,206 @@ export function UpdateRoomScreen() {
       </div>
       <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </form>
+
+    <AnimatePresence>
+        {isAddingAsset && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isCreatingAsset) setIsAddingAsset(false);
+              }}
+              className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm"
+            />
+
+            {/* Content Box */}
+            <motion.div
+              initial={{ y: 20, opacity: 0, scale: 0.96 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 20, opacity: 0, scale: 0.96 }}
+              className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-[#3d2a18]/10 bg-[#fffaf1] p-6 shadow-2xl text-[#24170d]"
+            >
+              {/* Close button */}
+              {!isCreatingAsset && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingAsset(false)}
+                  className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+
+              <h3 className="text-lg font-black tracking-tight text-[#24170d] mb-4 flex items-center gap-2">
+                <PackageOpen className="h-5 w-5 text-[#f3c56b]" /> Thêm mẫu tài sản mới
+              </h3>
+
+              {createAssetError && (
+                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700">
+                  {createAssetError}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateAsset} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">
+                    Tên mẫu tài sản *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Lò vi sóng, Ghế xoay..."
+                    value={newAssetName}
+                    onChange={(e) => setNewAssetName(e.target.value)}
+                    className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">
+                    Đơn vị mặc định *
+                  </label>
+                  <select
+                    value={newAssetUnit}
+                    onChange={(e) => setNewAssetUnit(Number(e.target.value))}
+                    className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                  >
+                    <option value={1}>cái</option>
+                    <option value={2}>bộ</option>
+                    <option value={3}>chiếc</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">
+                    Mô tả tài sản
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Mô tả ngắn gọn về tài sản này..."
+                    value={newAssetDesc}
+                    onChange={(e) => setNewAssetDesc(e.target.value)}
+                    className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                  />
+                </div>
+
+                <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingAsset(false)}
+                    disabled={isCreatingAsset}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 py-2 text-xs font-black uppercase tracking-wider text-[#6f6254] transition hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d] disabled:opacity-50 sm:flex-1 cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreatingAsset || !newAssetName.trim()}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#24170d] px-5 py-2 text-xs font-black uppercase tracking-wider text-[#fff4df] shadow-[#6b3f1d]/18 transition hover:bg-[#3d2a18] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/30 disabled:opacity-50 sm:flex-1 cursor-pointer"
+                  >
+                    {isCreatingAsset ? 'Đang tạo...' : 'Tạo mới'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {isAddingRoomType && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isCreatingRoomType) setIsAddingRoomType(false);
+              }}
+              className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm"
+            />
+
+            {/* Content Box */}
+            <motion.div
+              initial={{ y: 20, opacity: 0, scale: 0.96 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 20, opacity: 0, scale: 0.96 }}
+              className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-[#3d2a18]/10 bg-[#fffaf1] p-6 shadow-2xl text-[#24170d]"
+            >
+              {/* Close button */}
+              {!isCreatingRoomType && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingRoomType(false)}
+                  className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] transition hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+
+              <h3 className="text-lg font-black tracking-tight text-[#24170d] mb-4 flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-[#f3c56b]" /> Thêm loại phòng mới
+              </h3>
+
+              {createRoomTypeError && (
+                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700">
+                  {createRoomTypeError}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateRoomType} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">
+                    Tên loại phòng *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Phòng đơn VIP, Căn hộ dịch vụ..."
+                    value={newRoomTypeName}
+                    onChange={(e) => setNewRoomTypeName(e.target.value)}
+                    className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">
+                    Mô tả loại phòng
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Mô tả ngắn gọn về loại phòng này..."
+                    value={newRoomTypeDesc}
+                    onChange={(e) => setNewRoomTypeDesc(e.target.value)}
+                    className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                  />
+                </div>
+
+                <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingRoomType(false)}
+                    disabled={isCreatingRoomType}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 py-2 text-xs font-black uppercase tracking-wider text-[#6f6254] transition hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d] disabled:opacity-50 sm:flex-1 cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreatingRoomType || !newRoomTypeName.trim()}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#24170d] px-5 py-2 text-xs font-black uppercase tracking-wider text-[#fff4df] shadow-[#6b3f1d]/18 transition hover:bg-[#3d2a18] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/30 disabled:opacity-50 sm:flex-1 cursor-pointer"
+                  >
+                    {isCreatingRoomType ? 'Đang tạo...' : 'Tạo mới'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
+
