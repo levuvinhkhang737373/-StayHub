@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 
 import { Banknote, Building2, CalendarDays, DoorOpen, Edit3, Eye, ImageIcon, Plus, ReceiptText, Search, Trash2, UploadCloud, WalletCards, X, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import type { AdminSelectOption } from '../../shared/components/AdminSelect'
 import { formatCurrency, formatDate, formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -248,7 +249,7 @@ export function ExpensesScreen() {
         setSelectedBuildingId(String(list[0].id))
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải dữ liệu bộ lọc phiếu chi.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải dữ liệu bộ lọc phiếu chi.'))
     }
   }, [isSuperAdmin, selectedBuildingId])
 
@@ -278,7 +279,7 @@ export function ExpensesScreen() {
         setCurrentPage(normalized.meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách phiếu chi.')
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách phiếu chi.', hasActiveFilters))
     } finally {
       setIsLoading(false)
     }
@@ -432,7 +433,7 @@ export function ExpensesScreen() {
       setForm(defaultForm(defaultBuildingId))
       await loadExpenses()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu phiếu chi.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể lưu phiếu chi.'))
     } finally {
       setIsSaving(false)
     }
@@ -454,7 +455,7 @@ export function ExpensesScreen() {
           setSuccessMessage('Hủy phiếu chi thành công.')
           await loadExpenses()
         } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : 'Không thể hủy phiếu chi.')
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể hủy phiếu chi.'))
         } finally {
           setIsConfirmLoading(false)
           setCancellingId(null)

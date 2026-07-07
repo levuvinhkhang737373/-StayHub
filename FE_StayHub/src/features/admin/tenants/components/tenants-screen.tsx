@@ -5,9 +5,9 @@ import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { Building2, ChevronLeft, ChevronRight, DoorOpen, Edit3, Eye, IdCard, Mail, Phone, Plus, Power, Search, Trash2, UserRound, X, ArrowRightLeft, Users } from 'lucide-react'
 import { formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import {
   deleteAdminTenant,
   fetchAdminTenantDetail,
@@ -159,9 +159,7 @@ export function TenantsScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      if (keyword.trim() !== '') {
-        setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê.'))
-      }
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách khách thuê.', Boolean(keyword.trim() || selectedStatus || selectedGender || selectedIdentityType)))
     } finally {
       setIsLoading(false)
     }
@@ -855,18 +853,4 @@ function getIdentityTypeLabel(identityType?: number | null) {
   if (Number(identityType) === IDENTITY_TYPE_CMND) return 'CMND'
   if (Number(identityType) === IDENTITY_TYPE_PASSPORT) return 'Hộ chiếu'
   return '—'
-}
-
-
-
-function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) {
-    return error.message || fallback
-  }
-
-  if (error instanceof Error) {
-    return error.message
-  }
-
-  return fallback
 }

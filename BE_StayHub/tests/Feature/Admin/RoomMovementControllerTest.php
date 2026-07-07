@@ -309,6 +309,40 @@ class RoomMovementControllerTest extends TestCase
             ->assertJsonPath('result.data.0.movement_type_label', 'Trả phòng');
     }
 
+    public function test_room_movement_index_search_without_match_returns_empty_list(): void
+    {
+        $admin = $this->createAdmin('super_history_empty_search', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa tìm rỗng', 'toa-tim-rong');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'E101', 0);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'E102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_empty_history');
+        $contract = $this->createContract($fromRoom, $admin, 'HD-EMPTY-HISTORY');
+
+        RoomMovement::create([
+            'tenant_id' => $tenant->id,
+            'contract_id' => $contract->id,
+            'from_room_id' => $fromRoom->id,
+            'to_room_id' => $toRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'movement_date' => '2026-06-01 09:00:00',
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => '0.00',
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '0.00',
+            'note' => 'Dữ liệu không khớp từ khóa lạ',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin, 'admin')
+            ->getJson('/api/v1/admin/room-movements?keyword=khong-co-ket-qua-nao')
+            ->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('result.meta.total', 0)
+            ->assertJsonCount(0, 'result.data');
+    }
+
     public function test_transfer_tenant_executes_immediately_when_movement_date_is_today(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Asia/Ho_Chi_Minh'));

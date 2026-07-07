@@ -57,6 +57,7 @@ import {
   normalizeInvoices,
   perPageOptions,
 } from '../utils/invoice.helpers'
+import { getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { InvoicePreviewModal } from './invoice-preview-modal'
 
 type RoomOption = {
@@ -257,7 +258,7 @@ export function InvoicesScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách hóa đơn.'))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách hóa đơn.', hasActiveFilters))
     } finally {
       setIsLoading(false)
     }

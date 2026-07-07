@@ -20,10 +20,11 @@ import {
   Wind,
   Bed,
 } from 'lucide-react'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
+import { ApiError } from '../../../../shared/lib/api/api-client'
 import { AdminSelect, type AdminSelectOption } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { buildingAllowsTenantGender } from '../../shared/config/gender-policy'
 import { fetchAdminTenantDetail, fetchAdminTenants } from '../services/tenants.service'
 import { transferTenantRoom } from '../services/TranferRoom'
@@ -223,11 +224,7 @@ export function TenantTransferRoomScreen() {
           if (!isMounted) return
           setTenantOptions([])
           setTenantOptionsMeta(null)
-          if (tenantKeyword.trim() !== '') {
-            setTenantOptionsError(getVisibleErrorMessage(error, 'Không thể tải danh sách khách thuê.'))
-          } else {
-            setTenantOptionsError(null)
-          }
+          setTenantOptionsError(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách khách thuê.', Boolean(tenantKeyword.trim() || tenantBuildingFilter)))
         })
         .finally(() => {
           if (!isMounted) return
@@ -1716,10 +1713,4 @@ function getTenantRoomText(tenant: AdminTenantResource): ReactNode {
       )}
     </div>
   )
-}
-
-function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message
-  return fallback
 }

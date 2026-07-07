@@ -22,6 +22,7 @@ import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { ImageViewerModal } from '../../../../shared/components/ImageViewerModal'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -209,7 +210,7 @@ export function FireSafetyScreen() {
         setAlertCurrentPage(lastPage)
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Không thể tải dữ liệu AI camera.')
+      setError(getVisibleFilterErrorMessage(err, 'Không thể tải dữ liệu AI camera.', Boolean(selectedBuildingId || keyword.trim())))
     } finally {
       setIsLoading(false)
     }
@@ -245,7 +246,7 @@ export function FireSafetyScreen() {
         }
       } catch (err) {
         if (isMounted) {
-          setError(err instanceof ApiError ? err.message : 'Không thể tải chi tiết cảnh báo AI camera.')
+          setError(getVisibleErrorMessage(err, 'Không thể tải chi tiết cảnh báo AI camera.'))
         }
       }
     }
@@ -325,7 +326,7 @@ export function FireSafetyScreen() {
       setIsCameraModalOpen(false)
       await loadData()
     } catch (err) {
-      setError(err instanceof ApiError || err instanceof Error ? err.message : 'Không thể lưu camera.')
+      setError(getVisibleErrorMessage(err, 'Không thể lưu camera.'))
     } finally {
       setIsSaving(false)
     }
@@ -397,7 +398,7 @@ export function FireSafetyScreen() {
       setMessage('Đã xóa camera.')
       await loadData()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Không thể xóa camera.')
+      setError(getVisibleErrorMessage(err, 'Không thể xóa camera.'))
     }
   }
 
@@ -416,7 +417,7 @@ export function FireSafetyScreen() {
       setMessage(enabled ? 'Đã bật giám sát AI 24/24 cho camera.' : 'Đã tắt giám sát AI 24/24 cho camera.')
       await loadData()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Không thể cập nhật giám sát 24/24.')
+      setError(getVisibleErrorMessage(err, 'Không thể cập nhật giám sát 24/24.'))
     } finally {
       setMonitoringId(null)
     }
@@ -439,7 +440,7 @@ export function FireSafetyScreen() {
       setMessage(`${enabled ? 'Đã bật' : 'Đã tắt'} giám sát 24/24 cho ${result?.updated_count ?? 0} camera${result?.skipped_count ? `, bỏ qua ${result.skipped_count} camera tạm tắt` : ''}.`)
       await loadData()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Không thể cập nhật giám sát hàng loạt.')
+      setError(getVisibleErrorMessage(err, 'Không thể cập nhật giám sát hàng loạt.'))
     } finally {
       setIsBulkMonitoring(false)
     }
@@ -455,7 +456,7 @@ export function FireSafetyScreen() {
       setMessage('Đã cập nhật trạng thái cảnh báo.')
       await loadData()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Không thể cập nhật cảnh báo.')
+      setError(getVisibleErrorMessage(err, 'Không thể cập nhật cảnh báo.'))
     }
   }
 

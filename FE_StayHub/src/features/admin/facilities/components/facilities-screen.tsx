@@ -9,6 +9,7 @@ import type { AdminRegionResource } from "../types/facility-api.model";
 import type { Building, BuildingStatus } from "../types/building.model";
 import { cn } from "../../../../shared/lib/utils/cn";
 import { AdminSelect } from "../../shared/components/AdminSelect";
+import { getVisibleFilterErrorMessage } from "../../shared/utils/error-message";
 import { mapBuildingResourceToBuilding } from "../lib/data-utils";
 import { ImageViewerModal } from "../../../../shared/components/ImageViewerModal";
 import { ConfirmModal } from "../../../../shared/components/ConfirmModal";
@@ -245,6 +246,10 @@ export function FacilitiesScreen() {
 
         setRegions(regionsResult.status === "fulfilled" ? getResourceList(regionsResult.value.result) : []);
         setBuildings(buildingsResult.status === "fulfilled" ? getResourceList(buildingsResult.value.result).map(mapBuildingResourceToBuilding) : []);
+
+        const hasSearchFilters = Boolean(nextRegionKeyword || keyword.trim());
+        const failedResult = regionsResult.status === "rejected" ? regionsResult : buildingsResult.status === "rejected" ? buildingsResult : null;
+        setErrorMessage(failedResult ? getVisibleFilterErrorMessage(failedResult.reason, "Không thể tải danh sách cơ sở.", hasSearchFilters) : null);
 
         setIsLoading(false);
     }, [isSuperAdmin, keyword, regionKeyword]);

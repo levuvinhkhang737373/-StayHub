@@ -9,6 +9,7 @@ import { generateAdminInvoice, previewAdminInvoice } from '../../invoices/servic
 import type { AdminInvoiceGeneratePayload, AdminInvoicePreviewResource } from '../../invoices/types/invoice-api.model'
 import { InvoicePreviewModal } from '../../invoices/components/invoice-preview-modal'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage } from '../../shared/utils/error-message'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { ApiError } from '../../../../shared/lib/api/api-client'
@@ -56,11 +57,6 @@ const imageErrorMessages: Record<string, string> = {
   invalid_image: 'Ảnh không hợp lệ, vui lòng chọn ảnh khác',
 }
 
-function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message
-  return fallback
-}
 
 function getAiImageErrorMessage(error: string | null | undefined) {
   if (!error) return null

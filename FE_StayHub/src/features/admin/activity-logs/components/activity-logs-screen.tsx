@@ -2,11 +2,11 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { ChevronLeft, ChevronRight, Clock3, Eye, History, Network, Search, ShieldCheck, UserRound, X } from 'lucide-react'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { fetchAdminActivityLogDetail, fetchAdminActivityLogs } from '../services/activity-logs.service'
 import type { AdminActivityLogChangeItem, AdminActivityLogDisplayField, AdminActivityLogPaginationMeta, AdminActivityLogResource } from '../types/activity-log-api.model'
 
@@ -165,7 +165,7 @@ export function ActivityLogsScreen() {
     } catch (error) {
       setLogs([])
       setPaginationMeta(null)
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải nhật ký thao tác admin.'))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải nhật ký thao tác admin.', Boolean(keyword || actionFilter || entityTypeFilter || dateFrom || dateTo)))
     } finally {
       setIsLoading(false)
     }
@@ -678,16 +678,4 @@ function getNameFromPayload(payload?: Record<string, unknown> | null) {
   }
 
   return null
-}
-
-function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError && (!error.statusCode || error.statusCode >= 500)) {
-    return fallback
-  }
-
-  if (error instanceof Error) {
-    return error.message
-  }
-
-  return fallback
 }

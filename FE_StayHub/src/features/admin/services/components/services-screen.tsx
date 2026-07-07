@@ -6,6 +6,7 @@ import { Database, Edit3, Eye, Plus, Power, Search, Trash2, X, Zap, Settings } f
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
   deleteAdminService,
@@ -129,7 +130,7 @@ export function ServicesScreen() {
 
       setServices(getResourceList(response.result))
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh mục dịch vụ.')
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh mục dịch vụ.', Boolean(keyword.trim() || selectedChargeMethod || selectedRequired || selectedStatus)))
     } finally {
       setIsLoading(false)
     }
@@ -229,7 +230,7 @@ export function ServicesScreen() {
         setSuccessMessage(`${nextStatus ? 'Kích hoạt' : 'Ngừng hoạt động'} dịch vụ thành công.`)
         await loadServices()
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái dịch vụ.')
+        setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái dịch vụ.'))
       } finally {
         setIsConfirmLoading(false)
         setStatusChangingId(null)
@@ -264,7 +265,7 @@ export function ServicesScreen() {
           setSuccessMessage('Xóa dịch vụ thành công.')
           await loadServices()
         } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa dịch vụ.')
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa dịch vụ.'))
         } finally {
           setIsConfirmLoading(false)
           closeConfirm()

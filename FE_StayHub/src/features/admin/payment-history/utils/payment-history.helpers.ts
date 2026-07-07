@@ -1,4 +1,4 @@
-import { ApiError } from '../../../../shared/lib/api/api-client'
+import { getVisibleErrorMessage as getSharedVisibleErrorMessage } from '../../shared/utils/error-message'
 import type {
   AdminPaymentHistoryPaginationMeta,
   AdminPaymentHistoryPaginator,
@@ -68,10 +68,9 @@ export function normalizePaymentHistory(result: AdminPaymentHistoryPaginator<Adm
 }
 
 export function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message
-  return fallback
+  return getSharedVisibleErrorMessage(error, fallback)
 }
+
 
 export function getSourceLabel(source?: PaymentHistorySourceType | null) {
   return sourceTypeOptions.find((option) => option.value === source)?.label || 'Giao dịch'

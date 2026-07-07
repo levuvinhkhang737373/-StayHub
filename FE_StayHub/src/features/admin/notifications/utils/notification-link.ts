@@ -1,8 +1,43 @@
 import type { AdminNotificationResource } from '../types/notification-api.model'
 
 type LinkableNotification = Pick<AdminNotificationResource, 'action_url' | 'content' | 'notification_type' | 'tenant_id'> & {
+  id?: number | string | null
+  title?: string | null
+  room_id?: number | string | null
+  building_id?: number | string | null
   direct_conversation_id?: number | string | null
 }
+
+const ADMIN_FALLBACK_PATH = '/admin/notifications'
+
+const supportedAdminSections = new Set([
+  'activity-logs',
+  'asset-templates',
+  'chat',
+  'contracts',
+  'dashboard',
+  'debts',
+  'expense-categories',
+  'expenses',
+  'facilities',
+  'financials',
+  'fire-safety',
+  'invoices',
+  'maintenance',
+  'meter-readings',
+  'meters',
+  'notifications',
+  'payment-history',
+  'room-movements',
+  'room-types',
+  'rooms',
+  'services',
+  'settings',
+  'system-users',
+  'tenants',
+  'transfer-room',
+  'vehicles',
+])
 
 function normalizeAdminPath(path: string | null | undefined) {
   const trimmed = path?.trim()
@@ -11,23 +46,31 @@ function normalizeAdminPath(path: string | null | undefined) {
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     try {
       const url = new URL(trimmed)
-      return `${url.pathname}${url.search}${url.hash}`
+      return ensureRoutableAdminPath(`${url.pathname}${url.search}${url.hash}`)
     } catch {
       return null
     }
   }
 
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  return ensureRoutableAdminPath(trimmed.startsWith('/') ? trimmed : `/${trimmed}`)
+}
+
+function ensureRoutableAdminPath(path: string) {
+  if (path !== '/admin' && !path.startsWith('/admin/')) return ADMIN_FALLBACK_PATH
+
+  const section = path.split(/[/?#]/)[2] || 'dashboard'
+  return supportedAdminSections.has(section) ? path : ADMIN_FALLBACK_PATH
 }
 
 export function resolveNotificationActionPath(notification: LinkableNotification): string | null {
   const actionPath = normalizeAdminPath(notification.action_url)
   if (actionPath) return actionPath
 
-  const content = notification.content || ''
+  const content = `${notification.title || ''} ${notification.content || ''}`
   const scMatch = content.match(/(SC-\d{6})/i)
   const invMatch = content.match(/(INV-[A-Z0-9-]+)/i)
   const hdMatch = content.match(/(HD-[A-Z0-9-]+)/i)
+  const trfMatch = content.match(/(TRF-[A-Z0-9-]+)/i)
 
   if (notification.notification_type === 1) {
     return scMatch ? `/admin/maintenance?request_code=${scMatch[1]}` : '/admin/maintenance'
@@ -38,6 +81,15 @@ export function resolveNotificationActionPath(notification: LinkableNotification
   }
 
   if (notification.notification_type === 4) {
+    const alertIdMatch = content.match(/(?:alert|cảnh báo|canh bao)[^\d]*(\d+)/iu)
+    if (alertIdMatch) {
+      return `/admin/fire-safety?panel=alerts&alert_id=${alertIdMatch[1]}`
+    }
+
+    if (/AI\s*Camera|camera|lửa|khói|hút thuốc/iu.test(content)) {
+      return '/admin/fire-safety?panel=alerts'
+    }
+
     return '/admin/fire-safety'
   }
 
@@ -51,6 +103,38 @@ export function resolveNotificationActionPath(notification: LinkableNotification
 
   if (hdMatch) {
     return `/admin/contracts?contract_code=${hdMatch[1]}`
+  }
+
+  if (trfMatch) {
+    return `/admin/room-movements?keyword=${encodeURIComponent(trfMatch[1])}`
+  }
+
+  if (/chuyển phòng|trả phòng|phòng và cọc/iu.test(content)) {
+    return '/admin/room-movements'
+  }
+
+  if (/hợp đồng/iu.test(content)) {
+    return '/admin/contracts'
+  }
+
+  if (/hóa đơn|hoá đơn/iu.test(content)) {
+    return '/admin/invoices'
+  }
+
+  if (/bảo trì|sửa chữa/iu.test(content)) {
+    return '/admin/maintenance'
+  }
+
+  if (notification.room_id) {
+    return `/admin/rooms/update/${notification.room_id}`
+  }
+
+  if (notification.building_id) {
+    return `/admin/facilities/buildings/${notification.building_id}/edit`
+  }
+
+  if (notification.id) {
+    return `/admin/notifications?id=${notification.id}`
   }
 
   return null

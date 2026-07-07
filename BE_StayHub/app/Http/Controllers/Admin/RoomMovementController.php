@@ -366,7 +366,7 @@ class RoomMovementController extends Controller
     {
         return $query->where(function (Builder $roomQuery) use ($keyword): void {
             $roomQuery->where('room_number', 'like', "%{$keyword}%")
-                ->orWhere('room_code', 'like', "%{$keyword}%")
+                ->orWhere('slug', 'like', "%{$keyword}%")
                 ->orWhereHas('building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('name', 'like', "%{$keyword}%"));
         });
     }

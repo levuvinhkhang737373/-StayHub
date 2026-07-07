@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Bell,
   Plus,
@@ -10,7 +10,8 @@ import {
   Building,
   User,
   Edit3,
-  CheckCheck
+  CheckCheck,
+  X,
 } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
@@ -20,9 +21,11 @@ import type { AdminBuildingResource } from '../../facilities/types/facility-api.
 import { fetchAdminTenants } from '../../tenants/services/tenants.service'
 import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { AdminPagination, type AdminPaginationMeta } from '../../shared/components/AdminPagination'
 import {
   fetchAdminNotifications,
+  fetchAdminNotificationDetail,
   deleteAdminNotification
 } from '../services/notification.service'
 import type {
@@ -78,6 +81,8 @@ const filterTargetTypeOptions = [
 
 export function NotificationsScreen() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const notificationIdParam = searchParams.get('id')
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
   const { notifications: receivedNotifications, markAllAsRead, markAsRead } = useAdminNotifications()
@@ -88,7 +93,11 @@ export function NotificationsScreen() {
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
   const [notifications, setNotifications] = useState<AdminNotificationResource[]>([])
+  const [detailNotification, setDetailNotification] = useState<AdminNotificationResource | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
@@ -225,7 +234,7 @@ export function NotificationsScreen() {
         setStats(null)
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách thông báo.')
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách thông báo.', Boolean(selectedStatus || selectedTargetType || selectedBuildingId)))
     } finally {
       setIsLoading(false)
     }
@@ -238,6 +247,14 @@ export function NotificationsScreen() {
   useEffect(() => {
     void loadNotifications()
   }, [loadNotifications])
+
+  useEffect(() => {
+    const notificationId = Number(notificationIdParam)
+    if (!Number.isFinite(notificationId) || notificationId <= 0) return
+
+    const matchedNotification = notifications.find((item) => Number(item.id) === notificationId)
+    void openDetail(matchedNotification || ({ id: notificationId } as AdminNotificationResource))
+  }, [notificationIdParam, notifications])
 
   useEffect(() => {
     function handleRefresh() {
@@ -287,6 +304,31 @@ export function NotificationsScreen() {
     setIsFormOpen(true)
   }
 
+  const openDetail = async (notif: AdminNotificationResource) => {
+    setIsDetailOpen(true)
+    setIsDetailLoading(true)
+    setDetailErrorMessage(null)
+    setDetailNotification(notif)
+
+    try {
+      const response = await fetchAdminNotificationDetail(notif.id)
+      setDetailNotification(response.result)
+    } catch (error) {
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết thông báo.'))
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }
+
+  const closeDetail = () => {
+    setIsDetailOpen(false)
+    setDetailNotification(null)
+    setDetailErrorMessage(null)
+    if (notificationIdParam) {
+      navigate('/admin/notifications', { replace: true })
+    }
+  }
+
   const handleCancelForm = () => {
     setIsFormOpen(false)
     setForm(defaultForm)
@@ -320,7 +362,7 @@ export function NotificationsScreen() {
           setSuccessMessage('Xóa thông báo thành công.')
           void loadNotifications()
         } catch (e) {
-          setErrorMessage(e instanceof Error ? e.message : 'Không thể xóa thông báo.')
+          setErrorMessage(getVisibleErrorMessage(e, 'Không thể xóa thông báo.'))
         } finally {
           setIsConfirmLoading(false)
           closeConfirm()
@@ -346,7 +388,7 @@ export function NotificationsScreen() {
           setSuccessMessage('Xóa tất cả thông báo thành công.')
           void loadNotifications()
         } catch (e) {
-          setErrorMessage(e instanceof Error ? e.message : 'Không thể xóa thông báo.')
+          setErrorMessage(getVisibleErrorMessage(e, 'Không thể xóa thông báo.'))
         } finally {
           setIsConfirmLoading(false)
           closeConfirm()
@@ -628,12 +670,87 @@ export function NotificationsScreen() {
               tenants={tenants}
               isSuperAdmin={isSuperAdmin}
             />
+
+            {isDetailOpen && (
+              <NotificationDetailModal
+                notification={detailNotification}
+                isLoading={isDetailLoading}
+                errorMessage={detailErrorMessage}
+                onClose={closeDetail}
+              />
+            )}
           </div>
         </section>
       </>
       <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
+}
+
+function NotificationDetailModal({ notification, isLoading, errorMessage, onClose }: { notification: AdminNotificationResource | null; isLoading: boolean; errorMessage: string | null; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="notification-detail-title">
+      <button type="button" aria-label="Đóng chi tiết thông báo" onClick={onClose} className="absolute inset-0 bg-stone-950/70 backdrop-blur-md" />
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1] text-[#24170d] shadow-2xl shadow-black/40">
+        <div className="flex items-start justify-between gap-4 border-b border-[#3d2a18]/10 bg-white/45 p-5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f766e]">Chi tiết thông báo</p>
+            <h2 id="notification-detail-title" className="mt-1 text-xl font-black tracking-[-0.035em] text-[#24170d]">
+              {notification?.title || 'Đang tải thông báo...'}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white/70 text-[#8b5e34] transition hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-100" aria-label="Đóng chi tiết thông báo">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-5">
+          {isLoading && <div className="h-32 animate-pulse rounded-2xl bg-stone-100" />}
+
+          {!isLoading && errorMessage && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>
+          )}
+
+          {!isLoading && notification && !errorMessage && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge label={notification.notification_type_label || notificationTypeLabels[notification.notification_type] || 'Hệ thống'} />
+                <Badge label={notification.target_type_label || targetTypeLabels[notification.target_type] || 'Tất cả'} />
+                <StatusBadge status={notification.status} label={notification.status_label || statusLabels[notification.status]} />
+              </div>
+
+              <div className="rounded-3xl border border-[#3d2a18]/10 bg-white/70 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b5e34]/70">Nội dung</p>
+                <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-7 text-[#3d2a18]">{notification.content || 'Không có nội dung.'}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DetailTile label="Tòa nhà" value={notification.building_name || (notification.building_id ? `#${notification.building_id}` : 'Không chỉ định')} />
+                <DetailTile label="Phòng" value={notification.room_number || (notification.room_id ? `#${notification.room_id}` : 'Không chỉ định')} />
+                <DetailTile label="Khách thuê" value={notification.tenant_name || (notification.tenant_id ? `#${notification.tenant_id}` : 'Không chỉ định')} />
+                <DetailTile label="Ngày tạo" value={formatDateTime(notification.created_at)} />
+                <DetailTile label="Ngày gửi" value={notification.published_at ? formatDateTime(notification.published_at) : 'Chưa gửi'} />
+                <DetailTile label="Người tạo" value={notification.creator_name || (notification.created_by ? `#${notification.created_by}` : 'Hệ thống')} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DetailTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/60 p-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/65">{label}</p>
+      <p className="mt-1 text-sm font-black text-[#24170d]">{value}</p>
+    </div>
+  )
+}
+
+function Badge({ label }: { label: string }) {
+  return <span className="rounded-full border border-[#3d2a18]/10 bg-stone-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-stone-600">{label}</span>
 }
 
 function MetricCard({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'rose' | 'amber' | 'emerald' }) {

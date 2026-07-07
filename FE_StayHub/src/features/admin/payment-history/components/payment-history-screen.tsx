@@ -41,6 +41,7 @@ import {
   sourceTypeOptions,
   statusGroupOptions,
 } from '../utils/payment-history.helpers'
+import { getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20 disabled:cursor-not-allowed disabled:opacity-60'
 const localDateTimePattern = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?)?$/
@@ -219,7 +220,7 @@ export function PaymentHistoryScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải lịch sử thanh toán.'))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải lịch sử thanh toán.', hasActiveFilters))
     } finally {
       setIsLoading(false)
     }

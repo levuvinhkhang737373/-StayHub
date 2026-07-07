@@ -5,6 +5,7 @@ import { Boxes, ChevronLeft, ChevronRight, Edit3, Eye, Plus, Power, Search, Tras
 import { AssetTemplateModal } from './asset-template-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import {
   deleteAdminAssetTemplate,
   fetchAdminAssetTemplateDetail,
@@ -134,7 +135,7 @@ export function AssetTemplatesScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách mẫu tài sản.')
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách mẫu tài sản.', Boolean(keyword.trim() || selectedStatus)))
     } finally {
       setIsLoading(false)
     }
@@ -238,7 +239,7 @@ export function AssetTemplatesScreen() {
         await loadAssetTemplates()
         await loadAllAssetTemplates()
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái mẫu tài sản.')
+        setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái mẫu tài sản.'))
       } finally {
         setIsConfirmLoading(false)
         setStatusChangingId(null)
@@ -273,7 +274,7 @@ export function AssetTemplatesScreen() {
           await loadAssetTemplates()
           await loadAllAssetTemplates()
         } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa mẫu tài sản.')
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa mẫu tài sản.'))
         } finally {
           setIsConfirmLoading(false)
           closeConfirm()

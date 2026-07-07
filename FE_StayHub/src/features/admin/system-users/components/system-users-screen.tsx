@@ -6,7 +6,7 @@ import { Building2, ChevronLeft, ChevronRight, Edit3, Eye, Mail, Phone, Plus, Po
 import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
-import { ApiError } from '../../../../shared/lib/api/api-client'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
   deleteAdminAccount,
@@ -145,7 +145,7 @@ export function SystemUsersScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải tài khoản admin.'))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải tài khoản admin.', Boolean(keyword.trim() || selectedRole || selectedStatus)))
     } finally {
       setIsLoading(false)
     }
@@ -632,13 +632,6 @@ function DetailTile({ label, value }: { label: string; value: string | number })
   )
 }
 
-function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError && (!error.statusCode || error.statusCode >= 500)) {
-    return null
-  }
-
-  return error instanceof Error ? error.message : fallback
-}
 
 function isAccountActive(account: AdminAccountResource) {
   return Number(account.status) === STATUS_ACTIVE

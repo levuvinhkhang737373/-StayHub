@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import type { ReactNode } from 'react'
 
 import { ArrowLeft, Droplet, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X, Zap, Gauge } from 'lucide-react'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { useAdminSession, isBuildingManagerRole } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildingDetail, fetchAdminBuildings } from '../../facilities/services/facilities.service'
@@ -59,11 +59,6 @@ function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined) {
   return result.data || []
 }
 
-function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message
-  return fallback
-}
 
 const getStatusBadgeClass = (status: number) => {
   switch (status) {
@@ -225,7 +220,7 @@ export function MetersScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách đồng hồ.'))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách đồng hồ.', Boolean(keyword.trim() || selectedMeterType || selectedStatus)))
     } finally {
       setIsLoading(false)
     }

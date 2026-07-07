@@ -58,6 +58,7 @@ import {
   getStatusLabel,
   todayStr,
 } from '../utils/contract.helpers'
+import { getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 
 import { MetricCard, IconButton, StatusBadge } from './ui/ui-elements'
 import { inputClass } from './form/form-elements'
@@ -285,7 +286,7 @@ export function ContractsScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách hợp đồng.'))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách hợp đồng.', hasActiveFilters))
     } finally {
       setIsLoading(false)
     }

@@ -6,10 +6,10 @@ import {
   WalletCards,
   X,
 } from 'lucide-react'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDate } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { AdminPagination } from '../../shared/components/AdminPagination'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
@@ -75,7 +75,7 @@ export function DebtsScreen() {
       setStats(result?.stats || defaultStats)
     } catch (err) {
       if (keyword.trim() !== '') {
-        setError(err instanceof ApiError ? err.message : 'Không thể tải danh sách công nợ')
+        setError(getVisibleFilterErrorMessage(err, 'Không thể tải danh sách công nợ', hasActiveFilters))
       }
     } finally {
       setIsLoading(false)

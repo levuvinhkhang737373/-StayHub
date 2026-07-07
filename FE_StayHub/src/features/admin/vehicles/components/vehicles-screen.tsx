@@ -3,9 +3,9 @@ import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 
 import { Car, Bike, Fuel, Zap, Edit3, Eye, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { AdminPagination, type AdminPaginationMeta } from '../../shared/components/AdminPagination'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
@@ -22,11 +22,6 @@ import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { validateVehicleForm } from '../validations/vehicle.validation'
 
-function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message
-  return fallback
-}
 
 const defaultForm: AdminVehicleFormValues = {
   building_id: '',
@@ -136,9 +131,7 @@ export function VehiclesScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      if (keyword.trim() !== '') {
-        setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải danh sách phương tiện.'))
-      }
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách phương tiện.', Boolean(keyword.trim() || selectedType || selectedStatus)))
     } finally {
       setIsLoading(false)
     }

@@ -6,6 +6,7 @@ import { Database, Edit3, Eye, Plus, Power, ReceiptText, Search, Tags, Trash2, X
 import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { ExpenseCategoryModal } from './expense-category-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
@@ -107,9 +108,7 @@ export function ExpenseCategoriesScreen() {
 
       setExpenseCategories(getResourceList(response.result))
     } catch (error) {
-      if (keyword.trim() !== '') {
-        setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh mục chi phí.')
-      }
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh mục chi phí.', Boolean(keyword.trim() || selectedStatus)))
     } finally {
       setIsLoading(false)
     }
@@ -222,7 +221,7 @@ export function ExpenseCategoriesScreen() {
         setSuccessMessage(`${nextStatus ? 'Kích hoạt' : 'Ngừng sử dụng'} danh mục chi phí thành công.`)
         await loadExpenseCategories()
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái danh mục chi phí.')
+        setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái danh mục chi phí.'))
       } finally {
         setIsConfirmLoading(false)
         setStatusChangingId(null)
@@ -257,7 +256,7 @@ export function ExpenseCategoriesScreen() {
           setSuccessMessage('Xóa danh mục chi phí thành công.')
           await loadExpenseCategories()
         } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa danh mục chi phí.')
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa danh mục chi phí.'))
         } finally {
           setIsConfirmLoading(false)
           closeConfirm()

@@ -5,6 +5,7 @@ import { BedDouble, ChevronLeft, ChevronRight, Edit3, Eye, Plus, Power, Search, 
 import { RoomTypeModal } from './room-type-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import {
   deleteAdminRoomType,
   fetchAdminRoomTypeDetail,
@@ -127,9 +128,7 @@ export function RoomTypesScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      if (keyword.trim() !== '') {
-        setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách loại phòng.')
-      }
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách loại phòng.', Boolean(keyword.trim() || selectedStatus)))
     } finally {
       setIsLoading(false)
     }
@@ -230,7 +229,7 @@ export function RoomTypesScreen() {
       await loadRoomTypes()
       await loadAllRoomTypes()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể đổi trạng thái loại phòng.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể đổi trạng thái loại phòng.'))
     } finally {
       setStatusChangingId(null)
     }
@@ -250,7 +249,7 @@ export function RoomTypesScreen() {
           await loadRoomTypes()
           await loadAllRoomTypes()
         } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa loại phòng.')
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa loại phòng.'))
         } finally {
           setIsConfirmLoading(false)
           closeConfirm()

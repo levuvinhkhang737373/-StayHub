@@ -11,6 +11,7 @@ import { useAdminSession } from '../../auth/hooks/admin-session-store'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
 import { resolveAssetUrl } from '../../../../shared/lib/utils/asset-url'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 
 const statusLabels: Record<number, string> = {
   1: 'Hoạt động',
@@ -147,7 +148,8 @@ export function RoomsScreen() {
         setAllRooms(list)
       }
     } catch (error) {
-      console.log(error)
+      setRooms([])
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách phòng.', Boolean(keyword.trim() || selectedBuildingId || selectedRoomTypeId || selectedStatus)))
     } finally {
       setIsLoading(false)
     }
@@ -164,7 +166,7 @@ export function RoomsScreen() {
       const res = await fetchAdminRoomDetail(detail)
       setRoom(res.result)
     } catch (error) {
-      console.log(error)
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết phòng.'))
     }
   }
 

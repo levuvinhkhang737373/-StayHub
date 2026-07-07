@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, MessageCircle, 
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { isBuildingManagerRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { cn } from '../../../../shared/lib/utils/cn'
+import { getVisibleFilterErrorMessage, getVisibleErrorMessage } from '../../shared/utils/error-message'
 import { formatTimeOnly, getChatDividerLabel } from '../../../../shared/lib/utils/format'
 import {
   fetchAdminChatConversations,
@@ -237,7 +238,7 @@ export function AdminChatScreen() {
         await loadTenantConversations()
       }
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Không thể tải danh sách đoạn chat.')
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách đoạn chat.', Boolean(keyword.trim() || showUnreadOnly || tenantIdParam || conversationIdParam || directConversationIdParam)))
     } finally {
       setIsLoadingConversations(false)
     }
@@ -285,7 +286,7 @@ export function AdminChatScreen() {
         }, INITIAL_LOAD_BLOCK_MS)
       })
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Không thể tải tin nhắn.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải tin nhắn.'))
     } finally {
       setIsLoadingMessages(false)
     }
@@ -320,7 +321,7 @@ export function AdminChatScreen() {
         })
       }
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Không thể tải thêm tin nhắn.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải thêm tin nhắn.'))
     } finally {
       setIsLoadingMore(false)
     }
@@ -546,7 +547,7 @@ export function AdminChatScreen() {
       } else {
         setTenantMessages((current) => current.filter((item) => !item.optimistic))
       }
-      setErrorMessage(error?.message || 'Không thể gửi tin nhắn.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể gửi tin nhắn.'))
       setInput(body)
       setSelectedImages(images)
     } finally {

@@ -1,4 +1,4 @@
-import { ApiError } from '../../../../shared/lib/api/api-client'
+import { getVisibleErrorMessage as getSharedVisibleErrorMessage } from '../../shared/utils/error-message'
 import { formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 import type {
   AdminContractPayload,
@@ -99,10 +99,9 @@ export function getResourceList<T>(result: { data?: T[] } | T[] | null | undefin
 }
 
 export function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message
-  return fallback
+  return getSharedVisibleErrorMessage(error, fallback)
 }
+
 
 export function getStatusLabel(status?: number | null) {
   if (Number(status) === STATUS_PENDING_SIGN) return 'Chờ ký'

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ArrowDown, ArrowRightLeft, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import type { AdminProfile } from '../../auth/types/admin-auth.model'
 import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
@@ -118,11 +118,11 @@ export function RoomMovementsScreen() {
     } catch (error) {
       setMovements([])
       setPaginationMeta(null)
-      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải lịch sử phòng và cọc.'))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải lịch sử phòng và cọc.', Boolean(keyword.trim() || movementType || movementStatus || buildingId || roomId || dateFrom || dateTo || tenantIdFilter || contractIdFilter || movementIdParam)))
     } finally {
       setIsLoading(false)
     }
-  }, [buildingId, contractIdFilter, currentPage, dateFrom, dateTo, keyword, movementStatus, movementType, perPage, roomId, setCurrentPage, tenantIdFilter])
+  }, [buildingId, contractIdFilter, currentPage, dateFrom, dateTo, keyword, movementIdParam, movementStatus, movementType, perPage, roomId, setCurrentPage, tenantIdFilter])
 
   useEffect(() => {
     queueMicrotask(() => setKeyword(keywordFilter))
@@ -918,10 +918,4 @@ function isMoneyLike(value?: string | null): boolean {
 function roomLabel(room: AdminRoomMovementResource['from_room'], fallback: string) {
   if (!room) return fallback
   return `Phòng ${room.room_number || room.id}${room.building_name ? ` · ${room.building_name}` : ''}`
-}
-
-function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message
-  return fallback
 }

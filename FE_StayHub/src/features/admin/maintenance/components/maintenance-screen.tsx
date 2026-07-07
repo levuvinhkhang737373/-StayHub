@@ -20,6 +20,7 @@ import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-se
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { AdminPagination, type AdminPaginationMeta } from '../../shared/components/AdminPagination'
 import {
   fetchAdminMaintenanceRequests,
@@ -194,9 +195,7 @@ export function MaintenanceScreen() {
         setPaginationMeta(null)
       }
     } catch (error) {
-      if (keyword.trim() !== '') {
-        setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách phiếu sửa chữa.')
-      }
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách phiếu sửa chữa.', Boolean(keyword.trim() || roomNumber || selectedBuildingId || selectedStatus)))
     } finally {
       setIsLoading(false)
     }
@@ -293,7 +292,7 @@ export function MaintenanceScreen() {
         void openDetail(req)
       }
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Có lỗi xảy ra khi cập nhật trạng thái.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Có lỗi xảy ra khi cập nhật trạng thái.'))
     } finally {
       setIsUpdatingStatus(false)
     }

@@ -1,4 +1,4 @@
-import { ApiError } from '../../../../shared/lib/api/api-client'
+import { getVisibleErrorMessage as getSharedVisibleErrorMessage } from '../../shared/utils/error-message'
 import type { AdminInvoicePaginationMeta, AdminInvoiceResource } from '../types/invoice-api.model'
 import {
   INVOICE_STATUS_CANCELLED,
@@ -44,10 +44,9 @@ export function getResourceList<T>(result: { data?: T[] } | T[] | null | undefin
 }
 
 export function getVisibleErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message || fallback
-  if (error instanceof Error) return error.message
-  return fallback
+  return getSharedVisibleErrorMessage(error, fallback)
 }
+
 
 export function getInvoiceStatusLabel(status?: number | null) {
   if (Number(status) === INVOICE_STATUS_UNPAID) return 'Chưa thanh toán'
