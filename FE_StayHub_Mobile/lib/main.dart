@@ -67,7 +67,8 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -80,8 +81,12 @@ class _MyAppState extends State<MyApp> {
     ApiService().onUnauthorized = () {
       if (mounted) {
         final auth = context.read<AuthController>();
+        context.read<WebSocketService>().resetForAuthChange();
         auth.logout();
-        MyApp.navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+        MyApp.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
       }
     };
   }
@@ -111,7 +116,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, child) {
         final mediaQuery = MediaQuery.of(context);
         final isWide = mediaQuery.size.width > 500;
-        
+
         // Suppress system text scaling and clamp size to mobile bounds on wide screens
         final clampedMediaQuery = mediaQuery.copyWith(
           // ignore: deprecated_member_use
@@ -120,7 +125,9 @@ class _MyAppState extends State<MyApp> {
         );
 
         Widget mainApp = Container(
-          color: isWide ? const Color(0xFF0F172A) : Colors.transparent, // Dark slate background for wide screens
+          color: isWide
+              ? const Color(0xFF0F172A)
+              : Colors.transparent, // Dark slate background for wide screens
           alignment: Alignment.center,
           child: Container(
             constraints: BoxConstraints(
@@ -132,7 +139,7 @@ class _MyAppState extends State<MyApp> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 30,
                         spreadRadius: 2,
                         offset: const Offset(0, 10),
@@ -141,16 +148,15 @@ class _MyAppState extends State<MyApp> {
                   )
                 : const BoxDecoration(color: Colors.transparent),
             child: ClipRRect(
-              borderRadius: isWide ? BorderRadius.circular(24) : BorderRadius.zero,
+              borderRadius: isWide
+                  ? BorderRadius.circular(24)
+                  : BorderRadius.zero,
               child: child,
             ),
           ),
         );
 
-        return MediaQuery(
-          data: clampedMediaQuery,
-          child: mainApp,
-        );
+        return MediaQuery(data: clampedMediaQuery, child: mainApp);
       },
       home: const SplashScreen(),
       routes: {
@@ -209,7 +215,12 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (isLoggedIn) {
-      context.read<WebSocketService>().connect();
+      final wsService = context.read<WebSocketService>();
+      if (authController.isAdmin) {
+        wsService.startAdminSession();
+      } else {
+        wsService.startTenantSession();
+      }
       if (authController.isAdmin) {
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
@@ -228,11 +239,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(
-              Icons.home_work_rounded,
-              size: 80,
-              color: Color(0xFFEAB308),
-            ),
+            Icon(Icons.home_work_rounded, size: 80, color: Color(0xFFEAB308)),
             SizedBox(height: 24),
             CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFEAB308)),

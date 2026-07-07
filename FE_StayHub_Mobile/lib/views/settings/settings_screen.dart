@@ -14,8 +14,10 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _handleLogout() async {
-    context.read<WebSocketService>().disconnect();
     final authController = context.read<AuthController>();
+    final webSocketService = context.read<WebSocketService>();
+    await webSocketService.resetForAuthChange();
+    if (!mounted) return;
     final success = await authController.logout();
     if (success && mounted) {
       Navigator.pushReplacementNamed(context, '/login');
@@ -23,11 +25,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _handleUpdateAvatar() async {
+    final authController = context.read<AuthController>();
     final ImagePicker picker = ImagePicker();
-    final XFile? file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final XFile? file = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
     if (file == null) return;
 
-    final authController = context.read<AuthController>();
     final displayName = authController.isAdmin
         ? authController.currentAdmin?.fullName
         : authController.currentTenant?.fullName;
@@ -41,14 +46,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       avatarFile: file,
     );
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cập nhật ảnh đại diện thành công!'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('Cập nhật ảnh đại diện thành công!'),
+          backgroundColor: Colors.green,
+        ),
       );
-    } else if (mounted) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authController.errorMessage ?? 'Cập nhật ảnh đại diện thất bại'),
+          content: Text(
+            authController.errorMessage ?? 'Cập nhật ảnh đại diện thất bại',
+          ),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -75,10 +87,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final auth = Provider.of<AuthController>(context);
             return AlertDialog(
               backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: const Text(
                 'Cập nhật Số điện thoại',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1C1917),
+                ),
               ),
               content: Form(
                 key: formKey,
@@ -100,7 +117,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   validator: (val) {
-                    if (val == null || val.isEmpty) return 'Số điện thoại không được để trống';
+                    if (val == null || val.isEmpty) {
+                      return 'Số điện thoại không được để trống';
+                    }
                     final phoneRegex = RegExp(r'^(0[3|5|7|8|9])+([0-9]{8})$');
                     if (!phoneRegex.hasMatch(val.trim())) {
                       return 'Đầu số VN (03/05/07/08/09) kèm 8 chữ số';
@@ -112,7 +131,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('HỦY', style: TextStyle(color: Colors.grey)),
+                  child: const Text(
+                    'HỦY',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
                 TextButton(
                   onPressed: auth.isLoading
@@ -125,15 +147,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             phone: controller.text.trim(),
                           );
 
-                          if (success && mounted) {
+                          if (!context.mounted) return;
+
+                          if (success) {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Cập nhật số điện thoại thành công!'), backgroundColor: Colors.green),
+                              const SnackBar(
+                                content: Text(
+                                  'Cập nhật số điện thoại thành công!',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
                             );
-                          } else if (mounted) {
+                          } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(auth.errorMessage ?? 'Cập nhật thất bại'),
+                                content: Text(
+                                  auth.errorMessage ?? 'Cập nhật thất bại',
+                                ),
                                 backgroundColor: Colors.redAccent,
                               ),
                             );
@@ -143,9 +174,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ? const SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(color: Color(0xFF1C1917), strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1C1917),
+                            strokeWidth: 2,
+                          ),
                         )
-                      : const Text('CẬP NHẬT', style: TextStyle(color: Color(0xFF1C1917), fontWeight: FontWeight.bold)),
+                      : const Text(
+                          'CẬP NHẬT',
+                          style: TextStyle(
+                            color: Color(0xFF1C1917),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
             );
@@ -167,7 +207,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Row(
@@ -177,13 +224,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Text(
                         value,
                         textAlign: TextAlign.end,
-                        style: const TextStyle(color: Color(0xFF1C1917), fontSize: 13, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          color: Color(0xFF1C1917),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     if (onTap != null) ...[
                       const SizedBox(width: 6),
-                      const Icon(Icons.edit_outlined, size: 14, color: Colors.grey),
-                    ]
+                      const Icon(
+                        Icons.edit_outlined,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -208,10 +263,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final auth = Provider.of<AuthController>(context);
             return AlertDialog(
               backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: const Text(
                 'Thay đổi mật khẩu',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1C1917),
+                ),
               ),
               content: Form(
                 key: formKeyDialog,
@@ -230,14 +290,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           fillColor: const Color(0xFFF9F8F6),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE4E2D7),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1C1917)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF1C1917),
+                            ),
                           ),
                         ),
-                        validator: (val) => val == null || val.isEmpty ? 'Nhập mật khẩu hiện tại' : null,
+                        validator: (val) => val == null || val.isEmpty
+                            ? 'Nhập mật khẩu hiện tại'
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
@@ -250,16 +316,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           fillColor: const Color(0xFFF9F8F6),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE4E2D7),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1C1917)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF1C1917),
+                            ),
                           ),
                         ),
                         validator: (val) {
-                          if (val == null || val.isEmpty) return 'Nhập mật khẩu mới';
-                          if (val.length < 6) return 'Mật khẩu mới tối thiểu 6 kí tự';
+                          if (val == null || val.isEmpty) {
+                            return 'Nhập mật khẩu mới';
+                          }
+                          if (val.length < 6) {
+                            return 'Mật khẩu mới tối thiểu 6 kí tự';
+                          }
                           return null;
                         },
                       ),
@@ -274,16 +348,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           fillColor: const Color(0xFFF9F8F6),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE4E2D7),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1C1917)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF1C1917),
+                            ),
                           ),
                         ),
                         validator: (val) {
-                          if (val == null || val.isEmpty) return 'Nhập lại mật khẩu mới';
-                          if (val != newPasswordController.text) return 'Xác nhận mật khẩu không khớp';
+                          if (val == null || val.isEmpty) {
+                            return 'Nhập lại mật khẩu mới';
+                          }
+                          if (val != newPasswordController.text) {
+                            return 'Xác nhận mật khẩu không khớp';
+                          }
                           return null;
                         },
                       ),
@@ -294,7 +376,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('HỦY', style: TextStyle(color: Colors.grey)),
+                  child: const Text(
+                    'HỦY',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
                 TextButton(
                   onPressed: auth.isLoading
@@ -308,15 +393,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             confirmPassword: confirmPasswordController.text,
                           );
 
-                          if (success && mounted) {
+                          if (!context.mounted) return;
+
+                          if (success) {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Đổi mật khẩu thành công!'), backgroundColor: Colors.green),
+                              const SnackBar(
+                                content: Text('Đổi mật khẩu thành công!'),
+                                backgroundColor: Colors.green,
+                              ),
                             );
-                          } else if (mounted) {
+                          } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(auth.errorMessage ?? 'Đổi mật khẩu thất bại'),
+                                content: Text(
+                                  auth.errorMessage ?? 'Đổi mật khẩu thất bại',
+                                ),
                                 backgroundColor: Colors.redAccent,
                               ),
                             );
@@ -326,9 +418,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ? const SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(color: Color(0xFF1C1917), strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1C1917),
+                            strokeWidth: 2,
+                          ),
                         )
-                      : const Text('CẬP NHẬT', style: TextStyle(color: Color(0xFF1C1917), fontWeight: FontWeight.bold)),
+                      : const Text(
+                          'CẬP NHẬT',
+                          style: TextStyle(
+                            color: Color(0xFF1C1917),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
             );
@@ -345,25 +446,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final admin = authController.currentAdmin;
     final tenant = authController.currentTenant;
 
-    final String displayName = isAdmin ? (admin?.fullName ?? 'Admin') : (tenant?.fullName ?? 'Khách thuê');
-    final String displaySubtitle = isAdmin 
-        ? (admin?.roleLabel ?? 'Quản lý tòa nhà') 
+    final String displayName = isAdmin
+        ? (admin?.fullName ?? 'Admin')
+        : (tenant?.fullName ?? 'Khách thuê');
+    final String displaySubtitle = isAdmin
+        ? (admin?.roleLabel ?? 'Quản lý tòa nhà')
         : 'Khách thuê • Phòng ${tenant?.roomNumber ?? "Chưa có phòng"}';
     final String? avatarUrl = isAdmin ? admin?.avatarUrl : tenant?.avatarUrl;
-    final String initial = displayName.isNotEmpty ? displayName.substring(0, 1).toUpperCase() : 'U';
+    final String initial = displayName.isNotEmpty
+        ? displayName.substring(0, 1).toUpperCase()
+        : 'U';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
       appBar: AppBar(
         title: Row(
           children: const [
-            Icon(
-              Icons.home_work_rounded,
-              color: Color(0xFFEAB308),
-              size: 24,
-            ),
+            Icon(Icons.home_work_rounded, color: Color(0xFFEAB308), size: 24),
             SizedBox(width: 8),
-            Text('StayHub Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+            Text(
+              'StayHub Settings',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
           ],
         ),
         backgroundColor: const Color(0xFF1C1917),
@@ -380,7 +488,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // Profile view card
                 const Text(
                   'THÔNG TIN TÀI KHOẢN',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 1.0),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF78716C),
+                    letterSpacing: 1.0,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Card(
@@ -401,11 +514,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               CircleAvatar(
                                 radius: 28,
                                 backgroundColor: const Color(0xFF1C1917),
-                                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                backgroundImage: avatarUrl != null
+                                    ? NetworkImage(avatarUrl)
+                                    : null,
                                 child: avatarUrl == null
                                     ? Text(
                                         initial,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                        ),
                                       )
                                     : null,
                               ),
@@ -433,9 +552,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917))),
+                              Text(
+                                displayName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Color(0xFF1C1917),
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Text(displaySubtitle, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                              Text(
+                                displaySubtitle,
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -448,7 +580,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // Detailed personal information card
                 const Text(
                   'THÔNG TIN CÁ NHÂN',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF78716C), letterSpacing: 1.0),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF78716C),
+                    letterSpacing: 1.0,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Card(
@@ -464,22 +601,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: isAdmin
                           ? [
-                              _buildInfoRow('Tên đăng nhập', admin?.username ?? ''),
-                              _buildInfoRow('Email liên hệ', admin?.email ?? ''),
-                              _buildInfoRow('Số điện thoại', admin?.phone ?? 'Chưa cập nhật', onTap: _showEditPhoneDialog),
-                              _buildInfoRow('Giới tính', admin?.genderLabel ?? 'Chưa cập nhật'),
-                              _buildInfoRow('Vai trò', admin?.roleLabel ?? 'Quản lý tòa nhà'),
-                              _buildInfoRow('Địa chỉ', admin?.address ?? 'Chưa cập nhật'),
+                              _buildInfoRow(
+                                'Tên đăng nhập',
+                                admin?.username ?? '',
+                              ),
+                              _buildInfoRow(
+                                'Email liên hệ',
+                                admin?.email ?? '',
+                              ),
+                              _buildInfoRow(
+                                'Số điện thoại',
+                                admin?.phone ?? 'Chưa cập nhật',
+                                onTap: _showEditPhoneDialog,
+                              ),
+                              _buildInfoRow(
+                                'Giới tính',
+                                admin?.genderLabel ?? 'Chưa cập nhật',
+                              ),
+                              _buildInfoRow(
+                                'Vai trò',
+                                admin?.roleLabel ?? 'Quản lý tòa nhà',
+                              ),
+                              _buildInfoRow(
+                                'Địa chỉ',
+                                admin?.address ?? 'Chưa cập nhật',
+                              ),
                             ]
                           : [
-                              _buildInfoRow('Tên đăng nhập', tenant?.username ?? ''),
-                              _buildInfoRow('Email liên hệ', tenant?.email ?? ''),
-                              _buildInfoRow('Số điện thoại', tenant?.phone ?? 'Chưa cập nhật', onTap: _showEditPhoneDialog),
-                              _buildInfoRow('Giới tính', tenant?.genderLabel ?? 'Chưa cập nhật'),
-                              _buildInfoRow('Ngày sinh', tenant?.dateOfBirth ?? 'Chưa cập nhật'),
-                              _buildInfoRow('CCCD/CMND', tenant?.identityNumber ?? 'Chưa cập nhật'),
-                              _buildInfoRow('Nơi thường trú', tenant?.permanentAddress ?? 'Chưa cập nhật'),
-                              _buildInfoRow('Địa chỉ hiện tại', tenant?.currentAddress ?? 'Chưa cập nhật'),
+                              _buildInfoRow(
+                                'Tên đăng nhập',
+                                tenant?.username ?? '',
+                              ),
+                              _buildInfoRow(
+                                'Email liên hệ',
+                                tenant?.email ?? '',
+                              ),
+                              _buildInfoRow(
+                                'Số điện thoại',
+                                tenant?.phone ?? 'Chưa cập nhật',
+                                onTap: _showEditPhoneDialog,
+                              ),
+                              _buildInfoRow(
+                                'Giới tính',
+                                tenant?.genderLabel ?? 'Chưa cập nhật',
+                              ),
+                              _buildInfoRow(
+                                'Ngày sinh',
+                                tenant?.dateOfBirth ?? 'Chưa cập nhật',
+                              ),
+                              _buildInfoRow(
+                                'CCCD/CMND',
+                                tenant?.identityNumber ?? 'Chưa cập nhật',
+                              ),
+                              _buildInfoRow(
+                                'Nơi thường trú',
+                                tenant?.permanentAddress ?? 'Chưa cập nhật',
+                              ),
+                              _buildInfoRow(
+                                'Địa chỉ hiện tại',
+                                tenant?.currentAddress ?? 'Chưa cập nhật',
+                              ),
                             ],
                     ),
                   ),
@@ -490,12 +671,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ElevatedButton.icon(
                   onPressed: _showChangePasswordDialog,
                   icon: const Icon(Icons.lock_outline, size: 20),
-                  label: const Text('THAY ĐỔI MẬT KHẨU BẢO MẬT', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'THAY ĐỔI MẬT KHẨU BẢO MẬT',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1C1917),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -504,12 +690,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ElevatedButton.icon(
                   onPressed: _handleLogout,
                   icon: const Icon(Icons.logout, size: 20),
-                  label: const Text('ĐĂNG XUẤT TÀI KHOẢN', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'ĐĂNG XUẤT TÀI KHOẢN',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.redAccent,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ],
@@ -520,4 +711,3 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
-

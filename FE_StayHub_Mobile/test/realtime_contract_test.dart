@@ -180,6 +180,75 @@ void main() {
         );
       },
     );
+
+    test('websocket auth lifecycle is session scoped', () {
+      final serviceFile = File(
+        '${mobileRoot.path}/lib/services/websocket_service.dart',
+      );
+      expect(serviceFile.existsSync(), isTrue);
+      final serviceSource = serviceFile.readAsStringSync();
+
+      expect(
+        serviceSource,
+        contains('if (!_hasActiveSubscriptions)'),
+        reason:
+            'WebSocket must not connect before role-specific subscriptions are registered.',
+      );
+      expect(
+        serviceSource,
+        matches(
+          RegExp(r'_manualDisconnect\s*=\s*false;\s*_sessionMode\s*=\s*mode;'),
+        ),
+        reason:
+            'Starting a new admin/tenant session must reopen realtime after logout/reset.',
+      );
+
+      final adminMaintenanceAuth = RegExp(
+        r'_subscribeToAdminMaintenanceChannel\(\).*?DioPrivateChannelAuthorizationDelegate\((.*?)\n\s*\),',
+        dotAll: true,
+      ).firstMatch(serviceSource)?.group(1);
+      expect(adminMaintenanceAuth, isNotNull);
+      expect(
+        adminMaintenanceAuth,
+        isNot(contains('isTenantSession: true')),
+        reason: 'Admin channels must never send tenant-session auth headers.',
+      );
+
+      expect(
+        serviceSource,
+        matches(
+          RegExp(
+            r'channelName\.startsWith\(\s*StayHubRealtimeContract\.adminBuildingChannelPrefix',
+          ),
+        ),
+        reason:
+            'Tenant session switching must remove stale admin-building channels.',
+      );
+    });
+
+    test('technical websocket channel errors are not shown as red snackbars', () {
+      final dashboardFile = File(
+        '${mobileRoot.path}/lib/views/dashboard/dashboard_screen.dart',
+      );
+      expect(dashboardFile.existsSync(), isTrue);
+      final dashboardSource = dashboardFile.readAsStringSync();
+
+      expect(dashboardSource, contains('debugStream.listen'));
+      expect(
+        dashboardSource,
+        contains('_isUserVisibleRealtimeError'),
+        reason:
+            'Dashboard must filter noisy WebSocket/channel auth debug logs before showing SnackBar.',
+      );
+      expect(
+        dashboardSource,
+        isNot(
+          matches(RegExp(r'if\s*\(\s*mounted\s*&&\s*logMessage\.contains')),
+        ),
+        reason:
+            'A raw "Lỗi" substring check leaks technical auth/channel errors to users.',
+      );
+    });
   });
 }
 

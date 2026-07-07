@@ -35,7 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<ContractController>().fetchContracts('admin');
       context.read<NotificationController>().fetchNotifications(isAdmin: true);
       context.read<RoomController>().fetchRooms();
-      
+
       final wsService = context.read<WebSocketService>();
       final adminId = context.read<AuthController>().currentAdmin?.id;
       if (adminId != null) {
@@ -53,10 +53,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         _subscribeAdminBuildingContractExpirations(wsService);
       }
-      
+
       // Lắng nghe thông điệp debug để hiện SnackBar lên màn hình (chỉ hiển thị khi có lỗi)
       _debugSubscription = wsService.debugStream.listen((logMessage) {
-        if (mounted && logMessage.contains('Lỗi')) {
+        if (mounted && _isUserVisibleRealtimeError(logMessage)) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(logMessage),
@@ -67,47 +67,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         }
       });
-      
+
       // Lắng nghe yêu cầu sửa chữa mới thời gian thực để cập nhật giao diện
       wsService.subscribeToAdminMaintenance(() {
         if (mounted) {
           context.read<MaintenanceController>().fetchAdminRequests();
-          context.read<NotificationController>().fetchNotifications(isAdmin: true);
+          context.read<NotificationController>().fetchNotifications(
+            isAdmin: true,
+          );
         }
       });
 
       // Lắng nghe sự kiện đóng tiền cọc thành công thời gian thực
-      _wsAdminEventsSubscription = wsService.notificationsStream.listen((event) {
+      _wsAdminEventsSubscription = wsService.notificationsStream.listen((
+        event,
+      ) {
         if (event['type'] == 'admin_contract_deposit_paid') {
           final data = event['data'] as Map<String, dynamic>?;
-          final contract = data != null ? data['contract'] as Map<String, dynamic>? : null;
-          
+          final contract = data != null
+              ? data['contract'] as Map<String, dynamic>?
+              : null;
+
           if (contract != null && mounted) {
             // Làm mới các chỉ số vận hành và hợp đồng của admin
             context.read<DashboardController>().fetchDashboardStats();
             context.read<ContractController>().fetchContracts('admin');
-            context.read<NotificationController>().fetchNotifications(isAdmin: true);
-            
+            context.read<NotificationController>().fetchNotifications(
+              isAdmin: true,
+            );
+
             final contractCode = contract['contract_code'] ?? '';
             final roomNumber = contract['room_number'] ?? '';
             final amountVal = contract['deposit_amount'] != null
                 ? double.tryParse(contract['deposit_amount'].toString()) ?? 0.0
                 : 0.0;
-            
-            final amountFormatted = amountVal > 0 
-                ? '${amountVal.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}đ' 
+
+            final amountFormatted = amountVal > 0
+                ? '${amountVal.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}đ'
                 : 'tiền cọc';
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
                   children: [
-                    const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Phòng $roomNumber đã đóng cọc thành công $amountFormatted (HĐ: $contractCode)',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -115,26 +131,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 duration: const Duration(seconds: 5),
                 backgroundColor: const Color(0xFF16A34A), // Premium green color
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             );
           }
         } else if (event['type'] == 'admin_notification_sent') {
           if (mounted) {
             final data = event['data'] as Map<String, dynamic>?;
-            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+            context.read<NotificationController>().fetchNotifications(
+              isAdmin: true,
+            );
             context.read<DashboardController>().fetchDashboardStats();
 
             if (_isTransferDateChangedNotification(data)) {
-              final content = data?['content']?.toString() ?? 'Một lịch chuyển phòng vừa đổi ngày.';
-              _showAdminRealtimeSnackBar(Icons.event_repeat_rounded, content, const Color(0xFF92400E));
+              final content =
+                  data?['content']?.toString() ??
+                  'Một lịch chuyển phòng vừa đổi ngày.';
+              _showAdminRealtimeSnackBar(
+                Icons.event_repeat_rounded,
+                content,
+                const Color(0xFF92400E),
+              );
             }
           }
         } else if (event['type'] == 'contract_expired') {
           if (mounted) {
             final data = event['data'] as Map<String, dynamic>?;
             context.read<ContractController>().fetchContracts('admin');
-            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+            context.read<NotificationController>().fetchNotifications(
+              isAdmin: true,
+            );
 
             final contractCode = data?['contract_code']?.toString() ?? '';
             final roomNumber = data?['room_number']?.toString() ?? '?';
@@ -148,17 +176,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final data = event['data'] as Map<String, dynamic>?;
           final message = data?['message'] as Map<String, dynamic>?;
           final conversation = data?['conversation'] as Map<String, dynamic>?;
-          if (message != null && conversation != null && mounted && message['sender_role'] == 1) {
-            context.read<NotificationController>().fetchNotifications(isAdmin: true);
+          if (message != null &&
+              conversation != null &&
+              mounted &&
+              message['sender_role'] == 1) {
+            context.read<NotificationController>().fetchNotifications(
+              isAdmin: true,
+            );
           }
         }
       });
     });
   }
 
-  void _subscribeAdminBuildingContractExpirations(
-    WebSocketService wsService,
-  ) {
+  void _subscribeAdminBuildingContractExpirations(WebSocketService wsService) {
     final admin = context.read<AuthController>().currentAdmin;
     if (admin == null) return;
 
@@ -167,7 +198,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onContractExpired: (contract) {
         if (!mounted) return;
         context.read<ContractController>().fetchContracts('admin');
-        context.read<NotificationController>().fetchNotifications(isAdmin: true);
+        context.read<NotificationController>().fetchNotifications(
+          isAdmin: true,
+        );
       },
     );
   }
@@ -179,10 +212,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final content = data['content']?.toString().toLowerCase() ?? '';
     final text = '$title $content';
 
-    return text.contains('chuyển phòng') && text.contains('đổi') && text.contains('ngày');
+    return text.contains('chuyển phòng') &&
+        text.contains('đổi') &&
+        text.contains('ngày');
   }
 
-  void _showAdminRealtimeSnackBar(IconData icon, String message, Color backgroundColor) {
+  bool _isUserVisibleRealtimeError(String logMessage) {
+    if (!logMessage.contains('Lỗi')) return false;
+
+    final normalized = logMessage.toLowerCase();
+    const technicalRealtimeKeywords = [
+      'websocket',
+      'kênh',
+      'channel',
+      'auth',
+      'xác thực',
+      'broadcasting/auth',
+      'dioexception',
+      'socket',
+    ];
+
+    return !technicalRealtimeKeywords.any(normalized.contains);
+  }
+
+  void _showAdminRealtimeSnackBar(
+    IconData icon,
+    String message,
+    Color backgroundColor,
+  ) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -194,7 +251,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 message,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
             ),
           ],
@@ -217,7 +278,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildNotificationsTab(List<Map<String, dynamic>> items) {
     return RefreshIndicator(
       color: const Color(0xFF1C1917),
-      onRefresh: () => context.read<NotificationController>().fetchNotifications(isAdmin: true),
+      onRefresh: () => context
+          .read<NotificationController>()
+          .fetchNotifications(isAdmin: true),
       child: Stack(
         children: [
           Positioned.fill(child: CustomPaint(painter: GridPainter())),
@@ -244,12 +307,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final item = items[index];
                     final isRead = item['isRead'] as bool;
                     return Card(
-                      color: isRead ? Colors.white : const Color(0xFFFFFBEB), // Highlight unread
+                      color: isRead
+                          ? Colors.white
+                          : const Color(0xFFFFFBEB), // Highlight unread
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
-                          color: isRead ? const Color(0xFFE4E2D7) : const Color(0xFFFDE68A),
+                          color: isRead
+                              ? const Color(0xFFE4E2D7)
+                              : const Color(0xFFFDE68A),
                           width: isRead ? 1.0 : 1.5,
                         ),
                       ),
@@ -266,7 +333,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           } else if (item['type'] == 'invoice') {
                             Navigator.pushNamed(context, '/admin/invoices');
                           } else if (item['type'] == 'chat') {
-                            Navigator.pushNamed(context, '/admin/chat', arguments: item['tenant_id']);
+                            Navigator.pushNamed(
+                              context,
+                              '/admin/chat',
+                              arguments: item['tenant_id'],
+                            );
                           } else {
                             Navigator.pushNamed(context, '/admin/contracts');
                           }
@@ -278,13 +349,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Row(
                                     children: [
                                       Icon(
-                                        isRead ? Icons.campaign_outlined : Icons.campaign_rounded,
-                                        color: isRead ? Colors.grey : const Color(0xFFEAB308),
+                                        isRead
+                                            ? Icons.campaign_outlined
+                                            : Icons.campaign_rounded,
+                                        color: isRead
+                                            ? Colors.grey
+                                            : const Color(0xFFEAB308),
                                         size: 24,
                                       ),
                                       const SizedBox(width: 8),
@@ -301,7 +377,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   ),
                                   Text(
                                     item['date'],
-                                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -309,7 +388,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text(
                                 item['title'],
                                 style: TextStyle(
-                                  fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
+                                  fontWeight: isRead
+                                      ? FontWeight.bold
+                                      : FontWeight.w900,
                                   fontSize: 15,
                                   color: const Color(0xFF1C1917),
                                 ),
@@ -317,7 +398,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               const SizedBox(height: 8),
                               Text(
                                 item['subtitle'],
-                                style: const TextStyle(fontSize: 13, color: Color(0xFF44403C), height: 1.4),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF44403C),
+                                  height: 1.4,
+                                ),
                               ),
                             ],
                           ),
@@ -339,7 +424,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final invoiceController = context.watch<InvoiceController>();
     final contractController = context.watch<ContractController>();
     final notificationController = context.watch<NotificationController>();
-    
+
     final admin = authController.currentAdmin;
 
     // Filter notification items from database:
@@ -348,10 +433,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (final notif in notificationController.notifications) {
       final key = 'db_notif_${notif.id}';
       final isReadLocal = _readNotificationKeys.contains(key) || notif.isRead;
-      
+
       IconData icon = Icons.notifications_none_rounded;
       Color color = Colors.blue;
-      
+
       if (notif.notificationType == 1) {
         icon = Icons.handyman_outlined;
         color = Colors.deepOrange;
@@ -373,13 +458,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       String displayDate = notif.createdAt;
       try {
         final parsed = DateTime.parse(notif.createdAt).toLocal();
-        displayDate = '${parsed.hour.toString().padLeft(2, "0")}:${parsed.minute.toString().padLeft(2, "0")} ${parsed.day.toString().padLeft(2, "0")}/${parsed.month.toString().padLeft(2, "0")}/${parsed.year}';
+        displayDate =
+            '${parsed.hour.toString().padLeft(2, "0")}:${parsed.minute.toString().padLeft(2, "0")} ${parsed.day.toString().padLeft(2, "0")}/${parsed.month.toString().padLeft(2, "0")}/${parsed.year}';
       } catch (_) {}
 
       items.add({
         'key': key,
         'id': notif.id,
-        'type': notif.notificationType == 1 ? 'request' : notif.notificationType == 2 ? 'invoice' : notif.notificationType == 6 ? 'chat' : 'system',
+        'type': notif.notificationType == 1
+            ? 'request'
+            : notif.notificationType == 2
+            ? 'invoice'
+            : notif.notificationType == 6
+            ? 'chat'
+            : 'system',
         'title': notif.title,
         'subtitle': notif.content,
         'date': displayDate,
@@ -397,14 +489,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Stack(
         children: [
           // Background grid pattern
-          Positioned.fill(
-            child: CustomPaint(
-              painter: GridPainter(),
-            ),
-          ),
-          
+          Positioned.fill(child: CustomPaint(painter: GridPainter())),
+
           dashboardController.isLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF1C1917)))
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF1C1917)),
+                )
               : RefreshIndicator(
                   onRefresh: () => dashboardController.fetchDashboardStats(),
                   color: const Color(0xFF1C1917),
@@ -425,7 +515,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 color: Colors.black.withValues(alpha: 0.1),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
-                              )
+                              ),
                             ],
                           ),
                           child: Column(
@@ -473,7 +563,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        
+
                         IntrinsicHeight(
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -490,7 +580,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Expanded(
                                 child: _buildStatCard(
                                   title: 'HÓA ĐƠN NỢ',
-                                  value: '${invoiceController.unpaidInvoicesCount}',
+                                  value:
+                                      '${invoiceController.unpaidInvoicesCount}',
                                   icon: Icons.receipt_long_outlined,
                                   color: const Color(0xFFEAB308),
                                 ),
@@ -499,7 +590,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Expanded(
                                 child: _buildStatCard(
                                   title: 'HĐ SẮP HẾT HẠN',
-                                  value: '${contractController.expiringContractsCount}',
+                                  value:
+                                      '${contractController.expiringContractsCount}',
                                   icon: Icons.gavel_outlined,
                                   color: Colors.redAccent,
                                 ),
@@ -534,56 +626,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               subtitle: 'Xem & Tra cứu danh sách',
                               icon: Icons.people,
                               color: Colors.teal,
-                              onTap: () => Navigator.pushNamed(context, '/admin/tenants'),
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                '/admin/tenants',
+                              ),
                             ),
                             _buildMenuCard(
                               title: 'Danh sách Phòng',
                               subtitle: 'Xem trạng thái phòng',
                               icon: Icons.meeting_room,
                               color: Colors.blueAccent,
-                              onTap: () => Navigator.pushNamed(context, '/admin/rooms'),
+                              onTap: () =>
+                                  Navigator.pushNamed(context, '/admin/rooms'),
                             ),
                             _buildMenuCard(
                               title: 'Ghi số Điện Nước',
                               subtitle: 'Chụp ảnh minh chứng',
                               icon: Icons.electric_meter,
                               color: Colors.amber,
-                              onTap: () => Navigator.pushNamed(context, '/admin/meters'),
+                              onTap: () =>
+                                  Navigator.pushNamed(context, '/admin/meters'),
                             ),
                             _buildMenuCard(
                               title: 'Hóa đơn',
                               subtitle: 'Xác nhận & Nhắc nợ',
                               icon: Icons.receipt,
                               color: Colors.indigo,
-                              onTap: () => Navigator.pushNamed(context, '/admin/invoices'),
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                '/admin/invoices',
+                              ),
                             ),
                             _buildMenuCard(
                               title: 'Sửa chữa sự cố',
                               subtitle: 'Tiếp nhận & Cập nhật',
                               icon: Icons.handyman,
                               color: Colors.deepOrange,
-                              onTap: () => Navigator.pushNamed(context, '/admin/maintenance'),
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                '/admin/maintenance',
+                              ),
                             ),
                             _buildMenuCard(
                               title: 'Hợp đồng thuê',
                               subtitle: 'Thêm, sửa, gia hạn',
                               icon: Icons.description,
                               color: Colors.purple,
-                              onTap: () => Navigator.pushNamed(context, '/admin/contracts'),
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                '/admin/contracts',
+                              ),
                             ),
                             _buildMenuCard(
                               title: 'Thông báo',
                               subtitle: 'Phát thông báo đẩy',
                               icon: Icons.campaign,
                               color: Colors.pink,
-                              onTap: () => Navigator.pushNamed(context, '/admin/notifications'),
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                '/admin/notifications',
+                              ),
                             ),
                             _buildMenuCard(
                               title: 'Đoạn chat',
                               subtitle: 'Trả lời tenant realtime',
                               icon: Icons.chat_bubble_rounded,
                               color: Colors.green,
-                              onTap: () => Navigator.pushNamed(context, '/admin/chat'),
+                              onTap: () =>
+                                  Navigator.pushNamed(context, '/admin/chat'),
                             ),
                           ],
                         ),
@@ -591,7 +701,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                         // System User Card Info (matches screenshot bottom-left widget)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
@@ -605,7 +718,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   color: const Color(0xFFF7F6F0),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.person, color: Color(0xFF1C1917)),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Color(0xFF1C1917),
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -614,11 +730,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   children: [
                                     Text(
                                       admin?.roleLabel ?? 'Quản lý tòa nhà',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1C1917)),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: Color(0xFF1C1917),
+                                      ),
                                     ),
                                     Text(
                                       admin?.email ?? 'stayhub@example.com',
-                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -653,10 +776,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         }
                       });
                     },
-                    icon: const Icon(Icons.done_all, color: Color(0xFFEAB308), size: 18),
+                    icon: const Icon(
+                      Icons.done_all,
+                      color: Color(0xFFEAB308),
+                      size: 18,
+                    ),
                     label: const Text(
                       'Đọc tất cả',
-                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
               ],
@@ -669,8 +800,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _currentIndex == 0 ? 'StayHub Command Center' : 'Thông báo từ khách',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    _currentIndex == 0
+                        ? 'StayHub Command Center'
+                        : 'Thông báo từ khách',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                 ],
               ),
@@ -678,10 +815,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               elevation: 0,
               automaticallyImplyLeading: false,
             ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: tabs,
-      ),
+      body: IndexedStack(index: _currentIndex, children: tabs),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: const Color(0xFFEAB308),
@@ -744,7 +878,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 4,
             offset: const Offset(0, 2),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -757,11 +891,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
-              )
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -808,7 +939,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 4,
               offset: const Offset(0, 2),
-            )
+            ),
           ],
         ),
         child: Column(
@@ -837,13 +968,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey,
-                  ),
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
                 ),
               ],
-            )
+            ),
           ],
         ),
       ),

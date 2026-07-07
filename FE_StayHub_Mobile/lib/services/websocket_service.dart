@@ -22,6 +22,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   bool _isAppInBackground = false;
   bool _isDisposed = false;
   int _reconnectAttempt = 0;
+  String? _sessionMode;
   bool get isConnected => _isConnected;
 
   // Registered subscription callbacks for reconnection/lazy connection
@@ -59,6 +60,74 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  bool get _hasActiveSubscriptions =>
+      _onAdminMaintenanceCallback != null ||
+      _tenantId != null ||
+      _adminChatId != null ||
+      _tenantChatId != null ||
+      _conversationId != null ||
+      _adminBuildingIds.isNotEmpty;
+
+  void startAdminSession() {
+    _switchSessionMode('admin');
+  }
+
+  void startTenantSession() {
+    _switchSessionMode('tenant');
+  }
+
+  void _switchSessionMode(String mode) {
+    if (_sessionMode == mode) return;
+    _manualDisconnect = false;
+    _sessionMode = mode;
+
+    if (mode == 'admin') {
+      _onTenantNotificationCallback = null;
+      _tenantId = null;
+      _tenantChatId = null;
+      if (_conversationUsesTenantSession) {
+        _conversationId = null;
+        _conversationUsesTenantSession = false;
+      }
+      unawaited(
+        _removeChannelsMatching(
+          (channelName) =>
+              channelName.startsWith(
+                StayHubRealtimeContract.tenantChannelPrefix,
+              ) ||
+              channelName.startsWith(
+                StayHubRealtimeContract.chatTenantChannelPrefix,
+              ),
+        ),
+      );
+    } else {
+      _onAdminMaintenanceCallback = null;
+      _onContractExpiredCallback = null;
+      _adminBuildingIds.clear();
+      _adminChatId = null;
+      if (!_conversationUsesTenantSession) {
+        _conversationId = null;
+      }
+      unawaited(
+        _removeChannelsMatching(
+          (channelName) =>
+              channelName == StayHubRealtimeContract.adminMaintenanceChannel ||
+              channelName.startsWith(
+                StayHubRealtimeContract.adminBuildingChannelPrefix,
+              ) ||
+              channelName.startsWith(
+                StayHubRealtimeContract.chatAdminChannelPrefix,
+              ),
+        ),
+      );
+    }
+  }
+
+  Future<void> resetForAuthChange() async {
+    _sessionMode = null;
+    await disconnect();
+  }
+
   void _addNotificationEvent(Map<String, dynamic> event) {
     if (!_notificationStreamController.isClosed) {
       _notificationStreamController.add(event);
@@ -74,6 +143,10 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   /// Connect to the Laravel Reverb WebSocket server
   Future<void> connect() async {
     if (_isDisposed) return;
+    if (!_hasActiveSubscriptions) {
+      debugPrint('WS: Skip connect because there are no active subscriptions.');
+      return;
+    }
 
     _manualDisconnect = false;
 
@@ -133,6 +206,12 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Forces a complete clean reconnection to the WebSocket server
   Future<void> forceReconnect() async {
+    if (!_hasActiveSubscriptions) {
+      debugPrint(
+        'WS: Skip reconnect because there are no active subscriptions.',
+      );
+      return;
+    }
     debugPrint('WS: Forcing clean reconnect...');
     _manualDisconnect = false;
     _cancelReconnectTimer();
@@ -143,6 +222,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
   void _ensureConnected() {
     if (_isDisposed || _manualDisconnect || _isAppInBackground) return;
+    if (!_hasActiveSubscriptions) return;
     if (_isConnected || _isConnecting) return;
 
     unawaited(connect());
@@ -247,7 +327,6 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   ) async {
     debugPrint('WS: Channel auth failed for $channelName: $exception');
     await _removeChannelLocally(channelName);
-    _scheduleReconnect(reason: 'auth $channelName');
   }
 
   Future<void> _removeChannelLocally(String channelName) async {
@@ -265,12 +344,22 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _removeChannelsMatching(
+    bool Function(String channelName) test,
+  ) async {
+    final channelNames = _activeChannels.keys.where(test).toList();
+    for (final channelName in channelNames) {
+      await _removeChannelLocally(channelName);
+    }
+  }
+
   String _privateChannelName(String channelName) {
     return StayHubRealtimeContract.privateChannelName(channelName);
   }
 
   /// Subscribe to private channel 'admin-maintenance' (public registration)
   void subscribeToAdminMaintenance(VoidCallback onMaintenanceCreated) {
+    startAdminSession();
     _onAdminMaintenanceCallback = onMaintenanceCreated;
     if (_isConnected) {
       _subscribeToAdminMaintenanceChannel();
@@ -291,10 +380,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       final channel = _client!.privateChannel(
         _privateChannelName(channelName),
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
-          isTenantSession: true,
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _addDebugLog('Lỗi xác thực kênh $channelName: $exception');
             unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
@@ -465,6 +552,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     int tenantId,
     Function(Map<String, dynamic> notification) onNotificationReceived,
   ) {
+    startTenantSession();
     _tenantId = tenantId;
     _onTenantNotificationCallback = onNotificationReceived;
     if (_isConnected) {
@@ -475,6 +563,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void ensureTenantNotificationChannel(int tenantId) {
+    startTenantSession();
     _tenantId = tenantId;
     if (_isConnected) {
       _subscribeToTenantChannel(tenantId);
@@ -498,7 +587,6 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
           isTenantSession: true,
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _addDebugLog('Lỗi xác thực kênh $channelName: $exception');
             unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
@@ -696,6 +784,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     List<int> buildingIds, {
     required Function(Map<String, dynamic>) onContractExpired,
   }) {
+    startAdminSession();
     final nextBuildingIds = buildingIds.where((id) => id > 0).toSet();
     final staleBuildingIds = _adminBuildingIds.difference(nextBuildingIds);
     for (final buildingId in staleBuildingIds) {
@@ -732,7 +821,6 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _addDebugLog('Lỗi xác thực kênh $channelName: $exception');
             unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
@@ -765,6 +853,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
   }) {
+    startAdminSession();
     final channelName = StayHubRealtimeContract.chatAdminChannel(adminId);
     _adminChatId = adminId;
     _onChatMessageCallbacks[channelName] = onMessage;
@@ -783,6 +872,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     required Function(Map<String, dynamic>) onMessage,
     Function(Map<String, dynamic>)? onRead,
   }) {
+    startTenantSession();
     final channelName = StayHubRealtimeContract.chatTenantChannel(tenantId);
     _tenantChatId = tenantId;
     _onChatMessageCallbacks[channelName] = onMessage;
@@ -864,7 +954,6 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
           isTenantSession: usesTenantSession,
           onAuthFailed: (exception, trace) {
             debugPrint('WS Auth failed for channel $channelName: $exception');
-            _addDebugLog('Lỗi xác thực kênh $channelName: $exception');
             unawaited(_handleChannelAuthFailed(channelName, exception));
           },
         ),
@@ -1168,7 +1257,7 @@ class DioPrivateChannelAuthorizationDelegate
       if (onAuthFailed != null) {
         onAuthFailed!(Exception(errMsg), stack);
       }
-      rethrow;
+      throw Exception(errMsg);
     }
   }
 }

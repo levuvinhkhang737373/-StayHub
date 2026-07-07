@@ -57,10 +57,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (success) {
       if (mounted) {
-        context.read<WebSocketService>().connect();
+        final wsService = context.read<WebSocketService>();
         if (authController.isAdmin) {
+          wsService.startAdminSession();
           Navigator.pushReplacementNamed(context, '/dashboard');
         } else {
+          wsService.startTenantSession();
           Navigator.pushReplacementNamed(context, '/tenant-dashboard');
         }
       }
@@ -77,8 +79,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final isLoading = context.watch<AuthController>().isLoading;
@@ -90,16 +90,17 @@ class _LoginScreenState extends State<LoginScreen> {
           Positioned.fill(
             child: Container(
               color: const Color(0xFFF7F6F0),
-              child: CustomPaint(
-                painter: GridPainter(),
-              ),
+              child: CustomPaint(painter: GridPainter()),
             ),
           ),
-          
+
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 16.0,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -167,9 +168,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: !_isLoggingAsAdmin ? const Color(0xFF1C1917) : Colors.transparent,
+                                  color: !_isLoggingAsAdmin
+                                      ? const Color(0xFF1C1917)
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
@@ -177,7 +182,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: !_isLoggingAsAdmin ? const Color(0xFFEAB308) : const Color(0xFF78716C),
+                                    color: !_isLoggingAsAdmin
+                                        ? const Color(0xFFEAB308)
+                                        : const Color(0xFF78716C),
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -192,9 +199,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: _isLoggingAsAdmin ? const Color(0xFF1C1917) : Colors.transparent,
+                                  color: _isLoggingAsAdmin
+                                      ? const Color(0xFF1C1917)
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
@@ -202,7 +213,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: _isLoggingAsAdmin ? const Color(0xFFEAB308) : const Color(0xFF78716C),
+                                    color: _isLoggingAsAdmin
+                                        ? const Color(0xFFEAB308)
+                                        : const Color(0xFF78716C),
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -238,7 +251,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              _isLoggingAsAdmin ? 'ĐĂNG NHẬP ADMIN' : 'ĐĂNG NHẬP KHÁCH THUÊ',
+                              _isLoggingAsAdmin
+                                  ? 'ĐĂNG NHẬP ADMIN'
+                                  : 'ĐĂNG NHẬP KHÁCH THUÊ',
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
@@ -256,28 +271,43 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: InputDecoration(
                                 labelText: 'Tên đăng nhập',
                                 labelStyle: const TextStyle(color: Colors.grey),
-                                prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF1C1917)),
+                                prefixIcon: const Icon(
+                                  Icons.person_outline,
+                                  color: Color(0xFF1C1917),
+                                ),
                                 filled: true,
                                 fillColor: const Color(0xFFF9F8F6),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFE4E2D7),
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF1C1917),
+                                    width: 1.5,
+                                  ),
                                 ),
                                 errorBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Colors.redAccent),
+                                  borderSide: const BorderSide(
+                                    color: Colors.redAccent,
+                                  ),
                                 ),
                                 focusedErrorBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+                                  borderSide: const BorderSide(
+                                    color: Colors.redAccent,
+                                    width: 1.5,
+                                  ),
                                 ),
                               ),
                               validator: (val) =>
-                                  val == null || val.trim().isEmpty ? 'Vui lòng nhập tên đăng nhập' : null,
+                                  val == null || val.trim().isEmpty
+                                  ? 'Vui lòng nhập tên đăng nhập'
+                                  : null,
                             ),
                             const SizedBox(height: 16),
 
@@ -289,10 +319,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: InputDecoration(
                                 labelText: 'Mật khẩu',
                                 labelStyle: const TextStyle(color: Colors.grey),
-                                prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1C1917)),
+                                prefixIcon: const Icon(
+                                  Icons.lock_outline,
+                                  color: Color(0xFF1C1917),
+                                ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
-                                    _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                    _obscurePassword
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
                                     color: Colors.grey,
                                   ),
                                   onPressed: () {
@@ -305,23 +340,34 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fillColor: const Color(0xFFF9F8F6),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFE4E2D7),
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF1C1917),
+                                    width: 1.5,
+                                  ),
                                 ),
                                 errorBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Colors.redAccent),
+                                  borderSide: const BorderSide(
+                                    color: Colors.redAccent,
+                                  ),
                                 ),
                                 focusedErrorBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+                                  borderSide: const BorderSide(
+                                    color: Colors.redAccent,
+                                    width: 1.5,
+                                  ),
                                 ),
                               ),
-                              validator: (val) =>
-                                  val == null || val.isEmpty ? 'Vui lòng nhập mật khẩu' : null,
+                              validator: (val) => val == null || val.isEmpty
+                                  ? 'Vui lòng nhập mật khẩu'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
 
@@ -330,12 +376,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
                                   onPressed: () {
-                                    Navigator.pushNamed(context, '/forgot-password');
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/forgot-password',
+                                    );
                                   },
                                   style: TextButton.styleFrom(
                                     padding: EdgeInsets.zero,
                                     minimumSize: const Size(50, 30),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   child: const Text(
                                     'Quên mật khẩu?',
@@ -358,7 +408,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFEAB308),
                                 foregroundColor: const Color(0xFF1C1917),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -370,12 +422,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                       width: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1C1917)),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF1C1917),
+                                            ),
                                       ),
                                     )
                                   : const Text(
                                       'ĐĂNG NHẬP',
-                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
                                     ),
                             ),
                           ],
@@ -392,4 +451,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-
