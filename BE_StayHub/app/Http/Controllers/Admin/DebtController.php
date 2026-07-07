@@ -11,7 +11,7 @@ use App\Http\Resources\Admin\DebtResource;
 use App\Models\Admin;
 use App\Models\Invoice;
 use App\Models\InvoiceDebtRollover;
-use App\Services\InvoiceDebtRolloverService;
+use App\Services\Invoice\InvoiceDebtRolloverService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;

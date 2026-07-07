@@ -22,7 +22,7 @@ use App\Models\Room;
 use App\Models\RoomMovement;
 use App\Models\Service;
 use App\Models\Tenant;
-use App\Services\InvoiceDebtRolloverService;
+use App\Services\Invoice\InvoiceDebtRolloverService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

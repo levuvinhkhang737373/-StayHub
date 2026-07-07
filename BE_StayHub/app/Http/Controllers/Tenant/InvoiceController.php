@@ -10,7 +10,7 @@ use App\Http\Resources\Tenant\InvoiceDetailResource;
 use App\Http\Resources\Tenant\InvoiceResource;
 use App\Models\Invoice;
 use App\Models\Payment;
-use App\Services\InvoiceDebtRolloverService;
+use App\Services\Invoice\InvoiceDebtRolloverService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
