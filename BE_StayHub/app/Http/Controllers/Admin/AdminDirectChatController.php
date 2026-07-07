@@ -15,6 +15,7 @@ use App\Http\Requests\Admin\Chat\SendMessageRequest;
 use App\Http\Resources\Chat\ChatConversationResource;
 use App\Http\Resources\Chat\ChatMessageResource;
 use App\Models\Admin;
+use App\Models\Building;
 use App\Models\ChatConversation;
 use App\Models\ChatMessage;
 use App\Models\Notification;
@@ -40,8 +41,14 @@ class AdminDirectChatController extends Controller
             $query = ChatConversation::query()
                 ->with(['superAdmin', 'manager.managedBuildings', 'lastMessage.sender'])
                 ->where('conversation_type', ChatConversation::TYPE_SUPER_ADMIN_MANAGER)
-                ->when(AdminScope::isSuperAdmin($admin), fn (Builder $query): Builder => $query->where('super_admin_id', $admin->id))
-                ->when(AdminScope::isBuildingManager($admin), fn (Builder $query): Builder => $query->where('manager_admin_id', $admin->id))
+                ->when(AdminScope::isSuperAdmin($admin), fn (Builder $query): Builder => $query
+                    ->where('super_admin_id', $admin->id)
+                    ->whereIn('manager_admin_id', $this->activeBuildingManagerQuery()->select('id')))
+                ->when(AdminScope::isBuildingManager($admin), fn (Builder $query): Builder => $query
+                    ->where('manager_admin_id', $admin->id)
+                    ->whereHas('superAdmin', fn (Builder $superAdminQuery): Builder => $superAdminQuery
+                        ->where('role', Admin::ROLE_SUPER_ADMIN)
+                        ->where('status', Admin::STATUS_ACTIVE)))
                 ->when($request->boolean('unread'), function (Builder $query) use ($admin): void {
                     if (AdminScope::isSuperAdmin($admin)) {
                         $query->where('admin_unread_count', '>', 0);
@@ -231,9 +238,7 @@ class AdminDirectChatController extends Controller
     private function syncConversationsFor(Admin $admin): void
     {
         if (AdminScope::isSuperAdmin($admin)) {
-            Admin::query()
-                ->where('role', Admin::ROLE_BUILDING_MANAGER)
-                ->where('status', Admin::STATUS_ACTIVE)
+            $this->activeBuildingManagerQuery()
                 ->select('id')
                 ->chunkById(100, function ($managers) use ($admin): void {
                     foreach ($managers as $manager) {
@@ -253,6 +258,16 @@ class AdminDirectChatController extends Controller
                     $this->firstOrCreateConversation($superAdmin->id, $admin->id);
                 }
             });
+    }
+
+    private function activeBuildingManagerQuery(): Builder
+    {
+        return Admin::query()
+            ->where('role', Admin::ROLE_BUILDING_MANAGER)
+            ->where('status', Admin::STATUS_ACTIVE)
+            ->whereIn('id', Building::query()
+                ->select('manager_admin_id')
+                ->whereNotNull('manager_admin_id'));
     }
 
     private function firstOrCreateConversation(int $superAdminId, int $managerAdminId): ChatConversation

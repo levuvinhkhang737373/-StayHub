@@ -57,7 +57,7 @@ export function AdminLayout() {
           <AdminHeader />
           <main className={cn(
             "w-full max-w-full min-w-0 flex-1 p-3 sm:p-4 lg:p-6",
-            isChatPage ? "overflow-hidden h-full flex flex-col" : ""
+            isChatPage ? "min-h-0 overflow-hidden flex flex-col" : ""
           )}>
             <Outlet />
           </main>

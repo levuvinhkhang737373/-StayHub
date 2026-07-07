@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, MessageCircle, Search, Send, ShieldCheck, Users, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, MessageCircle, Search, Send, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { isBuildingManagerRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -575,111 +575,136 @@ export function AdminChatScreen() {
   const partnerTitle = activeConversation ? getConversationTitle(activeConversation, isSuperAdmin) : ''
   const partnerSubtitle = activeConversation ? getConversationSubtitle(activeConversation, isSuperAdmin) : ''
   const availableTabs = isSuperAdmin ? ['direct' as ChatTab] : ['tenants' as ChatTab, 'direct' as ChatTab]
+  const totalUnread = activeTab === 'direct' ? directUnread : tenantUnread
 
   return (
-    <section className="min-h-[calc(100vh-5rem)] bg-[#f6efe4] p-4 text-[#24170d] sm:p-6 lg:p-8">
-      <div className="mx-auto flex h-[calc(100vh-7rem)] max-w-7xl overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fdf8ef] shadow-2xl shadow-[#6b3f1d]/12">
-        <aside className="flex w-full max-w-[390px] flex-col border-r border-[#3d2a18]/10 bg-[#24170d] text-white">
-          <div className="border-b border-white/10 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-[#d7b98d]">StayHub chat</p>
-            <h1 className="mt-1 text-3xl font-black tracking-[-0.05em]">Đoạn chat</h1>
-            <p className="mt-2 text-sm font-semibold text-white/55">Tin nhắn riêng tư chỉ hiển thị với đúng người tham gia.</p>
-            <div className="mt-4 flex rounded-2xl border border-white/10 bg-white/8 p-1">
-              {availableTabs.map((tab) => (
+    <section className="flex h-full min-h-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/85 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur-xl">
+      <div className="grid h-full min-h-0 w-full grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col border-b border-[#3d2a18]/10 bg-[#24170d] text-[#fffaf1] lg:h-full lg:border-b-0 lg:border-r">
+          <div className="shrink-0 space-y-4 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h1 className="mt-1 text-3xl font-black tracking-[-0.05em]">Đoạn chat</h1>
+              </div>
+              <div className="rounded-2xl bg-[#f3c56b] px-3 py-2 text-sm font-black text-[#24170d]">{totalUnread}</div>
+            </div>
+
+            {availableTabs.length > 1 && (
+              <div className="mx-auto flex w-fit items-center rounded-full border border-[#3d2a18]/10 bg-[#fffaf1] p-1 shadow-lg shadow-black/15">
                 <button
-                  key={tab}
                   type="button"
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => setActiveTab('tenants')}
                   className={cn(
-                    'flex-1 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-[0.14em] transition',
-                    activeTab === tab ? 'bg-[#d7b98d] text-[#24170d]' : 'text-white/60 hover:bg-white/10 hover:text-white',
+                    'flex h-10 w-24 items-center justify-center rounded-full text-sm font-black transition',
+                    activeTab === 'tenants' ? 'bg-[#f3c56b] text-[#24170d] shadow-sm' : 'text-[#8b5e34] hover:bg-[#f3c56b]/20',
                   )}
                 >
-                  {tab === 'direct' ? (isSuperAdmin ? 'Quản lý tòa nhà' : 'Superadmin') : 'Khách thuê'}
+                  Tenant
                 </button>
-              ))}
-            </div>
-            <div className="mt-4 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/8 px-3 py-2">
-              <Search className="h-4 w-4 text-white/40" />
+                <div className="h-6 w-px bg-[#3d2a18]/10" />
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('direct')}
+                  className={cn(
+                    'flex h-10 w-24 items-center justify-center rounded-full text-sm font-black transition',
+                    activeTab === 'direct' ? 'bg-[#f3c56b] text-[#24170d] shadow-sm' : 'text-[#8b5e34] hover:bg-[#f3c56b]/20',
+                  )}
+                >
+                  Admin
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
+              <Search className="h-4 w-4 text-[#f3c56b]" />
               <input
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
-                placeholder={activeTab === 'direct' ? 'Tìm quản trị viên...' : 'Tìm khách, phòng, tòa...'}
-                className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-white/35"
+                placeholder={activeTab === 'direct' ? 'Tìm quản lý tòa nhà...' : 'Tìm phòng hoặc khách thuê...'}
+                className="min-h-10 flex-1 bg-transparent text-sm font-bold text-white outline-none placeholder:text-white/45"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setShowUnreadOnly((value) => !value)}
-              className={cn(
-                'mt-3 rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] transition',
-                showUnreadOnly ? 'border-[#d7b98d] bg-[#d7b98d] text-[#24170d]' : 'border-white/10 text-white/55 hover:bg-white/10 hover:text-white',
-              )}
-            >
-              Chưa đọc: {activeTab === 'direct' ? directUnread : tenantUnread}
-            </button>
+
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowUnreadOnly(false)} className={cn('min-h-10 rounded-full px-4 text-sm font-black transition', !showUnreadOnly ? 'bg-[#f3c56b] text-[#24170d]' : 'bg-white/10 text-white/70 hover:bg-white/15')}>Tất cả</button>
+              <button type="button" onClick={() => setShowUnreadOnly(true)} className={cn('min-h-10 rounded-full px-4 text-sm font-black transition', showUnreadOnly ? 'bg-[#f3c56b] text-[#24170d]' : 'bg-white/10 text-white/70 hover:bg-white/15')}>Chưa đọc</button>
+            </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4">
             {isLoadingConversations ? (
-              <div className="flex h-52 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#d7b98d]" /></div>
+              <div className="space-y-3 p-3">
+                {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-3xl bg-white/10" />)}
+              </div>
             ) : visibleConversations.length === 0 ? (
               <div className="m-3 rounded-3xl border border-white/10 bg-white/8 p-6 text-center text-sm font-bold text-white/65">Chưa có đoạn chat nào.</div>
-            ) : (
-              visibleConversations.map((conversation) => {
-                const selected = activeConversation?.id === conversation.id && (activeTab === 'direct') === isDirectConversation(conversation)
-                const unread = isDirectConversation(conversation) ? getDirectUnread(conversation, isSuperAdmin) : Number(conversation.admin_unread_count || 0)
-                return (
-                  <button
-                    key={`${isDirectConversation(conversation) ? 'direct' : 'tenant'}-${conversation.id}`}
-                    type="button"
-                    onClick={() => {
-                      if (isDirectConversation(conversation)) {
-                        setActiveDirectConversation(conversation)
-                        setActiveTab('direct')
-                      } else {
-                        setActiveTenantConversation(conversation)
-                        setActiveTab('tenants')
-                      }
-                    }}
-                    className={cn(
-                      'mb-2 w-full rounded-3xl border p-3 text-left transition',
-                      selected ? 'border-[#d7b98d] bg-[#d7b98d] text-[#24170d]' : 'border-white/10 bg-white/7 text-white hover:bg-white/12',
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl', selected ? 'bg-[#24170d] text-[#d7b98d]' : 'bg-[#d7b98d]/15 text-[#d7b98d]')}>
-                        {isDirectConversation(conversation) ? <ShieldCheck className="h-5 w-5" /> : <Users className="h-5 w-5" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-black">{getConversationTitle(conversation, isSuperAdmin)}</p>
-                          {unread > 0 && <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">{unread}</span>}
-                        </div>
-                        <p className={cn('mt-0.5 truncate text-xs font-bold', selected ? 'text-[#4c3420]/75' : 'text-white/50')}>{getConversationSubtitle(conversation, isSuperAdmin)}</p>
-                        <p className={cn('mt-2 line-clamp-1 text-xs font-semibold', selected ? 'text-[#4c3420]/70' : 'text-white/45')}>{conversation.last_message?.body || (conversation.last_message?.attachments?.length ? '[Hình ảnh]' : 'Chưa có tin nhắn')}</p>
-                      </div>
+            ) : visibleConversations.map((conversation) => {
+              const direct = isDirectConversation(conversation)
+              const selected = activeConversation?.id === conversation.id && (activeTab === 'direct') === direct
+              const unread = direct ? getDirectUnread(conversation, isSuperAdmin) : Number(conversation.admin_unread_count || 0)
+              const title = direct ? getConversationTitle(conversation, isSuperAdmin) : `Phòng ${conversation.room_number || '—'} · ${conversation.tenant_name || 'Khách thuê'}`
+              const avatarText = direct
+                ? (isSuperAdmin ? (conversation.manager_name || conversation.manager_username || 'QL') : (conversation.super_admin_name || conversation.super_admin_username || 'SA')).slice(0, 2).toUpperCase()
+                : (conversation.room_number || 'P?')
+              return (
+                <button
+                  key={`${direct ? 'direct' : 'tenant'}-${conversation.id}`}
+                  type="button"
+                  onClick={() => {
+                    if (direct) {
+                      setActiveDirectConversation(conversation)
+                      setActiveTab('direct')
+                    } else {
+                      setActiveTenantConversation(conversation)
+                      setActiveTab('tenants')
+                    }
+                  }}
+                  className={cn('mb-2 flex w-full items-center gap-3 rounded-3xl p-3 text-left transition', selected ? 'bg-[#fffaf1] text-[#24170d] shadow-xl shadow-black/20' : 'text-white hover:bg-white/10')}
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f3c56b] text-sm font-black text-[#24170d] shadow-lg">
+                    {avatarText}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-black">{title}</p>
+                      {unread > 0 && <span className="rounded-full bg-[#006dff] px-2 py-0.5 text-[10px] font-black text-white">{unread}</span>}
                     </div>
-                  </button>
-                )
-              })
-            )}
+                    <p className="mt-1 truncate text-xs font-bold opacity-70">{conversation.last_message?.body || (direct ? getConversationSubtitle(conversation, isSuperAdmin) : conversation.building_name) || 'Bắt đầu trò chuyện'}</p>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top_left,#fff7ea,transparent_35%),#f8f1e7]">
+        <main className="flex min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(243,197,107,0.24),transparent_32%),linear-gradient(180deg,#fffaf1,#f4efe6)] lg:h-full">
           {activeConversation ? (
             <>
-              <div className="flex items-center justify-between border-b border-[#3d2a18]/10 bg-white/70 px-5 py-4 backdrop-blur-md">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8b5e34]">{isDirectConversation(activeConversation) ? 'Chat quản trị riêng tư' : activeConversation.building_name || 'Chat khách thuê'}</p>
-                  <h2 className="mt-1 text-xl font-black tracking-[-0.04em]">{partnerTitle}</h2>
-                  <p className="mt-1 text-xs font-bold text-[#6f6254]">{partnerSubtitle}</p>
+              <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#3d2a18]/10 bg-white/55 p-5 backdrop-blur-md">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#24170d] text-sm font-black text-[#f3c56b]">
+                    {isDirectConversation(activeConversation)
+                      ? (isSuperAdmin
+                        ? (activeConversation.manager_name || activeConversation.manager_username || 'QL').slice(0, 2).toUpperCase()
+                        : (activeConversation.super_admin_name || activeConversation.super_admin_username || 'SA').slice(0, 2).toUpperCase())
+                      : activeConversation.room_number || 'P?'}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="truncate text-xl font-black tracking-[-0.03em] text-[#24170d]">
+                      {isDirectConversation(activeConversation) ? partnerTitle : `Phòng ${activeConversation.room_number || '—'} - ${activeConversation.tenant_name || 'Khách thuê'}`}
+                    </h2>
+                    <p className="truncate text-xs font-black uppercase tracking-[0.16em] text-[#8b5e34]">
+                      {isDirectConversation(activeConversation) ? partnerSubtitle : `${activeConversation.building_name || 'Tòa nhà'} · ${activeConversation.tenant_phone || 'Chưa có SĐT'}`}
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-[#3d2a18]/10 bg-[#fdf8ef] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#8b5e34]">Riêng tư</div>
-              </div>
+              </header>
 
-              <div ref={scrollContainerRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              <div
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"
+              >
                 {isLoadingMessages ? (
                   <div className="flex h-full items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#8b5e34]" /></div>
                 ) : messages.length === 0 ? (
@@ -725,7 +750,7 @@ export function AdminChatScreen() {
                 )}
               </div>
 
-              {errorMessage && <div className="mx-5 mb-3 rounded-2xl border border-rose-900/10 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{errorMessage}</div>}
+              {errorMessage && <div className="mx-5 mb-3 shrink-0 rounded-2xl border border-rose-900/10 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{errorMessage}</div>}
               <ChatComposer
                 fileInputRef={fileInputRef}
                 imagePreviews={imagePreviews}
@@ -765,7 +790,7 @@ export function AdminChatScreen() {
           setPosition={setPosition}
           setScale={setScale}
         />,
-        document.body,
+        document.body
       )}
     </section>
   )
@@ -841,7 +866,7 @@ function ChatComposer({
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
 }) {
   return (
-    <form className="border-t border-[#3d2a18]/10 bg-white/70 p-3 backdrop-blur-md" onSubmit={(event) => { event.preventDefault(); onSend() }}>
+    <form className="shrink-0 border-t border-[#3d2a18]/10 bg-white/70 p-3 backdrop-blur-md" onSubmit={(event) => { event.preventDefault(); onSend() }}>
       {imagePreviews.length > 0 && (
         <div className="mb-3 flex gap-3 overflow-x-auto rounded-2xl border border-[#3d2a18]/10 bg-[#fdfbf7] p-2.5 shadow-inner">
           {imagePreviews.map((url, index) => (

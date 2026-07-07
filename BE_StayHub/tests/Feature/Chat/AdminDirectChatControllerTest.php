@@ -71,7 +71,7 @@ class AdminDirectChatControllerTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('status', true)
             ->assertJsonFragment(['manager_admin_id' => $this->manager->id])
-            ->assertJsonFragment(['manager_admin_id' => $this->otherManager->id])
+            ->assertJsonMissing(['manager_admin_id' => $this->otherManager->id])
             ->assertJsonMissing(['manager_admin_id' => $inactiveManager->id]);
 
         $this->assertDatabaseHas('chat_conversations', [
@@ -79,11 +79,30 @@ class AdminDirectChatControllerTest extends TestCase
             'super_admin_id' => $this->superAdmin->id,
             'manager_admin_id' => $this->manager->id,
         ]);
-        $this->assertDatabaseHas('chat_conversations', [
+        $this->assertDatabaseMissing('chat_conversations', [
             'conversation_type' => ChatConversation::TYPE_SUPER_ADMIN_MANAGER,
             'super_admin_id' => $this->superAdmin->id,
             'manager_admin_id' => $this->otherManager->id,
         ]);
+    }
+
+    public function test_building_manager_sees_only_active_super_admins_in_direct_chat(): void
+    {
+        $inactiveSuperAdmin = $this->createAdmin('inactive_super_direct', 'inactive_super_direct@stayhub.local', '0911000006', Admin::ROLE_SUPER_ADMIN, Admin::STATUS_INACTIVE);
+
+        $response = $this->actingAs($this->manager, 'admin')
+            ->getJson('/api/v1/admin/chat/direct-conversations?per_page=50');
+
+        $response->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonFragment(['super_admin_id' => $this->superAdmin->id])
+            ->assertJsonFragment(['super_admin_id' => $this->otherSuperAdmin->id])
+            ->assertJsonMissing(['super_admin_id' => $inactiveSuperAdmin->id])
+            ->assertJsonMissing(['manager_admin_id' => $this->otherManager->id]);
+
+        foreach ($response->json('result.data') as $conversation) {
+            $this->assertSame($this->manager->id, $conversation['manager_admin_id']);
+        }
     }
 
     public function test_direct_chat_message_is_private_to_exact_participants(): void

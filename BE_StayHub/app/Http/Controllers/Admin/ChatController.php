@@ -52,7 +52,9 @@ class ChatController extends Controller
 
                 if ($activeContractTenants->isNotEmpty()) {
                     $existingConversations = ChatConversation::query()
+                        ->where('conversation_type', ChatConversation::TYPE_TENANT_MANAGER)
                         ->where('manager_admin_id', $admin->id)
+                        ->whereIn('building_id', $buildingIds)
                         ->get()
                         ->keyBy(fn ($item) => $item->tenant_id . '-' . $item->building_id);
 
@@ -78,6 +80,7 @@ class ChatController extends Controller
                         if (!isset($existingConversations[$key])) {
                             $keysToInsert[$key] = true;
                             $newConversations[] = [
+                                'conversation_type' => ChatConversation::TYPE_TENANT_MANAGER,
                                 'tenant_id' => $tenant->id,
                                 'building_id' => $building->id,
                                 'room_id' => $room->id,
@@ -104,6 +107,7 @@ class ChatController extends Controller
                 ->with(['building', 'room', 'tenant', 'manager', 'lastMessage.sender'])
                 ->where('conversation_type', ChatConversation::TYPE_TENANT_MANAGER)
                 ->where('manager_admin_id', $admin->id)
+                ->whereIn('building_id', $buildingIds)
                 ->when(isset($validatedData['building_id']), fn (Builder $query): Builder => $query->where('building_id', (int) $validatedData['building_id']))
                 ->when($request->boolean('unread'), fn (Builder $query): Builder => $query->where('admin_unread_count', '>', 0))
                 ->when(filled($validatedData['keyword'] ?? null), function (Builder $query) use ($validatedData): void {
@@ -279,6 +283,15 @@ class ChatController extends Controller
 
         if ((int) $conversation->manager_admin_id !== (int) $admin->id) {
             return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập đoạn chat này', 403, null, 403);
+        }
+
+        $ownsConversationBuilding = \App\Models\Building::query()
+            ->whereKey($conversation->building_id)
+            ->where('manager_admin_id', $admin->id)
+            ->exists();
+
+        if (! $ownsConversationBuilding) {
+            return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập tenant của tòa nhà này', 403, null, 403);
         }
 
         return true;
