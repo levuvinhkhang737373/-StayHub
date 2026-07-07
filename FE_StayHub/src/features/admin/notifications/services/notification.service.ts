@@ -54,3 +54,17 @@ export async function deleteAdminNotification(id: number) {
     method: 'DELETE',
   })
 }
+
+export async function markAdminNotificationRead(id: number | string) {
+  return apiRequest<any>({
+    url: `admin/notifications/${id}/read`,
+    method: 'POST',
+  })
+}
+
+export async function markAllAdminNotificationsRead() {
+  return apiRequest<any>({
+    url: 'admin/notifications/read-all',
+    method: 'POST',
+  })
+}

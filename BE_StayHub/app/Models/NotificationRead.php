@@ -10,7 +10,7 @@ class NotificationRead extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['notification_id', 'tenant_id', 'read_at'];
+    protected $fillable = ['notification_id', 'tenant_id', 'admin_id', 'read_at'];
 
     public const UPDATED_AT = null;
 
@@ -29,5 +29,10 @@ class NotificationRead extends Model
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    public function admin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class);
     }
 }

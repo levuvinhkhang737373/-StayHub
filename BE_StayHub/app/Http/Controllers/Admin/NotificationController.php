@@ -10,6 +10,7 @@ use App\Http\Requests\Admin\Notification\StoreRequest;
 use App\Http\Requests\Admin\Notification\UpdateRequest;
 use App\Http\Resources\Admin\NotificationResource;
 use App\Models\Notification;
+use App\Models\NotificationRead;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,13 +42,7 @@ class NotificationController extends Controller
                 ->orderByDesc('created_at')
                 ->paginate($request->integer('per_page', 20));
 
-            $statsQuery = $this->accessibleQuery($admin)
-                ->when($request->filled('target_type'), function ($q) use ($request) {
-                    $q->where('target_type', $request->integer('target_type'));
-                })
-                ->when($request->filled('building_id'), function ($q) use ($request) {
-                    $q->where('building_id', $request->integer('building_id'));
-                });
+            $statsQuery = $this->accessibleQuery($admin);
 
             $statsData = $statsQuery->selectRaw('
                 COUNT(*) as total,
@@ -56,11 +51,23 @@ class NotificationController extends Controller
                 COUNT(CASE WHEN status = 3 THEN 1 END) as cancelled
             ')->first();
 
+            $unreadCount = $this->accessibleQuery($admin)
+                ->where('status', Notification::STATUS_SENT)
+                ->where(function ($q) use ($admin) {
+                    $q->whereNull('created_by')
+                      ->orWhere('created_by', '!=', $admin->id);
+                })
+                ->whereDoesntHave('reads', function ($q) use ($admin) {
+                    $q->where('admin_id', $admin->id);
+                })
+                ->count();
+
             $stats = [
                 'total' => $statsData ? (int) $statsData->total : 0,
                 'draft' => $statsData ? (int) $statsData->draft : 0,
                 'sent' => $statsData ? (int) $statsData->sent : 0,
                 'cancelled' => $statsData ? (int) $statsData->cancelled : 0,
+                'unread' => $unreadCount,
             ];
 
             return ApiResponse::responseJson(true, 'Danh sách thông báo', 200, [
@@ -238,14 +245,84 @@ class NotificationController extends Controller
         }
     }
 
+    /**
+     * Đánh dấu một thông báo đã đọc
+     */
+    public function read(Request $request, int $id): JsonResponse
+    {
+        try {
+            $admin = $request->user('admin');
+            if (! $admin) {
+                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+            }
+
+            $notification = $this->accessibleQuery($admin)
+                ->where('status', Notification::STATUS_SENT)
+                ->find($id);
+
+            if (! $notification) {
+                return ApiResponse::responseJson(false, 'Không tìm thấy thông báo', 404, null, 404);
+            }
+
+            // Đánh dấu đã đọc bằng firstOrCreate
+            $readRecord = NotificationRead::query()->firstOrCreate([
+                'notification_id' => $notification->id,
+                'admin_id' => $admin->id,
+            ], [
+                'read_at' => now(),
+            ]);
+
+            return ApiResponse::responseJson(true, 'Đã đánh dấu đọc thông báo', 200, $readRecord, 200);
+
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+        }
+    }
+
+    /**
+     * Đánh dấu đọc toàn bộ thông báo của admin
+     */
+    public function readAll(Request $request): JsonResponse
+    {
+        try {
+            $admin = $request->user('admin');
+            if (! $admin) {
+                return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
+            }
+
+            // Tìm toàn bộ danh sách thông báo chưa đọc của admin
+            $notificationIds = $this->accessibleQuery($admin)
+                ->where('status', Notification::STATUS_SENT)
+                ->whereDoesntHave('reads', function ($q) use ($admin) {
+                    $q->where('admin_id', $admin->id);
+                })
+                ->pluck('id');
+
+            foreach ($notificationIds as $id) {
+                NotificationRead::query()->firstOrCreate([
+                    'notification_id' => $id,
+                    'admin_id' => $admin->id,
+                ], [
+                    'read_at' => now(),
+                ]);
+            }
+
+            return ApiResponse::responseJson(true, 'Đã đánh dấu đọc toàn bộ thông báo', 200, null, 200);
+
+        } catch (\Exception $e) {
+            return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+        }
+    }
+
     private function accessibleQuery($admin)
     {
         $query = Notification::query()
-            ->where(function ($q) {
+            ->where(function ($q) use ($admin) {
                 $q->where(function ($nonChatQuery) {
                     $nonChatQuery->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
                         ->where(function ($scopedQuery) {
                             $scopedQuery->whereNotNull('created_by')
+                                ->orWhere('target_type', Notification::TARGET_TYPE_ADMIN)
                                 ->orWhereIn('title', [
                                     'Yêu cầu sửa chữa mới',
                                     'Phản hồi mới từ khách thuê',
@@ -254,22 +331,32 @@ class NotificationController extends Controller
                                     'Hợp đồng đã được ký',
                                     'Hóa đơn đã được thanh toán',
                                     'Thanh toán hóa đơn thành công',
+                                    'Yêu cầu thương lượng giá hợp đồng',
+                                    'Thanh toán chuyển phòng',
+                                    'Báo động đỏ AI Camera',
+                                    'Tin nhắn mới từ khách thuê',
                                 ]);
                         });
-                })->orWhere(function ($chatQuery) {
-                    $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
-                        ->where('target_type', Notification::TARGET_TYPE_ADMIN)
-                        ->whereNotNull('target_admin_id');
-                });
-            });
-
-        $query->where(function ($q) use ($admin) {
-            $q->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
-                ->orWhere(function ($chatQuery) use ($admin) {
+                })->orWhere(function ($chatQuery) use ($admin) {
                     $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
                         ->where('target_type', Notification::TARGET_TYPE_ADMIN)
                         ->where('target_admin_id', $admin->id);
                 });
+            });
+
+        $query->where(function ($q) use ($admin) {
+            $q->where(function ($nonChatQuery) use ($admin) {
+                $nonChatQuery->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
+                    ->where(function ($targetAdminQuery) use ($admin) {
+                        $targetAdminQuery->whereNull('target_admin_id')
+                            ->orWhere('target_admin_id', $admin->id);
+                    });
+            })
+            ->orWhere(function ($chatQuery) use ($admin) {
+                $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
+                    ->where('target_type', Notification::TARGET_TYPE_ADMIN)
+                    ->where('target_admin_id', $admin->id);
+            });
         });
 
         if (! AdminScope::isSuperAdmin($admin)) {

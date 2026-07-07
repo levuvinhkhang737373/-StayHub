@@ -8,12 +8,16 @@ class NotificationController extends ChangeNotifier {
   List<NotificationModel> _notifications = [];
   bool _isLoading = false;
   String? _errorMessage;
+  int? _serverUnreadCount;
 
   List<NotificationModel> get notifications => _notifications;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  int get unreadCount => _notifications.where((n) => !n.isRead).length;
+  /// Returns the server-provided unread count when available (accurate across
+  /// all pages), otherwise falls back to counting unread items in the loaded
+  /// page.
+  int get unreadCount => _serverUnreadCount ?? _notifications.where((n) => !n.isRead).length;
 
   /// Tải danh sách thông báo
   Future<void> fetchNotifications({required bool isAdmin}) async {
@@ -23,15 +27,26 @@ class NotificationController extends ChangeNotifier {
 
     try {
       final path = isAdmin ? '/admin/notifications' : '/tenant/notifications';
-      final response = await _apiService.get<List<dynamic>>(
+      final response = await _apiService.get<Map<String, dynamic>>(
         path,
-        fromJsonT: (json) => json['data'] as List<dynamic>,
+        fromJsonT: (json) => json as Map<String, dynamic>,
       );
 
       if (response.status && response.result != null) {
-        _notifications = response.result!
+        final result = response.result!;
+        final data = result['data'] as List<dynamic>? ?? [];
+        _notifications = data
             .map((item) => NotificationModel.fromJson(item as Map<String, dynamic>))
             .toList();
+
+        // Use server-side unread count when available (admin endpoint provides
+        // stats.unread; tenant endpoint does not).
+        final stats = result['stats'] as Map<String, dynamic>?;
+        if (stats != null && stats.containsKey('unread')) {
+          _serverUnreadCount = (stats['unread'] as num?)?.toInt();
+        } else {
+          _serverUnreadCount = null;
+        }
       } else {
         _errorMessage = response.message;
       }

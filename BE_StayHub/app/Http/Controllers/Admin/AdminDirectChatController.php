@@ -41,29 +41,30 @@ class AdminDirectChatController extends Controller
             $query = ChatConversation::query()
                 ->with(['superAdmin', 'manager.managedBuildings', 'lastMessage.sender'])
                 ->where('conversation_type', ChatConversation::TYPE_SUPER_ADMIN_MANAGER)
-                ->when(AdminScope::isSuperAdmin($admin), fn (Builder $query): Builder => $query
-                    ->where('super_admin_id', $admin->id)
-                    ->whereIn('manager_admin_id', $this->activeBuildingManagerQuery()->select('id')))
-                ->when(AdminScope::isBuildingManager($admin), fn (Builder $query): Builder => $query
-                    ->where('manager_admin_id', $admin->id)
-                    ->whereHas('superAdmin', fn (Builder $superAdminQuery): Builder => $superAdminQuery
-                        ->where('role', Admin::ROLE_SUPER_ADMIN)
-                        ->where('status', Admin::STATUS_ACTIVE)))
-                ->when($request->boolean('unread'), function (Builder $query) use ($admin): void {
-                    if (AdminScope::isSuperAdmin($admin)) {
-                        $query->where('admin_unread_count', '>', 0);
-                    } else {
-                        $query->where('tenant_unread_count', '>', 0);
-                    }
+                ->where(function (Builder $q) use ($admin): void {
+                    $q->where('super_admin_id', $admin->id)
+                      ->orWhere('manager_admin_id', $admin->id);
                 })
-                ->when(filled($validatedData['keyword'] ?? null), function (Builder $query) use ($validatedData, $admin): void {
+                ->when($request->boolean('unread'), function (Builder $query) use ($admin): void {
+                    $query->where(function (Builder $sub) use ($admin): void {
+                        $sub->where(fn ($q) => $q->where('super_admin_id', $admin->id)->where('admin_unread_count', '>', 0))
+                            ->orWhere(fn ($q) => $q->where('manager_admin_id', $admin->id)->where('tenant_unread_count', '>', 0));
+                    });
+                })
+                ->when(filled($validatedData['keyword'] ?? null), function (Builder $query) use ($validatedData): void {
                     $keyword = trim((string) $validatedData['keyword']);
-                    $relation = AdminScope::isSuperAdmin($admin) ? 'manager' : 'superAdmin';
-                    $query->whereHas($relation, function (Builder $adminQuery) use ($keyword): void {
-                        $adminQuery->where('full_name', 'like', '%' . $keyword . '%')
-                            ->orWhere('username', 'like', '%' . $keyword . '%')
-                            ->orWhere('email', 'like', '%' . $keyword . '%')
-                            ->orWhere('phone', 'like', '%' . $keyword . '%');
+                    $query->where(function (Builder $q) use ($keyword): void {
+                        $q->whereHas('manager', function (Builder $adminQuery) use ($keyword): void {
+                            $adminQuery->where('full_name', 'like', '%' . $keyword . '%')
+                                ->orWhere('username', 'like', '%' . $keyword . '%')
+                                ->orWhere('email', 'like', '%' . $keyword . '%')
+                                ->orWhere('phone', 'like', '%' . $keyword . '%');
+                        })->orWhereHas('superAdmin', function (Builder $adminQuery) use ($keyword): void {
+                            $adminQuery->where('full_name', 'like', '%' . $keyword . '%')
+                                ->orWhere('username', 'like', '%' . $keyword . '%')
+                                ->orWhere('email', 'like', '%' . $keyword . '%')
+                                ->orWhere('phone', 'like', '%' . $keyword . '%');
+                        });
                     });
                 })
                 ->orderByRaw('COALESCE(last_message_at, updated_at) DESC')
@@ -152,7 +153,7 @@ class AdminDirectChatController extends Controller
                     'sent_at' => now(),
                 ]);
 
-                if (AdminScope::isSuperAdmin($admin)) {
+                if ((int) $lockedConversation->super_admin_id === (int) $admin->id) {
                     $lockedConversation->forceFill([
                         'last_message_id' => $message->id,
                         'last_message_at' => $message->created_at,
@@ -200,7 +201,7 @@ class AdminDirectChatController extends Controller
                 return $authorization;
             }
 
-            if (AdminScope::isSuperAdmin($admin)) {
+            if ((int) $conversation->super_admin_id === (int) $admin->id) {
                 $conversation->forceFill([
                     'admin_unread_count' => 0,
                     'admin_last_read_at' => now(),
@@ -237,25 +238,13 @@ class AdminDirectChatController extends Controller
 
     private function syncConversationsFor(Admin $admin): void
     {
-        if (AdminScope::isSuperAdmin($admin)) {
-            $this->activeBuildingManagerQuery()
-                ->select('id')
-                ->chunkById(100, function ($managers) use ($admin): void {
-                    foreach ($managers as $manager) {
-                        $this->firstOrCreateConversation($admin->id, $manager->id);
-                    }
-                });
-
-            return;
-        }
-
         Admin::query()
-            ->where('role', Admin::ROLE_SUPER_ADMIN)
             ->where('status', Admin::STATUS_ACTIVE)
+            ->where('id', '!=', $admin->id)
             ->select('id')
-            ->chunkById(100, function ($superAdmins) use ($admin): void {
-                foreach ($superAdmins as $superAdmin) {
-                    $this->firstOrCreateConversation($superAdmin->id, $admin->id);
+            ->chunkById(100, function ($otherAdmins) use ($admin): void {
+                foreach ($otherAdmins as $otherAdmin) {
+                    $this->firstOrCreateConversation($admin->id, $otherAdmin->id);
                 }
             });
     }
@@ -264,14 +253,14 @@ class AdminDirectChatController extends Controller
     {
         return Admin::query()
             ->where('role', Admin::ROLE_BUILDING_MANAGER)
-            ->where('status', Admin::STATUS_ACTIVE)
-            ->whereIn('id', Building::query()
-                ->select('manager_admin_id')
-                ->whereNotNull('manager_admin_id'));
+            ->where('status', Admin::STATUS_ACTIVE);
     }
 
-    private function firstOrCreateConversation(int $superAdminId, int $managerAdminId): ChatConversation
+    private function firstOrCreateConversation(int $admin1Id, int $admin2Id): ChatConversation
     {
+        $superAdminId = min($admin1Id, $admin2Id);
+        $managerAdminId = max($admin1Id, $admin2Id);
+
         try {
             return ChatConversation::query()->firstOrCreate([
                 'conversation_type' => ChatConversation::TYPE_SUPER_ADMIN_MANAGER,
@@ -299,11 +288,7 @@ class AdminDirectChatController extends Controller
             return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập đoạn chat này', 403, null, 403);
         }
 
-        if (AdminScope::isSuperAdmin($admin) && (int) $conversation->super_admin_id === (int) $admin->id) {
-            return true;
-        }
-
-        if (AdminScope::isBuildingManager($admin) && (int) $conversation->manager_admin_id === (int) $admin->id) {
+        if ((int) $conversation->super_admin_id === (int) $admin->id || (int) $conversation->manager_admin_id === (int) $admin->id) {
             return true;
         }
 
@@ -348,6 +333,6 @@ class AdminDirectChatController extends Controller
 
     private function recipientAdminId(ChatConversation $conversation, Admin $sender): int
     {
-        return AdminScope::isSuperAdmin($sender) ? (int) $conversation->manager_admin_id : (int) $conversation->super_admin_id;
+        return (int) $conversation->super_admin_id === (int) $sender->id ? (int) $conversation->manager_admin_id : (int) $conversation->super_admin_id;
     }
 }

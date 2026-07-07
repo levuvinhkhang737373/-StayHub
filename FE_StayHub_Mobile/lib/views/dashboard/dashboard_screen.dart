@@ -390,7 +390,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     }
 
-    int notificationCount = items.where((item) => !item['isRead']).length;
+    int notificationCount = notificationController.unreadCount;
 
     final List<Widget> tabs = [
       // Tab 0: Operations grid

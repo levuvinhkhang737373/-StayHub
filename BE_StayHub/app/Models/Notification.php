@@ -95,6 +95,11 @@ class Notification extends Model
         return $this->belongsToMany(Tenant::class, 'notification_reads')->withPivot('read_at');
     }
 
+    public function readByAdmins(): BelongsToMany
+    {
+        return $this->belongsToMany(Admin::class, 'notification_reads')->withPivot('read_at');
+    }
+
     public function actionUrl(): ?string
     {
         if (filled($this->action_url)) {

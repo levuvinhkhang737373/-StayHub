@@ -4,7 +4,7 @@ import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
-import { fetchAdminNotifications } from '../services/notification.service'
+import { fetchAdminNotifications, markAdminNotificationRead, markAllAdminNotificationsRead } from '../services/notification.service'
 import { resolveNotificationActionPath } from '../utils/notification-link'
 
 export interface ReceivedNotification {
@@ -50,16 +50,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
 
     const loadNotificationsFromApi = async () => {
       try {
-        // Load localStorage notifications first to check read status
-        let localNotifs: ReceivedNotification[] = []
-        const stored = localStorage.getItem(`stayhub_admin_notifications_${adminId}`)
-        if (stored) {
-          try {
-            localNotifs = JSON.parse(stored)
-          } catch (e) {
-            console.error('Error parsing stored notifications', e)
-          }
-        }
+
 
         const res = await fetchAdminNotifications({ per_page: 500 })
         if (!isMounted) return
@@ -69,12 +60,19 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           const list = res.result.data || []
 
           const mapped = list.reduce<ReceivedNotification[]>((acc, item: any) => {
+            // Exclude chat notifications not targeting this admin
             if (Number(item.notification_type) === 6 && Number(item.target_admin_id) !== Number(adminId)) {
               return acc
             }
 
+
+
+            // Exclude notifications created by the current admin themselves (outgoing)
+            if (Number(item.created_by) === Number(adminId)) {
+              return acc
+            }
+
             const notifId = String(item.id)
-            const localItem = localNotifs.find((ln) => ln.id === notifId)
 
             let notifType: ReceivedNotification['type'] = 'system'
             if (item.notification_type === 1) {
@@ -92,7 +90,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               title: item.title,
               description: item.content || '',
               link: link || undefined,
-              read: localItem ? localItem.read : false,
+              read: item.is_read ?? false,
               createdAt: item.created_at,
               type: notifType,
             })
@@ -360,11 +358,19 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
   const markAsRead = (id: string) => {
     const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
     saveNotifications(updated)
+    if (!isNaN(Number(id))) {
+      markAdminNotificationRead(Number(id)).catch((err) => {
+        console.error('Failed to mark notification as read on backend', err)
+      })
+    }
   }
 
   const markAllAsRead = () => {
     const updated = notifications.map((n) => ({ ...n, read: true }))
     saveNotifications(updated)
+    markAllAdminNotificationsRead().catch((err) => {
+      console.error('Failed to mark all notifications as read on backend', err)
+    })
   }
 
   const clearAll = () => {

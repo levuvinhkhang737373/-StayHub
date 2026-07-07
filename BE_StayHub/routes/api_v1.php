@@ -119,6 +119,8 @@ Route::prefix('admin')->group(function (): void {
         Route::apiResource('maintenance-requests', AdminMaintenanceController::class)->only(['index', 'show']);
 
         // =========================Notifications===========================
+        Route::post('notifications/read-all', [AdminNotificationController::class, 'readAll']);
+        Route::post('notifications/{id}/read', [AdminNotificationController::class, 'read']);
         Route::apiResource('notifications', AdminNotificationController::class);
 
         // =========================Chat====================================

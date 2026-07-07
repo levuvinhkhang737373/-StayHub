@@ -10,6 +10,20 @@ class NotificationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $adminId = $request->user('admin')?->id;
+
+        $isRead = false;
+        if ($adminId) {
+            if ($this->created_by === $adminId) {
+                $isRead = true;
+            } else {
+                $isRead = \App\Models\NotificationRead::query()
+                    ->where('notification_id', $this->id)
+                    ->where('admin_id', $adminId)
+                    ->exists();
+            }
+        }
+
         return [
             'id' => $this->id,
             'title' => $this->title,
@@ -29,6 +43,7 @@ class NotificationResource extends JsonResource
             'published_at' => optional($this->published_at)->toDateTimeString(),
             'status' => $this->status,
             'status_label' => Notification::STATUS_LABELS[$this->status] ?? 'Nháp',
+            'is_read' => $isRead,
             'created_by' => $this->created_by,
             'creator_name' => $this->whenLoaded('creator', fn () => $this->creator?->full_name),
             'created_at' => optional($this->created_at)->toDateTimeString(),

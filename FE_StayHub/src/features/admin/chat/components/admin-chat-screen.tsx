@@ -50,8 +50,11 @@ function conversationSortValue(conversation: UnifiedConversation) {
   return new Date(conversation.last_message_at || conversation.updated_at || 0).getTime()
 }
 
-function getDirectUnread(conversation: ChatConversationResource, isSuperAdmin: boolean) {
-  return isSuperAdmin ? Number(conversation.admin_unread_count || 0) : Number(conversation.tenant_unread_count || 0)
+function getDirectUnread(conversation: ChatConversationResource, adminId?: number) {
+  if (!adminId) return 0
+  return Number(conversation.super_admin_id) === Number(adminId)
+    ? Number(conversation.admin_unread_count || 0)
+    : Number(conversation.tenant_unread_count || 0)
 }
 
 export function AdminChatScreen() {
@@ -99,7 +102,7 @@ export function AdminChatScreen() {
   const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const tenantUnread = useMemo(() => tenantConversations.reduce((total, item) => total + Number(item.admin_unread_count || 0), 0), [tenantConversations])
-  const directUnread = useMemo(() => directConversations.reduce((total, item) => total + getDirectUnread(item, isSuperAdmin), 0), [directConversations, isSuperAdmin])
+  const directUnread = useMemo(() => directConversations.reduce((total, item) => total + getDirectUnread(item, adminId), 0), [directConversations, adminId])
   const visibleConversations = activeTab === 'direct' ? directConversations : tenantConversations
   const activeConversation = activeTab === 'direct' ? activeDirectConversation : activeTenantConversation
   const messages = activeTab === 'direct' ? directMessages : tenantMessages
@@ -256,11 +259,11 @@ export function AdminChatScreen() {
     setDirectMessages(response.result?.data || [])
     setHasMore(response.result?.pagination?.has_more || false)
 
-    if (getDirectUnread(conversation, isSuperAdmin) > 0) {
+    if (getDirectUnread(conversation, adminId) > 0) {
       const readResponse = await markAdminDirectRead(conversation.id)
       if (readResponse.result) upsertDirectConversation(readResponse.result)
     }
-  }, [isSuperAdmin, upsertDirectConversation])
+  }, [adminId, upsertDirectConversation])
 
   const loadMessages = useCallback(async (conversation: UnifiedConversation) => {
     setIsLoadingMessages(true)
@@ -572,8 +575,8 @@ export function AdminChatScreen() {
     setScale((prev) => Math.min(Math.max(0.5, prev + delta), 5))
   }
 
-  const partnerTitle = activeConversation ? getConversationTitle(activeConversation, isSuperAdmin) : ''
-  const partnerSubtitle = activeConversation ? getConversationSubtitle(activeConversation, isSuperAdmin) : ''
+  const partnerTitle = activeConversation ? getConversationTitle(activeConversation, adminId) : ''
+  const partnerSubtitle = activeConversation ? getConversationSubtitle(activeConversation, adminId) : ''
   const availableTabs = isSuperAdmin ? ['direct' as ChatTab] : ['tenants' as ChatTab, 'direct' as ChatTab]
   const totalUnread = activeTab === 'direct' ? directUnread : tenantUnread
 
@@ -631,7 +634,7 @@ export function AdminChatScreen() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4 custom-scrollbar">
             {isLoadingConversations ? (
               <div className="space-y-3 p-3">
                 {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-3xl bg-white/10" />)}
@@ -641,10 +644,12 @@ export function AdminChatScreen() {
             ) : visibleConversations.map((conversation) => {
               const direct = isDirectConversation(conversation)
               const selected = activeConversation?.id === conversation.id && (activeTab === 'direct') === direct
-              const unread = direct ? getDirectUnread(conversation, isSuperAdmin) : Number(conversation.admin_unread_count || 0)
-              const title = direct ? getConversationTitle(conversation, isSuperAdmin) : `Phòng ${conversation.room_number || '—'} · ${conversation.tenant_name || 'Khách thuê'}`
+              const unread = direct ? getDirectUnread(conversation, adminId) : Number(conversation.admin_unread_count || 0)
+              const title = direct ? getConversationTitle(conversation, adminId) : `Phòng ${conversation.room_number || '—'} · ${conversation.tenant_name || 'Khách thuê'}`
               const avatarText = direct
-                ? (isSuperAdmin ? (conversation.manager_name || conversation.manager_username || 'QL') : (conversation.super_admin_name || conversation.super_admin_username || 'SA')).slice(0, 2).toUpperCase()
+                ? (Number(conversation.super_admin_id) === Number(adminId)
+                  ? (conversation.manager_name || conversation.manager_username || 'QL')
+                  : (conversation.super_admin_name || conversation.super_admin_username || 'SA')).slice(0, 2).toUpperCase()
                 : (conversation.room_number || 'P?')
               return (
                 <button
@@ -669,7 +674,7 @@ export function AdminChatScreen() {
                       <p className="truncate text-sm font-black">{title}</p>
                       {unread > 0 && <span className="rounded-full bg-[#006dff] px-2 py-0.5 text-[10px] font-black text-white">{unread}</span>}
                     </div>
-                    <p className="mt-1 truncate text-xs font-bold opacity-70">{conversation.last_message?.body || (direct ? getConversationSubtitle(conversation, isSuperAdmin) : conversation.building_name) || 'Bắt đầu trò chuyện'}</p>
+                    <p className="mt-1 truncate text-xs font-bold opacity-70">{conversation.last_message?.body || (direct ? getConversationSubtitle(conversation, adminId) : conversation.building_name) || 'Bắt đầu trò chuyện'}</p>
                   </div>
                 </button>
               )
@@ -684,7 +689,7 @@ export function AdminChatScreen() {
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#24170d] text-sm font-black text-[#f3c56b]">
                     {isDirectConversation(activeConversation)
-                      ? (isSuperAdmin
+                      ? (Number(activeConversation.super_admin_id) === Number(adminId)
                         ? (activeConversation.manager_name || activeConversation.manager_username || 'QL').slice(0, 2).toUpperCase()
                         : (activeConversation.super_admin_name || activeConversation.super_admin_username || 'SA').slice(0, 2).toUpperCase())
                       : activeConversation.room_number || 'P?'}
@@ -703,7 +708,7 @@ export function AdminChatScreen() {
               <div
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 custom-scrollbar"
               >
                 {isLoadingMessages ? (
                   <div className="flex h-full items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#8b5e34]" /></div>
@@ -796,22 +801,24 @@ export function AdminChatScreen() {
   )
 }
 
-function getConversationTitle(conversation: UnifiedConversation, isSuperAdmin: boolean) {
+function getConversationTitle(conversation: UnifiedConversation, currentAdminId?: number) {
   if (isDirectConversation(conversation)) {
-    if (isSuperAdmin) return conversation.manager_name || conversation.manager_username || `Quản lý #${conversation.manager_admin_id}`
-    return conversation.super_admin_name || conversation.super_admin_username || `Superadmin #${conversation.super_admin_id || '?'}`
+    if (Number(conversation.super_admin_id) === Number(currentAdminId)) {
+      return conversation.manager_name || conversation.manager_username || `Quản lý #${conversation.manager_admin_id}`
+    }
+    return conversation.super_admin_name || conversation.super_admin_username || `Quản lý #${conversation.super_admin_id}`
   }
 
   return conversation.tenant_name || `Khách thuê #${conversation.tenant_id}`
 }
 
-function getConversationSubtitle(conversation: UnifiedConversation, isSuperAdmin: boolean) {
+function getConversationSubtitle(conversation: UnifiedConversation, currentAdminId?: number) {
   if (isDirectConversation(conversation)) {
-    if (isSuperAdmin) {
+    if (Number(conversation.super_admin_id) === Number(currentAdminId)) {
       const buildingNames = conversation.manager_building_names?.length ? conversation.manager_building_names.join(', ') : `${conversation.manager_buildings_count || 0} tòa nhà`
       return `${conversation.manager_phone || conversation.manager_email || 'Chưa có liên hệ'} • ${buildingNames}`
     }
-    return 'Superadmin StayHub'
+    return 'Ban Quản trị / Quản lý StayHub'
   }
 
   return `${conversation.building_name || 'Tòa nhà'} • Phòng ${conversation.room_number || conversation.room_id}`
