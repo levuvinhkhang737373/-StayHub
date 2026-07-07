@@ -907,9 +907,9 @@ class _ReadingDialogState extends State<_ReadingDialog> {
       preview = Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: const [
-          Icon(Icons.photo_camera_back_outlined, color: Colors.grey),
+          Icon(Icons.photo_outlined, color: Colors.grey, size: 24),
           SizedBox(height: 4),
-          Text('Chưa có ảnh', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+          Text('Chưa có ảnh', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
         ],
       );
     }
@@ -925,7 +925,11 @@ class _ReadingDialogState extends State<_ReadingDialog> {
               child: Container(
                 width: 96,
                 height: 86,
-                color: const Color(0xFFF5F2EA),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F2EA),
+                  border: Border.all(color: const Color(0xFFE4E2D7)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -946,20 +950,34 @@ class _ReadingDialogState extends State<_ReadingDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  OutlinedButton.icon(
+                  OutlinedButton(
                     onPressed: (_isSaving || isAnalyzing) ? null : () => _pickAndAnalyzeImage(isElectric: isElectric),
-                    icon: Icon(imageError == null ? Icons.camera_alt : Icons.refresh, size: 16),
-                    label: Text(imageError == null ? 'Chụp ảnh đồng hồ' : 'Chụp lại'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF1C1917),
+                      backgroundColor: accentColor.withValues(alpha: 0.05),
                       side: BorderSide(color: accentColor.withValues(alpha: 0.45)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(imageError == null ? Icons.camera_alt : Icons.refresh, size: 16, color: const Color(0xFF1C1917)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            imageError == null ? 'Chụp ảnh\nđồng hồ' : 'Chụp lại',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, height: 1.2),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   const Text(
                     'Ảnh được nén ~800KB, AI chỉ gợi ý và vẫn sửa tay được.',
-                    style: TextStyle(fontSize: 10, color: Colors.grey, height: 1.3),
+                    style: TextStyle(fontSize: 9.5, color: Colors.grey, height: 1.3),
                   ),
                 ],
               ),
@@ -968,7 +986,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
         ),
         if (isAnalyzing) ...[
           const SizedBox(height: 8),
-          Text('🤖 AI đang phân tích ảnh...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: accentColor)),
+          Text('🤖 AI đang phân tích ảnh...', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor)),
         ],
         if (aiBadge != null) ...[
           const SizedBox(height: 8),
@@ -991,7 +1009,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.orange.withValues(alpha: 0.18)),
             ),
-            child: Text(aiWarning, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.orange)),
+            child: Text(aiWarning, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange)),
           ),
         ],
         if (imageError != null) ...[
@@ -1003,7 +1021,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.red.withValues(alpha: 0.18)),
             ),
-            child: Text(_imageErrorMessage(imageError), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red)),
+            child: Text(_imageErrorMessage(imageError), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red)),
           ),
         ],
       ],
@@ -1185,14 +1203,26 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                   child: InputDecorator(
                     decoration: InputDecoration(
                       labelText: 'Ngày ghi nhận số liệu',
-                      prefixIcon: const Icon(Icons.calendar_today, size: 18),
+                      prefixIcon: const Icon(Icons.calendar_today, size: 18, color: Color(0xFF1C1917)),
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                      ),
                     ),
                     child: Text(
                       _formatDate(_readingDate),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1C1917)),
                     ),
                   ),
                 ),
@@ -1201,11 +1231,11 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                 // Electric Meter Inputs
                 if (_elecMeter?.id != 0) ...[
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.amber.withValues(alpha: 0.2)),
+                      color: Colors.amber.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.25)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1216,24 +1246,32 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                             SizedBox(width: 6),
                             Text(
                               'Đồng hồ Điện',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF8A4F18)),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF8A4F18)),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         _buildAiImagePanel(isElectric: true),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                         Row(
                           children: [
                             Expanded(
                               child: TextFormField(
                                 initialValue: _elecMeter!.previousReading.toString(),
                                 readOnly: true,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Chỉ số cũ',
                                   filled: true,
-                                  fillColor: Color(0xFFF0EFEA),
-                                  border: OutlineInputBorder(),
+                                  fillColor: const Color(0xFFF2F1EC),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1248,7 +1286,19 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                                   errorText: _elecManualError,
                                   fillColor: Colors.white,
                                   filled: true,
-                                  border: const OutlineInputBorder(),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                                  ),
                                 ),
                                 onChanged: (value) => _handleManualReadingChanged(isElectric: true, value: value),
                                 validator: (val) {
@@ -1256,7 +1306,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                                   final numVal = double.tryParse(val);
                                   if (numVal == null) return 'Phải là số';
                                   if (numVal < _elecMeter!.previousReading) {
-                                    return 'Chỉ số mới không được nhỏ hơn chỉ số cũ (${_elecMeter!.previousReading}).';
+                                    return 'Không hợp lệ';
                                   }
                                   return null;
                                 },
@@ -1268,7 +1318,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                           const SizedBox(height: 8),
                           Text(
                             'Sử dụng: ${_elecUsage.toStringAsFixed(1)} kWh (${_formatCurrency(_elecUsage * widget.electricPrice)})',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF8A4F18)),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF8A4F18)),
                           ),
                         ],
                       ],
@@ -1280,11 +1330,11 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                 // Water Meter Inputs
                 if (_waterMeter?.id != 0) ...[
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                      color: Colors.blue.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.blue.withValues(alpha: 0.25)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1295,24 +1345,32 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                             SizedBox(width: 6),
                             Text(
                               'Đồng hồ Nước',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.cyan),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyan),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         _buildAiImagePanel(isElectric: false),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                         Row(
                           children: [
                             Expanded(
                               child: TextFormField(
                                 initialValue: _waterMeter!.previousReading.toString(),
                                 readOnly: true,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Chỉ số cũ',
                                   filled: true,
-                                  fillColor: Color(0xFFF0EFEA),
-                                  border: OutlineInputBorder(),
+                                  fillColor: const Color(0xFFF2F1EC),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1327,7 +1385,19 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                                   errorText: _waterManualError,
                                   fillColor: Colors.white,
                                   filled: true,
-                                  border: const OutlineInputBorder(),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                                  ),
                                 ),
                                 onChanged: (value) => _handleManualReadingChanged(isElectric: false, value: value),
                                 validator: (val) {
@@ -1335,7 +1405,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                                   final numVal = double.tryParse(val);
                                   if (numVal == null) return 'Phải là số';
                                   if (numVal < _waterMeter!.previousReading) {
-                                    return 'Chỉ số mới không được nhỏ hơn chỉ số cũ (${_waterMeter!.previousReading}).';
+                                    return 'Không hợp lệ';
                                   }
                                   return null;
                                 },
@@ -1347,7 +1417,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                           const SizedBox(height: 8),
                           Text(
                             'Sử dụng: ${_waterUsage.toStringAsFixed(1)} m³ (${_formatCurrency(_waterUsage * widget.waterPrice)})',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.cyan),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Colors.cyan),
                           ),
                         ],
                       ],
@@ -1366,7 +1436,19 @@ class _ReadingDialogState extends State<_ReadingDialog> {
                     hintText: 'Thêm ghi chú của kỳ này...',
                     filled: true,
                     fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
