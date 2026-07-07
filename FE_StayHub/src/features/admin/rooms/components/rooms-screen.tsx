@@ -47,6 +47,8 @@ export function RoomsScreen() {
   const [isStatusSaving, setIsStatusSaving] = useState(false)
   const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, showAlert, closeConfirm } = useConfirmModal()
   const { session } = useAdminSession()
+  const SUPERADMIN_ROLE = Number(import.meta.env.VITE_SUPERADMIN_ROLE)
+  const isSuperAdmin = session?.admin?.role === SUPERADMIN_ROLE
 
   const [keyword, setKeyword] = useState('')
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>('')
@@ -54,6 +56,28 @@ export function RoomsScreen() {
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [buildings, setBuildings] = useState<any[]>([])
   const [roomTypes, setRoomTypes] = useState<any[]>([])
+
+  const defaultBuildingId = useMemo(() => {
+    if (isSuperAdmin) return ''
+    return buildings[0]?.id ? String(buildings[0].id) : ''
+  }, [isSuperAdmin, buildings])
+
+  const hasActiveFilters = useMemo(() => {
+    return Boolean(
+      keyword.trim() ||
+      selectedBuildingId !== defaultBuildingId ||
+      selectedRoomTypeId ||
+      selectedStatus
+    )
+  }, [keyword, selectedBuildingId, defaultBuildingId, selectedRoomTypeId, selectedStatus])
+
+  const clearFilters = useCallback(() => {
+    setKeyword('')
+    setSelectedBuildingId(defaultBuildingId)
+    setSelectedRoomTypeId('')
+    setSelectedStatus('')
+    setCurrentPage(1)
+  }, [defaultBuildingId])
 
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const isInitialMount = useRef(true)
@@ -130,8 +154,7 @@ export function RoomsScreen() {
     setCurrentPage(1)
   }, [keyword, selectedBuildingId, selectedRoomTypeId, selectedStatus])
 
-  const SUPERADMIN_ROLE = Number(import.meta.env.VITE_SUPERADMIN_ROLE)
-  const isSuperAdmin = session?.admin?.role === SUPERADMIN_ROLE
+
 
   const loadRooms = useCallback(async (isInitial = false) => {
     try {
@@ -310,25 +333,30 @@ export function RoomsScreen() {
         {activeMessage || errorMessage || successMessage}
       </div>
 
-      {/* Search & Filter Controls */}
-      <div className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/60 p-5 shadow-sm backdrop-blur-sm space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 items-start">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Tìm theo Số Phòng</label>
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
+      {/* Table Section */}
+      <div className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
+        {/* Table Header / Filters */}
+        <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
+          <div className="grid gap-3 lg:grid-cols-[minmax(12rem,1.5fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
+            <div className="relative min-w-0">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
               <input
                 type="text"
-                placeholder="Nhập số phòng..."
+                placeholder="Tìm số phòng..."
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                className="h-12 w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] pl-10 pr-3 text-xs font-bold text-[#3d2a18] shadow-sm outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                className="h-11 w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] pl-11 pr-24 text-xs font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
               />
+              <button
+                type="button"
+                onClick={clearFilters}
+                disabled={!hasActiveFilters}
+                className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black text-[#8b5e34] transition hover:bg-[#f3c56b]/16 hover:text-[#24170d] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <X className="h-3.5 w-3.5" /> Xóa lọc
+              </button>
             </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Tòa nhà</label>
             <AdminSelect
               value={selectedBuildingId}
               options={
@@ -339,10 +367,7 @@ export function RoomsScreen() {
               onChange={(val) => setSelectedBuildingId(String(val))}
               placeholder={isSuperAdmin ? "Tất cả tòa nhà" : undefined}
             />
-          </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Loại phòng</label>
             <AdminSelect
               value={selectedRoomTypeId}
               options={[
@@ -352,10 +377,7 @@ export function RoomsScreen() {
               onChange={(val) => setSelectedRoomTypeId(String(val))}
               placeholder="Tất cả loại phòng"
             />
-          </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Trạng thái</label>
             <AdminSelect
               value={selectedStatus}
               options={[
@@ -370,52 +392,8 @@ export function RoomsScreen() {
           </div>
         </div>
 
-        {(keyword || selectedBuildingId || selectedRoomTypeId || selectedStatus) && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#3d2a18]/5">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/65">Bộ lọc hoạt động:</span>
-            {keyword && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f3c56b]/45 bg-[#f3c56b]/15 px-3 py-1 text-[11px] font-black text-[#8a4f18]">
-                Số phòng: {keyword}
-                <button type="button" onClick={() => setKeyword('')} className="text-[#a65f16] hover:text-[#8a4f18]"><X className="h-3 w-3" /></button>
-              </span>
-            )}
-            {selectedBuildingId && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f3c56b]/45 bg-[#f3c56b]/15 px-3 py-1 text-[11px] font-black text-[#8a4f18]">
-                Tòa nhà: {buildings.find(b => String(b.id) === selectedBuildingId)?.name}
-                <button type="button" onClick={() => setSelectedBuildingId('')} className="text-[#a65f16] hover:text-[#8a4f18]"><X className="h-3 w-3" /></button>
-              </span>
-            )}
-            {selectedRoomTypeId && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f3c56b]/45 bg-[#f3c56b]/15 px-3 py-1 text-[11px] font-black text-[#8a4f18]">
-                Loại phòng: {roomTypes.find(rt => String(rt.id) === selectedRoomTypeId)?.name}
-                <button type="button" onClick={() => setSelectedRoomTypeId('')} className="text-[#a65f16] hover:text-[#8a4f18]"><X className="h-3 w-3" /></button>
-              </span>
-            )}
-            {selectedStatus && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f3c56b]/45 bg-[#f3c56b]/15 px-3 py-1 text-[11px] font-black text-[#8a4f18]">
-                Trạng thái: {selectedStatus === '1' ? 'Hoạt động' : selectedStatus === '2' ? 'Đang bảo trì' : 'Ngưng sử dụng'}
-                <button type="button" onClick={() => setSelectedStatus('')} className="text-[#a65f16] hover:text-[#8a4f18]"><X className="h-3 w-3" /></button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setKeyword('')
-                setSelectedBuildingId(isSuperAdmin ? '' : (buildings[0]?.id ? String(buildings[0].id) : ''))
-                setSelectedRoomTypeId('')
-                setSelectedStatus('')
-              }}
-              className="text-xs font-black text-[#8b5e34]/65 underline underline-offset-4 transition hover:text-[#24170d]"
-            >
-              Xóa bộ lọc
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Table Section */}
-      <div className="overflow-x-auto rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
-        <table className="w-full min-w-[1000px] text-left">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px] text-left">
           <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
             <tr>
               <th className="px-5 py-4">Số Phòng</th>
@@ -542,8 +520,9 @@ export function RoomsScreen() {
             )}
           </tbody>
         </table>
+      </div>
 
-        {/** Pagination */}
+      {/** Pagination */}
         {!isLoading && totalPages > 1 && (
           <div className="flex flex-col gap-4 border-t border-[#3d2a18]/10 bg-[#fff8eb]/85 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
             <p className="text-xs font-black text-[#6f6254]">

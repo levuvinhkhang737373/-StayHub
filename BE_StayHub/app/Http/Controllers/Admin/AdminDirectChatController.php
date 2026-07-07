@@ -238,15 +238,32 @@ class AdminDirectChatController extends Controller
 
     private function syncConversationsFor(Admin $admin): void
     {
-        Admin::query()
-            ->where('status', Admin::STATUS_ACTIVE)
-            ->where('id', '!=', $admin->id)
-            ->select('id')
-            ->chunkById(100, function ($otherAdmins) use ($admin): void {
-                foreach ($otherAdmins as $otherAdmin) {
-                    $this->firstOrCreateConversation($admin->id, $otherAdmin->id);
-                }
-            });
+        if (AdminScope::isSuperAdmin($admin)) {
+            Admin::query()
+                ->where('role', Admin::ROLE_BUILDING_MANAGER)
+                ->where('status', Admin::STATUS_ACTIVE)
+                ->whereHas('managedBuildings', function (Builder $query): void {
+                    $query->where('status', Building::STATUS_ACTIVE);
+                })
+                ->where('id', '!=', $admin->id)
+                ->select('id')
+                ->chunkById(100, function ($otherAdmins) use ($admin): void {
+                    foreach ($otherAdmins as $otherAdmin) {
+                        $this->firstOrCreateConversation($admin->id, $otherAdmin->id);
+                    }
+                });
+        } else {
+            Admin::query()
+                ->where('role', Admin::ROLE_SUPER_ADMIN)
+                ->where('status', Admin::STATUS_ACTIVE)
+                ->where('id', '!=', $admin->id)
+                ->select('id')
+                ->chunkById(100, function ($otherAdmins) use ($admin): void {
+                    foreach ($otherAdmins as $otherAdmin) {
+                        $this->firstOrCreateConversation($admin->id, $otherAdmin->id);
+                    }
+                });
+        }
     }
 
     private function activeBuildingManagerQuery(): Builder

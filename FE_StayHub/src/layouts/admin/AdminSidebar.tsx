@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LogOut, User, Bell, MessageCircle } from 'lucide-react'
-import { isBuildingManagerRole, isSuperAdminRole, useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
+import { isBuildingManagerRole, useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { logoutAdmin } from '../../features/admin/auth/services/admin-auth.service'
 import { AdminNavList } from '../../features/admin/shared/components/AdminNavList'
 import { getAdminRoleLabel, getVisibleAdminNavItems } from '../../features/admin/shared/config/admin-navigation'
@@ -28,6 +28,7 @@ export function AdminSidebar() {
   const loadUnreadCount = useCallback(async () => {
     try {
       const role = session?.admin?.role
+      const adminId = session?.admin?.id
       let total = 0
 
       if (isBuildingManagerRole(role)) {
@@ -37,14 +38,16 @@ export function AdminSidebar() {
 
       const directRes = await fetchAdminDirectConversations({ per_page: 100 })
       total += directRes.result?.data?.reduce((sum, item) => {
-        const unread = isSuperAdminRole(role) ? item.admin_unread_count : item.tenant_unread_count
+        const unread = Number(item.super_admin_id) === Number(adminId)
+          ? item.admin_unread_count
+          : item.tenant_unread_count
         return sum + Number(unread || 0)
       }, 0) || 0
       setChatUnreadCount(total)
     } catch (e) {
       console.error(e)
     }
-  }, [session?.admin?.role])
+  }, [session])
 
   useEffect(() => {
     if (!session?.admin?.id) return

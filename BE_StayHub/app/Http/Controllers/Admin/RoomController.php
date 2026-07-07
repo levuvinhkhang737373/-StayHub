@@ -45,6 +45,37 @@ class RoomController extends Controller
             $query = Room::with("building")->with("roomType")->with('images')->with('assets');
             //Super admin xem toàn bộ, quản lý tòa nhà chỉ xem tòa nhà mình quản lý, role khác không thấy dữ liệu.
             $query = AdminScope::applyBuildingScope($query, $admin, 'building_id');
+
+            // Lọc theo từ khóa (số phòng, tầng, tên tòa nhà hoặc tên loại phòng)
+            if ($request->filled('keyword')) {
+                $keyword = trim($request->input('keyword'));
+                $query->where(function ($q) use ($keyword) {
+                    $q->where('room_number', 'like', '%' . $keyword . '%')
+                      ->orWhere('floor', 'like', '%' . $keyword . '%')
+                      ->orWhereHas('building', function ($bq) use ($keyword) {
+                          $bq->where('name', 'like', '%' . $keyword . '%');
+                      })
+                      ->orWhereHas('roomType', function ($rtq) use ($keyword) {
+                          $rtq->where('name', 'like', '%' . $keyword . '%');
+                      });
+                });
+            }
+
+            // Lọc theo tòa nhà
+            if ($request->filled('building_id')) {
+                $query->where('building_id', $request->input('building_id'));
+            }
+
+            // Lọc theo loại phòng
+            if ($request->filled('room_type_id')) {
+                $query->where('room_type_id', $request->input('room_type_id'));
+            }
+
+            // Lọc theo trạng thái
+            if ($request->filled('status')) {
+                $query->where('status', $request->input('status'));
+            }
+
             $rooms = $query->orderBy('id', 'desc')->get();
             return ApiResponse::responseJson(true, "danh sách phòng", 200, $rooms, 200);
         } catch (\Exception $e) {
