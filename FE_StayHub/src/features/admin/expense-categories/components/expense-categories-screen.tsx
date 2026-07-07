@@ -282,7 +282,7 @@ export function ExpenseCategoriesScreen() {
 
             <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
-                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">TÀI CHÍNH & BÁO CÁO / CẤU HÌNH KHOẢN CHI</span>
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">TÀI CHÍNH & BÁO CÁO</span>
                 <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
                   <Tags className="h-8 w-8 text-[#f3c56b] shrink-0" />
                   Danh mục phiếu chi

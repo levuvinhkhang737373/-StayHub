@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Events\ChatConversationRead;
 use App\Events\ChatMessageSent;
 use App\Events\NotificationSent;
+use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Chat\IndexConversationRequest;
@@ -27,6 +28,10 @@ class ChatController extends Controller
         try {
             /** @var Admin $admin */
             $admin = $request->user('admin');
+            if (! $admin || ! AdminScope::isBuildingManager($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập đoạn chat khách thuê', 403, null, 403);
+            }
+
             $validatedData = $request->validated();
 
             // Auto-create/sync conversations for all active tenants in buildings managed by this Admin
@@ -97,6 +102,7 @@ class ChatController extends Controller
 
             $query = ChatConversation::query()
                 ->with(['building', 'room', 'tenant', 'manager', 'lastMessage.sender'])
+                ->where('conversation_type', ChatConversation::TYPE_TENANT_MANAGER)
                 ->where('manager_admin_id', $admin->id)
                 ->when(isset($validatedData['building_id']), fn (Builder $query): Builder => $query->where('building_id', (int) $validatedData['building_id']))
                 ->when($request->boolean('unread'), fn (Builder $query): Builder => $query->where('admin_unread_count', '>', 0))
@@ -261,6 +267,14 @@ class ChatController extends Controller
     {
         if (! $admin) {
             return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập với tài khoản admin', 401, null, 401);
+        }
+
+        if (! AdminScope::isBuildingManager($admin)) {
+            return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập đoạn chat khách thuê', 403, null, 403);
+        }
+
+        if ((int) $conversation->conversation_type !== ChatConversation::TYPE_TENANT_MANAGER) {
+            return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập đoạn chat khách thuê', 403, null, 403);
         }
 
         if ((int) $conversation->manager_admin_id !== (int) $admin->id) {

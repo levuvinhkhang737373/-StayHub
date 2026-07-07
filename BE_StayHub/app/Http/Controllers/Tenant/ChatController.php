@@ -199,6 +199,7 @@ class ChatController extends Controller
 
         try {
             $conversation = ChatConversation::query()->firstOrCreate([
+                'conversation_type' => ChatConversation::TYPE_TENANT_MANAGER,
                 'tenant_id' => $tenant->id,
                 'building_id' => $building->id,
             ], [
@@ -208,6 +209,7 @@ class ChatController extends Controller
             ]);
         } catch (UniqueConstraintViolationException) {
             $conversation = ChatConversation::query()
+                ->where('conversation_type', ChatConversation::TYPE_TENANT_MANAGER)
                 ->where('tenant_id', $tenant->id)
                 ->where('building_id', $building->id)
                 ->firstOrFail();

@@ -242,28 +242,54 @@ class NotificationController extends Controller
     {
         $query = Notification::query()
             ->where(function ($q) {
-                $q->whereNotNull('created_by')
-                  ->orWhereIn('title', [
-                      'Yêu cầu sửa chữa mới', 
-                      'Phản hồi mới từ khách thuê', 
-                      'Hợp đồng hết hạn', 
-                      'Thanh toán đặt cọc thành công',
-                      'Hợp đồng đã được ký',
-                      'Hóa đơn đã được thanh toán',
-                      'Thanh toán hóa đơn thành công',
-                      'Tin nhắn mới từ khách thuê'
-                  ]);
+                $q->where(function ($nonChatQuery) {
+                    $nonChatQuery->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
+                        ->where(function ($scopedQuery) {
+                            $scopedQuery->whereNotNull('created_by')
+                                ->orWhereIn('title', [
+                                    'Yêu cầu sửa chữa mới',
+                                    'Phản hồi mới từ khách thuê',
+                                    'Hợp đồng hết hạn',
+                                    'Thanh toán đặt cọc thành công',
+                                    'Hợp đồng đã được ký',
+                                    'Hóa đơn đã được thanh toán',
+                                    'Thanh toán hóa đơn thành công',
+                                ]);
+                        });
+                })->orWhere(function ($chatQuery) {
+                    $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
+                        ->where('target_type', Notification::TARGET_TYPE_ADMIN)
+                        ->whereNotNull('target_admin_id');
+                });
             });
+
+        $query->where(function ($q) use ($admin) {
+            $q->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
+                ->orWhere(function ($chatQuery) use ($admin) {
+                    $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
+                        ->where('target_type', Notification::TARGET_TYPE_ADMIN)
+                        ->where('target_admin_id', $admin->id);
+                });
+        });
 
         if (! AdminScope::isSuperAdmin($admin)) {
             $query->where(function ($q) use ($admin) {
-                $q->whereIn('building_id', function ($db) use ($admin) {
-                    $db->select('id')
-                       ->from('buildings')
-                       ->where('manager_admin_id', $admin->id);
-                })
-                ->orWhere('target_admin_id', $admin->id)
-                ->orWhere('created_by', $admin->id);
+                $q->where(function ($nonChatQuery) use ($admin) {
+                    $nonChatQuery->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
+                        ->where(function ($scopedQuery) use ($admin) {
+                            $scopedQuery->whereIn('building_id', function ($db) use ($admin) {
+                                $db->select('id')
+                                    ->from('buildings')
+                                    ->where('manager_admin_id', $admin->id);
+                            })
+                            ->orWhere('target_admin_id', $admin->id)
+                            ->orWhere('created_by', $admin->id);
+                        });
+                })->orWhere(function ($chatQuery) use ($admin) {
+                    $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
+                        ->where('target_type', Notification::TARGET_TYPE_ADMIN)
+                        ->where('target_admin_id', $admin->id);
+                });
             });
         }
 

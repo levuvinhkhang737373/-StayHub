@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LogOut, User, Bell, MessageCircle } from 'lucide-react'
-import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
+import { isBuildingManagerRole, isSuperAdminRole, useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { logoutAdmin } from '../../features/admin/auth/services/admin-auth.service'
 import { AdminNavList } from '../../features/admin/shared/components/AdminNavList'
 import { getAdminRoleLabel, getVisibleAdminNavItems } from '../../features/admin/shared/config/admin-navigation'
@@ -9,7 +9,7 @@ import { AccountSettingsModal } from './AccountSettingsModal'
 import { resolveAssetUrl } from '../../shared/lib/utils/asset-url'
 import { useAdminNotifications } from '../../features/admin/notifications/hooks/admin-notification-context'
 import { useAdminSocket } from '../../shared/lib/socket/socket-context'
-import { fetchAdminChatConversations } from '../../features/shared/chat/services/chat.service'
+import { fetchAdminChatConversations, fetchAdminDirectConversations } from '../../features/shared/chat/services/chat.service'
 import { cn } from '../../shared/lib/utils/cn'
 
 export function AdminSidebar() {
@@ -27,15 +27,24 @@ export function AdminSidebar() {
 
   const loadUnreadCount = useCallback(async () => {
     try {
-      const res = await fetchAdminChatConversations({ per_page: 100 })
-      if (res.status && res.result?.data) {
-        const total = res.result.data.reduce((sum, item) => sum + Number(item.admin_unread_count || 0), 0)
-        setChatUnreadCount(total)
+      const role = session?.admin?.role
+      let total = 0
+
+      if (isBuildingManagerRole(role)) {
+        const tenantRes = await fetchAdminChatConversations({ per_page: 100 })
+        total += tenantRes.result?.data?.reduce((sum, item) => sum + Number(item.admin_unread_count || 0), 0) || 0
       }
+
+      const directRes = await fetchAdminDirectConversations({ per_page: 100 })
+      total += directRes.result?.data?.reduce((sum, item) => {
+        const unread = isSuperAdminRole(role) ? item.admin_unread_count : item.tenant_unread_count
+        return sum + Number(unread || 0)
+      }, 0) || 0
+      setChatUnreadCount(total)
     } catch (e) {
       console.error(e)
     }
-  }, [])
+  }, [session?.admin?.role])
 
   useEffect(() => {
     if (!session?.admin?.id) return

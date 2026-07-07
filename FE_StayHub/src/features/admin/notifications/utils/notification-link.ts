@@ -1,6 +1,8 @@
 import type { AdminNotificationResource } from '../types/notification-api.model'
 
-type LinkableNotification = Pick<AdminNotificationResource, 'action_url' | 'content' | 'notification_type' | 'tenant_id'>
+type LinkableNotification = Pick<AdminNotificationResource, 'action_url' | 'content' | 'notification_type' | 'tenant_id'> & {
+  direct_conversation_id?: number | string | null
+}
 
 function normalizeAdminPath(path: string | null | undefined) {
   const trimmed = path?.trim()
@@ -40,6 +42,10 @@ export function resolveNotificationActionPath(notification: LinkableNotification
   }
 
   if (notification.notification_type === 6) {
+    if (notification.direct_conversation_id) {
+      return `/admin/chat?tab=direct&direct_conversation_id=${notification.direct_conversation_id}`
+    }
+
     return notification.tenant_id ? `/admin/chat?tenant_id=${notification.tenant_id}` : '/admin/chat'
   }
 

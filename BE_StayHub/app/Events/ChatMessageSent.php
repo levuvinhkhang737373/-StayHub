@@ -27,6 +27,14 @@ class ChatMessageSent implements ShouldBroadcast
     {
         $conversation = $this->message->conversation;
 
+        if ((int) $conversation->conversation_type === \App\Models\ChatConversation::TYPE_SUPER_ADMIN_MANAGER) {
+            return [
+                new PrivateChannel('chat.conversation.' . $this->message->conversation_id),
+                new PrivateChannel('chat.admin.' . $conversation->super_admin_id),
+                new PrivateChannel('chat.admin.' . $conversation->manager_admin_id),
+            ];
+        }
+
         return [
             new PrivateChannel('chat.conversation.' . $this->message->conversation_id),
             new PrivateChannel('chat.admin.' . $conversation->manager_admin_id),
@@ -36,7 +44,7 @@ class ChatMessageSent implements ShouldBroadcast
 
     public function broadcastWith(): array
     {
-        $message = $this->message->loadMissing(['sender', 'conversation.building', 'conversation.room', 'conversation.tenant', 'conversation.manager', 'conversation.lastMessage.sender']);
+        $message = $this->message->loadMissing(['sender', 'conversation.building', 'conversation.room', 'conversation.tenant', 'conversation.manager.managedBuildings', 'conversation.superAdmin', 'conversation.lastMessage.sender']);
 
         return [
             'message' => (new ChatMessageResource($message))->resolve(),

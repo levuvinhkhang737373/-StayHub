@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AssetTemplateController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BuildingController;
 use App\Http\Controllers\Admin\BulkGenerateInvoiceController;
+use App\Http\Controllers\Admin\AdminDirectChatController;
 use App\Http\Controllers\Admin\ChatController as AdminChatController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ContractController;
@@ -125,6 +126,10 @@ Route::prefix('admin')->group(function (): void {
         Route::get('chat/conversations/{conversation}/messages', [AdminChatController::class, 'messages']);
         Route::post('chat/conversations/{conversation}/messages', [AdminChatController::class, 'sendMessage'])->middleware('throttle:chat-send');
         Route::patch('chat/conversations/{conversation}/read', [AdminChatController::class, 'markAsRead']);
+        Route::get('chat/direct-conversations', [AdminDirectChatController::class, 'index']);
+        Route::get('chat/direct-conversations/{conversation}/messages', [AdminDirectChatController::class, 'messages']);
+        Route::post('chat/direct-conversations/{conversation}/messages', [AdminDirectChatController::class, 'sendMessage'])->middleware('throttle:chat-send');
+        Route::patch('chat/direct-conversations/{conversation}/read', [AdminDirectChatController::class, 'markAsRead']);
 
         // =========================Contracts================================
         Route::get('contracts/available-rooms', [ContractController::class, 'availableRooms']);

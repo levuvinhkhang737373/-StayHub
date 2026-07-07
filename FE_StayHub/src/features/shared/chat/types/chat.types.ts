@@ -19,16 +19,27 @@ export interface ChatMessageResource {
 
 export interface ChatConversationResource {
   id: number
-  building_id: number
+  conversation_type?: 1 | 2 | number
+  building_id: number | null
   building_name?: string | null
-  room_id: number
+  room_id: number | null
   room_number?: string | null
-  tenant_id: number
+  tenant_id: number | null
   tenant_name?: string | null
   tenant_phone?: string | null
   tenant_avatar_url?: string | null
   manager_admin_id: number
   manager_name?: string | null
+  manager_username?: string | null
+  manager_phone?: string | null
+  manager_email?: string | null
+  manager_avatar_url?: string | null
+  manager_buildings_count?: number
+  manager_building_names?: string[]
+  super_admin_id?: number | null
+  super_admin_name?: string | null
+  super_admin_username?: string | null
+  super_admin_avatar_url?: string | null
   last_message_id?: number | null
   last_message?: ChatMessageResource | null
   last_message_at?: string | null
@@ -73,6 +84,6 @@ export interface ChatMessageSentEvent {
 }
 
 export interface ChatConversationReadEvent {
-  reader_type: 'admin' | 'tenant' | string
+  reader_type: 'admin' | 'tenant' | 'super_admin' | 'manager' | string
   conversation: ChatConversationResource
 }

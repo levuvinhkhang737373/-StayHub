@@ -10,10 +10,12 @@ return new class extends Migration
     {
         Schema::create('chat_conversations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('building_id')->constrained('buildings')->restrictOnDelete();
-            $table->foreignId('room_id')->constrained('rooms')->restrictOnDelete();
-            $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
+            $table->unsignedTinyInteger('conversation_type')->default(1);
+            $table->foreignId('building_id')->nullable()->constrained('buildings')->restrictOnDelete();
+            $table->foreignId('room_id')->nullable()->constrained('rooms')->restrictOnDelete();
+            $table->foreignId('tenant_id')->nullable()->constrained('tenants')->cascadeOnDelete();
             $table->foreignId('manager_admin_id')->constrained('admins')->restrictOnDelete();
+            $table->foreignId('super_admin_id')->nullable()->constrained('admins')->restrictOnDelete();
             $table->foreignId('last_message_id')->nullable();
             $table->timestamp('last_message_at')->nullable();
             $table->unsignedInteger('tenant_unread_count')->default(0);
@@ -24,7 +26,10 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['tenant_id', 'building_id'], 'chat_conversations_tenant_building_unique');
+            $table->unique(['super_admin_id', 'manager_admin_id'], 'chat_conversations_super_manager_unique');
+            $table->index(['conversation_type', 'status', 'last_message_at'], 'chat_conversations_type_inbox_index');
             $table->index(['manager_admin_id', 'status', 'last_message_at'], 'chat_conversations_manager_inbox_index');
+            $table->index(['super_admin_id', 'status', 'last_message_at'], 'chat_conversations_super_admin_inbox_index');
             $table->index(['building_id', 'status', 'last_message_at'], 'chat_conversations_building_inbox_index');
             $table->index(['tenant_id', 'status'], 'chat_conversations_tenant_index');
             $table->index('last_message_id', 'chat_conversations_last_message_index');

@@ -68,7 +68,11 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           // Safeguard to ensure result is an array
           const list = res.result.data || []
 
-          const mapped: ReceivedNotification[] = list.map((item: any) => {
+          const mapped = list.reduce<ReceivedNotification[]>((acc, item: any) => {
+            if (Number(item.notification_type) === 6 && Number(item.target_admin_id) !== Number(adminId)) {
+              return acc
+            }
+
             const notifId = String(item.id)
             const localItem = localNotifs.find((ln) => ln.id === notifId)
 
@@ -83,7 +87,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
 
             const link = resolveNotificationActionPath(item)
 
-            return {
+            acc.push({
               id: notifId,
               title: item.title,
               description: item.content || '',
@@ -91,8 +95,10 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
               read: localItem ? localItem.read : false,
               createdAt: item.created_at,
               type: notifType,
-            }
-          })
+            })
+
+            return acc
+          }, [])
 
           setNotifications(mapped)
           localStorage.setItem(`stayhub_admin_notifications_${adminId}`, JSON.stringify(mapped))
@@ -276,8 +282,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           if (Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
             const link = resolveNotificationActionPath(notification)
 
-            // Skip chat notifications if the current admin is a superadmin
-            if (Number(notification.notification_type) === 6 && isSuperAdmin) {
+            if (Number(notification.notification_type) === 6 && Number(notification.target_admin_id) !== Number(adminId)) {
               return
             }
 
@@ -324,8 +329,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       const notification = event.notification
       if (!notification || Number(notification.notification_type) !== 6) return
 
-      const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
-      if (isSuperAdmin) return
+      if (Number(notification.target_admin_id) !== Number(adminId)) return
 
       window.dispatchEvent(new CustomEvent('notification-refresh', { detail: notification }))
       addNotification({

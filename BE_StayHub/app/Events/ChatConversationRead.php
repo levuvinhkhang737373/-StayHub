@@ -24,6 +24,14 @@ class ChatConversationRead implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
+        if ((int) $this->conversation->conversation_type === \App\Models\ChatConversation::TYPE_SUPER_ADMIN_MANAGER) {
+            return [
+                new PrivateChannel('chat.conversation.' . $this->conversation->id),
+                new PrivateChannel('chat.admin.' . $this->conversation->super_admin_id),
+                new PrivateChannel('chat.admin.' . $this->conversation->manager_admin_id),
+            ];
+        }
+
         return [
             new PrivateChannel('chat.conversation.' . $this->conversation->id),
             new PrivateChannel('chat.admin.' . $this->conversation->manager_admin_id),
@@ -35,7 +43,7 @@ class ChatConversationRead implements ShouldBroadcast
     {
         return [
             'reader_type' => $this->readerType,
-            'conversation' => (new ChatConversationResource($this->conversation->loadMissing(['building', 'room', 'tenant', 'manager', 'lastMessage.sender'])))->resolve(),
+            'conversation' => (new ChatConversationResource($this->conversation->loadMissing(['building', 'room', 'tenant', 'manager.managedBuildings', 'superAdmin', 'lastMessage.sender'])))->resolve(),
         ];
     }
 

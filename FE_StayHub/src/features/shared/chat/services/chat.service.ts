@@ -57,6 +57,44 @@ export async function markAdminChatRead(conversationId: number) {
   })
 }
 
+export async function fetchAdminDirectConversations(params: AdminChatConversationFilters = {}) {
+  return apiRequest<ChatConversationListResult>({
+    url: 'admin/chat/direct-conversations',
+    method: 'GET',
+    params,
+  })
+}
+
+export async function fetchAdminDirectMessages(conversationId: number, params: ChatMessageFilters = {}) {
+  return apiRequest<ChatMessageListResult>({
+    url: `admin/chat/direct-conversations/${conversationId}/messages`,
+    method: 'GET',
+    params,
+  })
+}
+
+export async function sendAdminDirectMessage(conversationId: number, body: string, images?: File[]) {
+  const formData = new FormData()
+  if (body) formData.append('body', body)
+  if (images && images.length > 0) {
+    images.forEach((img) => formData.append('images[]', img))
+  }
+
+  return apiRequest<ChatSendResult>({
+    url: `admin/chat/direct-conversations/${conversationId}/messages`,
+    method: 'POST',
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export async function markAdminDirectRead(conversationId: number) {
+  return apiRequest<ChatConversationResource>({
+    url: `admin/chat/direct-conversations/${conversationId}/read`,
+    method: 'PATCH',
+  })
+}
+
 export async function fetchTenantChatConversation() {
   return apiRequest<ChatConversationResource>({
     url: 'tenant/chat/conversation',

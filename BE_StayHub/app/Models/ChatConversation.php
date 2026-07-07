@@ -14,6 +14,9 @@ class ChatConversation extends Model
     public const STATUS_ACTIVE = 1;
     public const STATUS_CLOSED = 2;
 
+    public const TYPE_TENANT_MANAGER = 1;
+    public const TYPE_SUPER_ADMIN_MANAGER = 2;
+
     public const STATUS_LABELS = [
         self::STATUS_ACTIVE => 'Đang hoạt động',
         self::STATUS_CLOSED => 'Đã đóng',
@@ -24,6 +27,8 @@ class ChatConversation extends Model
         'room_id',
         'tenant_id',
         'manager_admin_id',
+        'super_admin_id',
+        'conversation_type',
         'last_message_id',
         'last_message_at',
         'tenant_unread_count',
@@ -37,6 +42,7 @@ class ChatConversation extends Model
     {
         return [
             'last_message_at' => 'datetime',
+            'conversation_type' => 'integer',
             'tenant_last_read_at' => 'datetime',
             'admin_last_read_at' => 'datetime',
             'tenant_unread_count' => 'integer',
@@ -63,6 +69,11 @@ class ChatConversation extends Model
     public function manager(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'manager_admin_id');
+    }
+
+    public function superAdmin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'super_admin_id');
     }
 
     public function lastMessage(): BelongsTo

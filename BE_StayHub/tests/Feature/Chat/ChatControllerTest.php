@@ -150,6 +150,53 @@ class ChatControllerTest extends TestCase
         Event::assertDispatched(NotificationSent::class);
     }
 
+    public function test_chat_notifications_are_only_visible_to_target_admin(): void
+    {
+        Event::fake([ChatMessageSent::class, NotificationSent::class]);
+
+        $superAdmin = $this->createAdmin('super_chat', 'super_chat@stayhub.local', '0900000003', Admin::ROLE_SUPER_ADMIN);
+
+        $this->actingAs($this->tenant, 'tenant')
+            ->postJson('/api/v1/tenant/chat/messages', ['body' => 'Tin nhắn riêng cho quản lý'])
+            ->assertCreated();
+
+        $this->actingAs($this->manager, 'admin')
+            ->getJson('/api/v1/admin/notifications?per_page=50')
+            ->assertOk()
+            ->assertJsonPath('result.data.0.title', 'Tin nhắn mới từ khách thuê')
+            ->assertJsonPath('result.data.0.target_admin_id', $this->manager->id);
+
+        $this->actingAs($this->otherManager, 'admin')
+            ->getJson('/api/v1/admin/notifications?per_page=50')
+            ->assertOk()
+            ->assertJsonCount(0, 'result.data');
+
+        $this->actingAs($superAdmin, 'admin')
+            ->getJson('/api/v1/admin/notifications?per_page=50')
+            ->assertOk()
+            ->assertJsonCount(0, 'result.data');
+    }
+
+    public function test_super_admin_cannot_open_tenant_manager_conversation(): void
+    {
+        $superAdmin = $this->createAdmin('super_private_chat', 'super_private_chat@stayhub.local', '0900000004', Admin::ROLE_SUPER_ADMIN);
+        $conversation = ChatConversation::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'building_id' => $this->building->id,
+            'room_id' => $this->room->id,
+            'manager_admin_id' => $this->manager->id,
+            'status' => ChatConversation::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($superAdmin, 'admin')
+            ->getJson('/api/v1/admin/chat/conversations')
+            ->assertForbidden();
+
+        $this->actingAs($superAdmin, 'admin')
+            ->getJson('/api/v1/admin/chat/conversations/' . $conversation->id . '/messages')
+            ->assertForbidden();
+    }
+
     public function test_only_assigned_building_manager_can_open_conversation(): void
     {
         $conversation = ChatConversation::query()->create([
@@ -209,7 +256,7 @@ class ChatControllerTest extends TestCase
         Event::assertDispatched(NotificationSent::class);
     }
 
-    private function createAdmin(string $username, string $email, string $phone): Admin
+    private function createAdmin(string $username, string $email, string $phone, int $role = Admin::ROLE_BUILDING_MANAGER): Admin
     {
         return Admin::query()->create([
             'username' => $username,
@@ -217,7 +264,7 @@ class ChatControllerTest extends TestCase
             'email' => $email,
             'phone' => $phone,
             'password' => bcrypt('password'),
-            'role' => Admin::ROLE_BUILDING_MANAGER,
+            'role' => $role,
             'status' => Admin::STATUS_ACTIVE,
             'gender' => Admin::GENDER_MALE,
             'address' => 'Chat Test Address',

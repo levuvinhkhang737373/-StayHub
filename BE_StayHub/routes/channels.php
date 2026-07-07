@@ -28,6 +28,12 @@ Broadcast::channel('chat.conversation.{conversationId}', function ($user, $conve
         return false;
     }
 
+    if ((int) $conversation->conversation_type === \App\Models\ChatConversation::TYPE_SUPER_ADMIN_MANAGER) {
+        return $user instanceof \App\Models\Admin
+            && ((int) $conversation->super_admin_id === (int) $user->id
+                || (int) $conversation->manager_admin_id === (int) $user->id);
+    }
+
     if ($user instanceof \App\Models\Tenant) {
         return (int) $conversation->tenant_id === (int) $user->id;
     }
