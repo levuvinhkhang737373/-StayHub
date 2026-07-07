@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Save, X, Zap } from 'lucide-react'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage } from '../../shared/utils/error-message'
 import { createAdminService, updateAdminService } from '../services/services.service'
 import { validateServiceForm, type ServiceFormErrors, type ServiceFormValues } from '../validations/service.validation'
 
@@ -108,7 +109,7 @@ export function ServiceModal({
 
       onSubmitSuccess()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu dịch vụ.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể lưu dịch vụ.'))
     } finally {
       setIsSaving(false)
     }

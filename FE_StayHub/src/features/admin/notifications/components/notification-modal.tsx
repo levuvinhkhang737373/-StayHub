@@ -7,6 +7,7 @@ import { createAdminNotification, updateAdminNotification } from '../services/no
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import type { AdminTenantResource } from '../../tenants/types/tenant-api.model'
 import type { AdminNotificationPayload } from '../types/notification-api.model'
+import { getVisibleErrorMessage } from '../../shared/utils/error-message'
 
 export interface NotificationFormValues {
   title: string
@@ -195,7 +196,7 @@ export function NotificationModal({
       }
       onSubmitSuccess()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu thông báo.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể lưu thông báo.'))
     } finally {
       setIsSaving(false)
     }

@@ -4,6 +4,7 @@ import { MapPin, Save, X } from "lucide-react";
 import { AdminSelect } from "../../shared/components/AdminSelect";
 import { createAdminRegion, updateAdminRegion } from "../services/facilities.service";
 import type { AdminRegionPayload, AdminRegionResource } from "../types/facility-api.model";
+import { getVisibleErrorMessage } from "../../shared/utils/error-message";
 import { validateRegionForm, type RegionFormErrors } from "../validations/region.validation";
 
 interface RegionModalProps {
@@ -134,7 +135,7 @@ export function RegionModal({
 
             onSubmitSuccess();
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể lưu khu vực.");
+            setErrorMessage(getVisibleErrorMessage(error, "Không thể lưu khu vực."));
         } finally {
             setIsSaving(false);
         }

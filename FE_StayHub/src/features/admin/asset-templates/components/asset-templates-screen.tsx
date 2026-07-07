@@ -194,7 +194,7 @@ export function AssetTemplatesScreen() {
       const response = await fetchAdminAssetTemplateDetail(assetTemplate.id)
       setDetailAssetTemplate(response.result)
     } catch (error) {
-      setDetailErrorMessage(error instanceof Error ? error.message : 'Không thể tải chi tiết mẫu tài sản.')
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết mẫu tài sản.'))
     } finally {
       setIsDetailLoading(false)
     }

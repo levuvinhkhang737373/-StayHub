@@ -161,7 +161,7 @@ export function ExpenseCategoriesScreen() {
       const response = await fetchAdminExpenseCategoryDetail(expenseCategory.id)
       setDetailExpenseCategory(response.result)
     } catch (error) {
-      setDetailErrorMessage(error instanceof Error ? error.message : 'Không thể tải chi tiết danh mục chi phí.')
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết danh mục chi phí.'))
     } finally {
       setIsDetailLoading(false)
     }

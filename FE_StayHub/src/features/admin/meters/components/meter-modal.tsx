@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Save, X, Zap } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage } from '../../shared/utils/error-message'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { createAdminMeterDevice, updateAdminMeterDevice } from '../services/meters.service'
 import { validateMeterForm } from '../validations/meter.validation'
@@ -130,7 +131,7 @@ export function MeterModal({
 
       onSubmitSuccess()
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu đồng hồ.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể lưu đồng hồ.'))
     } finally {
       setIsSaving(false)
     }

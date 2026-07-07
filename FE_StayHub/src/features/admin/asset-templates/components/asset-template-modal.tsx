@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Boxes, Save, X } from "lucide-react";
 import { AdminSelect } from "../../shared/components/AdminSelect";
+import { getVisibleErrorMessage } from "../../shared/utils/error-message";
 import { createAdminAssetTemplate, updateAdminAssetTemplate } from "../services/asset-templates.service";
 import { validateAssetTemplateForm, type AssetTemplateFormErrors } from "../validations/asset-template.validation";
 
@@ -112,7 +113,7 @@ export function AssetTemplateModal({
 
             onSubmitSuccess();
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể lưu mẫu tài sản.");
+            setErrorMessage(getVisibleErrorMessage(error, "Không thể lưu mẫu tài sản."));
         } finally {
             setIsSaving(false);
         }

@@ -210,7 +210,7 @@ export function RoomsScreen() {
             showAlert("Thành công", "Xóa thành công", "info");
             await loadRooms(false);
           } else {
-            showAlert("Lỗi", res?.message || "Không thể xóa phòng này do vi phạm điều kiện ràng buộc.", "danger");
+            showAlert("Lỗi", "Không thể xóa phòng này do vi phạm điều kiện ràng buộc.", "danger");
           }
         } catch (error: any) {
           console.error("Lỗi xóa phòng:", error);

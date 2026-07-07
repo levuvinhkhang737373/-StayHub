@@ -21,7 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { AdminSelect } from '../../shared/components/AdminSelect'
-import { ApiError } from '../../../../shared/lib/api/api-client'
+import { getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatMoneyText } from '../../../../shared/lib/utils/format'
 import {
@@ -763,10 +763,7 @@ export function AdminDashboardScreen() {
       })
       setOverview(response.result || null)
     } catch (loadError) {
-      const message = loadError instanceof ApiError || loadError instanceof Error
-        ? loadError.message
-        : 'Không thể tải dashboard. Vui lòng thử lại.'
-      setError(message)
+      setError(getVisibleFilterErrorMessage(loadError, 'Không thể tải dashboard. Vui lòng thử lại.', Boolean(selectedBuildingId || selectedYear || selectedMonthFrom || selectedMonthTo)))
     } finally {
       setIsLoading(false)
     }
@@ -788,10 +785,7 @@ export function AdminDashboardScreen() {
       })
       .catch((loadError) => {
         if (!isCancelled) {
-          const message = loadError instanceof ApiError || loadError instanceof Error
-            ? loadError.message
-            : 'Không thể tải dashboard. Vui lòng thử lại.'
-          setError(message)
+          setError(getVisibleFilterErrorMessage(loadError, 'Không thể tải dashboard. Vui lòng thử lại.', Boolean(selectedBuildingId || selectedYear || selectedMonthFrom || selectedMonthTo)))
         }
       })
       .finally(() => {

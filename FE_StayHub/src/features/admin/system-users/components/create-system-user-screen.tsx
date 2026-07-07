@@ -5,6 +5,7 @@ import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage } from '../../shared/utils/error-message'
 import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import {
@@ -182,7 +183,7 @@ export function CreateSystemUserScreen() {
         })
         setErrors(nextErrors)
       } else {
-        setErrorMessage(error?.response?.data?.message || error?.message || 'Có lỗi xảy ra.')
+        setErrorMessage(getVisibleErrorMessage(error, 'Có lỗi xảy ra.'))
       }
     } finally {
       setIsSaving(false)

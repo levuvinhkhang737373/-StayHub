@@ -5,6 +5,7 @@ import { ArrowLeft, Camera, IdCard, Save, UploadCloud, UserRound, X } from 'luci
 import { ApiError, type ApiValidationErrors } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage } from '../../shared/utils/error-message'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import {
   createAdminTenant,
@@ -156,7 +157,7 @@ export function CreateTenantScreen() {
           }
         })
         .catch((error) => {
-          setErrorMessage(error instanceof Error ? error.message : 'Không thể tải thông tin khách thuê.')
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải thông tin khách thuê.'))
         })
         .finally(() => {
           setIsLoading(false)
@@ -227,7 +228,7 @@ export function CreateTenantScreen() {
       if (error instanceof ApiError && error.validationErrors) {
         applyApiValidationErrors(error.validationErrors)
       }
-      setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu khách thuê.')
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể lưu khách thuê.'))
     } finally {
       setIsSaving(false)
     }

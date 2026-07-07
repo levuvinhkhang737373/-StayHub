@@ -9,7 +9,7 @@ import type { AdminRegionResource } from "../types/facility-api.model";
 import type { Building, BuildingStatus } from "../types/building.model";
 import { cn } from "../../../../shared/lib/utils/cn";
 import { AdminSelect } from "../../shared/components/AdminSelect";
-import { getVisibleFilterErrorMessage } from "../../shared/utils/error-message";
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from "../../shared/utils/error-message";
 import { mapBuildingResourceToBuilding } from "../lib/data-utils";
 import { ImageViewerModal } from "../../../../shared/components/ImageViewerModal";
 import { ConfirmModal } from "../../../../shared/components/ConfirmModal";
@@ -191,7 +191,7 @@ export function FacilitiesScreen() {
                     is_active: detail.status,
                 });
             } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : "Không thể tải thông tin khu vực.");
+                setErrorMessage(getVisibleErrorMessage(error, "Không thể tải thông tin khu vực."));
                 setIsRegionModalOpen(false);
                 setEditingRegionId(null);
             } finally {
@@ -382,7 +382,7 @@ export function FacilitiesScreen() {
                     setSuccessMessage("Xóa tòa nhà thành công.");
                     await loadFacilities();
                 } catch (error: any) {
-                    setErrorMessage(error instanceof Error ? error.message : "Không thể xóa tòa nhà. Vui lòng thử lại sau.");
+                    setErrorMessage(getVisibleErrorMessage(error, "Không thể xóa tòa nhà. Vui lòng thử lại sau."));
                 } finally {
                     setIsConfirmLoading(false);
                     closeConfirm();
@@ -435,7 +435,7 @@ export function FacilitiesScreen() {
                     setSuccessMessage("Xóa khu vực thành công.");
                     await loadFacilities();
                 } catch (error) {
-                    setErrorMessage(error instanceof Error ? error.message : "Không thể xóa khu vực. Vui lòng thử lại sau.");
+                    setErrorMessage(getVisibleErrorMessage(error, "Không thể xóa khu vực. Vui lòng thử lại sau."));
                 } finally {
                     setIsConfirmLoading(false);
                     closeConfirm();

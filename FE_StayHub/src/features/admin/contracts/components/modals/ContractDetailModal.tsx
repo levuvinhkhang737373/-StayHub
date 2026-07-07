@@ -9,6 +9,7 @@ import { getStatusLabel } from '../../utils/contract.helpers'
 import { labelClass } from '../form/form-elements'
 import { DetailTile } from '../ui/ui-elements'
 import { respondToNegotiation } from '../../services/contracts.service'
+import { getVisibleErrorMessage } from '../../../shared/utils/error-message'
 
 function docSoTien(so: number): string {
   if (so === 0) return 'Không đồng'
@@ -95,10 +96,10 @@ export function ContractDetailModal({
       if (res.status && res.result) {
         onNegotiationProcessed?.(res.result)
       } else {
-        setRespondError(res.message || 'Không thể thực hiện hành động này.')
+        setRespondError('Không thể thực hiện hành động này.')
       }
     } catch (err: any) {
-      setRespondError(err?.message || err?.data?.message || 'Có lỗi xảy ra khi gửi yêu cầu.')
+      setRespondError(getVisibleErrorMessage(err, 'Có lỗi xảy ra khi gửi yêu cầu.'))
     } finally {
       setIsResponding(false)
     }

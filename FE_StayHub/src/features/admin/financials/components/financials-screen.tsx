@@ -10,11 +10,11 @@ import {
   Percent,
   FileDown,
 } from 'lucide-react'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
+import { getVisibleErrorMessage } from '../../shared/utils/error-message'
 import { fetchBuilding } from '../../rooms/services/rooms.service'
 import type { BuildingResource } from '../../rooms/types/rooms.model'
 import { fetchFinancialReport } from '../services/financials.service'
@@ -85,11 +85,7 @@ export function FinancialsScreen() {
       })
       setReportData(response.result)
     } catch (error) {
-      if (error instanceof ApiError) {
-        setErrorMessage(error.message || 'Không thể tải báo cáo lợi nhuận.')
-      } else {
-        setErrorMessage('Đã xảy ra lỗi kết nối.')
-      }
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể tải báo cáo lợi nhuận.'))
     } finally {
       setIsLoading(false)
     }

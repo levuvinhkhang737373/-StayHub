@@ -18,7 +18,6 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react'
-import { ApiError } from '../../../../shared/lib/api/api-client'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { AdminSelect } from '../../shared/components/AdminSelect'
@@ -351,7 +350,7 @@ export function FireSafetyScreen() {
       setMessage(result?.alert ? `AI phát hiện nguy cơ ${risk} và đã gửi cảnh báo.` : `AI phân tích xong: ${risk}. Chưa tạo cảnh báo.`)
       await loadData()
     } catch (err) {
-      const detail = err instanceof ApiError ? err.message : 'Không thể phân tích camera. Hãy kiểm tra iPhone/laptop cùng mạng và URL stream.'
+      const detail = getVisibleErrorMessage(err, 'Không thể phân tích camera. Hãy kiểm tra iPhone/laptop cùng mạng và URL stream.')
       setScanStatuses((current) => ({
         ...current,
         [cameraId]: {
@@ -379,7 +378,7 @@ export function FireSafetyScreen() {
       }
       setMessage(`Camera lấy frame OK${stream?.width && stream?.height ? ` (${stream.width}x${stream.height})` : ''}${stream?.resolved_stream_url ? ` qua ${stream.resolved_stream_url}` : ''}. Có thể bấm Quét ngay.`)
     } catch (err) {
-      const detail = err instanceof ApiError ? err.message : 'Không lấy được frame từ camera iPhone.'
+      const detail = getVisibleErrorMessage(err, 'Không lấy được frame từ camera iPhone.')
       if (/basic auth|username|password|401|mật khẩu|xác thực/i.test(detail)) {
         setHasCameraAuth(true)
       }

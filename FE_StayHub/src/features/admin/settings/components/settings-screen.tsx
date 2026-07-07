@@ -10,6 +10,7 @@ import { fetchAdminBuildings } from '../../facilities/services/facilities.servic
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { AdminPagination, type AdminPaginationMeta } from '../../shared/components/AdminPagination'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import {
   createAdminSetting,
   deleteAdminSetting,
@@ -25,22 +26,6 @@ function getResourceList<T>(result: { data?: T[] } | T[] | null | undefined): T[
   if (!result) return []
   if (Array.isArray(result)) return result
   return result.data || []
-}
-
-function getSafeSettingsErrorMessage(error: unknown, fallback: string) {
-  if (!(error instanceof Error)) return fallback
-
-  const message = error.message.trim()
-  if (!message) return fallback
-
-  const normalizedMessage = message.toLowerCase()
-  const isSystemError = normalizedMessage.startsWith('server error')
-    || normalizedMessage.includes('sqlstate')
-    || normalizedMessage.includes('exception')
-    || normalizedMessage.includes('stack trace')
-    || normalizedMessage.includes('undefined property')
-
-  return isSystemError ? fallback : message
 }
 
 const defaultForm: SettingFormValues = {
@@ -185,9 +170,9 @@ export function SettingsScreen() {
         setForm((current) => ({ ...current, building_id: current.building_id || String(visibleBuildings[0].id) }))
       }
     } catch (error) {
-      if (keyword.trim() !== '') {
-        setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể tải danh sách cài đặt tòa nhà.'))
-      }
+      setSettings([])
+      setPaginationMeta(null)
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách cài đặt tòa nhà.', Boolean(keyword.trim() || selectedBuildingId || selectedPublic)))
     } finally {
       setIsLoading(false)
     }
@@ -258,7 +243,7 @@ export function SettingsScreen() {
       const response = await fetchAdminSettingDetail(setting.id)
       setDetailSetting(response.result)
     } catch (error) {
-      setDetailErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể tải chi tiết cài đặt.'))
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết cài đặt.'))
     } finally {
       setIsDetailLoading(false)
     }
@@ -311,7 +296,7 @@ export function SettingsScreen() {
       setIsFormOpen(false)
       await loadSettings()
     } catch (error) {
-      setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể lưu cài đặt.'))
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể lưu cài đặt.'))
     } finally {
       setIsSaving(false)
     }
@@ -329,7 +314,7 @@ export function SettingsScreen() {
       setSuccessMessage(setting.is_public ? 'Đã tắt hiển thị công khai.' : 'Đã bật hiển thị công khai.')
       await loadSettings()
     } catch (error) {
-      setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể thay đổi trạng thái hiển thị.'))
+      setErrorMessage(getVisibleErrorMessage(error, 'Không thể thay đổi trạng thái hiển thị.'))
     } finally {
       setIsSaving(false)
     }
@@ -350,7 +335,7 @@ export function SettingsScreen() {
           setSuccessMessage('Xóa cài đặt thành công.')
           await loadSettings()
         } catch (error) {
-          setErrorMessage(getSafeSettingsErrorMessage(error, 'Không thể xóa cài đặt.'))
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể xóa cài đặt.'))
         } finally {
           setIsConfirmLoading(false)
           setDeletingId(null)

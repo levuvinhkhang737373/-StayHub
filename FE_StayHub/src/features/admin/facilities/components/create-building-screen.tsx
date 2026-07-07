@@ -9,6 +9,7 @@ import type { AdminServiceResource } from "../../services/types/service-api.mode
 import { createAdminSetting, fetchAdminSettings } from "../../settings/services/settings.service";
 import type { AdminSettingResource } from "../../settings/types/setting-api.model";
 import { AdminSelect } from "../../shared/components/AdminSelect";
+import { getVisibleErrorMessage } from "../../shared/utils/error-message";
 import { createAdminBuilding, fetchAdminBuildingDetail, fetchAdminManagers, fetchAdminRegions, updateAdminBuilding } from "../services/facilities.service";
 import { createAdminAccount } from "../../system-users/services/admin-accounts.service";
 import type { AdminManagerResource, AdminRegionResource } from "../types/facility-api.model";
@@ -252,7 +253,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                     return mappedForm;
                 });
             })
-            .catch((error) => setErrorMessage(error instanceof Error ? error.message : "Không thể tải dữ liệu tòa nhà."))
+            .catch((error) => setErrorMessage(getVisibleErrorMessage(error, "Không thể tải dữ liệu tòa nhà.")))
             .finally(() => setIsLoading(false));
     }, [isEditMode, isSuperAdmin, resolvedBuildingId]);
 
@@ -397,7 +398,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             setQuickService({ name: "", charge_method: 5, unit_name: "", is_required: false, is_active: true });
             setOpenCreateForms((current) => ({ ...current, service_prices: false }));
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh dịch vụ.");
+            setErrorMessage(getVisibleErrorMessage(error, "Không thể tạo nhanh dịch vụ."));
         } finally {
             setIsCreatingService(false);
         }
@@ -420,7 +421,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             setQuickSetting({ setting_label: "", setting_value: "", description: "", is_public: true });
             setOpenCreateForms((current) => ({ ...current, settings: false }));
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể tạo nhanh cài đặt.");
+            setErrorMessage(getVisibleErrorMessage(error, "Không thể tạo nhanh cài đặt."));
         } finally {
             setIsCreatingSetting(false);
         }
@@ -461,7 +462,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 }
             });
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể lưu tòa nhà.");
+            setErrorMessage(getVisibleErrorMessage(error, "Không thể lưu tòa nhà."));
         } finally {
             setIsSaving(false);
         }
@@ -871,7 +872,7 @@ export function QuickCreateManagerModal({ onClose, onCreated }: QuickCreateManag
                 });
             }
         } catch (err: any) {
-            setError(err?.response?.data?.message || err?.message || "Không thể tạo tài khoản quản lý.");
+            setError(getVisibleErrorMessage(err, "Không thể tạo tài khoản quản lý."));
         } finally {
             setIsSaving(false);
         }

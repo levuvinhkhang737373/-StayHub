@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { BedDouble, Save, X } from "lucide-react";
 import { AdminSelect } from "../../shared/components/AdminSelect";
+import { getVisibleErrorMessage } from "../../shared/utils/error-message";
 import { createAdminRoomType, updateAdminRoomType } from "../services/room-types.service";
 import { validateRoomTypeForm, type RoomTypeFormErrors } from "../validations/room-type.validation";
 
@@ -103,7 +104,7 @@ export function RoomTypeModal({
 
             onSubmitSuccess();
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể lưu loại phòng.");
+            setErrorMessage(getVisibleErrorMessage(error, "Không thể lưu loại phòng."));
         } finally {
             setIsSaving(false);
         }

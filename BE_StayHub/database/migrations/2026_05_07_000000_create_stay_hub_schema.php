@@ -85,7 +85,7 @@ return new class extends Migration
             $table->string('username')->unique();
             $table->string('full_name', 150);
             $table->string('email', 150)->unique();
-            $table->string('phone', 30);
+            $table->string('phone', 10);
             $table->string('password');
             $table->unsignedTinyInteger('role')->default(1);
             $table->string('avatar_url')->nullable();
@@ -103,7 +103,7 @@ return new class extends Migration
             $table->string('full_name', 150);
             $table->unsignedTinyInteger('gender')->default(1);
             $table->date('date_of_birth');
-            $table->string('phone', 30)->unique();
+            $table->string('phone', 10)->unique();
             $table->string('email', 150)->nullable()->unique();
             $table->string('username')->unique();
             $table->string('password');

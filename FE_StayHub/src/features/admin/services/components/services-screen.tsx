@@ -188,7 +188,7 @@ export function ServicesScreen() {
       const response = await fetchAdminServiceDetail(service.id)
       setDetailService(response.result)
     } catch (error) {
-      setDetailErrorMessage(error instanceof Error ? error.message : 'Không thể tải chi tiết dịch vụ.')
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết dịch vụ.'))
     } finally {
       setIsDetailLoading(false)
     }

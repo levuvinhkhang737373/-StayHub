@@ -9,7 +9,7 @@ import { generateAdminInvoice, previewAdminInvoice } from '../../invoices/servic
 import type { AdminInvoiceGeneratePayload, AdminInvoicePreviewResource } from '../../invoices/types/invoice-api.model'
 import { InvoicePreviewModal } from '../../invoices/components/invoice-preview-modal'
 import { AdminSelect } from '../../shared/components/AdminSelect'
-import { getVisibleErrorMessage } from '../../shared/utils/error-message'
+import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { ApiError } from '../../../../shared/lib/api/api-client'
@@ -225,7 +225,9 @@ export function MeterReadingsScreen() {
       setRooms(result?.rooms || [])
       setServicePrices(result?.service_prices || [])
     } catch (e) {
-      setErrorMessage(getVisibleErrorMessage(e, 'Không thể tải dữ liệu chốt số.'))
+      setRooms([])
+      setServicePrices([])
+      setErrorMessage(getVisibleFilterErrorMessage(e, 'Không thể tải dữ liệu chốt số.', Boolean(selectedBuildingId || selectedMonth || selectedYear)))
     } finally {
       setIsLoading(false)
     }

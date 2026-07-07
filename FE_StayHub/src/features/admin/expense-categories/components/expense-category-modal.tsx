@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ReceiptText, Save, X } from "lucide-react";
 import { AdminSelect } from "../../shared/components/AdminSelect";
+import { getVisibleErrorMessage } from "../../shared/utils/error-message";
 import { createAdminExpenseCategory, updateAdminExpenseCategory } from "../services/expense-categories.service";
 import { validateExpenseCategoryForm, type ExpenseCategoryFormErrors } from "../validations/expense-category.validation";
 
@@ -103,7 +104,7 @@ export function ExpenseCategoryModal({
 
             onSubmitSuccess();
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Không thể lưu danh mục chi phí.");
+            setErrorMessage(getVisibleErrorMessage(error, "Không thể lưu danh mục chi phí."));
         } finally {
             setIsSaving(false);
         }

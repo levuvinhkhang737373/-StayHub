@@ -186,7 +186,7 @@ export function RoomTypesScreen() {
       const response = await fetchAdminRoomTypeDetail(roomType.id)
       setDetailRoomType(response.result)
     } catch (error) {
-      setDetailErrorMessage(error instanceof Error ? error.message : 'Không thể tải chi tiết loại phòng.')
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết loại phòng.'))
     } finally {
       setIsDetailLoading(false)
     }

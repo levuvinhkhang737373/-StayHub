@@ -353,7 +353,7 @@ export function ExpensesScreen() {
       const response = await fetchAdminExpenseDetail(expense.id)
       setDetailExpense(response.result)
     } catch (error) {
-      setDetailErrorMessage(error instanceof Error ? error.message : 'Không thể tải chi tiết phiếu chi.')
+      setDetailErrorMessage(getVisibleErrorMessage(error, 'Không thể tải chi tiết phiếu chi.'))
     } finally {
       setIsDetailLoading(false)
     }
