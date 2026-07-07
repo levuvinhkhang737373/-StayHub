@@ -107,6 +107,7 @@ class AuthController extends Controller
             $validated = $request->validate([
                 'full_name' => ['required', 'string', 'max:150'],
                 'phone'     => ['nullable', 'string', 'regex:/^(0[3|5|7|8|9])+([0-9]{8})$/'],
+                'email'     => ['sometimes', 'required', 'email', 'max:150', \Illuminate\Validation\Rule::unique('tenants', 'email')->ignore($tenant->id)],
                 'avatar'    => ['nullable', 'image', 'max:5120'],
                 'identity_number' => ['sometimes', 'required', 'string', 'max:30'],
                 'identity_type' => ['sometimes', 'required', 'integer', 'in:1,2,3'],
@@ -116,6 +117,9 @@ class AuthController extends Controller
             ], [
                 'full_name.required' => 'Họ và tên là bắt buộc.',
                 'phone.regex' => 'Số điện thoại không đúng định dạng Việt Nam (phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08, 09).',
+                'email.required' => 'Email không được để trống.',
+                'email.email' => 'Email không đúng định dạng.',
+                'email.unique' => 'Email này đã được sử dụng bởi tài khoản khác.',
             ]);
 
             $avatarUrl = $tenant->avatar_url;

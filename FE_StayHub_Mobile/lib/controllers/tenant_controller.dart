@@ -68,18 +68,14 @@ class TenantController extends ChangeNotifier {
     ),
   ];
 
-  List<Tenant>? _realTenants = [];
+  List<Tenant>? _realTenants; // null means not fetched yet, [] means fetched but empty
   List<Tenant> _filteredTenants = [];
   bool _isLoading = false;
   String _searchQuery = '';
   String? _errorMessage;
 
   List<Tenant> get tenants {
-    final list = _realTenants;
-    if (list != null && list.isNotEmpty) {
-      return (_filteredTenants.isEmpty && _searchQuery.isEmpty ? list : _filteredTenants);
-    }
-    return (_filteredTenants.isEmpty && _searchQuery.isEmpty ? _mockTenants : _filteredTenants);
+    return _filteredTenants;
   }
       
   bool get isLoading => _isLoading;
@@ -121,7 +117,7 @@ class TenantController extends ChangeNotifier {
   void search(String query) {
     _searchQuery = query.toLowerCase();
     final list = _realTenants;
-    final sourceList = (list != null && list.isNotEmpty) ? list : _mockTenants;
+    final sourceList = list ?? _mockTenants;
     if (_searchQuery.isEmpty) {
       _filteredTenants = List.from(sourceList);
     } else {

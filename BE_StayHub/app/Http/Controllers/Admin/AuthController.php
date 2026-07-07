@@ -335,12 +335,16 @@ class AuthController extends Controller
             $validated = $request->validate([
                 'full_name' => ['required', 'string', 'max:150'],
                 'phone'     => ['nullable', 'string', 'regex:/^(0[3|5|7|8|9])+([0-9]{8})$/'],
+                'email'     => ['sometimes', 'required', 'email', 'max:150', \Illuminate\Validation\Rule::unique('admins', 'email')->ignore($admin->id)],
                 'avatar'    => ['nullable', 'image', 'max:5120'],
             ], [
                 'phone.regex' => 'Số điện thoại không đúng định dạng Việt Nam (phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08, 09).',
+                'email.required' => 'Email không được để trống.',
+                'email.email' => 'Email không đúng định dạng.',
+                'email.unique' => 'Email này đã được sử dụng bởi tài khoản khác.',
             ]);
 
-            $oldData = $admin->only(['full_name', 'phone', 'avatar_url']);
+            $oldData = $admin->only(['full_name', 'phone', 'email', 'avatar_url']);
             
             $avatarUrl = $admin->avatar_url;
             if ($request->hasFile('avatar')) {
@@ -350,6 +354,7 @@ class AuthController extends Controller
             $admin->forceFill([
                 'full_name'  => $validated['full_name'],
                 'phone'      => $validated['phone'],
+                'email'      => $validated['email'] ?? $admin->email,
                 'avatar_url' => $avatarUrl,
             ])->save();
 
@@ -359,7 +364,7 @@ class AuthController extends Controller
                 Admin::class,
                 $admin->id,
                 $oldData,
-                $admin->fresh()->only(['full_name', 'phone', 'avatar_url']),
+                $admin->fresh()->only(['full_name', 'phone', 'email', 'avatar_url']),
                 $request
             );
 

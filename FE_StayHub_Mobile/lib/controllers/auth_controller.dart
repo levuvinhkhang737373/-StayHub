@@ -331,10 +331,10 @@ class AuthController extends ChangeNotifier {
     return false;
   }
 
-  /// Cập nhật thông tin cá nhân (Họ tên, Số điện thoại, Avatar) cho Admin hoặc Tenant
   Future<bool> updatePersonalProfile({
     required String fullName,
     String? phone,
+    String? email,
     XFile? avatarFile,
   }) async {
     _isLoading = true;
@@ -342,9 +342,12 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final String resolvedEmail = email ?? (isAdmin ? _currentAdmin?.email : _currentTenant?.email) ?? '';
+
       final Map<String, dynamic> dataMap = {
         '_method': 'PATCH',
         'full_name': fullName,
+        'email': resolvedEmail,
       };
 
       if (phone != null) {

@@ -195,6 +195,134 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showEditEmailDialog() {
+    final authController = context.read<AuthController>();
+    final currentEmail = authController.isAdmin
+        ? authController.currentAdmin?.email
+        : authController.currentTenant?.email;
+    final displayName = authController.isAdmin
+        ? authController.currentAdmin?.fullName
+        : authController.currentTenant?.fullName;
+
+    final controller = TextEditingController(text: currentEmail);
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final auth = Provider.of<AuthController>(context);
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                'Cập nhật Email',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1C1917),
+                ),
+              ),
+              content: Form(
+                key: formKey,
+                child: TextFormField(
+                  controller: controller,
+                  keyboardType: TextInputType.emailAddress,
+                  style: const TextStyle(color: Color(0xFF1C1917)),
+                  decoration: InputDecoration(
+                    labelText: 'Email mới',
+                    filled: true,
+                    fillColor: const Color(0xFFF9F8F6),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1C1917)),
+                    ),
+                  ),
+                  validator: (val) {
+                    if (val == null || val.isEmpty) {
+                      return 'Email không được để trống';
+                    }
+                    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                    if (!emailRegex.hasMatch(val.trim())) {
+                      return 'Email không đúng định dạng';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'HỦY',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                TextButton(
+                  onPressed: auth.isLoading
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+
+                          final success = await auth.updatePersonalProfile(
+                            fullName: displayName ?? '',
+                            email: controller.text.trim(),
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (success) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Cập nhật email thành công!',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  auth.errorMessage ?? 'Cập nhật thất bại',
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                        },
+                  child: auth.isLoading
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1C1917),
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'CẬP NHẬT',
+                          style: TextStyle(
+                            color: Color(0xFF1C1917),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildInfoRow(String label, String value, {VoidCallback? onTap}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
@@ -608,6 +736,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _buildInfoRow(
                                 'Email liên hệ',
                                 admin?.email ?? '',
+                                onTap: _showEditEmailDialog,
                               ),
                               _buildInfoRow(
                                 'Số điện thoại',
@@ -635,6 +764,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _buildInfoRow(
                                 'Email liên hệ',
                                 tenant?.email ?? '',
+                                onTap: _showEditEmailDialog,
                               ),
                               _buildInfoRow(
                                 'Số điện thoại',

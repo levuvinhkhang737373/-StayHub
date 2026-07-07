@@ -845,47 +845,21 @@ class _ReadingDialogState extends State<_ReadingDialog> {
     if (meter == null || meter.id == 0) return;
 
     final numericValue = double.tryParse(value);
+    String? errorMsg;
+    
     if (value.isNotEmpty && numericValue != null && numericValue < meter.previousReading) {
-      final controller = isElectric ? _elecController : _waterController;
-      final previousValidValue = isElectric ? _lastValidElecReading : _lastValidWaterReading;
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        controller.value = TextEditingValue(
-          text: previousValidValue,
-          selection: TextSelection.collapsed(offset: previousValidValue.length),
-        );
-      });
-
-      setState(() {
-        final message = 'Chỉ số mới không được nhỏ hơn chỉ số cũ (${meter.previousReading}).';
-        if (isElectric) {
-          _elecManualError = message;
-        } else {
-          _waterManualError = message;
-        }
-      });
-      return;
+      errorMsg = 'Chỉ số mới không được nhỏ hơn chỉ số cũ (${meter.previousReading}).';
     }
 
-    if (value.isEmpty || numericValue != null) {
+    setState(() {
       if (isElectric) {
         _lastValidElecReading = value;
+        _elecManualError = errorMsg;
       } else {
         _lastValidWaterReading = value;
+        _waterManualError = errorMsg;
       }
-    }
-
-    if (isElectric) {
-      setState(() {
-        _elecManualError = null;
-      });
-    } else {
-      setState(() {
-        _waterManualError = null;
-      });
-    }
-
-    _formKey.currentState?.validate();
+    });
   }
 
   Widget _buildAiImagePanel({required bool isElectric}) {

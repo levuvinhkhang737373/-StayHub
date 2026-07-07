@@ -14,6 +14,14 @@ class _TenantsScreenState extends State<TenantsScreen> {
   final _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<TenantController>().fetchTenants();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
