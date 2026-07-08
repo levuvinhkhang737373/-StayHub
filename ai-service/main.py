@@ -182,9 +182,9 @@ def translate_face_error(message):
 
 def process_images(images, require_liveness=False):
     if len(images) < 1:
-        raise ValueError("Cần ít nhất 1 khung hình để nhận diện khuôn mặt.")
+        raise ValueError("Bật camera để nhận diện khuôn mặt.")
     if require_liveness and len(images) < 2:
-        raise ValueError("Cần ít nhất 2 khung hình để kiểm tra chống fake.")
+        raise ValueError("Bật camera để kiểm tra chống fake.")
 
     embeddings = []
     motions = []
