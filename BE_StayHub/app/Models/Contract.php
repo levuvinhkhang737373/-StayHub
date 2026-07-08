@@ -35,18 +35,6 @@ class Contract extends Model
         self::STATUS_ACTIVE,
     ];
 
-    public const NEGOTIATION_STATUS_NONE = 0;
-    public const NEGOTIATION_STATUS_PENDING = 1;
-    public const NEGOTIATION_STATUS_APPROVED = 2;
-    public const NEGOTIATION_STATUS_REJECTED = 3;
-
-    public const NEGOTIATION_STATUS_LABELS = [
-        self::NEGOTIATION_STATUS_NONE => 'Không thương lượng',
-        self::NEGOTIATION_STATUS_PENDING => 'Đang thương lượng',
-        self::NEGOTIATION_STATUS_APPROVED => 'Đã đồng ý thương lượng',
-        self::NEGOTIATION_STATUS_REJECTED => 'Đã từ chối thương lượng',
-    ];
-
     public const PAYMENT_STATUS_PENDING = 1;
 
     public const PAYMENT_STATUS_SUCCESS = 2;
@@ -62,7 +50,7 @@ class Contract extends Model
         self::PAYMENT_STATUS_EXPIRED => 'Hết hạn',
     ];
 
-    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'tenant_signed_at', 'tenant_signature_url'];
+    protected $fillable = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'tenant_signed_at', 'tenant_signature_url'];
 
     protected function casts(): array
     {
@@ -74,10 +62,6 @@ class Contract extends Model
             'room_price' => 'decimal:2',
             'deposit_amount' => 'decimal:2',
             'status' => 'integer',
-            'negotiation_status' => 'integer',
-            'proposed_room_price' => 'decimal:2',
-            'proposed_services' => 'array',
-            'proposed_vehicles' => 'array',
             'payment_status' => 'integer',
             'contract_files' => 'array',
             'representative_tenant_id' => 'integer',

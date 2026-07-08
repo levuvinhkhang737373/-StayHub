@@ -204,10 +204,3 @@ export async function createAdminVehicle(payload: {
   })
 }
 
-export async function respondToNegotiation(contractId: number, action: 'approve' | 'reject') {
-  return apiRequest<AdminContractResource>({
-    url: `admin/contracts/${contractId}/negotiate/respond`,
-    method: 'POST',
-    data: { action },
-  })
-}
