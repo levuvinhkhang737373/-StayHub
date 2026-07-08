@@ -53,7 +53,6 @@ export function AdminLoginScreen() {
           <div className="flex h-full w-full max-w-[630px] flex-col">
             <div className="mb-8 text-center lg:hidden">
               <p className="text-xs font-black uppercase tracking-[0.42em] text-[#8a4f18]">StayHub Admin</p>
-              <h1 className="mt-3 text-5xl font-black leading-none tracking-[-0.07em] text-[#24170d]">Keycard Portal</h1>
             </div>
             <AdminLoginForm onLoginSuccess={handleLoginSuccess} />
           </div>
