@@ -21,10 +21,10 @@ DETECTOR_BACKEND = "opencv"
 MIN_FACE_SIZE = 70
 MIN_SECONDARY_FACE_AREA_RATIO = 0.8
 MIN_SECONDARY_FACE_SIZE = 120
-MIN_BRIGHTNESS = 45
+MIN_BRIGHTNESS = 38
 MAX_BRIGHTNESS = 220
-MIN_BLUR_SCORE = 35
-MIN_ANTISPOOF_SCORE = 0.65
+MIN_BLUR_SCORE = 28
+MIN_ANTISPOOF_SCORE = 0.55
 MAX_EMBEDDING_DISTANCE = 0.5
 MIN_LIVENESS_MOVEMENT = 0.006
 MIN_LIVENESS_SCALE_CHANGE = 0.015
@@ -180,8 +180,10 @@ def translate_face_error(message):
     return message
 
 
-def process_images(images):
-    if len(images) < 2:
+def process_images(images, require_liveness=False):
+    if len(images) < 1:
+        raise ValueError("Cần ít nhất 1 khung hình để nhận diện khuôn mặt.")
+    if require_liveness and len(images) < 2:
         raise ValueError("Cần ít nhất 2 khung hình để kiểm tra chống fake.")
 
     embeddings = []
@@ -206,7 +208,7 @@ def process_images(images):
     if max_distance > MAX_EMBEDDING_DISTANCE:
         raise ValueError("Các khung hình không cùng một khuôn mặt, vui lòng thử lại.")
 
-    movement = validate_liveness(motions)
+    movement = validate_liveness(motions) if require_liveness else 0
     average_embedding = np.mean(np.stack(embeddings), axis=0)
 
     return [float(value) for value in average_embedding], frames, round(float(max_distance), 4), movement
@@ -218,11 +220,15 @@ def health():
 
 
 @app.post("/api/v1/extract")
-def extract_face(files: list[UploadFile] = File(None), file: UploadFile | None = File(None)):
+def extract_face(
+    files: list[UploadFile] = File(None),
+    file: UploadFile | None = File(None),
+    require_liveness: bool = False,
+):
     try:
         uploads = files or ([file] if file else [])
         images = [load_image_from_upload(upload) for upload in uploads]
-        embedding, frames, max_distance, movement = process_images(images)
+        embedding, frames, max_distance, movement = process_images(images, require_liveness=require_liveness)
 
         return {
             "embedding": embedding,
@@ -234,6 +240,7 @@ def extract_face(files: list[UploadFile] = File(None), file: UploadFile | None =
             "liveness_movement": movement,
             "detector_backend": DETECTOR_BACKEND,
             "antispoofing": True,
+            "motion_liveness_required": require_liveness,
             "model": FACE_MODEL,
         }
     except ValueError as error:

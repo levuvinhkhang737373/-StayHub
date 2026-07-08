@@ -67,12 +67,12 @@ class AuthController extends Controller
     public function faceLogin(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'images'   => ['required', 'array', 'min:2', 'max:3'],
+            'images'   => ['required', 'array', 'min:1', 'max:1'],
             'images.*' => ['required', 'image', 'max:5120'],
         ]);
 
         try {
-            $embedding = $this->extractEmbedding($validated['images']);
+            $embedding = $this->extractEmbedding($validated['images'], false);
             $match     = $this->searchFaceEmbedding($embedding);
 
             if (! $match || ! isset($match['payload']['admin_id'])) {
@@ -163,7 +163,7 @@ class AuthController extends Controller
             $fileName = "admin-{$admin->id}.jpg";
             $path = "{$directory}/{$fileName}";
             $image = $validated['images'][0];
-            $embedding = $this->extractEmbedding($validated['images']);
+            $embedding = $this->extractEmbedding($validated['images'], true);
 
             $storedPath = Storage::disk('s3')->putFileAs(
                 $directory,
@@ -452,7 +452,7 @@ class AuthController extends Controller
         return ApiResponse::responseJson(false, $e->getMessage() ?: $message, $errorCode, null, $errorCode);
     }
 
-    private function extractEmbedding(array $images): array
+    private function extractEmbedding(array $images, bool $requireLiveness = false): array
     {
         $request = Http::timeout(90);
         $streams = [];
@@ -472,7 +472,8 @@ class AuthController extends Controller
             );
         }
 
-        $response = $request->post(config('services.ai_service.url') . '/api/v1/extract');
+        $livenessQuery = $requireLiveness ? 'true' : 'false';
+        $response = $request->post(config('services.ai_service.url') . "/api/v1/extract?require_liveness={$livenessQuery}");
 
         foreach ($streams as $stream) {
             if (is_resource($stream)) {

@@ -120,9 +120,11 @@ export function AdminLoginForm({ onLoginSuccess }: AdminLoginFormProps) {
       throw new Error('Camera chưa sẵn sàng, vui lòng chờ camera rõ nét rồi thử lại.')
     }
 
+    const maxCaptureSize = 640
+    const scale = Math.min(1, maxCaptureSize / Math.max(video.videoWidth, video.videoHeight))
     const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    canvas.width = Math.round(video.videoWidth * scale)
+    canvas.height = Math.round(video.videoHeight * scale)
     const context = canvas.getContext('2d')
 
     if (!context) {
@@ -139,19 +141,14 @@ export function AdminLoginForm({ onLoginSuccess }: AdminLoginFormProps) {
         }
 
         resolve(blob)
-      }, 'image/jpeg', 0.96)
+      }, 'image/jpeg', 0.86)
     })
   }
 
   async function captureFaceImages(): Promise<Blob[]> {
     const images: Blob[] = []
 
-    for (let index = 0; index < 2; index += 1) {
-      images.push(await captureFaceImage())
-      if (index < 1) {
-        await new Promise((resolve) => window.setTimeout(resolve, 350))
-      }
-    }
+    images.push(await captureFaceImage())
 
     return images
   }
