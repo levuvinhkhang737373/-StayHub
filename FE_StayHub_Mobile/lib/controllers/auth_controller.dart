@@ -391,7 +391,7 @@ class AuthController extends ChangeNotifier {
         final response = await _apiService.post<Tenant>(
           path,
           data: formData,
-          fromJsonT: (json) => Tenant.fromJson(json['tenant'] as Map<String, dynamic>),
+          fromJsonT: (json) => Tenant.fromJson(json as Map<String, dynamic>),
         );
 
         if (response.status && response.result != null) {

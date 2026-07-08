@@ -355,8 +355,19 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
                         title: 'Chat quản lý',
                         subtitle: 'Hỗ trợ realtime',
                         icon: Icons.chat_bubble_rounded,
-                        color: Colors.green,
-                        onTap: () => Navigator.pushNamed(context, '/tenant/chat'),
+                        color: roomNumber.isNotEmpty ? Colors.green : Colors.grey,
+                        onTap: () {
+                          if (roomNumber.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Bạn chưa có phòng đang thuê nên chưa thể chat với quản lý'),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          } else {
+                            Navigator.pushNamed(context, '/tenant/chat');
+                          }
+                        },
                       ),
                     ],
                   ),
