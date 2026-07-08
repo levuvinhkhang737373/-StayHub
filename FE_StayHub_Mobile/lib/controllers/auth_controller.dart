@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
@@ -44,6 +43,7 @@ class AuthController extends ChangeNotifier {
       try {
         final adminEnvelope = await _apiService.get<Admin>(
           '/admin/me',
+          skipUnauthorizedHandler: true,
           fromJsonT: (json) => Admin.fromJson(json as Map<String, dynamic>),
         );
         if (adminEnvelope.status && adminEnvelope.result != null) {
@@ -59,6 +59,7 @@ class AuthController extends ChangeNotifier {
       try {
         final tenantEnvelope = await _apiService.get<Tenant>(
           '/tenant/me',
+          skipUnauthorizedHandler: true,
           fromJsonT: (json) => Tenant.fromJson(json as Map<String, dynamic>),
         );
         if (tenantEnvelope.status && tenantEnvelope.result != null) {

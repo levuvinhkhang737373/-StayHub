@@ -124,7 +124,11 @@ class ApiService {
         }
         if (e.response?.statusCode == 401) {
           final path = e.requestOptions.path;
-          if (!path.contains('/login') && !path.contains('/face-login')) {
+          final skipUnauthorizedHandler =
+              e.requestOptions.extra['skipUnauthorizedHandler'] == true;
+          if (!skipUnauthorizedHandler &&
+              !path.contains('/login') &&
+              !path.contains('/face-login')) {
             onUnauthorized?.call();
           }
         }
@@ -208,12 +212,16 @@ class ApiService {
   Future<ApiEnvelope<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
+    bool skipUnauthorizedHandler = false,
     required T Function(dynamic json) fromJsonT,
   }) async {
     try {
       final response = await _dio.get(
         _normalizePath(path),
         queryParameters: queryParameters,
+        options: skipUnauthorizedHandler
+            ? Options(extra: {'skipUnauthorizedHandler': true})
+            : null,
       );
       return ApiEnvelope.fromJson(response.data as Map<String, dynamic>, fromJsonT);
     } on DioException catch (e) {
