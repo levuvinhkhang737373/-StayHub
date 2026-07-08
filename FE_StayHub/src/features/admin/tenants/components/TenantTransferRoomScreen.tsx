@@ -44,6 +44,165 @@ const TENANT_PICKER_PAGE_SIZE = 6
 const inputClass =
   'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#24170d] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/18'
 
+function moneyNumber(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0
+  if (typeof value === 'number') return value
+
+  const valStr = String(value).trim()
+  if (/^\d+\.\d{1,2}$/.test(valStr)) {
+    return Math.max(Math.round(Number(valStr)), 0)
+  }
+
+  const parsed = Number(valStr.replace(/\./g, '').replace(/,/g, '').trim() || '0')
+  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(Math.round(value))
+}
+
+function todayDateString(reference = new Date()) {
+  return dateToInputString(reference)
+}
+
+function dateToInputString(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function parseDateInput(value?: string | null): Date | null {
+  if (!value) return null
+
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+
+  return new Date(year, month - 1, day)
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function formatDisplayDate(date: Date): string {
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+}
+
+function buildVehicleBillingPreview(contract: AdminContractResource | null, tenantIds: number[], movementDate: string): VehicleBillingPreview {
+  const movement = parseDateInput(movementDate)
+  if (!contract || !movement) {
+    return emptyVehicleBillingPreview()
+  }
+
+  const periodStart = new Date(movement.getFullYear(), movement.getMonth(), 1)
+  const periodEnd = new Date(movement.getFullYear(), movement.getMonth() + 1, 0)
+  const oldWindowEnd = addDays(movement, -1)
+  const selectedTenantIds = new Set(tenantIds)
+  const movingVehicles = (contract.contract_vehicles ?? []).filter((contractVehicle) => {
+    const tenantId = Number(contractVehicle.vehicle?.tenant_id)
+
+    return contractVehicle.is_active !== false && selectedTenantIds.has(tenantId)
+  })
+
+  const oldWindows = movingVehicles.map((contractVehicle) => {
+    const configuredEndDate = parseDateInput(contractVehicle.billing_end_date || contractVehicle.ended_at)
+    const oldChargeEnd = configuredEndDate && configuredEndDate < oldWindowEnd ? configuredEndDate : oldWindowEnd
+
+    return calculateVehicleWindowPreview(
+      contractVehicle.monthly_fee,
+      contractVehicle.billing_start_date || contractVehicle.started_at || dateToInputString(periodStart),
+      dateToInputString(oldChargeEnd),
+      periodStart,
+      periodEnd,
+    )
+  })
+  const newWindows = movingVehicles.map((contractVehicle) => calculateVehicleWindowPreview(
+    contractVehicle.monthly_fee,
+    movementDate,
+    dateToInputString(periodEnd),
+    periodStart,
+    periodEnd,
+  ))
+
+  return {
+    vehicleCount: movingVehicles.length,
+    oldAmount: sumVehicleWindows(oldWindows),
+    newAmount: sumVehicleWindows(newWindows),
+    oldRange: summarizeVehicleWindows(oldWindows),
+    newRange: summarizeVehicleWindows(newWindows),
+  }
+}
+
+function emptyVehicleBillingPreview(): VehicleBillingPreview {
+  return {
+    vehicleCount: 0,
+    oldAmount: 0,
+    newAmount: 0,
+    oldRange: '—',
+    newRange: '—',
+  }
+}
+
+function calculateVehicleWindowPreview(monthlyFee: string | number | null | undefined, startDate: string, endDate: string, periodStart: Date, periodEnd: Date): VehicleWindowPreview {
+  const amount = moneyNumber(monthlyFee)
+  const chargeStartDate = parseDateInput(startDate)
+  const chargeEndDate = parseDateInput(endDate)
+
+  if (amount <= 0 || !chargeStartDate || !chargeEndDate) {
+    return { amount: 0, range: 'Không phát sinh' }
+  }
+
+  const chargeStart = chargeStartDate > periodStart ? chargeStartDate : periodStart
+  const chargeEnd = chargeEndDate < periodEnd ? chargeEndDate : periodEnd
+
+  if (chargeStart > chargeEnd) {
+    return { amount: 0, range: 'Không phát sinh' }
+  }
+
+  const actualDays = Math.floor((chargeEnd.getTime() - chargeStart.getTime()) / 86_400_000) + 1
+  const totalDays = periodEnd.getDate()
+
+  return {
+    amount: Math.round((amount * actualDays) / totalDays),
+    range: `${formatDisplayDate(chargeStart)} – ${formatDisplayDate(chargeEnd)}`,
+  }
+}
+
+function sumVehicleWindows(windows: VehicleWindowPreview[]): number {
+  return windows.reduce((total, window) => total + window.amount, 0)
+}
+
+function summarizeVehicleWindows(windows: VehicleWindowPreview[]): string {
+  const chargedRanges = windows.filter((window) => window.amount > 0).map((window) => window.range)
+
+  if (chargedRanges.length === 0) return 'Không phát sinh'
+
+  return Array.from(new Set(chargedRanges)).join(', ')
+}
+
+function getTenantRoomText(tenant: AdminTenantResource): ReactNode {
+  const roomNumber = tenant.current_room?.room_number ?? tenant.room_number
+  const buildingName = tenant.current_room?.building_name ?? tenant.building_name
+
+  if (!roomNumber) return 'Chưa rõ phòng hiện tại'
+
+  return (
+    <div className="flex flex-col">
+      <span>Phòng {roomNumber}</span>
+      {buildingName && (
+        <span className="text-[11px] font-semibold text-[#8b5e34]/70 mt-0.5">{buildingName}</span>
+      )}
+    </div>
+  )
+}
+
 interface TenantCardState {
   tenantId: number
   fullName: string
@@ -152,10 +311,12 @@ export function TenantTransferRoomScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [transferResult, setTransferResult] = useState<TransferRoomResultResource | null>(null)
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1)
 
   const currentRoomId = tenant?.current_room?.room_id ?? tenant?.room_id ?? currentContract?.room_id ?? null
   const currentRoomNumber = tenant?.current_room?.room_number ?? tenant?.room_number ?? currentContract?.room_number ?? null
-  const currentBuildingName = tenant?.current_room?.building_name ?? tenant?.building_name ?? currentContract?.building_name ?? null
+  const currentBuildingId = tenant?.current_room?.building_id ?? tenant?.building_id ?? currentContract?.building_id ?? currentContract?.room?.building_id ?? null
+  const currentBuildingName = tenant?.current_room?.building_name ?? tenant?.building_name ?? currentContract?.building_name ?? currentContract?.room?.building_name ?? null
   const currentContractCode = currentContract?.contract_code ?? tenant?.current_contract?.contract_code ?? null
 
   useEffect(() => {
@@ -182,11 +343,13 @@ export function TenantTransferRoomScreen() {
         setSelectedFloor('')
         setSelectedRoomTypeId('')
         setRoomPage(1)
+        setCurrentStep(1)
         return
       }
 
       setSelectedTenantIds([parsedTenantId])
       setTransferResult(null)
+      setCurrentStep(1)
     })
   }, [hasSelectedTenant, parsedTenantId])
 
@@ -207,6 +370,7 @@ export function TenantTransferRoomScreen() {
         keyword: tenantKeyword.trim() || undefined,
         status: STATUS_RENTING,
         building_id: tenantBuildingFilter ? Number(tenantBuildingFilter) : undefined,
+        with_active_current_room: true,
         page: tenantCurrentPage,
         per_page: tenantPerPage,
       })
@@ -314,7 +478,7 @@ export function TenantTransferRoomScreen() {
         setBuildings([])
       })
 
-    fetchAdminRooms({ status: ROOM_STATUS_ACTIVE, per_page: 1000 })
+    fetchAdminRooms({ status: ROOM_STATUS_ACTIVE, building_id: currentBuildingId ?? undefined, per_page: 1000 })
       .then((response) => {
         if (!isMounted) return
         setRooms(response.result || [])
@@ -331,7 +495,15 @@ export function TenantTransferRoomScreen() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [currentBuildingId])
+
+  useEffect(() => {
+    if (!currentBuildingId) return
+
+    queueMicrotask(() => {
+      setSelectedBuildingId(String(currentBuildingId))
+    })
+  }, [currentBuildingId])
 
   const contractTenants = useMemo(() => {
     const rows = currentContract?.contract_tenants ?? []
@@ -426,8 +598,11 @@ export function TenantTransferRoomScreen() {
   )
 
   const destinationBuildingOptions = useMemo(
-    () => buildBuildingOptions(mergeBuildingResources(buildings, roomsToBuildingResources(rooms)), isSuperAdmin ? 'Tất cả tòa nhà' : undefined),
-    [buildings, rooms, isSuperAdmin],
+    () => buildBuildingOptions(
+      mergeBuildingResources(buildings, roomsToBuildingResources(rooms)).filter((building) => !currentBuildingId || Number(building.id) === Number(currentBuildingId)),
+      undefined,
+    ),
+    [buildings, currentBuildingId, rooms],
   )
 
   const floorOptions = useMemo(() => {
@@ -449,6 +624,7 @@ export function TenantTransferRoomScreen() {
     return rooms
       .filter((room) => room.status === ROOM_STATUS_ACTIVE)
       .filter((room) => !currentRoomId || room.id !== currentRoomId)
+      .filter((room) => !currentBuildingId || Number(room.building_id) === Number(currentBuildingId))
       .filter((room) => !selectedBuildingId || Number(room.building_id) === Number(selectedBuildingId))
       .filter((room) => !selectedFloor || Number(room.floor) === Number(selectedFloor))
       .filter((room) => !selectedRoomTypeId || Number(room.room_type_id) === Number(selectedRoomTypeId))
@@ -465,7 +641,7 @@ export function TenantTransferRoomScreen() {
         if (leftGap !== rightGap) return rightGap - leftGap
         return String(left.room_number || '').localeCompare(String(right.room_number || ''), 'vi')
       })
-  }, [currentRoomId, roomKeyword, rooms, selectedBuildingId, selectedFloor, selectedRoomTypeId, selectedTenantIds.length, selectedTenantsInfo])
+  }, [currentBuildingId, currentRoomId, roomKeyword, rooms, selectedBuildingId, selectedFloor, selectedRoomTypeId, selectedTenantIds.length, selectedTenantsInfo])
 
   useEffect(() => {
     setRoomPage(1)
@@ -543,6 +719,7 @@ export function TenantTransferRoomScreen() {
     } else {
       setNewDepositAmount(formatMoneyInput(String(Math.max(0, Number(room.base_price ?? 0)))))
     }
+    setCurrentStep(2)
   }
 
   function updateFilter(setter: (value: string) => void, value: string) {
@@ -711,9 +888,8 @@ export function TenantTransferRoomScreen() {
         </div>
       </section>
 
-      {/* Main 2-column layout */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_24rem] xl:grid-cols-[1fr_26rem]">
-        {/* Left Column (Main forms) */}
+      {/* Multi-step flow layout */}
+      {currentStep === 1 ? (
         <div className="space-y-6">
           {/* Card A: Current Tenant & Contract Info + Roommates Checklist */}
           <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6">
@@ -806,7 +982,7 @@ export function TenantTransferRoomScreen() {
             </div>
           </section>
 
-          {/* Card B: Target Room Selection */}
+          {/* Card B: Chọn phòng đích */}
           <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6">
             <div>
               <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Phòng chuyển đến</span>
@@ -832,7 +1008,7 @@ export function TenantTransferRoomScreen() {
                 value={selectedBuildingId}
                 options={destinationBuildingOptions}
                 onChange={(value) => setSelectedBuildingId(String(value))}
-                disabled={!isSuperAdmin && destinationBuildingOptions.length <= 1}
+                disabled={Boolean(currentBuildingId) || destinationBuildingOptions.length <= 1}
                 className="text-xs"
               />
               <AdminSelect
@@ -984,107 +1160,70 @@ export function TenantTransferRoomScreen() {
             )}
           </section>
         </div>
+      ) : (
+        <div className="space-y-6 animate-[fadeIn_0.2s_ease-out]">
+          {/* Back button */}
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setCurrentStep(1)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-[#8b5e34] transition hover:bg-[#efe2cf]/30 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15"
+            >
+              <ChevronLeft className="h-4 w-4" /> Quay lại chọn phòng
+            </button>
+          </div>
 
-        {/* Right Column (Sticky Summary Sidebar Panel) */}
-        <aside className="lg:sticky lg:top-6 lg:self-start">
-          <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6">
-            <h3 className="text-lg font-black tracking-[-0.03em] text-[#24170d]">Tóm tắt & Thanh toán</h3>
-            <p className="mt-1 text-xs font-semibold text-[#6f6254]">
-              {selectedRoom
-                ? `${selectedRoom.building?.name || selectedRoom.building_name || `Tòa nhà #${selectedRoom.building_id}`} · Phòng ${selectedRoom.room_number}`
-                : 'Vui lòng chọn phòng đích.'}
-            </p>
+          <div className="space-y-6">
+            {/* Card D: Room Transfer Summary (Source to Destination) */}
+            <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6">
+              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Thông tin chuyển phòng</span>
+              <h2 className="mt-1 text-xl font-black tracking-[-0.04em] text-[#24170d]">Phòng đích đã chọn</h2>
 
-            {/* Calculations List */}
-            <div className="mt-5 space-y-3">
-              <SummaryLine label="Số khách chuyển" value={`${selectedTenantIds.length} người`} />
-              <Field label="Ngày chuyển phòng" error={fieldErrors.movement_date}>
-                <AdminDateInput
-                  value={movementDate}
-                  onChange={setMovementDate}
-                  minDate={minimumMovementDate ?? undefined}
-                  placeholder="Chọn ngày chuyển"
-                  className={cn(inputClass, fieldErrors.movement_date && 'border-rose-300 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-200')}
-                />
-              </Field>
-
-              <div className="rounded-2xl border border-[#0f766e]/15 bg-[#0f766e]/6 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Preview phân bổ tiền xe</p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-[#6f6254]">
-                      Dựa theo cách lập hóa đơn: HĐ cũ tính đến trước ngày chuyển, HĐ mới tính từ ngày chuyển.
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-[#0f766e]/15 bg-white px-3 py-1 text-[10px] font-black text-[#0f5f59]">
-                    {vehicleBillingPreview.vehicleCount} xe
-                  </span>
+              <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center justify-between border-t border-[#3d2a18]/10 pt-4">
+                <div className="flex-1 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1]/40 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/60">Phòng cũ</p>
+                  <p className="mt-1 text-base font-black text-[#24170d]">Phòng {currentRoomNumber}</p>
+                  <p className="text-xs font-semibold text-[#6f6254]">{currentBuildingName}</p>
                 </div>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <div className="rounded-xl border border-[#3d2a18]/8 bg-white/80 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/60">HĐ cũ</p>
-                    <p className="mt-1 text-lg font-black tabular-nums text-[#24170d]">{formatCurrency(vehicleBillingPreview.oldAmount)}</p>
-                    <p className="mt-1 text-[11px] font-semibold text-[#6f6254]">{vehicleBillingPreview.oldRange}</p>
-                  </div>
-                  <div className="rounded-xl border border-[#3d2a18]/8 bg-white/80 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b5e34]/60">HĐ mới</p>
-                    <p className="mt-1 text-lg font-black tabular-nums text-[#0f5f59]">{formatCurrency(vehicleBillingPreview.newAmount)}</p>
-                    <p className="mt-1 text-[11px] font-semibold text-[#6f6254]">{vehicleBillingPreview.newRange}</p>
-                  </div>
+                <div className="flex justify-center text-[#8b5e34] font-black text-xl">
+                  <span>➔</span>
+                </div>
+                <div className="flex-1 rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/5 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f5f59]">Phòng mới</p>
+                  <p className="mt-1 text-base font-black text-[#24170d]">Phòng {selectedRoom?.room_number}</p>
+                  <p className="text-xs font-semibold text-[#6f6254]">{selectedRoom?.building?.name || selectedRoom?.building_name}</p>
                 </div>
               </div>
+            </section>
 
-              <hr className="border-[#3d2a18]/8" />
+            {/* Card E: Form Inputs */}
+            <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6 space-y-5">
+              <h3 className="text-lg font-black tracking-[-0.03em] text-[#24170d]">Thông tin lịch chuyển & chi phí</h3>
 
-              <SummaryLine label="Cọc gốc hiện tại" value={formatCurrency(oldDepositBalance)} />
-              <SummaryLine label="Cách xử lý cọc cũ" value={usesOldDepositSettlement ? 'Dùng cọc cũ để quyết toán' : 'Giữ nguyên ở HĐ nguồn'} accent={usesOldDepositSettlement} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Ngày chuyển phòng" error={fieldErrors.movement_date}>
+                  <AdminDateInput
+                    value={movementDate}
+                    onChange={setMovementDate}
+                    minDate={minimumMovementDate ?? undefined}
+                    placeholder="Chọn ngày chuyển"
+                    className={cn(inputClass, fieldErrors.movement_date && 'border-rose-300 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-200')}
+                  />
+                </Field>
 
-
-              <div className="flex flex-col gap-2 rounded-2xl border border-[#3d2a18]/8 bg-[#fffaf1]/50 p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/65">Chi phí phát sinh</p>
-                <div className="mt-1 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-semibold text-[#6f6254]">Khấu trừ hư hao</span>
-                    <span className="font-bold text-rose-700">{formatCurrency(damageAmount)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-semibold text-[#6f6254]">Phí chuyển phòng</span>
-                    <span className="font-bold text-rose-700">{formatCurrency(transferFeeAmount)}</span>
-                  </div>
-                </div>
+                <Field label="Cọc yêu cầu phòng mới" error={fieldErrors.new_deposit_amount}>
+                  <input
+                    type="text"
+                    value={newDepositAmount}
+                    onChange={(event) => setNewDepositAmount(formatMoneyInput(event.target.value))}
+                    placeholder="0"
+                    className={inputClass}
+                    disabled={destinationRoomHasContract}
+                  />
+                </Field>
               </div>
 
-              <SummaryLine label={usesOldDepositSettlement ? 'Cọc khả dụng sau phí' : 'Cọc cũ giữ lại'} value={formatCurrency(availableAfterCosts)} accent={usesOldDepositSettlement && availableAfterCosts > 0} />
-              <SummaryLine label="Cọc chuyển sang phòng mới" value={formatCurrency(depositAppliedToNewRoom)} />
-              <SummaryLine label="Cọc mới còn thiếu" value={formatCurrency(depositDueAmount)} accent={depositDueAmount > 0} />
-              <SummaryLine label="Phí/khấu trừ thu thêm" value={formatCurrency(extraChargeAmount)} accent={extraChargeAmount > 0} />
-
-              <hr className="border-[#3d2a18]/8" />
-
-              {/* Outstanding payment or Refund Highlight */}
-              {settlementDueAmount > 0 ? (
-                <div className="rounded-2xl border border-rose-200/60 bg-rose-50/50 p-4 text-center">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">Khách cần nộp thêm (QR code)</p>
-                  <p className="mt-1 text-2xl font-black tabular-nums text-rose-600">{formatCurrency(settlementDueAmount)}</p>
-                </div>
-              ) : manualRefundAmount > 0 ? (
-                <div className="rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/6 p-4 text-center">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Hoàn cọc cho khách (Thủ công)</p>
-                  <p className="mt-1 text-2xl font-black tabular-nums text-[#0f5f59]">{formatCurrency(manualRefundAmount)}</p>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-center">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-stone-600">Đối trừ cân bằng</p>
-                  <p className="mt-1 text-2xl font-black tabular-nums text-[#24170d]">{formatCurrency(0)}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Adjustments Inputs grouped inside summary */}
-            <div className="mt-6 space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-[0.18em] text-[#8b5e34]">Điều chỉnh cọc & phí</h4>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Khấu trừ hư hao" error={fieldErrors.deposit_deduction_amount}>
                   <input
                     type="text"
@@ -1104,20 +1243,7 @@ export function TenantTransferRoomScreen() {
                   />
                 </Field>
               </div>
-              <Field label="Cọc yêu cầu phòng mới" error={fieldErrors.new_deposit_amount}>
-                <input
-                  type="text"
-                  value={newDepositAmount}
-                  onChange={(event) => setNewDepositAmount(formatMoneyInput(event.target.value))}
-                  placeholder="0"
-                  className={inputClass}
-                  disabled={destinationRoomHasContract}
-                />
-              </Field>
-            </div>
 
-            {/* Ghi chú */}
-            <div className="mt-6">
               <Field label="Ghi chú chuyển phòng" error={fieldErrors.note}>
                 <textarea
                   value={note}
@@ -1127,29 +1253,101 @@ export function TenantTransferRoomScreen() {
                   className={cn(inputClass, 'resize-none')}
                 />
               </Field>
-            </div>
+            </section>
 
-            {submitError && (
-              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700">
-                {submitError}
+            {/* Card F: Full-width Horizontal Payment Summary Card */}
+            <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-6 shadow-xl shadow-[#6b3f1d]/6">
+              <h3 className="text-lg font-black tracking-[-0.03em] text-[#24170d] border-b border-[#3d2a18]/8 pb-3 mb-5">Tóm tắt thanh toán</h3>
+
+              <div className="grid gap-6 md:grid-cols-3">
+                {/* Column 1: Cọc cũ & Tiền xe */}
+                <div className="space-y-4">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">Cọc cũ & Tiền xe</span>
+                  <div className="space-y-3 bg-[#fffaf1]/50 rounded-2xl p-4 border border-[#3d2a18]/5">
+                    <SummaryLine label="Số khách chuyển" value={`${selectedTenantIds.length} người`} />
+                    <SummaryLine label="Cọc gốc hiện tại" value={formatCurrency(oldDepositBalance)} />
+                    <SummaryLine label="Cách xử lý cọc cũ" value={usesOldDepositSettlement ? 'Dùng cọc cũ để quyết toán' : 'Giữ nguyên ở HĐ nguồn'} accent={usesOldDepositSettlement} />
+
+                    <div className="mt-3 border-t border-[#3d2a18]/8 pt-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f5f59] mb-2">Preview phân bổ tiền xe ({vehicleBillingPreview.vehicleCount} xe)</p>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-[#6f6254]">HĐ cũ:</span>
+                        <span className="font-black text-[#24170d]">{formatCurrency(vehicleBillingPreview.oldAmount)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs mt-1">
+                        <span className="font-semibold text-[#6f6254]">HĐ mới:</span>
+                        <span className="font-black text-[#0f5f59]">{formatCurrency(vehicleBillingPreview.newAmount)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column 2: Chi phí & Đối trừ cọc */}
+                <div className="space-y-4">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">Chi phí & Đối trừ</span>
+                  <div className="space-y-3 bg-[#fffaf1]/50 rounded-2xl p-4 border border-[#3d2a18]/5">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-semibold text-[#6f6254]">Khấu trừ hư hao:</span>
+                      <span className="font-bold text-rose-700">{formatCurrency(damageAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="font-semibold text-[#6f6254]">Phí chuyển phòng:</span>
+                      <span className="font-bold text-rose-700">{formatCurrency(transferFeeAmount)}</span>
+                    </div>
+                    <hr className="border-[#3d2a18]/8" />
+                    <SummaryLine label={usesOldDepositSettlement ? 'Cọc khả dụng sau phí' : 'Cọc cũ giữ lại'} value={formatCurrency(availableAfterCosts)} accent={usesOldDepositSettlement && availableAfterCosts > 0} />
+                    <SummaryLine label="Cọc chuyển sang phòng mới" value={formatCurrency(depositAppliedToNewRoom)} />
+                    <SummaryLine label="Cọc mới còn thiếu" value={formatCurrency(depositDueAmount)} accent={depositDueAmount > 0} />
+                    <SummaryLine label="Phí/khấu trừ thu thêm" value={formatCurrency(extraChargeAmount)} accent={extraChargeAmount > 0} />
+                  </div>
+                </div>
+
+                {/* Column 3: Quyết toán cuối cùng */}
+                <div className="space-y-4 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">Quyết toán & Xác nhận</span>
+
+                    {settlementDueAmount > 0 ? (
+                      <div className="rounded-2xl border border-rose-200/60 bg-rose-50/50 p-4 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">Khách cần nộp thêm</p>
+                        <p className="mt-1 text-2xl font-black tabular-nums text-rose-600">{formatCurrency(settlementDueAmount)}</p>
+                      </div>
+                    ) : manualRefundAmount > 0 ? (
+                      <div className="rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/6 p-4 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]">Hoàn cọc cho khách (Thủ công)</p>
+                        <p className="mt-1 text-2xl font-black tabular-nums text-[#0f5f59]">{formatCurrency(manualRefundAmount)}</p>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-stone-600">Đối trừ cân bằng</p>
+                        <p className="mt-1 text-2xl font-black tabular-nums text-[#24170d]">{formatCurrency(0)}</p>
+                      </div>
+                    )}
+
+                    {submitError && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-black text-rose-700">
+                        {submitError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-4 md:pt-0">
+                    <button
+                      type="button"
+                      onClick={() => void handleSubmit()}
+                      disabled={!canSubmit}
+                      className="w-full inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#f3c56b]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+                      {isSubmitting ? 'Đang lên lịch...' : 'Xác nhận chuyển phòng'}
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-
-            {/* Action button inside Card C */}
-            <div className="mt-6">
-              <button
-                type="button"
-                onClick={() => void handleSubmit()}
-                disabled={!canSubmit}
-                className="w-full inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#f3c56b]/25 bg-[#24170d] px-5 text-sm font-black uppercase tracking-[0.16em] text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
-                {isSubmitting ? 'Đang lên lịch...' : 'Xác nhận chuyển phòng'}
-              </button>
-            </div>
-          </section>
-        </aside>
-      </div>
+            </section>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
@@ -1554,163 +1752,4 @@ function normalizeAdminTenantsResponse(response: Awaited<ReturnType<typeof fetch
   }
 
   return { data: [], meta: maybePaginated.meta || maybePaginated.pagination || null }
-}
-
-function moneyNumber(value: string | number | null | undefined): number {
-  if (value === null || value === undefined) return 0
-  if (typeof value === 'number') return value
-
-  const valStr = String(value).trim()
-  if (/^\d+\.\d{1,2}$/.test(valStr)) {
-    return Math.max(Math.round(Number(valStr)), 0)
-  }
-
-  const parsed = Number(valStr.replace(/\./g, '').replace(/,/g, '').trim() || '0')
-  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-    maximumFractionDigits: 0,
-  }).format(Math.round(value))
-}
-
-function todayDateString(reference = new Date()) {
-  return dateToInputString(reference)
-}
-
-function dateToInputString(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function parseDateInput(value?: string | null): Date | null {
-  if (!value) return null
-
-  const [year, month, day] = value.split('-').map(Number)
-  if (!year || !month || !day) return null
-
-  return new Date(year, month - 1, day)
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date)
-  next.setDate(next.getDate() + days)
-  return next
-}
-
-function formatDisplayDate(date: Date): string {
-  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
-}
-
-function buildVehicleBillingPreview(contract: AdminContractResource | null, tenantIds: number[], movementDate: string): VehicleBillingPreview {
-  const movement = parseDateInput(movementDate)
-  if (!contract || !movement) {
-    return emptyVehicleBillingPreview()
-  }
-
-  const periodStart = new Date(movement.getFullYear(), movement.getMonth(), 1)
-  const periodEnd = new Date(movement.getFullYear(), movement.getMonth() + 1, 0)
-  const oldWindowEnd = addDays(movement, -1)
-  const selectedTenantIds = new Set(tenantIds)
-  const movingVehicles = (contract.contract_vehicles ?? []).filter((contractVehicle) => {
-    const tenantId = Number(contractVehicle.vehicle?.tenant_id)
-
-    return contractVehicle.is_active !== false && selectedTenantIds.has(tenantId)
-  })
-
-  const oldWindows = movingVehicles.map((contractVehicle) => {
-    const configuredEndDate = parseDateInput(contractVehicle.billing_end_date || contractVehicle.ended_at)
-    const oldChargeEnd = configuredEndDate && configuredEndDate < oldWindowEnd ? configuredEndDate : oldWindowEnd
-
-    return calculateVehicleWindowPreview(
-      contractVehicle.monthly_fee,
-      contractVehicle.billing_start_date || contractVehicle.started_at || dateToInputString(periodStart),
-      dateToInputString(oldChargeEnd),
-      periodStart,
-      periodEnd,
-    )
-  })
-  const newWindows = movingVehicles.map((contractVehicle) => calculateVehicleWindowPreview(
-    contractVehicle.monthly_fee,
-    movementDate,
-    dateToInputString(periodEnd),
-    periodStart,
-    periodEnd,
-  ))
-
-  return {
-    vehicleCount: movingVehicles.length,
-    oldAmount: sumVehicleWindows(oldWindows),
-    newAmount: sumVehicleWindows(newWindows),
-    oldRange: summarizeVehicleWindows(oldWindows),
-    newRange: summarizeVehicleWindows(newWindows),
-  }
-}
-
-function emptyVehicleBillingPreview(): VehicleBillingPreview {
-  return {
-    vehicleCount: 0,
-    oldAmount: 0,
-    newAmount: 0,
-    oldRange: '—',
-    newRange: '—',
-  }
-}
-
-function calculateVehicleWindowPreview(monthlyFee: string | number | null | undefined, startDate: string, endDate: string, periodStart: Date, periodEnd: Date): VehicleWindowPreview {
-  const amount = moneyNumber(monthlyFee)
-  const chargeStartDate = parseDateInput(startDate)
-  const chargeEndDate = parseDateInput(endDate)
-
-  if (amount <= 0 || !chargeStartDate || !chargeEndDate) {
-    return { amount: 0, range: 'Không phát sinh' }
-  }
-
-  const chargeStart = chargeStartDate > periodStart ? chargeStartDate : periodStart
-  const chargeEnd = chargeEndDate < periodEnd ? chargeEndDate : periodEnd
-
-  if (chargeStart > chargeEnd) {
-    return { amount: 0, range: 'Không phát sinh' }
-  }
-
-  const actualDays = Math.floor((chargeEnd.getTime() - chargeStart.getTime()) / 86_400_000) + 1
-  const totalDays = periodEnd.getDate()
-
-  return {
-    amount: Math.round((amount * actualDays) / totalDays),
-    range: `${formatDisplayDate(chargeStart)} – ${formatDisplayDate(chargeEnd)}`,
-  }
-}
-
-function sumVehicleWindows(windows: VehicleWindowPreview[]): number {
-  return windows.reduce((total, window) => total + window.amount, 0)
-}
-
-function summarizeVehicleWindows(windows: VehicleWindowPreview[]): string {
-  const chargedRanges = windows.filter((window) => window.amount > 0).map((window) => window.range)
-
-  if (chargedRanges.length === 0) return 'Không phát sinh'
-
-  return Array.from(new Set(chargedRanges)).join(', ')
-}
-
-function getTenantRoomText(tenant: AdminTenantResource): ReactNode {
-  const roomNumber = tenant.current_room?.room_number ?? tenant.room_number
-  const buildingName = tenant.current_room?.building_name ?? tenant.building_name
-
-  if (!roomNumber) return 'Chưa rõ phòng hiện tại'
-
-  return (
-    <div className="flex flex-col">
-      <span>Phòng {roomNumber}</span>
-      {buildingName && (
-        <span className="text-[11px] font-semibold text-[#8b5e34]/70 mt-0.5">{buildingName}</span>
-      )}
-    </div>
-  )
 }

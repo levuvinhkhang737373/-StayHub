@@ -212,11 +212,41 @@ class _TenantsScreenState extends State<TenantsScreen> {
                                       Switch(
                                         value: tenant.isActive,
                                         activeThumbColor: Colors.green,
-                                        activeTrackColor: Colors.green.withValues(alpha: 0.2),
+                                        activeTrackColor: Colors.green.withOpacity(0.2),
                                         inactiveThumbColor: Colors.grey,
-                                        onChanged: (val) {
-                                          tenantController.updateStatus(tenant.id, val ? 1 : 2);
-                                        },
+                                        onChanged: tenantController.isLoading
+                                            ? null
+                                            : (val) async {
+                                                final success = await tenantController.updateStatus(tenant.id, val ? 1 : 2);
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).clearSnackBars();
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Row(
+                                                        children: [
+                                                          Icon(
+                                                            success ? Icons.check_circle_outline : Icons.error_outline,
+                                                            color: Colors.white,
+                                                          ),
+                                                          const SizedBox(width: 12),
+                                                          Expanded(
+                                                            child: Text(
+                                                              success
+                                                                  ? 'Cập nhật trạng thái khách thuê thành công!'
+                                                                  : 'Cập nhật trạng thái khách thuê thất bại!',
+                                                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      backgroundColor: success ? Colors.green : Colors.redAccent,
+                                                      behavior: SnackBarBehavior.floating,
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                      duration: const Duration(seconds: 2),
+                                                    ),
+                                                  );
+                                                }
+                                              },
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.info_outline, color: Color(0xFF1C1917)),

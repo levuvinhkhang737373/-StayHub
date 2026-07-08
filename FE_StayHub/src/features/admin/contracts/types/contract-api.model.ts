@@ -165,11 +165,6 @@ export interface AdminContractResource {
   deposit_due_amount?: string | null
   status: number
   status_label?: string | null
-  negotiation_status?: number
-  negotiation_status_label?: string | null
-  proposed_room_price?: string | null
-  proposed_services?: Array<{ service_id: number; price: string }> | null
-  proposed_vehicles?: Array<{ vehicle_id: number; price: string }> | null
   room_services?: Array<{ id: number; name: string; charge_method: number; charge_method_label: string; unit_name: string; price: string; is_required: boolean }> | null
   payment_status?: number
   payment_status_label?: string | null
@@ -279,6 +274,7 @@ export interface AdminContractPayload {
   tenants?: AdminContractTenantPayload[]
   vehicles?: AdminContractVehiclePayload[]
   deposit_transactions?: AdminContractDepositTransactionPayload[]
+  services?: Array<{ service_id: number; price: string }>
   is_deposit_paid?: boolean
   deposit_payment_method?: number | null
   payment_status?: number
@@ -342,6 +338,15 @@ export interface ContractDepositFormRow {
   note: string
 }
 
+export interface ContractServiceFormRow {
+  service_id: string
+  name: string
+  slug?: string
+  charge_method_label: string
+  unit_name: string
+  price: string
+}
+
 export interface ContractFormValues {
   contract_code: string
   building_id: string
@@ -360,8 +365,9 @@ export interface ContractFormValues {
   tenants: ContractTenantFormRow[]
   vehicles: ContractVehicleFormRow[]
   deposit_transactions: ContractDepositFormRow[]
+  services: ContractServiceFormRow[]
   is_deposit_paid: boolean
   deposit_payment_method: string
 }
 
-export type ContractFormErrors = Partial<Record<keyof ContractFormValues | `tenants.${number}` | `vehicles.${number}` | `deposit_transactions.${number}`, string>>
+export type ContractFormErrors = Partial<Record<keyof ContractFormValues | `tenants.${number}` | `vehicles.${number}` | `deposit_transactions.${number}` | `services.${number}`, string>>

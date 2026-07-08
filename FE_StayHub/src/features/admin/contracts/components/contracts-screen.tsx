@@ -13,7 +13,6 @@ import {
   Edit3,
   Eye,
   FileText,
-  Handshake,
   Plus,
   Power,
   Trash2,
@@ -121,7 +120,6 @@ export function ContractsScreen() {
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [rooms, setRooms] = useState<ContractRoomOption[]>([])
   const [detailContract, setDetailContract] = useState<AdminContractResource | null>(null)
-  const [isNegotiationMode, setIsNegotiationMode] = useState(false)
   const [statusContract, setStatusContract] = useState<AdminContractResource | null>(null)
   const [statusForm, setStatusForm] = useState({ status: STATUS_ACTIVE, note: '' })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -744,41 +742,11 @@ export function ContractsScreen() {
                       <td className="px-5 py-4 text-center">
                         <div className="inline-flex flex-col items-center gap-1.5">
                           <StatusBadge status={contract.status} label={contract.status_label || getStatusLabel(contract.status)} />
-                          {contract.negotiation_status === 1 && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">
-                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                              Chờ duyệt TL
-                            </span>
-                          )}
-                          {contract.negotiation_status === 2 && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              TL đã duyệt
-                            </span>
-                          )}
-                          {contract.negotiation_status === 3 && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
-                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                              TL bị từ chối
-                            </span>
-                          )}
                         </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          {contract.negotiation_status === 1 && (
-                            <IconButton
-                              title="Xem chi tiết thương lượng & Duyệt"
-                              onClick={() => {
-                                setIsNegotiationMode(true)
-                                void viewContract(contract)
-                              }}
-                            >
-                              <Handshake className="h-5 w-5 text-amber-500 animate-pulse" />
-                            </IconButton>
-                          )}
                           <IconButton title="Xem chi tiết" success onClick={() => {
-                            setIsNegotiationMode(false)
                             void viewContract(contract)
                           }}>
                             <Eye className="h-5 w-5" />
@@ -902,16 +870,10 @@ export function ContractsScreen() {
           onClose={() => {
             setDetailContract(null)
             setDetailErrorMessage(null)
-            setIsNegotiationMode(false)
           }}
           onPayDeposit={(contract) => {
             setPayingDepositContract(contract)
           }}
-          onNegotiationProcessed={(updated) => {
-            setDetailContract(updated)
-            void loadContracts()
-          }}
-          onlyNegotiation={isNegotiationMode}
         />
       )}
 

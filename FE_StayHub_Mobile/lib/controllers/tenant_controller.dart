@@ -130,12 +130,24 @@ class TenantController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Toggle/Update tenant status
   Future<bool> updateStatus(int id, int status) async {
     _isLoading = true;
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 500)); // Simulate API delay
+    bool success = false;
+    try {
+      final response = await _apiService.patch<dynamic>(
+        '/admin/tenants/$id/status',
+        data: {
+          'status': status,
+          'reason': status == 1 ? 'Kích hoạt thuê lại từ Mobile App' : 'Ngừng thuê từ Mobile App',
+        },
+        fromJsonT: (json) => json,
+      );
+      if (response.status) {
+        success = true;
+      }
+    } catch (_) {}
 
     try {
       final index = _mockTenants.indexWhere((t) => t.id == id);
@@ -192,13 +204,13 @@ class TenantController extends ChangeNotifier {
       }
       
       search(_searchQuery); // Refresh filtered list
-      _isLoading = false;
-      notifyListeners();
-      return true;
+      if (!success && _realTenants == null) {
+        success = true; // Chế độ mock hoàn toàn
+      }
     } catch (_) {}
 
     _isLoading = false;
     notifyListeners();
-    return false;
+    return success;
   }
 }

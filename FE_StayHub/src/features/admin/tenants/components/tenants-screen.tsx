@@ -15,7 +15,7 @@ import {
   updateAdminTenantStatus,
 } from '../services/tenants.service'
 import type { AdminPaginationMeta, AdminPaginator, AdminTenantResource } from '../types/tenant-api.model'
-import { useAdminSession } from '../../auth/hooks/use-admin-session'
+import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { buildTenantListQuery } from '../utils/tenant-query'
 
 type AdminTenantsResult = AdminPaginator<AdminTenantResource> | AdminTenantResource[]
@@ -80,8 +80,10 @@ export function TenantsScreen() {
   const navigate = useNavigate()
   const adminRole = session?.admin?.role
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
+  const isSuperAdmin = isSuperAdminRole(adminRole)
 
   const [keyword, setKeyword] = useState('')
+  const [selectedBuildingId, setSelectedBuildingId] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedGender, setSelectedGender] = useState('')
   const [selectedIdentityType, setSelectedIdentityType] = useState('')
@@ -130,6 +132,7 @@ export function TenantsScreen() {
       const response = await fetchAdminTenants(buildTenantListQuery({
         role: adminRole,
         managedBuildingId,
+        selectedBuildingId,
         keyword,
         status: selectedStatus,
         gender: selectedGender,
@@ -146,11 +149,11 @@ export function TenantsScreen() {
         setCurrentPage(meta.last_page)
       }
     } catch (error) {
-      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách khách thuê.', Boolean(keyword.trim() || selectedStatus || selectedGender || selectedIdentityType)))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách khách thuê.', Boolean(keyword.trim() || selectedStatus || selectedGender || selectedIdentityType || selectedBuildingId)))
     } finally {
       setIsLoading(false)
     }
-  }, [adminRole, currentPage, keyword, managedBuildingId, perPage, selectedGender, selectedIdentityType, selectedStatus])
+  }, [adminRole, currentPage, keyword, managedBuildingId, perPage, selectedBuildingId, selectedGender, selectedIdentityType, selectedStatus])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -175,7 +178,7 @@ export function TenantsScreen() {
       .filter((page) => page >= 1 && page <= totalPages)
       .sort((a, b) => a - b)
   }, [safeCurrentPage, totalPages])
-  const hasActiveFilters = Boolean(keyword.trim() || selectedStatus || selectedGender || selectedIdentityType)
+  const hasActiveFilters = Boolean(keyword.trim() || selectedStatus || selectedGender || selectedIdentityType || selectedBuildingId)
   const openCreateForm = () => {
     navigate('/admin/tenants/create')
   }
@@ -290,6 +293,7 @@ export function TenantsScreen() {
 
   const clearFilters = () => {
     setKeyword('')
+    setSelectedBuildingId('')
     setSelectedStatus('')
     setSelectedGender('')
     setSelectedIdentityType('')
@@ -353,7 +357,12 @@ export function TenantsScreen() {
           <div className="grid min-w-0 grid-cols-1 gap-4 lg:gap-6">
             <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
               <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-                <div className="grid gap-3 lg:grid-cols-[minmax(12rem,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]">
+                <div className={cn(
+                  "grid gap-3",
+                  isSuperAdmin
+                    ? "lg:grid-cols-[minmax(12rem,1fr)_minmax(120px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]"
+                    : "lg:grid-cols-[minmax(12rem,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)]"
+                )}>
                   <div className="relative min-w-0">
                     <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
                     <input type="text" value={keyword} onChange={(event) => { setKeyword(event.target.value); setCurrentPage(1) }} placeholder="Tìm tên, username, email, SĐT hoặc số giấy tờ..." className={`${inputClass} pl-11 pr-28`} />
@@ -361,6 +370,23 @@ export function TenantsScreen() {
                       <X className="h-3.5 w-3.5" /> Xóa lọc
                     </button>
                   </div>
+                  {isSuperAdmin && (
+                    <AdminSelect
+                      value={selectedBuildingId}
+                      options={[
+                        { value: '', label: 'Tất cả tòa nhà', tone: 'default' as const },
+                        ...(session?.admin?.managed_buildings?.map(b => ({
+                          value: b.id,
+                          label: b.name,
+                          tone: 'default' as const
+                        })) || [])
+                      ] as import('../../shared/components/AdminSelect').AdminSelectOption[]}
+                      onChange={(nextValue) => {
+                        setSelectedBuildingId(String(nextValue))
+                        setCurrentPage(1)
+                      }}
+                    />
+                  )}
                   <AdminSelect value={selectedStatus} options={statusOptions} onChange={(nextValue) => setSelectedStatus(String(nextValue))} />
                   <AdminSelect value={selectedGender} options={genderOptions} onChange={(nextValue) => setSelectedGender(String(nextValue))} />
                   <AdminSelect value={selectedIdentityType} options={identityTypeOptions} onChange={(nextValue) => setSelectedIdentityType(String(nextValue))} />

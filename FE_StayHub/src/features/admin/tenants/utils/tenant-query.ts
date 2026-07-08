@@ -1,9 +1,10 @@
-import { isBuildingManagerRole } from '../../auth/hooks/use-admin-session'
+import { isBuildingManagerRole, isSuperAdminRole } from '../../auth/hooks/use-admin-session'
 import type { AdminTenantFilters } from '../types/tenant-api.model'
 
 export interface TenantListQueryInput {
   role?: string | number | null
   managedBuildingId?: number | null
+  selectedBuildingId?: string
   keyword?: string
   status?: string
   gender?: string
@@ -22,7 +23,9 @@ export function buildTenantListQuery(input: TenantListQueryInput): AdminTenantFi
     per_page: input.perPage,
   }
 
-  if (isBuildingManagerRole(input.role) && input.managedBuildingId) {
+  if (isSuperAdminRole(input.role) && input.selectedBuildingId) {
+    query.building_id = Number(input.selectedBuildingId)
+  } else if (isBuildingManagerRole(input.role) && input.managedBuildingId) {
     query.building_id = input.managedBuildingId
   }
 

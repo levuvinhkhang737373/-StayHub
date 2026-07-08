@@ -378,19 +378,8 @@ export function CreateRoomScreen() {
                   placeholder="Chọn tòa nhà"
                 />
               </div>
-
               <div>
-                <div className="flex justify-between items-center px-1 mb-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">Loại phòng *</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingRoomType(true)}
-                    disabled={!isBuildingSelected}
-                    className="text-[10px] font-black text-[#8b5e34] hover:text-[#24170d] transition disabled:opacity-40 disabled:pointer-events-none"
-                  >
-                    + Thêm loại phòng
-                  </button>
-                </div>
+                <label className={labelClass}>Loại phòng *</label>
                 <AdminSelect
                   value={formData.room_type_id}
                   options={roomTypes.map((rt) => ({ value: rt.id, label: rt.name }))}

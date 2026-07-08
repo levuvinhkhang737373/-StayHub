@@ -137,6 +137,82 @@ class TenantGenderPolicyTest extends TestCase
         $this->assertContains($secondTenant->id, $tenantIds);
     }
 
+    public function test_transfer_tenant_picker_only_lists_tenants_with_active_current_room(): void
+    {
+        $building = $this->createBuilding('transfer-picker-building', Building::GENDER_POLICY_MIXED);
+        $room = $this->createRoom($building, 'TP101', 1);
+        $contractOnlyRoom = $this->createRoom($building, 'TP102', 1);
+        $activeTenant = $this->createTenant('transfer_picker_active', Tenant::GENDER_MALE, $building);
+        $contractOnlyTenant = $this->createTenant('transfer_picker_contract_only', Tenant::GENDER_MALE);
+        $pendingTenant = $this->createTenant('transfer_picker_pending', Tenant::GENDER_MALE, $building);
+        $inactiveTenant = $this->createTenant('transfer_picker_inactive', Tenant::GENDER_MALE, $building);
+        $unassignedTenant = $this->createTenant('transfer_picker_unassigned', Tenant::GENDER_MALE);
+
+        $this->createActiveContract($room, $activeTenant);
+        $this->createActiveContract($contractOnlyRoom, $contractOnlyTenant);
+
+        $pendingContract = Contract::create([
+            'contract_code' => 'HD-PICKER-PENDING',
+            'room_id' => $room->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_PENDING_SIGN,
+            'created_by' => $this->admin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $pendingContract->id,
+            'tenant_id' => $pendingTenant->id,
+            'join_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $this->admin->id,
+        ]);
+
+        $inactiveContract = Contract::create([
+            'contract_code' => 'HD-PICKER-INACTIVE',
+            'room_id' => $room->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-06-30',
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->admin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $inactiveContract->id,
+            'tenant_id' => $inactiveTenant->id,
+            'join_date' => '2026-01-01',
+            'leave_date' => '2026-06-30',
+            'is_staying' => false,
+            'created_by' => $this->admin->id,
+        ]);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->getJson('/api/v1/admin/tenants?status='.Tenant::STATUS_RENTING.'&with_active_current_room=1&per_page=100');
+
+        $response->assertStatus(200);
+
+        $tenantIds = collect($response->json('result.data'))->pluck('id')->all();
+        $this->assertContains($activeTenant->id, $tenantIds);
+        $this->assertNotContains($pendingTenant->id, $tenantIds);
+        $this->assertNotContains($inactiveTenant->id, $tenantIds);
+        $this->assertNotContains($unassignedTenant->id, $tenantIds);
+
+        $buildingResponse = $this->actingAs($this->admin, 'admin')
+            ->getJson('/api/v1/admin/tenants?building_id='.$building->id.'&status='.Tenant::STATUS_RENTING.'&with_active_current_room=1&per_page=100');
+
+        $buildingResponse->assertStatus(200);
+
+        $buildingTenantIds = collect($buildingResponse->json('result.data'))->pluck('id')->all();
+        $this->assertContains($activeTenant->id, $buildingTenantIds);
+        $this->assertContains($contractOnlyTenant->id, $buildingTenantIds);
+        $this->assertNotContains($pendingTenant->id, $buildingTenantIds);
+        $this->assertNotContains($unassignedTenant->id, $buildingTenantIds);
+    }
+
     public function test_contract_create_renew_and_activate_reject_staying_tenant_with_invalid_gender(): void
     {
         $femaleBuilding = $this->createBuilding('female-contracts', Building::GENDER_POLICY_FEMALE);
@@ -184,15 +260,51 @@ class TenantGenderPolicyTest extends TestCase
             ->assertJsonPath('message', 'Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.');
     }
 
-    public function test_room_transfer_respects_destination_building_gender_policy(): void
+    public function test_room_transfer_requires_destination_room_in_current_building(): void
     {
         $sourceBuilding = $this->createBuilding('source-mixed', Building::GENDER_POLICY_MIXED);
+        $otherBuilding = $this->createBuilding('transfer-other-mixed', Building::GENDER_POLICY_MIXED);
+        $sourceRoom = $this->createRoom($sourceBuilding, 'S101', 1);
+        $sameBuildingRoom = $this->createRoom($sourceBuilding, 'S102');
+        $otherBuildingRoom = $this->createRoom($otherBuilding, 'TO101');
+        $maleTenant = $this->createTenant('transfer_male', Tenant::GENDER_MALE, $sourceBuilding);
+        $contract = $this->createActiveContract($sourceRoom, $maleTenant);
+        $movementDate = now('Asia/Ho_Chi_Minh')->addMonthNoOverflow()->startOfMonth()->toDateString();
+
+        $this->actingAs($this->admin, 'admin')
+            ->postJson('/api/v1/admin/room-transfers/tenant', [
+                'tenant_id' => $maleTenant->id,
+                'to_room_id' => $otherBuildingRoom->id,
+                'movement_date' => $movementDate,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Chuyển phòng chỉ được thực hiện trong cùng tòa nhà hiện tại của khách thuê.');
+
+        $this->assertDatabaseHas('contract_tenants', [
+            'contract_id' => $contract->id,
+            'tenant_id' => $maleTenant->id,
+            'is_staying' => true,
+        ]);
+
+        $this->actingAs($this->admin, 'admin')
+            ->postJson('/api/v1/admin/room-transfers/tenant', [
+                'tenant_id' => $maleTenant->id,
+                'to_room_id' => $sameBuildingRoom->id,
+                'movement_date' => $movementDate,
+            ])
+            ->assertStatus(201);
+    }
+
+    public function test_room_transfer_respects_destination_building_gender_policy(): void
+    {
         $femaleBuilding = $this->createBuilding('transfer-female', Building::GENDER_POLICY_FEMALE);
         $mixedBuilding = $this->createBuilding('transfer-mixed', Building::GENDER_POLICY_MIXED);
-        $sourceRoom = $this->createRoom($sourceBuilding, 'S101', 1);
-        $femaleRoom = $this->createRoom($femaleBuilding, 'TF101');
-        $mixedRoom = $this->createRoom($mixedBuilding, 'TM101');
-        $maleTenant = $this->createTenant('transfer_male', Tenant::GENDER_MALE, $sourceBuilding);
+        $sourceRoom = $this->createRoom($femaleBuilding, 'TF101', 1);
+        $femaleRoom = $this->createRoom($femaleBuilding, 'TF102');
+        $mixedRoom = $this->createRoom($mixedBuilding, 'TM101', 1);
+        $mixedTargetRoom = $this->createRoom($mixedBuilding, 'TM102');
+        $maleTenant = $this->createTenant('transfer_male', Tenant::GENDER_MALE, $femaleBuilding);
+        $mixedMaleTenant = $this->createTenant('transfer_mixed_male', Tenant::GENDER_MALE, $mixedBuilding);
         $contract = $this->createActiveContract($sourceRoom, $maleTenant);
         $movementDate = now('Asia/Ho_Chi_Minh')->addMonthNoOverflow()->startOfMonth()->toDateString();
 
@@ -211,10 +323,12 @@ class TenantGenderPolicyTest extends TestCase
             'is_staying' => true,
         ]);
 
+        $this->createActiveContract($mixedRoom, $mixedMaleTenant);
+
         $this->actingAs($this->admin, 'admin')
             ->postJson('/api/v1/admin/room-transfers/tenant', [
-                'tenant_id' => $maleTenant->id,
-                'to_room_id' => $mixedRoom->id,
+                'tenant_id' => $mixedMaleTenant->id,
+                'to_room_id' => $mixedTargetRoom->id,
                 'movement_date' => $movementDate,
             ])
             ->assertStatus(201);
@@ -286,7 +400,7 @@ class TenantGenderPolicyTest extends TestCase
             'start_date' => $startDate,
             'end_date' => $endDate,
             'room_price' => '3500000.00',
-            'deposit_amount' => '1000000.00',
+            'deposit_amount' => '4000000.00',
             'status' => $status,
             'tenants' => [[
                 'tenant_id' => $tenant->id,
@@ -304,7 +418,7 @@ class TenantGenderPolicyTest extends TestCase
             'start_date' => '2026-01-01',
             'end_date' => '2026-12-31',
             'room_price' => '3500000.00',
-            'deposit_amount' => '1000000.00',
+            'deposit_amount' => '4000000.00',
             'status' => Contract::STATUS_ACTIVE,
             'created_by' => $this->admin->id,
         ]);

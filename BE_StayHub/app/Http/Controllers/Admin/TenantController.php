@@ -347,6 +347,7 @@ class TenantController extends Controller
             ->with($this->listRelations())
             ->withCount($this->listCounts())
             ->when(isset($validated['status']), fn (Builder $q): Builder => $q->where('status', (int) $validated['status']))
+            ->when($this->requiresActiveCurrentRoom($validated), fn (Builder $q): Builder => $this->filterHasActiveCurrentRoom($q))
             ->when(isset($validated['gender']), fn (Builder $q): Builder => $q->where('gender', (int) $validated['gender']))
             ->when(isset($validated['identity_type']), fn (Builder $q): Builder => $q->where('identity_type', (int) $validated['identity_type']));
 
@@ -373,6 +374,8 @@ class TenantController extends Controller
                 });
 
             $this->applyBuildingGenderPolicyFilter($query, $buildingId);
+        } elseif ($this->requiresActiveCurrentRoom($validated) && isset($validated['building_id'])) {
+            $this->filterActiveCurrentRoomBuilding($query, (int) $validated['building_id']);
         } else {
             $query->when(isset($validated['building_id']), fn (Builder $q): Builder => $q->where('building_id', (int) $validated['building_id']));
         }
@@ -388,7 +391,7 @@ class TenantController extends Controller
         $isContractSearch = (isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN))
             || (isset($validated['without_reserved_contract']) && filter_var($validated['without_reserved_contract'], FILTER_VALIDATE_BOOLEAN));
 
-        if (AdminScope::isBuildingManager($admin) || $isContractSearch) {
+        if (AdminScope::isBuildingManager($admin) || $isContractSearch || $this->requiresActiveCurrentRoom($validated)) {
             return $this->applyKeywordFilter($this->queryTenants($validated, $admin), $keyword)
                 ->paginate($validated['per_page'] ?? 20);
         }
@@ -424,6 +427,32 @@ class TenantController extends Controller
                 $keywordQuery->orWhere($column, 'like', $likeKeyword);
             }
         });
+    }
+
+    private function requiresActiveCurrentRoom(array $validated): bool
+    {
+        return isset($validated['with_active_current_room'])
+            && filter_var($validated['with_active_current_room'], FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private function filterHasActiveCurrentRoom(Builder $query): Builder
+    {
+        return $query->whereHas('contractTenants', fn (Builder $contractTenantQuery): Builder => $contractTenantQuery
+            ->where('is_staying', true)
+            ->whereNull('leave_date')
+            ->whereHas('contract', fn (Builder $contractQuery): Builder => $contractQuery
+                ->where('status', Contract::STATUS_ACTIVE)
+                ->whereHas('room')));
+    }
+
+    private function filterActiveCurrentRoomBuilding(Builder $query, int $buildingId): Builder
+    {
+        return $query->whereHas('contractTenants', fn (Builder $contractTenantQuery): Builder => $contractTenantQuery
+            ->where('is_staying', true)
+            ->whereNull('leave_date')
+            ->whereHas('contract', fn (Builder $contractQuery): Builder => $contractQuery
+                ->where('status', Contract::STATUS_ACTIVE)
+                ->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->where('building_id', $buildingId))));
     }
 
     private function applyBuildingGenderPolicyFilter(Builder $query, int $buildingId): void

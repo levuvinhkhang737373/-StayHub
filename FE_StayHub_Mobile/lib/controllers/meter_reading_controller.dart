@@ -490,4 +490,66 @@ class MeterReadingController extends ChangeNotifier {
       return AnalyzeMeterImageResult(success: false, error: 'ai_service_unavailable');
     }
   }
+
+  /// Lập hóa đơn hàng loạt cho tòa nhà
+  Future<bool> bulkGenerateInvoices({
+    required int buildingId,
+    required int month,
+    required int year,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.post<dynamic>(
+        '/admin/buildings/$buildingId/invoices/bulk-generate',
+        data: {
+          'building_id': buildingId,
+          'billing_month': month,
+          'billing_year': year,
+        },
+        fromJsonT: (json) => json,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return response.status;
+    } catch (e) {
+      _errorMessage = e is ApiException ? e.message : 'Lỗi tạo hóa đơn hàng loạt: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Lập hóa đơn đơn lẻ cho 1 hợp đồng
+  Future<bool> generateInvoice({
+    required int contractId,
+    required int month,
+    required int year,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.post<dynamic>(
+        '/admin/invoices/generate',
+        data: {
+          'contract_id': contractId,
+          'billing_month': month,
+          'billing_year': year,
+        },
+        fromJsonT: (json) => json,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return response.status;
+    } catch (e) {
+      _errorMessage = e is ApiException ? e.message : 'Lỗi phát hành hóa đơn: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
 }

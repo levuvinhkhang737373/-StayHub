@@ -523,6 +523,10 @@ class RoomController extends Controller
             throw ValidationException::withMessages(['to_room_id' => 'Phòng đích không được là phòng hiện tại.']);
         }
 
+        if ((int) $fromRoom->building_id !== (int) $toRoom->building_id) {
+            throw ValidationException::withMessages(['to_room_id' => 'Chuyển phòng chỉ được thực hiện trong cùng tòa nhà hiện tại của khách thuê.']);
+        }
+
         if (! AdminScope::ensureBuildingAccess($admin, (int) $fromRoom->building_id) || ! AdminScope::ensureBuildingAccess($admin, (int) $toRoom->building_id)) {
             throw ValidationException::withMessages(['to_room_id' => 'Bạn không có quyền chuyển khách thuê giữa các tòa nhà này.']);
         }

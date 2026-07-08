@@ -90,6 +90,7 @@ export interface AdminTenantFilters {
   per_page?: number
   without_active_contract?: boolean
   without_reserved_contract?: boolean
+  with_active_current_room?: boolean
 }
 
 export interface AdminTenantPayload {
