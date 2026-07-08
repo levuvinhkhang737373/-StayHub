@@ -71,6 +71,10 @@ class ContractController extends Controller
             }
 
             $rooms = Room::query()
+                ->with(['services' => function ($query) {
+                    $query->select('services.id', 'services.name', 'services.slug', 'services.charge_method', 'services.unit_name')
+                          ->withPivot('price');
+                }])
                 ->select(['id', 'building_id', 'room_number', 'status', 'base_price', 'max_occupants', 'current_occupants'])
                 ->where('building_id', $buildingId)
                 ->where('status', Room::STATUS_ACTIVE)
@@ -178,6 +182,29 @@ class ContractController extends Controller
 
                 $this->syncContractTenants($contract, $tenantPayloads, $admin, true);
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
+
+                // Cập nhật hoặc thêm dịch vụ và giá trị tùy chỉnh vào phòng
+                $servicesPayload = $validated['services'] ?? [];
+                $incomingServiceIds = collect($servicesPayload)->pluck('service_id')->all();
+
+                // Xóa những dịch vụ của phòng không nằm trong danh sách gửi lên (bị bỏ tích)
+                \App\Models\RoomService::where('room_id', $room->id)
+                    ->whereNotIn('service_id', $incomingServiceIds)
+                    ->delete();
+
+                if (!empty($servicesPayload)) {
+                    foreach ($servicesPayload as $item) {
+                        \App\Models\RoomService::updateOrCreate(
+                            [
+                                'room_id' => $room->id,
+                                'service_id' => $item['service_id'],
+                            ],
+                            [
+                                'price' => $item['price'],
+                            ]
+                        );
+                    }
+                }
 
                 $depositAmountCents = $this->decimalToCents($contract->deposit_amount);
                 $isDepositPaid = isset($validated['is_deposit_paid']) ? (bool) $validated['is_deposit_paid'] : false;
@@ -498,6 +525,29 @@ class ContractController extends Controller
 
                 if (is_array($vehiclePayloads)) {
                     $this->syncContractVehicles($contractModel, $vehiclePayloads, false);
+                }
+
+                // Cập nhật hoặc thêm dịch vụ và giá trị tùy chỉnh vào phòng khi sửa hợp đồng
+                $servicesPayload = $validated['services'] ?? [];
+                $incomingServiceIds = collect($servicesPayload)->pluck('service_id')->all();
+
+                // Xóa những dịch vụ của phòng không nằm trong danh sách gửi lên (bị bỏ tích)
+                \App\Models\RoomService::where('room_id', $room->id)
+                    ->whereNotIn('service_id', $incomingServiceIds)
+                    ->delete();
+
+                if (!empty($servicesPayload)) {
+                    foreach ($servicesPayload as $item) {
+                        \App\Models\RoomService::updateOrCreate(
+                            [
+                                'room_id' => $room->id,
+                                'service_id' => $item['service_id'],
+                            ],
+                            [
+                                'price' => $item['price'],
+                            ]
+                        );
+                    }
                 }
 
                 $this->refreshRoomOccupants((int) $contractModel->room_id);

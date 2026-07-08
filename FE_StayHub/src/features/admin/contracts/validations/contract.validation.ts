@@ -72,6 +72,8 @@ export function validateContractForm(form: ContractFormValues, roomMaxOccupants?
     errors.deposit_amount = 'Tiền cọc phải là số tiền không âm và tối đa 2 chữ số thập phân.'
   } else if (Number(cleanDepositAmount) <= 0) {
     errors.deposit_amount = 'Tiền cọc trong hợp đồng phải lớn hơn 0.'
+  } else if (MONEY_REGEX.test(cleanRoomPrice) && Number(cleanDepositAmount) <= Number(cleanRoomPrice)) {
+    errors.deposit_amount = 'Tiền cọc phải lớn hơn tiền phòng.'
   }
 
   if (![STATUS_PENDING_SIGN, STATUS_ACTIVE, STATUS_EXPIRED, STATUS_LIQUIDATED, STATUS_CANCELLED].includes(Number(form.status))) {

@@ -333,7 +333,7 @@ class ContractControllerTest extends TestCase
             'end_date' => '2026-12-01',
             'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
-            'deposit_amount' => '2000000.00',
+            'deposit_amount' => '4000000.00',
             'status' => Contract::STATUS_ACTIVE,
             'tenants' => [
                 [
@@ -407,7 +407,7 @@ class ContractControllerTest extends TestCase
                 'end_date' => '2026-12-01',
                 'billing_cycle_day' => 5,
                 'room_price' => '3500000.00',
-                'deposit_amount' => '2000000.00',
+                'deposit_amount' => '4000000.00',
                 'status' => Contract::STATUS_PENDING_SIGN,
                 'tenants' => [
                     [
@@ -1222,5 +1222,60 @@ class ContractControllerTest extends TestCase
             return $event->notification->tenant_id === $this->tenant2->id &&
                    $event->notification->title === 'Hợp đồng mới được tạo';
         });
+    }
+
+    public function test_create_contract_successfully_syncs_custom_service_prices()
+    {
+        $service = \App\Models\Service::create([
+            'name' => 'Custom Internet',
+            'slug' => 'custom-internet',
+            'charge_method' => 2,
+            'unit_name' => 'tháng',
+            'is_required' => false,
+            'is_active' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        \App\Models\RoomService::create([
+            'room_id' => $this->room->id,
+            'service_id' => $service->id,
+            'price' => '100000.00',
+        ]);
+
+        $payload = [
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'billing_cycle_day' => 5,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'is_deposit_paid' => true,
+            'deposit_payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+            'status' => Contract::STATUS_ACTIVE,
+            'tenants' => [
+                [
+                    'tenant_id' => $this->tenant1->id,
+                    'join_date' => '2026-06-01',
+                    'is_staying' => true,
+                ],
+            ],
+            'services' => [
+                [
+                    'service_id' => $service->id,
+                    'price' => '80000.00',
+                ],
+            ],
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/contracts', $payload);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('room_services', [
+            'room_id' => $this->room->id,
+            'service_id' => $service->id,
+            'price' => '80000.00',
+        ]);
     }
 }

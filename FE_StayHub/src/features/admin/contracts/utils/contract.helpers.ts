@@ -53,6 +53,7 @@ export const defaultForm: ContractFormValues = {
   tenants: [{ ...defaultTenantRow }],
   vehicles: [],
   deposit_transactions: [],
+  services: [],
   is_deposit_paid: true,
   deposit_payment_method: '2',
 }
@@ -161,6 +162,14 @@ export function contractToForm(contract: AdminContractResource, isRenew = false)
       is_active: vehicle.is_active !== false,
     })),
     deposit_transactions: [],
+    services: (contract.room_services || []).map((service) => ({
+      service_id: String(service.id),
+      name: service.name || '',
+      slug: (service as any).slug || '',
+      charge_method_label: service.charge_method_label || '',
+      unit_name: service.unit_name || '',
+      price: formatMoneyInput(service.price || '0'),
+    })),
     is_deposit_paid: contract.is_deposit_paid !== false,
     deposit_payment_method: String(contract.deposit_transactions?.[0]?.payment_method || '2'),
   }
@@ -203,6 +212,10 @@ export function buildPayload(form: ContractFormValues, includeStatus: boolean, i
       transaction_date: transaction.transaction_date,
       payment_method: Number(transaction.payment_method),
       note: transaction.note.trim() || null,
+    })),
+    services: form.services.map((service) => ({
+      service_id: Number(service.service_id),
+      price: parseMoneyInput(service.price.trim()),
     })),
     is_deposit_paid: isQr ? false : form.is_deposit_paid,
     deposit_payment_method: isQr ? null : (form.is_deposit_paid ? Number(form.deposit_payment_method) : null),

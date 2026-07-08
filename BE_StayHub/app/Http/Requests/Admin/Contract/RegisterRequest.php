@@ -62,12 +62,46 @@ class RegisterRequest extends FormRequest
             'vehicles.*.monthly_fee' => ['nullable', 'regex:/^\d{1,13}(\.\d{1,2})?$/'],
             'vehicles.*.charge_policy' => ['required_with:vehicles', 'integer', Rule::in(array_keys(ContractVehicle::CHARGE_POLICY_LABELS))],
             'vehicles.*.is_active' => ['nullable', 'boolean'],
+
+            'services' => ['nullable', 'array'],
+            'services.*.service_id' => ['required', 'integer', 'distinct', Rule::exists('services', 'id')],
+            'services.*.price' => ['required', 'regex:/^\d{1,13}(\.\d{1,2})?$/', 'gte:0'],
         ];
+    }
+
+    public function withValidator($validator)
+    {
+        $validator->after(function ($validator) {
+            $contract = $this->route('contract');
+            
+            $roomPrice = $this->input('room_price');
+            $depositAmount = $this->input('deposit_amount');
+
+            if (is_null($roomPrice) || is_null($depositAmount)) {
+                if ($contract) {
+                    $contractModel = is_numeric($contract) 
+                        ? \App\Models\Contract::find($contract) 
+                        : $contract;
+                    
+                    if ($contractModel) {
+                        $roomPrice = $roomPrice ?? $contractModel->room_price;
+                        $depositAmount = $depositAmount ?? $contractModel->deposit_amount;
+                    }
+                }
+            }
+
+            $roomPriceFloat = floatval($roomPrice ?? 0);
+            $depositAmountFloat = floatval($depositAmount ?? 0);
+
+            if ($depositAmountFloat <= $roomPriceFloat) {
+                $validator->errors()->add('deposit_amount', 'Tiền cọc phải lớn hơn tiền phòng.');
+            }
+        });
     }
 
     public function messages(): array
     {
-        return array_merge($this->baseMessages(), $this->tenantMessages(), $this->vehicleMessages());
+        return array_merge($this->baseMessages(), $this->tenantMessages(), $this->vehicleMessages(), $this->serviceMessages());
     }
 
     protected function failedValidation(Validator $validator): void
@@ -161,6 +195,20 @@ class RegisterRequest extends FormRequest
             'vehicles.*.charge_policy.integer' => 'Chính sách tính phí xe không hợp lệ.',
             'vehicles.*.charge_policy.in' => 'Chính sách tính phí xe không nằm trong danh sách cho phép.',
             'vehicles.*.is_active.boolean' => 'Trạng thái tính phí xe không hợp lệ.',
+        ];
+    }
+
+    private function serviceMessages(): array
+    {
+        return [
+            'services.array' => 'Danh sách dịch vụ trong hợp đồng không hợp lệ.',
+            'services.*.service_id.required' => 'Dịch vụ là bắt buộc.',
+            'services.*.service_id.integer' => 'Dịch vụ không hợp lệ.',
+            'services.*.service_id.distinct' => 'Không được chọn trùng dịch vụ trong cùng hợp đồng.',
+            'services.*.service_id.exists' => 'Dịch vụ chọn không tồn tại trên hệ thống.',
+            'services.*.price.required' => 'Đơn giá dịch vụ là bắt buộc.',
+            'services.*.price.regex' => 'Đơn giá dịch vụ phải là số tiền hợp lệ, không âm và tối đa 2 chữ số thập phân.',
+            'services.*.price.gte' => 'Đơn giá dịch vụ không được âm.',
         ];
     }
 }

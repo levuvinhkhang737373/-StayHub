@@ -59,7 +59,7 @@ function toContractFormData(payload: AdminContractPayload, method?: 'PUT') {
       return
     }
 
-    if (['tenants', 'vehicles', 'deposit_transactions'].includes(key) && Array.isArray(value)) {
+    if (['tenants', 'vehicles', 'deposit_transactions', 'services'].includes(key) && Array.isArray(value)) {
       appendObjectArray(formData, key, value as Array<Record<string, unknown>>)
       return
     }

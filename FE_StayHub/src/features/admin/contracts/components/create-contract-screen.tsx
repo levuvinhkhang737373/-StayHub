@@ -4,7 +4,7 @@ import { ArrowLeft, BadgeCheck, Car, FileText, RefreshCw, UserPlus, X } from 'lu
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { canManageContractsRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
-import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
+import { fetchAdminBuildings, fetchAdminBuildingDetail } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { buildingAllowsTenantGender } from '../../shared/config/gender-policy'
@@ -28,7 +28,7 @@ import type {
   ContractVehicleFormRow,
 } from '../types/contract-api.model'
 import { validateContractForm } from '../validations/contract.validation'
-import { formatMoneyInput } from '../../../../shared/lib/utils/format'
+import { formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 
 import {
   STATUS_PENDING_SIGN,
@@ -46,6 +46,18 @@ import { FieldError } from './ui/ui-elements'
 import { inputClass, inputErrorClass, Field, FormSection, TenantRow, VehicleRow } from './form/form-elements'
 import { DepositQRModal } from './modals/DepositQRModal'
 import { CreateVehicleModal } from './modals/CreateVehicleModal'
+import { ManageServicesModal } from './modals/ManageServicesModal'
+import { fetchAdminServices } from '../../services/services/services.service'
+
+const isFixedService = (name: string, slug?: string) => {
+  const s = (slug || '').toLowerCase()
+  const n = (name || '').toLowerCase()
+  return (
+    ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat', 'dien', 'nuoc'].includes(s) ||
+    n.includes('điện') ||
+    n.includes('nước')
+  )
+}
 
 export function CreateContractScreen() {
   const navigate = useNavigate()
@@ -64,6 +76,7 @@ export function CreateContractScreen() {
   const [errors, setErrors] = useState<ContractFormErrors>({})
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [rooms, setRooms] = useState<ContractRoomOption[]>([])
+  const [buildingServices, setBuildingServices] = useState<any[]>([])
   const [tenants, setTenants] = useState<AdminTenantResource[]>([])
   const [vehicles, setVehicles] = useState<AdminVehicleOptionResource[]>([])
   const [currentContractTenants, setCurrentContractTenants] = useState<AdminTenantResource[]>([])
@@ -73,6 +86,7 @@ export function CreateContractScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isManageServicesOpen, setIsManageServicesOpen] = useState(false)
 
   const [activeMessage, setActiveMessage] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
@@ -164,6 +178,12 @@ export function CreateContractScreen() {
       tone: vehicle.is_active ? ('success' as const) : ('warning' as const),
     }))
   }, [vehicles, currentContractVehicles])
+
+  const availableBuildingServices = useMemo(() => {
+    return buildingServices.filter(
+      (bs) => !form.services.some((s) => String(s.service_id) === String(bs.id))
+    )
+  }, [buildingServices, form.services])
 
   const loadBuildings = useCallback(async () => {
     if (!canManageContracts) return
@@ -375,6 +395,48 @@ export function CreateContractScreen() {
   }, [form.building_id, loadRoomsForBuilding, loadTenants])
 
   useEffect(() => {
+    if (!form.building_id) {
+      setBuildingServices([])
+      return
+    }
+
+    const loadBuildingServices = async () => {
+      try {
+        // 1. Tải tất cả dịch vụ hoạt động trong hệ thống
+        const systemServicesRes = await fetchAdminServices({ is_active: true, per_page: 100 })
+        const systemServices = getResourceList(systemServicesRes.result)
+
+        // 2. Tải chi tiết tòa nhà để lấy giá cấu hình riêng
+        const buildingRes = await fetchAdminBuildingDetail(Number(form.building_id))
+        const servicePrices = buildingRes.result?.service_prices || []
+
+        // 3. Ghép giá cấu hình của tòa nhà vào dịch vụ hệ thống
+        const activeServices = systemServices.map((service: any) => {
+          const customPriceRecord = servicePrices.find(
+            (sp: any) => Number(sp.service_id) === Number(service.id) && sp.status === 1
+          )
+          
+          return {
+            id: service.id,
+            name: service.name,
+            slug: service.slug || '',
+            charge_method: service.charge_method,
+            charge_method_label: service.charge_method === 1 ? 'Theo chỉ số' : (service.charge_method === 2 ? 'Cố định' : 'Miễn phí'),
+            unit_name: service.unit_name,
+            price: customPriceRecord ? String(Math.round(Number(customPriceRecord.price || 0))) : '0',
+          }
+        })
+
+        setBuildingServices(activeServices)
+      } catch (error) {
+        console.error('Không thể tải dịch vụ:', error)
+      }
+    }
+
+    void loadBuildingServices()
+  }, [form.building_id])
+
+  useEffect(() => {
     const tenantIds = form.tenants
       .map((tenant) => Number(tenant.tenant_id))
       .filter((id) => id > 0)
@@ -401,6 +463,21 @@ export function CreateContractScreen() {
           next.room_price = ''
           next.deposit_amount = '0'
         }
+        if (selectedRoom && (selectedRoom as any).services) {
+          next.services = ((selectedRoom as any).services || []).map((service: any) => ({
+            service_id: String(service.id),
+            name: service.name || '',
+            slug: service.slug || '',
+            charge_method_label: service.charge_method === 1 ? 'Theo chỉ số' : (service.charge_method === 2 ? 'Cố định' : 'Miễn phí'),
+            unit_name: service.unit_name || '',
+            price: formatMoneyInput(String(Math.round(Number(service.pivot?.price || 0)))),
+          }))
+        } else {
+          next.services = []
+        }
+      }
+      if (key === 'room_price') {
+        next.deposit_amount = String(value)
       }
       if (key === 'start_date' && typeof value === 'string') {
         next.vehicles = current.vehicles.map((v) => ({
@@ -709,7 +786,7 @@ export function CreateContractScreen() {
                   placeholder="3.500.000"
                 />
               </Field>
-              {!isEditMode && !isRenewMode && Number(form.deposit_amount) > 0 && (
+              {!isEditMode && !isRenewMode && Number(parseMoneyInput(form.deposit_amount)) > 0 && (
                 <div className="flex flex-col gap-2 p-3 rounded-2xl border border-[#3d2a18]/10 bg-white/40 col-span-1 lg:col-span-2">
                   <label className="inline-flex items-center gap-2 text-xs font-black text-[#6f6254]">
                     <input type="checkbox" checked={form.is_deposit_paid} disabled onChange={(e) => updateForm('is_deposit_paid', e.target.checked)} />
@@ -770,6 +847,78 @@ export function CreateContractScreen() {
                   isRenewMode={isRenewMode}
                 />
               ))}
+            </div>
+          </FormSection>
+
+          <FormSection
+            title="Dịch vụ phòng"
+            icon={<FileText className="h-5 w-5" />}
+            action={
+              form.building_id && (
+                <button
+                  type="button"
+                  onClick={() => setIsManageServicesOpen(true)}
+                  className="rounded-xl bg-[#24170d] px-3 py-2 text-xs font-black text-[#fff4df]"
+                >
+                  <PlusIcon className="mr-1 inline h-3.5 w-3.5" />
+                  Thêm dịch vụ
+                </button>
+              )
+            }
+          >
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {form.services.map((service, index) => (
+                <div
+                  key={index}
+                  className="relative rounded-2xl border border-[#3d2a18]/10 bg-white/40 p-4 shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-[#24170d]">{service.name}</h4>
+                      <p className="text-xs font-semibold text-[#8b5e34]/70 mt-0.5">
+                        Tính phí: {service.charge_method_label} · Đơn vị: {service.unit_name}
+                      </p>
+                    </div>
+                    {!isFixedService(service.name, service.slug) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = form.services.filter((_, rowIndex) => rowIndex !== index)
+                          updateForm('services', updated)
+                        }}
+                        className="rounded-xl p-1.5 transition hover:bg-rose-50 hover:text-rose-600 text-rose-400"
+                      >
+                        <X className="h-4 w-4 stroke-[2.8]" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <Field label="Đơn giá (VND)" required error={errors[`services.${index}`]}>
+                      <input
+                        className={cn(inputClass, errors[`services.${index}`] && inputErrorClass)}
+                        value={service.price}
+                        disabled={isFixedService(service.name, service.slug)}
+                        onChange={(e) => {
+                          const updated = [...form.services]
+                          updated[index] = { ...service, price: formatMoneyInput(e.target.value) }
+                          updateForm('services', updated)
+                        }}
+                        placeholder="100.000"
+                      />
+                      {isFixedService(service.name, service.slug) && (
+                        <p className="text-[10px] font-semibold text-[#8b5e34]/70 mt-1">
+                          * Đơn giá điện/nước cố định theo tòa nhà.
+                        </p>
+                      )}
+                    </Field>
+                  </div>
+                </div>
+              ))}
+              {form.services.length === 0 && (
+                <p className="text-sm font-bold text-[#8b5e34]/60 p-4 col-span-2 text-center">
+                  Vui lòng chọn phòng để hiển thị danh sách dịch vụ của phòng.
+                </p>
+              )}
             </div>
           </FormSection>
 
@@ -946,6 +1095,17 @@ export function CreateContractScreen() {
             }))
             setIsCreateVehicleOpen(false)
           }}
+        />
+      )}
+
+      {isManageServicesOpen && (
+        <ManageServicesModal
+          isOpen={isManageServicesOpen}
+          onClose={() => setIsManageServicesOpen(false)}
+          buildingServices={buildingServices}
+          setBuildingServices={setBuildingServices}
+          selectedServices={form.services}
+          onUpdateServices={(updated) => updateForm('services', updated)}
         />
       )}
     </section>

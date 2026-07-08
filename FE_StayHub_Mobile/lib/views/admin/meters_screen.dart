@@ -72,6 +72,123 @@ class _MetersScreenState extends State<MetersScreen> {
     );
   }
 
+  Future<void> _confirmBulkGenerate(BuildContext context, MeterReadingController controller) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1917),
+        title: const Text('Tạo hóa đơn hàng loạt', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        content: Text(
+          'Bạn có chắc chắn muốn xếp hàng tạo hóa đơn hàng loạt cho tất cả các phòng có hợp đồng trong kỳ Tháng $_selectedMonth/$_selectedYear của tòa nhà này không?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10766A),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Xác nhận', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final success = await controller.bulkGenerateInvoices(
+        buildingId: _selectedBuildingId!,
+        month: _selectedMonth,
+        year: _selectedYear,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Đang xếp hàng tạo hóa đơn hàng loạt, vui lòng đợi giây lát...'
+                  : (controller.errorMessage ?? 'Không thể tạo hóa đơn hàng loạt.'),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            backgroundColor: success ? Colors.green : Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        if (success) {
+          _fetchReadings();
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmGenerateSingle(
+    BuildContext context,
+    int contractId,
+    String roomNumber,
+    MeterReadingController controller,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1917),
+        title: const Text('Lập hóa đơn phòng', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        content: Text(
+          'Bạn có chắc chắn muốn lập và phát hành hóa đơn cho Phòng $roomNumber trong kỳ Tháng $_selectedMonth/$_selectedYear không?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEAB308),
+              foregroundColor: const Color(0xFF1C1917),
+            ),
+            child: const Text('Xác nhận', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final success = await controller.generateInvoice(
+        contractId: contractId,
+        month: _selectedMonth,
+        year: _selectedYear,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Phát hành hóa đơn cho Phòng $roomNumber thành công!'
+                  : (controller.errorMessage ?? 'Không thể phát hành hóa đơn.'),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            backgroundColor: success ? Colors.green : Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        if (success) {
+          _fetchReadings();
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final facilityCtrl = context.watch<FacilityController>();
@@ -222,6 +339,31 @@ class _MetersScreenState extends State<MetersScreen> {
                         ),
                       ],
                     ),
+                    if (_selectedBuildingId != null) ...[
+                      const SizedBox(height: 12),
+                      const Divider(height: 16, color: Color(0xFFE4E2D7)),
+                      const SizedBox(height: 4),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.receipt_long),
+                          label: const Text(
+                            'TẠO TẤT CẢ HÓA ĐƠN',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10766A),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: meterReadingCtrl.isLoading
+                              ? null
+                              : () => _confirmBulkGenerate(context, meterReadingCtrl),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -288,7 +430,7 @@ class _MetersScreenState extends State<MetersScreen> {
                             itemCount: rooms.length,
                             itemBuilder: (context, index) {
                               final room = rooms[index];
-                              return _buildRoomCard(room, electricPrice, waterPrice);
+                              return _buildRoomCard(room, electricPrice, waterPrice, meterReadingCtrl);
                             },
                           ),
               ),
@@ -326,7 +468,7 @@ class _MetersScreenState extends State<MetersScreen> {
     }
   }
 
-  Widget _buildRoomCard(RoomReading room, double electricPrice, double waterPrice) {
+  Widget _buildRoomCard(RoomReading room, double electricPrice, double waterPrice, MeterReadingController meterReadingCtrl) {
     final elec = room.meters.firstWhere(
       (m) => m.meterType == 1,
       orElse: () => MeterDeviceReading(id: 0, meterType: 1, serviceId: 0, serviceName: 'Điện', previousReading: 0),
@@ -504,23 +646,47 @@ class _MetersScreenState extends State<MetersScreen> {
                   ),
                 ],
               ),
-              ElevatedButton.icon(
-                icon: Icon(
-                  isChotElec && isChotWater ? Icons.edit_note : Icons.add_chart,
-                  size: 16,
-                ),
-                label: Text(
-                  isChotElec && isChotWater ? 'Sửa chỉ số' : 'Chốt số',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1C1917),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: (hasMeters && !isPastMonth) ? () => _openReadingModal(room, electricPrice, waterPrice) : null,
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    icon: Icon(
+                      isChotElec && isChotWater ? Icons.edit_note : Icons.add_chart,
+                      size: 16,
+                    ),
+                    label: Text(
+                      isChotElec && isChotWater ? 'Sửa chỉ số' : 'Chốt số',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1C1917),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: (hasMeters && !isPastMonth) ? () => _openReadingModal(room, electricPrice, waterPrice) : null,
+                  ),
+                  if (isChotElec && isChotWater && room.contractId != null) ...[
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.receipt_long, size: 16),
+                      label: const Text(
+                        'Tạo HĐ',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10766A),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: meterReadingCtrl.isLoading
+                          ? null
+                          : () => _confirmGenerateSingle(context, room.contractId!, room.roomNumber, meterReadingCtrl),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
