@@ -125,18 +125,6 @@ export function ContractFormPanel({
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>Ngày chốt tiền</label>
-            <input
-              className={cn(inputClass, errors.billing_cycle_day && inputErrorClass)}
-              value={form.billing_cycle_day}
-              onChange={(event) => onUpdate('billing_cycle_day', event.target.value)}
-              type="number"
-              min={1}
-              max={28}
-            />
-            <FieldError message={errors.billing_cycle_day} />
-          </div>
           {!editing && !renewing && (
             <div>
               <label className={labelClass}>Trạng thái tạo</label>
@@ -153,7 +141,7 @@ export function ContractFormPanel({
               className={cn(inputClass, errors.room_price && inputErrorClass)}
               value={form.room_price}
               onChange={(event) => onUpdate('room_price', event.target.value)}
-              placeholder="3500000.00"
+              placeholder="3.500.000"
             />
             <FieldError message={errors.room_price} />
           </div>
@@ -163,7 +151,7 @@ export function ContractFormPanel({
               className={cn(inputClass, errors.deposit_amount && inputErrorClass)}
               value={form.deposit_amount}
               onChange={(event) => onUpdate('deposit_amount', event.target.value)}
-              placeholder="3500000.00"
+              placeholder="3.500.000"
             />
             <FieldError message={errors.deposit_amount} />
           </div>

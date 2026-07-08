@@ -101,7 +101,6 @@ class FinancialReportTest extends TestCase
             'room_id' => $this->room->id,
             'start_date' => '2026-06-01',
             'end_date' => '2026-12-01',
-            'billing_cycle_day' => 5,
             'room_price' => 5000000.00,
             'deposit_amount' => 5000000.00,
             'status' => Contract::STATUS_ACTIVE,

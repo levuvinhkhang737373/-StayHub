@@ -63,13 +63,4 @@ return [
         'timeout' => (int) env('OMNIROUTE_TIMEOUT', 60),
     ],
 
-    'fire_safety' => [
-        'discord_webhook_url' => env('FIRE_DISCORD_WEBHOOK_URL'),
-        'frame_count' => (int) env('FIRE_FRAME_COUNT', 3),
-        'analysis_window_seconds' => (int) env('FIRE_ANALYSIS_WINDOW_SECONDS', 2),
-        'confidence_threshold' => (float) env('FIRE_CONFIDENCE_THRESHOLD', 0.7),
-        'alert_cooldown_seconds' => (int) env('FIRE_ALERT_COOLDOWN_SECONDS', 60),
-        'ai_timeout' => (int) env('FIRE_AI_TIMEOUT', 90),
-    ],
-
 ];

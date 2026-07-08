@@ -17,7 +17,6 @@ class UpdateRequest extends RegisterRequest
             'start_date' => ['nullable', 'date_format:Y-m-d'],
             'end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'actual_end_date' => ['prohibited'],
-            'billing_cycle_day' => ['nullable', 'integer', 'min:1', 'max:28'],
             'room_price' => ['nullable', 'regex:/^\d{1,13}(\.\d{1,2})?$/'],
             'deposit_amount' => ['nullable', 'regex:/^\d{1,13}(\.\d{1,2})?$/', 'gte:0'],
             'status' => ['prohibited'],
@@ -60,6 +59,8 @@ class UpdateRequest extends RegisterRequest
         return array_merge(parent::messages(), [
             'status.prohibited' => 'Vui lòng đổi trạng thái hợp đồng bằng chức năng cập nhật trạng thái riêng.',
             'actual_end_date.prohibited' => 'Ngày kết thúc thực tế chỉ được cập nhật bằng chức năng thanh lý hoặc hệ thống tự xử lý hết hạn.',
+            'end_date.date_format' => 'Ngày kết thúc hợp đồng phải đúng định dạng YYYY-MM-DD.',
+            'end_date.after_or_equal' => 'Ngày kết thúc hợp đồng phải lớn hơn hoặc bằng ngày bắt đầu.',
             'delete_contract_files.array' => 'Danh sách file hợp đồng cần xóa không hợp lệ.',
             'delete_contract_files.max' => 'Mỗi lần chỉ được xóa tối đa 10 file hợp đồng.',
             'delete_contract_files.*.string' => 'Đường dẫn file hợp đồng cần xóa không hợp lệ.',

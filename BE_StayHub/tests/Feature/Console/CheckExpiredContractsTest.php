@@ -108,7 +108,6 @@ class CheckExpiredContractsTest extends TestCase
             'room_id' => $room->id,
             'start_date' => '2026-01-01',
             'end_date' => '2026-07-01',
-            'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
             'deposit_amount' => '4000000.00',
             'status' => Contract::STATUS_ACTIVE,

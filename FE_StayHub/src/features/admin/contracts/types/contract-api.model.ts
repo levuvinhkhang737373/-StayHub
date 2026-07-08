@@ -160,7 +160,6 @@ export interface AdminContractResource {
   start_date?: string | null
   end_date?: string | null
   actual_end_date?: string | null
-  billing_cycle_day?: number | null
   room_price?: string | null
   deposit_amount?: string | null
   deposit_due_amount?: string | null
@@ -269,7 +268,6 @@ export interface AdminContractPayload {
   start_date?: string
   end_date?: string
   actual_end_date?: string | null
-  billing_cycle_day?: number
   room_price?: string
   deposit_amount?: string
   status?: number
@@ -351,7 +349,6 @@ export interface ContractFormValues {
   start_date: string
   end_date: string
   actual_end_date: string
-  billing_cycle_day: string
   room_price: string
   deposit_amount: string
   status: number

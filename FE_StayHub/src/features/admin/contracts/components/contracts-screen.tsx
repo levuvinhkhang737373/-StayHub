@@ -579,10 +579,10 @@ export function ContractsScreen() {
           <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">KHÁCH THUÊ & HỢP ĐỒNG</span>
-                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
-                  <FileText className="h-8 w-8 text-[#f3c56b] shrink-0" />
-                  Quản lý hợp đồng
-                </h1>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
+                <FileText className="h-8 w-8 text-[#f3c56b] shrink-0" />
+                Quản lý hợp đồng
+              </h1>
             </div>
             <button
               type="button"
@@ -678,7 +678,7 @@ export function ContractsScreen() {
                   <th className="px-5 py-4">Hợp đồng</th>
                   <th className="px-5 py-4">Phòng / Tòa nhà</th>
                   <th className="px-5 py-4 text-center">Thời hạn</th>
-                  <th className="px-5 py-4">Giá / Cọc</th>
+                  <th className="px-5 py-4">Giá phòng / Cọc</th>
                   <th className="px-5 py-4 text-center">Khách & Xe</th>
                   <th className="px-5 py-4 text-center">Trạng thái</th>
                   <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[232px] text-center">Thao tác</div></div></th>
@@ -720,6 +720,20 @@ export function ContractsScreen() {
                       <td className="px-5 py-4">
                         <p className="text-xs font-black text-[#24170d]">{formatCurrency(contract.room_price)}</p>
                         <p className="mt-1 text-xs font-bold text-[#8b5e34]/70">Cọc {formatCurrency(contract.deposit_amount)}</p>
+                        {Number(contract.deposit_amount) > 0 && (
+                          <div className="mt-1.5 flex items-center">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-black leading-none border",
+                                contract.is_deposit_paid
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-rose-50 text-rose-700 border-rose-200"
+                              )}
+                            >
+                              {contract.is_deposit_paid ? 'Đã đóng cọc' : 'Chưa đóng cọc'}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-center">
                         <div className="inline-flex items-center gap-1.5 rounded-full border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-3 py-1 text-xs font-black text-[#6f6254]">
@@ -753,8 +767,8 @@ export function ContractsScreen() {
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
                           {contract.negotiation_status === 1 && (
-                            <IconButton 
-                              title="Xem chi tiết thương lượng & Duyệt" 
+                            <IconButton
+                              title="Xem chi tiết thương lượng & Duyệt"
                               onClick={() => {
                                 setIsNegotiationMode(true)
                                 void viewContract(contract)

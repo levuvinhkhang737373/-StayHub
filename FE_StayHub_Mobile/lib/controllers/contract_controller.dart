@@ -201,7 +201,6 @@ class ContractController extends ChangeNotifier {
         'room_id': roomId,
         'start_date': startDate,
         'end_date': endDate,
-        'billing_cycle_day': 5,
         'room_price': rentalPrice.toStringAsFixed(2),
         'deposit_amount': depositAmount.toStringAsFixed(2),
         'tenants': [
@@ -303,7 +302,6 @@ class ContractController extends ChangeNotifier {
       final double roomPrice = double.tryParse(contractData['room_price']?.toString() ?? '0') ?? 0.0;
       final double depositAmount = double.tryParse(contractData['deposit_amount']?.toString() ?? '0') ?? 0.0;
       final int roomId = contractData['room_id'] as int? ?? 0;
-      final int billingCycleDay = contractData['billing_cycle_day'] as int? ?? 5;
       
       final oldEndDateStr = contractData['end_date'] as String?;
       String newStartDate = DateTime.now().toString().split(' ')[0]; // default today
@@ -335,7 +333,6 @@ class ContractController extends ChangeNotifier {
         'room_id': roomId,
         'start_date': newStartDate,
         'end_date': newEndDate,
-        'billing_cycle_day': billingCycleDay,
         'room_price': roomPrice.toStringAsFixed(2),
         'deposit_amount': depositAmount.toStringAsFixed(2),
         'tenants': mappedTenants,

@@ -26,7 +26,6 @@ class RegisterRequest extends FormRequest
 
             'start_date' => ['required', 'date_format:Y-m-d'],
             'end_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'],
-            'billing_cycle_day' => ['required', 'integer', 'min:1', 'max:28'],
             'room_price' => ['required', 'regex:/^\d{1,13}(\.\d{1,2})?$/'],
             'deposit_amount' => ['required', 'regex:/^\d{1,13}(\.\d{1,2})?$/', 'gte:0'],
             'status' => ['nullable', 'integer', Rule::in([
@@ -92,10 +91,6 @@ class RegisterRequest extends FormRequest
             'end_date.required' => 'Ngày kết thúc hợp đồng là bắt buộc.',
             'end_date.date_format' => 'Ngày kết thúc hợp đồng phải đúng định dạng YYYY-MM-DD.',
             'end_date.after_or_equal' => 'Ngày kết thúc hợp đồng phải lớn hơn hoặc bằng ngày bắt đầu.',
-            'billing_cycle_day.required' => 'Ngày chốt tiền hằng tháng là bắt buộc.',
-            'billing_cycle_day.integer' => 'Ngày chốt tiền hằng tháng phải là số nguyên.',
-            'billing_cycle_day.min' => 'Ngày chốt tiền hằng tháng tối thiểu là ngày 1.',
-            'billing_cycle_day.max' => 'Ngày chốt tiền hằng tháng tối đa là ngày 28 để tránh lỗi tháng thiếu ngày.',
             'room_price.required' => 'Giá phòng trong hợp đồng là bắt buộc.',
             'room_price.regex' => 'Giá phòng phải là số tiền hợp lệ, không âm và tối đa 2 chữ số thập phân.',
             'deposit_amount.required' => 'Tiền cọc trong hợp đồng là bắt buộc.',

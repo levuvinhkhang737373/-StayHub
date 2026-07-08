@@ -120,6 +120,23 @@ class TenantGenderPolicyTest extends TestCase
         $this->assertContains($unassignedFemaleTenant->id, $mixedIds);
     }
 
+    public function test_super_admin_tenant_list_is_not_limited_to_first_managed_building(): void
+    {
+        $firstBuilding = $this->createBuilding('first-super-admin-building', Building::GENDER_POLICY_MIXED);
+        $secondBuilding = $this->createBuilding('second-super-admin-building', Building::GENDER_POLICY_MIXED);
+        $firstTenant = $this->createTenant('super_first_tenant', Tenant::GENDER_MALE, $firstBuilding);
+        $secondTenant = $this->createTenant('super_second_tenant', Tenant::GENDER_FEMALE, $secondBuilding);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->getJson('/api/v1/admin/tenants?per_page=100');
+
+        $response->assertStatus(200);
+        $tenantIds = collect($response->json('result.data'))->pluck('id')->all();
+
+        $this->assertContains($firstTenant->id, $tenantIds);
+        $this->assertContains($secondTenant->id, $tenantIds);
+    }
+
     public function test_contract_create_renew_and_activate_reject_staying_tenant_with_invalid_gender(): void
     {
         $femaleBuilding = $this->createBuilding('female-contracts', Building::GENDER_POLICY_FEMALE);
@@ -148,7 +165,6 @@ class TenantGenderPolicyTest extends TestCase
             'room_id' => $pendingRoom->id,
             'start_date' => '2026-02-01',
             'end_date' => '2026-12-31',
-            'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
             'deposit_amount' => '1000000.00',
             'status' => Contract::STATUS_PENDING_SIGN,
@@ -269,7 +285,6 @@ class TenantGenderPolicyTest extends TestCase
             'room_id' => $room->id,
             'start_date' => $startDate,
             'end_date' => $endDate,
-            'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
             'deposit_amount' => '1000000.00',
             'status' => $status,
@@ -288,7 +303,6 @@ class TenantGenderPolicyTest extends TestCase
             'room_id' => $room->id,
             'start_date' => '2026-01-01',
             'end_date' => '2026-12-31',
-            'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
             'deposit_amount' => '1000000.00',
             'status' => Contract::STATUS_ACTIVE,

@@ -25,7 +25,6 @@ class ContractDetailResource extends JsonResource
             'start_date' => optional($this->start_date)->toDateString(),
             'end_date' => optional($this->end_date)->toDateString(),
             'actual_end_date' => optional($this->actual_end_date)->toDateString(),
-            'billing_cycle_day' => $this->billing_cycle_day,
             'room_price' => $this->room_price === null ? null : (string) $this->room_price,
             'deposit_amount' => $this->deposit_amount === null ? null : (string) $this->deposit_amount,
             'deposit_due_amount' => $this->depositDueAmount(),

@@ -16,6 +16,7 @@ import {
 } from '../services/tenants.service'
 import type { AdminPaginationMeta, AdminPaginator, AdminTenantResource } from '../types/tenant-api.model'
 import { useAdminSession } from '../../auth/hooks/use-admin-session'
+import { buildTenantListQuery } from '../utils/tenant-query'
 
 type AdminTenantsResult = AdminPaginator<AdminTenantResource> | AdminTenantResource[]
 type AdminTenantsResponse = Omit<Awaited<ReturnType<typeof fetchAdminTenants>>, 'result'> & {
@@ -77,7 +78,8 @@ const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p
 export function TenantsScreen() {
   const { session } = useAdminSession()
   const navigate = useNavigate()
-  const defaultBuildingId = session?.admin?.managed_buildings?.[0]?.id
+  const adminRole = session?.admin?.role
+  const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
 
   const [keyword, setKeyword] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
@@ -91,8 +93,8 @@ export function TenantsScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
-  const [activeMessage, setActiveMessage] = useState<string | null>(null)
-  const [activeType, setActiveType] = useState<'success' | 'error' | null>(null)
+  const activeMessage = successMessage || errorMessage
+  const activeType: 'success' | 'error' | null = successMessage ? 'success' : errorMessage ? 'error' : null
 
   useEffect(() => {
     if (successMessage) {
@@ -112,22 +114,6 @@ export function TenantsScreen() {
     }
   }, [errorMessage])
 
-  useEffect(() => {
-    if (successMessage) {
-      setActiveMessage(successMessage)
-      setActiveType('success')
-    } else if (errorMessage) {
-      setActiveMessage(errorMessage)
-      setActiveType('error')
-    } else {
-      const timer = setTimeout(() => {
-        setActiveMessage(null)
-        setActiveType(null)
-      }, 500)
-      return () => clearTimeout(timer)
-    }
-  }, [successMessage, errorMessage])
-
   const [detailTenant, setDetailTenant] = useState<AdminTenantResource | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
@@ -141,15 +127,16 @@ export function TenantsScreen() {
     setErrorMessage(null)
 
     try {
-      const response = await fetchAdminTenants({
-        keyword: keyword.trim() || undefined,
-        status: selectedStatus === '' ? undefined : Number(selectedStatus),
-        gender: selectedGender === '' ? undefined : Number(selectedGender),
-        identity_type: selectedIdentityType === '' ? undefined : Number(selectedIdentityType),
-        building_id: defaultBuildingId,
+      const response = await fetchAdminTenants(buildTenantListQuery({
+        role: adminRole,
+        managedBuildingId,
+        keyword,
+        status: selectedStatus,
+        gender: selectedGender,
+        identityType: selectedIdentityType,
         page: currentPage,
-        per_page: perPage,
-      })
+        perPage,
+      }))
 
       const { data, meta } = normalizeAdminTenantsResponse(response)
       setTenants(data)
@@ -163,7 +150,7 @@ export function TenantsScreen() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentPage, defaultBuildingId, keyword, perPage, selectedGender, selectedIdentityType, selectedStatus])
+  }, [adminRole, currentPage, keyword, managedBuildingId, perPage, selectedGender, selectedIdentityType, selectedStatus])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

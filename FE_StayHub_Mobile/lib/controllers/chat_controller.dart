@@ -8,6 +8,8 @@ class ChatController extends ChangeNotifier {
   final ApiService _apiService = ApiService();
 
   List<ChatConversation> _conversations = [];
+  List<ChatConversation> _tenantConversations = [];
+  List<ChatConversation> _directConversations = [];
   ChatConversation? _activeConversation;
   List<ChatMessage> _messages = [];
   bool _isLoading = false;
@@ -16,6 +18,8 @@ class ChatController extends ChangeNotifier {
   int _lastFetchCount = 0;
 
   List<ChatConversation> get conversations => _conversations;
+  List<ChatConversation> get tenantConversations => _tenantConversations;
+  List<ChatConversation> get directConversations => _directConversations;
   ChatConversation? get activeConversation => _activeConversation;
   List<ChatMessage> get messages => _messages;
   bool get isLoading => _isLoading;
@@ -24,6 +28,10 @@ class ChatController extends ChangeNotifier {
   int get lastFetchCount => _lastFetchCount;
 
   Future<void> fetchAdminConversations({String? keyword}) async {
+    await fetchAdminTenantConversations(keyword: keyword);
+  }
+
+  Future<void> fetchAdminTenantConversations({String? keyword}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -32,14 +40,31 @@ class ChatController extends ChangeNotifier {
       final response = await _apiService.get<Map<String, dynamic>>(
         '/admin/chat/conversations',
         queryParameters: {
-          if (keyword != null && keyword.trim().isNotEmpty) 'keyword': keyword.trim(),
+          if (keyword != null && keyword.trim().isNotEmpty)
+            'keyword': keyword.trim(),
           'per_page': 50,
         },
         fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
       );
       final data = response.result?['data'] as List<dynamic>? ?? [];
-      _conversations = data.map((item) => ChatConversation.fromJson(Map<String, dynamic>.from(item as Map))).toList();
-      _activeConversation ??= _conversations.isNotEmpty ? _conversations.first : null;
+      _tenantConversations = data
+          .map(
+            (item) => ChatConversation.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList();
+      _conversations = _tenantConversations;
+      _activeConversation = _activeConversation?.isDirect == false
+          ? (_tenantConversations.any(
+                  (item) => item.id == _activeConversation!.id,
+                )
+                ? _activeConversation
+                : null)
+          : null;
+      _activeConversation ??= _tenantConversations.isNotEmpty
+          ? _tenantConversations.first
+          : null;
     } catch (e) {
       _errorMessage = 'Không thể tải danh sách chat: $e';
     }
@@ -48,12 +73,65 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> selectAdminConversation(ChatConversation conversation) async {
+  Future<void> fetchAdminDirectConversations({String? keyword}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get<Map<String, dynamic>>(
+        '/admin/chat/direct-conversations',
+        queryParameters: {
+          if (keyword != null && keyword.trim().isNotEmpty)
+            'keyword': keyword.trim(),
+          'per_page': 100,
+        },
+        fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
+      );
+      final data = response.result?['data'] as List<dynamic>? ?? [];
+      _directConversations = data
+          .map(
+            (item) => ChatConversation.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList();
+      _conversations = _directConversations;
+      _activeConversation = _activeConversation?.isDirect == true
+          ? (_directConversations.any(
+                  (item) => item.id == _activeConversation!.id,
+                )
+                ? _activeConversation
+                : null)
+          : null;
+      _activeConversation ??= _directConversations.isNotEmpty
+          ? _directConversations.first
+          : null;
+    } catch (e) {
+      _errorMessage = 'Không thể tải danh sách superadmin: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> selectAdminConversation(
+    ChatConversation conversation, {
+    int? currentAdminId,
+  }) async {
     _activeConversation = conversation;
     notifyListeners();
-    await fetchAdminMessages(conversation.id);
-    if (conversation.adminUnreadCount > 0) {
-      await markAdminRead(conversation.id);
+    if (conversation.isDirect) {
+      await fetchAdminDirectMessages(conversation.id);
+    } else {
+      await fetchAdminMessages(conversation.id);
+    }
+    if (conversation.unreadCountForAdmin(currentAdminId) > 0) {
+      if (conversation.isDirect) {
+        await markAdminDirectRead(conversation.id);
+      } else {
+        await markAdminRead(conversation.id);
+      }
     }
   }
 
@@ -69,7 +147,12 @@ class ChatController extends ChangeNotifier {
         fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
       );
       final data = response.result?['data'] as List<dynamic>? ?? [];
-      _messages = data.map((item) => ChatMessage.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+      _messages = data
+          .map(
+            (item) =>
+                ChatMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
+          .toList();
       _lastFetchCount = data.length;
     } catch (e) {
       _errorMessage = 'Không thể tải tin nhắn: $e';
@@ -79,15 +162,75 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> fetchMoreAdminMessages(int conversationId, {required int beforeId, int perPage = 30}) async {
+  Future<void> fetchMoreAdminMessages(
+    int conversationId, {
+    required int beforeId,
+    int perPage = 30,
+  }) async {
+    await _fetchMoreAdminMessages(
+      '/admin/chat/conversations/$conversationId/messages',
+      beforeId: beforeId,
+      perPage: perPage,
+    );
+  }
+
+  Future<void> fetchAdminDirectMessages(int conversationId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
     try {
       final response = await _apiService.get<Map<String, dynamic>>(
-        '/admin/chat/conversations/$conversationId/messages',
+        '/admin/chat/direct-conversations/$conversationId/messages',
+        queryParameters: {'per_page': 50},
+        fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
+      );
+      final data = response.result?['data'] as List<dynamic>? ?? [];
+      _messages = data
+          .map(
+            (item) =>
+                ChatMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
+          .toList();
+      _lastFetchCount = data.length;
+    } catch (e) {
+      _errorMessage = 'Không thể tải tin nhắn superadmin: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> fetchMoreAdminDirectMessages(
+    int conversationId, {
+    required int beforeId,
+    int perPage = 30,
+  }) async {
+    await _fetchMoreAdminMessages(
+      '/admin/chat/direct-conversations/$conversationId/messages',
+      beforeId: beforeId,
+      perPage: perPage,
+    );
+  }
+
+  Future<void> _fetchMoreAdminMessages(
+    String path, {
+    required int beforeId,
+    int perPage = 30,
+  }) async {
+    try {
+      final response = await _apiService.get<Map<String, dynamic>>(
+        path,
         queryParameters: {'per_page': perPage, 'before_id': beforeId},
         fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
       );
       final data = response.result?['data'] as List<dynamic>? ?? [];
-      final olderMessages = data.map((item) => ChatMessage.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+      final olderMessages = data
+          .map(
+            (item) =>
+                ChatMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
+          .toList();
       _lastFetchCount = olderMessages.length;
       if (olderMessages.isNotEmpty) {
         _messages = [...olderMessages, ..._messages];
@@ -111,10 +254,17 @@ class ChatController extends ChangeNotifier {
       );
       final conversationJson = response.result?['conversation'];
       if (conversationJson is Map) {
-        _activeConversation = ChatConversation.fromJson(Map<String, dynamic>.from(conversationJson));
+        _activeConversation = ChatConversation.fromJson(
+          Map<String, dynamic>.from(conversationJson),
+        );
       }
       final data = response.result?['data'] as List<dynamic>? ?? [];
-      _messages = data.map((item) => ChatMessage.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+      _messages = data
+          .map(
+            (item) =>
+                ChatMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
+          .toList();
       if ((_activeConversation?.tenantUnreadCount ?? 0) > 0) {
         await markTenantRead();
       }
@@ -127,14 +277,31 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> sendTenantMessage(String body, {List<File>? images}) async {
-    await _sendMessage('/tenant/chat/messages', body, isTenant: true, images: images);
+    await _sendMessage(
+      '/tenant/chat/messages',
+      body,
+      isTenant: true,
+      images: images,
+    );
   }
 
-  Future<void> sendAdminMessage(int conversationId, String body, {List<File>? images}) async {
-    await _sendMessage('/admin/chat/conversations/$conversationId/messages', body, isTenant: false, images: images);
+  Future<void> sendAdminMessage(
+    int conversationId,
+    String body, {
+    List<File>? images,
+  }) async {
+    final path = _activeConversation?.isDirect == true
+        ? '/admin/chat/direct-conversations/$conversationId/messages'
+        : '/admin/chat/conversations/$conversationId/messages';
+    await _sendMessage(path, body, isTenant: false, images: images);
   }
 
-  Future<void> _sendMessage(String path, String body, {required bool isTenant, List<File>? images}) async {
+  Future<void> _sendMessage(
+    String path,
+    String body, {
+    required bool isTenant,
+    List<File>? images,
+  }) async {
     final trimmed = body.trim();
     if (trimmed.isEmpty && (images == null || images.isEmpty)) return;
     if (_isSending) return;
@@ -143,12 +310,16 @@ class ChatController extends ChangeNotifier {
       id: DateTime.now().microsecondsSinceEpoch * -1,
       conversationId: _activeConversation?.id ?? 0,
       senderType: isTenant ? 'tenant' : 'admin',
-      senderId: isTenant ? (_activeConversation?.tenantId ?? 0) : (_activeConversation?.managerAdminId ?? 0),
+      senderId: isTenant
+          ? (_activeConversation?.tenantId ?? 0)
+          : (_activeConversation?.managerAdminId ?? 0),
       senderRole: isTenant ? 1 : 2,
       body: trimmed,
       createdAt: DateTime.now().toIso8601String(),
       optimistic: true,
-      attachments: images != null ? images.map((img) => img.path).toList() : const [],
+      attachments: images != null
+          ? images.map((img) => img.path).toList()
+          : const [],
     );
 
     _messages = [..._messages, optimistic];
@@ -164,13 +335,15 @@ class ChatController extends ChangeNotifier {
           formData.fields.add(MapEntry('body', trimmed));
         }
         for (final img in images) {
-          formData.files.add(MapEntry(
-            'images[]',
-            await dio.MultipartFile.fromFile(
-              img.path,
-              filename: img.path.split('/').last,
+          formData.files.add(
+            MapEntry(
+              'images[]',
+              await dio.MultipartFile.fromFile(
+                img.path,
+                filename: img.path.split('/').last,
+              ),
             ),
-          ));
+          );
         }
         postData = formData;
       } else {
@@ -184,9 +357,14 @@ class ChatController extends ChangeNotifier {
       );
       final result = response.result;
       if (result != null) {
-        final message = ChatMessage.fromJson(Map<String, dynamic>.from(result['message'] as Map));
-        final conversation = ChatConversation.fromJson(Map<String, dynamic>.from(result['conversation'] as Map));
-        _messages = _messages.where((item) => item.id != optimistic.id).toList()..add(message);
+        final message = ChatMessage.fromJson(
+          Map<String, dynamic>.from(result['message'] as Map),
+        );
+        final conversation = ChatConversation.fromJson(
+          Map<String, dynamic>.from(result['conversation'] as Map),
+        );
+        _messages = _messages.where((item) => item.id != optimistic.id).toList()
+          ..add(message);
         upsertConversation(conversation);
         _activeConversation = conversation;
       }
@@ -203,7 +381,9 @@ class ChatController extends ChangeNotifier {
     try {
       final response = await _apiService.patch<Map<String, dynamic>>(
         '/tenant/chat/read',
-        fromJsonT: (json) => json == null ? <String, dynamic>{} : Map<String, dynamic>.from(json as Map),
+        fromJsonT: (json) => json == null
+            ? <String, dynamic>{}
+            : Map<String, dynamic>.from(json as Map),
       );
       if (response.result != null && response.result!.isNotEmpty) {
         _activeConversation = ChatConversation.fromJson(response.result!);
@@ -228,18 +408,38 @@ class ChatController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> markAdminDirectRead(int conversationId) async {
+    try {
+      final response = await _apiService.patch<Map<String, dynamic>>(
+        '/admin/chat/direct-conversations/$conversationId/read',
+        fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
+      );
+      if (response.result != null) {
+        final conversation = ChatConversation.fromJson(response.result!);
+        upsertConversation(conversation);
+        _activeConversation = conversation;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
   void handleRealtimeMessage(Map<String, dynamic> payload) {
     final conversationJson = payload['conversation'];
     final messageJson = payload['message'];
     if (conversationJson is Map) {
-      final conversation = ChatConversation.fromJson(Map<String, dynamic>.from(conversationJson));
+      final conversation = ChatConversation.fromJson(
+        Map<String, dynamic>.from(conversationJson),
+      );
       upsertConversation(conversation);
       _activeConversation ??= conversation;
     }
     if (messageJson is Map) {
-      final message = ChatMessage.fromJson(Map<String, dynamic>.from(messageJson));
+      final message = ChatMessage.fromJson(
+        Map<String, dynamic>.from(messageJson),
+      );
       if (!_messages.any((item) => item.id == message.id)) {
-        _messages = _messages.where((item) => !item.optimistic).toList()..add(message);
+        _messages = _messages.where((item) => !item.optimistic).toList()
+          ..add(message);
       }
     }
     notifyListeners();
@@ -248,7 +448,9 @@ class ChatController extends ChangeNotifier {
   void handleRealtimeRead(Map<String, dynamic> payload) {
     final conversationJson = payload['conversation'];
     if (conversationJson is Map) {
-      final conversation = ChatConversation.fromJson(Map<String, dynamic>.from(conversationJson));
+      final conversation = ChatConversation.fromJson(
+        Map<String, dynamic>.from(conversationJson),
+      );
       upsertConversation(conversation);
       if (_activeConversation?.id == conversation.id) {
         _activeConversation = conversation;
@@ -258,9 +460,20 @@ class ChatController extends ChangeNotifier {
   }
 
   void upsertConversation(ChatConversation conversation) {
-    _conversations = [
+    final target = conversation.isDirect
+        ? _directConversations
+        : _tenantConversations;
+    final updated = [
       conversation,
-      ..._conversations.where((item) => item.id != conversation.id),
+      ...target.where((item) => item.id != conversation.id),
     ];
+    if (conversation.isDirect) {
+      _directConversations = updated;
+    } else {
+      _tenantConversations = updated;
+    }
+    if (_conversations.any((item) => item.isDirect == conversation.isDirect)) {
+      _conversations = updated;
+    }
   }
 }

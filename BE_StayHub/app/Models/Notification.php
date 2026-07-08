@@ -109,7 +109,6 @@ class Notification extends Model
         return match ((int) $this->notification_type) {
             self::NOTIFICATION_TYPE_MAINTENANCE => $this->maintenanceActionUrl(),
             self::NOTIFICATION_TYPE_INVOICE => $this->invoiceActionUrl(),
-            self::NOTIFICATION_TYPE_WARNING => $this->warningActionUrl(),
             self::NOTIFICATION_TYPE_CHAT => $this->chatActionUrl(),
             default => $this->systemActionUrl(),
         };
@@ -131,15 +130,6 @@ class Notification extends Model
         }
 
         return '/admin/invoices';
-    }
-
-    private function warningActionUrl(): string
-    {
-        if (preg_match('/AI\s*Camera|camera|lửa|khói|hút thuốc/iu', (string) ($this->title . ' ' . $this->content))) {
-            return '/admin/fire-safety?panel=alerts';
-        }
-
-        return $this->systemActionUrl() ?? '/admin/fire-safety';
     }
 
     private function chatActionUrl(): string

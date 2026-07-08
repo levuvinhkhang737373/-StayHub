@@ -50,7 +50,7 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
       final chatController = context.read<ChatController>();
       await chatController.fetchTenantMessages();
       _subscribeRealtime();
-      _scrollToBottom();
+      _scrollToBottomAfterImages();
     });
   }
 
@@ -127,14 +127,31 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool jump = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
+      final target = _scrollController.position.maxScrollExtent;
+      if (jump) {
+        _scrollController.jumpTo(target);
+        return;
+      }
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
+        target,
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
       );
+    });
+  }
+
+  void _scrollToBottomAfterImages() {
+    _scrollToBottom(jump: true);
+    Future.delayed(const Duration(milliseconds: 80), () {
+      if (!mounted) return;
+      _scrollToBottom(jump: true);
+    });
+    Future.delayed(const Duration(milliseconds: 260), () {
+      if (!mounted) return;
+      _scrollToBottom(jump: true);
     });
   }
 
@@ -315,6 +332,7 @@ class _TenantChatScreenState extends State<TenantChatScreen> {
                               message: message,
                               isMine: isMine,
                               allMessages: chatController.messages,
+                              onImageLoaded: () => _scrollToBottom(jump: true),
                             ),
                           ],
                         );
@@ -519,11 +537,13 @@ class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMine;
   final List<ChatMessage> allMessages;
+  final VoidCallback? onImageLoaded;
 
   const _MessageBubble({
     required this.message,
     required this.isMine,
     required this.allMessages,
+    this.onImageLoaded,
   });
 
   @override
@@ -654,8 +674,14 @@ class _MessageBubble extends StatelessWidget {
       return Image.network(
         url,
         fit: fit,
+        gaplessPlayback: true,
         loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
+          if (progress == null) {
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => onImageLoaded?.call(),
+            );
+            return child;
+          }
           return Container(
             color: Colors.black12,
             width: 150,
@@ -764,6 +790,7 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                   ? Image.network(
                       url,
                       fit: BoxFit.contain,
+                      gaplessPlayback: true,
                       errorBuilder: (context, error, stackTrace) {
                         return const Center(
                           child: Icon(

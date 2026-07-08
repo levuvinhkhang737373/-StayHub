@@ -23,6 +23,7 @@ import type {
   ChatMessageResource,
   ChatMessageSentEvent,
 } from '../../../shared/chat/types/chat.types'
+import { appendRealtimeChatMessage, confirmOptimisticChatMessage } from '../../../shared/chat/utils/chat-message-list'
 
 const ADMIN_ROLE = 2
 const MESSAGES_PER_PAGE = 30
@@ -451,14 +452,14 @@ export function AdminChatScreen() {
   const appendTenantMessage = (message: ChatMessageResource) => {
     const container = scrollContainerRef.current
     const isNearBottom = container ? container.scrollHeight - container.scrollTop - container.clientHeight < NEAR_BOTTOM_THRESHOLD : false
-    setTenantMessages((current) => current.some((item) => item.id === message.id) ? current : [...current.filter((item) => !item.optimistic), message])
+    setTenantMessages((current) => appendRealtimeChatMessage(current, message))
     if (isNearBottom) scrollToBottomSoon()
   }
 
   const appendDirectMessage = (message: ChatMessageResource) => {
     const container = scrollContainerRef.current
     const isNearBottom = container ? container.scrollHeight - container.scrollTop - container.clientHeight < NEAR_BOTTOM_THRESHOLD : false
-    setDirectMessages((current) => current.some((item) => item.id === message.id) ? current : [...current.filter((item) => !item.optimistic), message])
+    setDirectMessages((current) => appendRealtimeChatMessage(current, message))
     if (isNearBottom) scrollToBottomSoon()
   }
 
@@ -531,13 +532,13 @@ export function AdminChatScreen() {
       if (isDirectConversation(activeConversation)) {
         const response = await sendAdminDirectMessage(activeConversation.id, body, images)
         if (response.result) {
-          setDirectMessages((current) => [...current.filter((item) => !item.optimistic), response.result!.message])
+          setDirectMessages((current) => confirmOptimisticChatMessage(current, optimisticMessage.id, response.result!.message))
           upsertDirectConversation(response.result.conversation)
         }
       } else {
         const response = await sendAdminChatMessage(activeConversation.id, body, images)
         if (response.result) {
-          setTenantMessages((current) => [...current.filter((item) => !item.optimistic), response.result!.message])
+          setTenantMessages((current) => confirmOptimisticChatMessage(current, optimisticMessage.id, response.result!.message))
           upsertTenantConversation(response.result.conversation)
         }
       }

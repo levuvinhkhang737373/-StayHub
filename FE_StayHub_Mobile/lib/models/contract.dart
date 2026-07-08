@@ -136,7 +136,6 @@ class Contract {
   final String startDate;
   final String? endDate;
   final String? actualEndDate;
-  final int billingCycleDay;
   final double roomPrice;
   final double depositAmount;
   final double depositDueAmount;
@@ -177,7 +176,6 @@ class Contract {
     required this.startDate,
     this.endDate,
     this.actualEndDate,
-    required this.billingCycleDay,
     required this.roomPrice,
     required this.depositAmount,
     this.depositDueAmount = 0.0,
@@ -261,7 +259,6 @@ class Contract {
       startDate: json['start_date'] as String? ?? '',
       endDate: json['end_date'] as String?,
       actualEndDate: json['actual_end_date'] as String?,
-      billingCycleDay: json['billing_cycle_day'] as int? ?? 1,
       roomPrice: json['room_price'] != null
           ? _toDouble(json['room_price'])
           : (json['rental_price'] != null
@@ -315,7 +312,6 @@ class Contract {
       'start_date': startDate,
       'end_date': endDate,
       'actual_end_date': actualEndDate,
-      'billing_cycle_day': billingCycleDay,
       'room_price': roomPrice,
       'rental_price': roomPrice,
       'deposit_amount': depositAmount,

@@ -53,12 +53,6 @@ export function validateContractForm(form: ContractFormValues, roomMaxOccupants?
     errors.actual_end_date = 'Ngày kết thúc thực tế phải lớn hơn hoặc bằng ngày bắt đầu.'
   }
 
-  const billingDay = Number(form.billing_cycle_day)
-  if (!form.billing_cycle_day) {
-    errors.billing_cycle_day = 'Vui lòng nhập ngày chốt tiền hằng tháng.'
-  } else if (!Number.isInteger(billingDay) || billingDay < 1 || billingDay > 28) {
-    errors.billing_cycle_day = 'Ngày chốt tiền phải là số nguyên từ 1 đến 28.'
-  }
 
   if (!roomPrice) {
     errors.room_price = 'Vui lòng nhập giá phòng.'

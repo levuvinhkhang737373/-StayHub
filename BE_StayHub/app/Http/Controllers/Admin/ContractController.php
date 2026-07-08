@@ -1056,7 +1056,7 @@ class ContractController extends Controller
     private function payload(array $validated, Admin $admin, int $status, bool $isUpdate = false): array
     {
         $payload = [];
-        $fields = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'note', 'parent_contract_id', 'renew_from_contract_id'];
+        $fields = ['contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'room_price', 'deposit_amount', 'note', 'parent_contract_id', 'renew_from_contract_id'];
 
         foreach ($fields as $field) {
             if (array_key_exists($field, $validated)) {
@@ -1993,12 +1993,12 @@ class ContractController extends Controller
 
     private function listColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles'];
     }
 
     private function detailColumns(): array
     {
-        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'billing_cycle_day', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles'];
+        return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url', 'negotiation_status', 'proposed_room_price', 'proposed_services', 'proposed_vehicles'];
     }
 
     private function listRelations(): array

@@ -683,16 +683,6 @@ export function CreateContractScreen() {
                   minDate={toDate(form.start_date)}
                 />
               </Field>
-              <Field label="Ngày chốt tiền" required error={errors.billing_cycle_day}>
-                <input
-                  className={cn(inputClass, errors.billing_cycle_day && inputErrorClass)}
-                  value={form.billing_cycle_day}
-                  type="number"
-                  min={1}
-                  max={28}
-                  onChange={(event) => updateForm('billing_cycle_day', event.target.value)}
-                />
-              </Field>
               <Field label="Giá phòng" required error={errors.room_price}>
                 <input
                   className={cn(inputClass, errors.room_price && inputErrorClass)}

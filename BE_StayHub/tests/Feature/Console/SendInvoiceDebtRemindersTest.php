@@ -85,7 +85,6 @@ class SendInvoiceDebtRemindersTest extends TestCase
             'room_id' => $room->id,
             'start_date' => '2026-05-01',
             'end_date' => '2026-12-01',
-            'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
             'deposit_amount' => '4000000.00',
             'status' => Contract::STATUS_ACTIVE,

@@ -11,11 +11,6 @@ Artisan::command('inspire', function () {
 // Ghi lại snapshot trạng thái Laravel Horizon định kỳ
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
 
-// Đồng bộ trạng thái bật camera 24/24 các thiết bị giám sát phòng cháy chữa cháy
-Schedule::command('fire-safety:sync-monitors')
-    ->everyMinute()
-    ->withoutOverlapping();
-
 // Kiểm tra và cập nhật các hợp đồng đã hết hạn
 Schedule::command('contracts:check-expired')
     ->dailyAt('00:10')

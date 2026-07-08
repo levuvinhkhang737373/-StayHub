@@ -16,6 +16,7 @@ import type {
   ChatMessageResource,
   ChatMessageSentEvent,
 } from '../../../shared/chat/types/chat.types'
+import { appendRealtimeChatMessage, confirmOptimisticChatMessage } from '../../../shared/chat/utils/chat-message-list'
 
 const TENANT_ROLE = 1
 
@@ -144,7 +145,7 @@ export function TenantChatWidget() {
     const conversationChannel = echo.private(`chat.conversation.${conversation.id}`)
     conversationChannel.listen('.ChatMessageSent', (event: ChatMessageSentEvent) => {
       setConversation(event.conversation)
-      setMessages((current) => current.some((item) => item.id === event.message.id) ? current : [...current.filter((item) => !item.optimistic), event.message])
+      setMessages((current) => appendRealtimeChatMessage(current, event.message))
       if (!isOpen && event.message.sender_role !== TENANT_ROLE) {
         showChatToast(event.message.body || 'Bạn có tin nhắn mới từ quản lý.')
       }
@@ -203,7 +204,7 @@ export function TenantChatWidget() {
       const response = await sendTenantChatMessage(body, imagesToSend)
       if (response.result) {
         setConversation(response.result.conversation)
-        setMessages((current) => [...current.filter((item) => item.id !== optimisticMessage.id), response.result.message])
+        setMessages((current) => confirmOptimisticChatMessage(current, optimisticMessage.id, response.result!.message))
       }
     } catch (error: any) {
       setMessages((current) => current.filter((item) => item.id !== optimisticMessage.id))

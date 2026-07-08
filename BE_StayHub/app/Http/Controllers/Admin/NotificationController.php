@@ -333,7 +333,6 @@ class NotificationController extends Controller
                                     'Thanh toán hóa đơn thành công',
                                     'Yêu cầu thương lượng giá hợp đồng',
                                     'Thanh toán chuyển phòng',
-                                    'Báo động đỏ AI Camera',
                                     'Tin nhắn mới từ khách thuê',
                                 ]);
                         });

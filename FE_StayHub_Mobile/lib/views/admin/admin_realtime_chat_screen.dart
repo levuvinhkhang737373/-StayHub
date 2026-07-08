@@ -11,6 +11,8 @@ import '../../services/websocket_service.dart';
 const _kMessagesPerPage = 30;
 const _kScrollUpThreshold = 80.0;
 
+enum _AdminChatTab { tenants, direct }
+
 class AdminChatScreen extends StatefulWidget {
   const AdminChatScreen({super.key});
 
@@ -26,6 +28,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoadingMore = false;
   bool _hasMore = false;
+  _AdminChatTab _activeTab = _AdminChatTab.tenants;
 
   Future<void> _pickImages() async {
     try {
@@ -53,27 +56,33 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final chatController = context.read<ChatController>();
-      await chatController.fetchAdminConversations();
-      final adminId = context.read<AuthController>().currentAdmin?.id;
-      if (adminId != null) {
-        context.read<WebSocketService>().subscribeToAdminChat(
-          adminId,
+      final authController = context.read<AuthController>();
+      final webSocketService = context.read<WebSocketService>();
+      final route = ModalRoute.of(context);
+      final currentAdminId = authController.currentAdmin?.id;
+
+      await _loadConversationsForActiveTab();
+      if (!mounted) return;
+
+      if (currentAdminId != null) {
+        webSocketService.subscribeToAdminChat(
+          currentAdminId,
           onMessage: (payload) {
             if (!mounted) return;
-            context.read<ChatController>().handleRealtimeMessage(payload);
+            chatController.handleRealtimeMessage(payload);
           },
           onRead: (payload) {
             if (!mounted) return;
-            context.read<ChatController>().handleRealtimeRead(payload);
+            chatController.handleRealtimeRead(payload);
           },
         );
       }
 
-      final tenantId = ModalRoute.of(context)?.settings.arguments as int?;
+      final tenantId = route?.settings.arguments as int?;
       ChatConversation? targetConv;
       if (tenantId != null) {
         try {
-          targetConv = chatController.conversations.firstWhere(
+          targetConv = chatController.tenantConversations.firstWhere(
             (c) => c.tenantId == tenantId,
           );
         } catch (_) {}
@@ -81,18 +90,38 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
       final active = targetConv ?? chatController.activeConversation;
       if (active != null) {
-        await chatController.selectAdminConversation(active);
+        await chatController.selectAdminConversation(
+          active,
+          currentAdminId: currentAdminId,
+        );
+        if (!mounted) return;
+        _activeTab = active.isDirect
+            ? _AdminChatTab.direct
+            : _AdminChatTab.tenants;
         _subscribeConversation(active.id);
         _hasMore = chatController.messages.length >= _kMessagesPerPage;
+        _scrollToBottomAfterImages();
       }
     });
   }
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    if (_scrollController.position.pixels <= _kScrollUpThreshold && _hasMore && !_isLoadingMore) {
+    if (_scrollController.position.pixels <= _kScrollUpThreshold &&
+        _hasMore &&
+        !_isLoadingMore) {
       _loadMoreMessages();
     }
+  }
+
+  Future<void> _loadConversationsForActiveTab({String? keyword}) async {
+    final chatController = context.read<ChatController>();
+    if (_activeTab == _AdminChatTab.direct) {
+      await chatController.fetchAdminDirectConversations(keyword: keyword);
+      return;
+    }
+
+    await chatController.fetchAdminTenantConversations(keyword: keyword);
   }
 
   Future<void> _loadMoreMessages() async {
@@ -107,21 +136,67 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
     try {
       final oldestId = chatController.messages.first.id;
-      await chatController.fetchMoreAdminMessages(active.id, beforeId: oldestId, perPage: _kMessagesPerPage);
-      
+      if (active.isDirect) {
+        await chatController.fetchMoreAdminDirectMessages(
+          active.id,
+          beforeId: oldestId,
+          perPage: _kMessagesPerPage,
+        );
+      } else {
+        await chatController.fetchMoreAdminMessages(
+          active.id,
+          beforeId: oldestId,
+          perPage: _kMessagesPerPage,
+        );
+      }
+
       // Check if we got fewer messages than requested (= no more)
       _hasMore = chatController.lastFetchCount >= _kMessagesPerPage;
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!_scrollController.hasClients) return;
         final newScrollHeight = _scrollController.position.maxScrollExtent;
-        _scrollController.jumpTo(oldScrollPos + (newScrollHeight - oldScrollHeight));
+        _scrollController.jumpTo(
+          oldScrollPos + (newScrollHeight - oldScrollHeight),
+        );
       });
     } catch (e) {
       debugPrint('Error loading more messages: $e');
     }
 
     if (mounted) setState(() => _isLoadingMore = false);
+  }
+
+  Future<void> _switchTab(_AdminChatTab tab) async {
+    if (_activeTab == tab) return;
+    final oldActive = context.read<ChatController>().activeConversation;
+    if (oldActive != null) {
+      context.read<WebSocketService>().unsubscribeFromChatConversation(
+        oldActive.id,
+      );
+    }
+    setState(() {
+      _activeTab = tab;
+      _hasMore = false;
+      _selectedImages.clear();
+    });
+    _messageController.clear();
+    final chatController = context.read<ChatController>();
+    final currentAdminId = context.read<AuthController>().currentAdmin?.id;
+    await _loadConversationsForActiveTab(keyword: _searchController.text);
+    if (!mounted) return;
+
+    final active = chatController.activeConversation;
+    if (active != null) {
+      await chatController.selectAdminConversation(
+        active,
+        currentAdminId: currentAdminId,
+      );
+      if (!mounted) return;
+      _subscribeConversation(active.id);
+      _hasMore = chatController.messages.length >= _kMessagesPerPage;
+      _scrollToBottomAfterImages();
+    }
   }
 
   void _subscribeConversation(int conversationId) {
@@ -158,10 +233,31 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool jump = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+      final target = _scrollController.position.maxScrollExtent;
+      if (jump) {
+        _scrollController.jumpTo(target);
+        return;
+      }
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  void _scrollToBottomAfterImages() {
+    _scrollToBottom(jump: true);
+    Future.delayed(const Duration(milliseconds: 80), () {
+      if (!mounted) return;
+      _scrollToBottom(jump: true);
+    });
+    Future.delayed(const Duration(milliseconds: 260), () {
+      if (!mounted) return;
+      _scrollToBottom(jump: true);
     });
   }
 
@@ -175,7 +271,11 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     setState(() {
       _selectedImages.clear();
     });
-    await context.read<ChatController>().sendAdminMessage(conversation.id, text, images: imagesToSend);
+    await context.read<ChatController>().sendAdminMessage(
+      conversation.id,
+      text,
+      images: imagesToSend,
+    );
     _scrollToBottom();
   }
 
@@ -183,6 +283,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   Widget build(BuildContext context) {
     final chatController = context.watch<ChatController>();
     final active = chatController.activeConversation;
+    final currentAdminId = context.watch<AuthController>().currentAdmin?.id;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
@@ -205,7 +306,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      active.roomNumber ?? 'P?',
+                      active.listLeadingTextForAdmin(currentAdminId),
                       style: const TextStyle(
                         color: Color(0xFF24170D),
                         fontWeight: FontWeight.w900,
@@ -220,14 +321,23 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                     children: [
                       Text(
                         active != null
-                            ? (active.roomNumber != null ? 'Phòng ${active.roomNumber} - ${active.tenantName}' : active.tenantName ?? 'Đoạn chat')
+                            ? (active.isDirect
+                                  ? active.displayTitleForAdmin(currentAdminId)
+                                  : (active.roomNumber != null
+                                        ? 'Phòng ${active.roomNumber} - ${active.tenantName}'
+                                        : active.tenantName ?? 'Đoạn chat'))
                             : 'Đoạn chat',
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                        ),
                       ),
                       if (active != null)
                         Text(
-                          '${active.buildingName ?? 'Tòa nhà'} · ${active.tenantPhone ?? 'Chưa có SĐT'}',
+                          active.isDirect
+                              ? active.displaySubtitleForAdmin(currentAdminId)
+                              : '${active.buildingName ?? 'Tòa nhà'} · ${active.tenantPhone ?? 'Chưa có SĐT'}',
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10,
@@ -239,14 +349,18 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                     ],
                   ),
                 ),
-                const Icon(Icons.arrow_drop_down, color: Colors.white, size: 20),
+                const Icon(
+                  Icons.arrow_drop_down,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ],
             ),
           ),
         ),
         backgroundColor: const Color(0xFF24170D),
       ),
-      drawer: _buildDrawer(context, chatController, active),
+      drawer: _buildDrawer(context, chatController, active, currentAdminId),
       body: Column(
         children: [
           Expanded(
@@ -255,79 +369,137 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
                         SizedBox(height: 16),
                         Text(
                           'Chọn một đoạn chat để bắt đầu.',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
                   )
                 : chatController.isLoading && chatController.messages.isEmpty
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF24170D)))
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: chatController.messages.length + (_isLoadingMore ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          // Loading spinner at the top
-                          if (_isLoadingMore && index == 0) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: Center(
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5E34))),
-                                    SizedBox(width: 8),
-                                    Text('Đang tải tin nhắn cũ...', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF8B5E34))),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }
-
-                          final msgIndex = _isLoadingMore ? index - 1 : index;
-                          final message = chatController.messages[msgIndex];
-                          final isMine = message.senderRole == 2;
-
-                          // Date separator logic
-                          final prevMessage = msgIndex > 0 ? chatController.messages[msgIndex - 1] : null;
-                          final currentDividerLabel = _getChatDividerLabel(message.createdAt);
-                          final prevDividerLabel = prevMessage != null ? _getChatDividerLabel(prevMessage.createdAt) : null;
-                          final showDateDivider = prevMessage == null || currentDividerLabel != prevDividerLabel;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (showDateDivider)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  child: Row(
-                                    children: [
-                                      Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                                        child: Text(
-                                          currentDividerLabel,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 1.5,
-                                            color: const Color(0xFF8B5E34).withOpacity(0.7),
-                                          ),
-                                        ),
-                                      ),
-                                      Expanded(child: Divider(color: const Color(0xFF3D2A18).withOpacity(0.15), thickness: 1)),
-                                    ],
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF24170D)),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount:
+                        chatController.messages.length +
+                        (_isLoadingMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      // Loading spinner at the top
+                      if (_isLoadingMore && index == 0) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFF8B5E34),
                                   ),
                                 ),
-                              _AdminMessageBubble(message: message, isMine: isMine, allMessages: chatController.messages),
-                            ],
-                          );
-                        },
-                      ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Đang tải tin nhắn cũ...',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF8B5E34),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final msgIndex = _isLoadingMore ? index - 1 : index;
+                      final message = chatController.messages[msgIndex];
+                      final isMine = active.isDirect
+                          ? message.isMineForAdmin(currentAdminId)
+                          : message.senderRole == 2;
+
+                      // Date separator logic
+                      final prevMessage = msgIndex > 0
+                          ? chatController.messages[msgIndex - 1]
+                          : null;
+                      final currentDividerLabel = _getChatDividerLabel(
+                        message.createdAt,
+                      );
+                      final prevDividerLabel = prevMessage != null
+                          ? _getChatDividerLabel(prevMessage.createdAt)
+                          : null;
+                      final showDateDivider =
+                          prevMessage == null ||
+                          currentDividerLabel != prevDividerLabel;
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showDateDivider)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Divider(
+                                      color: const Color(
+                                        0xFF3D2A18,
+                                      ).withOpacity(0.15),
+                                      thickness: 1,
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    child: Text(
+                                      currentDividerLabel,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.5,
+                                        color: const Color(
+                                          0xFF8B5E34,
+                                        ).withOpacity(0.7),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Divider(
+                                      color: const Color(
+                                        0xFF3D2A18,
+                                      ).withOpacity(0.15),
+                                      thickness: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          _AdminMessageBubble(
+                            message: message,
+                            isMine: isMine,
+                            allMessages: chatController.messages,
+                            onImageLoaded: () => _scrollToBottom(jump: true),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
           ),
           if (chatController.errorMessage != null)
             Container(
@@ -337,11 +509,17 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFFFFF1F2),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF9F1239).withOpacity(0.1)),
+                border: Border.all(
+                  color: const Color(0xFF9F1239).withOpacity(0.1),
+                ),
               ),
               child: Text(
                 chatController.errorMessage!,
-                style: const TextStyle(color: Color(0xFFBE123C), fontWeight: FontWeight.bold, fontSize: 13),
+                style: const TextStyle(
+                  color: Color(0xFFBE123C),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
             ),
           if (active != null)
@@ -360,7 +538,9 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFFDFBF7),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF3D2A18).withOpacity(0.15)),
+                          border: Border.all(
+                            color: const Color(0xFF3D2A18).withOpacity(0.15),
+                          ),
                         ),
                         padding: const EdgeInsets.all(8),
                         child: ListView.builder(
@@ -416,11 +596,18 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                         color: const Color(0xFFF0F2F5),
                         borderRadius: BorderRadius.circular(22),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.image_outlined, color: Color(0xFF8B5E34), size: 22),
+                            icon: const Icon(
+                              Icons.image_outlined,
+                              color: Color(0xFF8B5E34),
+                              size: 22,
+                            ),
                             onPressed: _pickImages,
                             visualDensity: VisualDensity.compact,
                           ),
@@ -432,17 +619,35 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                               textInputAction: TextInputAction.newline,
                               onChanged: (val) => setState(() {}),
                               decoration: InputDecoration(
-                                hintText: 'Nhập tin nhắn cho ${active.tenantName ?? 'tenant'}...',
-                                hintStyle: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.normal),
+                                hintText:
+                                    'Nhập tin nhắn cho ${active.displayTitleForAdmin(currentAdminId)}...',
+                                hintStyle: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.normal,
+                                ),
                                 border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 6,
+                                ),
                               ),
-                              style: const TextStyle(fontSize: 15, color: Color(0xFF24170D)),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                color: Color(0xFF24170D),
+                              ),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.send_rounded, color: Color(0xFF8B5E34), size: 22),
-                            onPressed: (chatController.isSending || (_messageController.text.trim().isEmpty && _selectedImages.isEmpty))
+                            icon: const Icon(
+                              Icons.send_rounded,
+                              color: Color(0xFF8B5E34),
+                              size: 22,
+                            ),
+                            onPressed:
+                                (chatController.isSending ||
+                                    (_messageController.text.trim().isEmpty &&
+                                        _selectedImages.isEmpty))
                                 ? null
                                 : _send,
                             visualDensity: VisualDensity.compact,
@@ -459,8 +664,101 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     );
   }
 
-  Widget _buildDrawer(BuildContext context, ChatController chatController, ChatConversation? active) {
-    final totalUnread = chatController.conversations.fold<int>(0, (sum, c) => sum + c.adminUnreadCount);
+  Widget _buildChatTabButton({
+    required _AdminChatTab tab,
+    required String label,
+    required IconData icon,
+    required int count,
+  }) {
+    final selected = _activeTab == tab;
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _switchTab(tab),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFFF3C56B) : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFF3C56B).withOpacity(0.22),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: selected ? const Color(0xFF24170D) : Colors.white70,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? const Color(0xFF24170D) : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (count > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFF24170D)
+                          : const Color(0xFF006DFF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer(
+    BuildContext context,
+    ChatController chatController,
+    ChatConversation? active,
+    int? currentAdminId,
+  ) {
+    final visibleConversations = _activeTab == _AdminChatTab.direct
+        ? chatController.directConversations
+        : chatController.tenantConversations;
+    final totalUnread = visibleConversations.fold<int>(
+      0,
+      (sum, c) => sum + c.unreadCountForAdmin(currentAdminId),
+    );
 
     return Drawer(
       backgroundColor: const Color(0xFF24170D),
@@ -483,7 +781,10 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3C56B),
                       borderRadius: BorderRadius.circular(14),
@@ -500,6 +801,41 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Row(
+                  children: [
+                    _buildChatTabButton(
+                      tab: _AdminChatTab.tenants,
+                      label: 'Khách thuê',
+                      icon: Icons.meeting_room_rounded,
+                      count: chatController.tenantConversations.fold<int>(
+                        0,
+                        (sum, item) => sum + item.adminUnreadCount,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _buildChatTabButton(
+                      tab: _AdminChatTab.direct,
+                      label: 'Superadmin',
+                      icon: Icons.admin_panel_settings_rounded,
+                      count: chatController.directConversations.fold<int>(
+                        0,
+                        (sum, item) =>
+                            sum + item.unreadCountForAdmin(currentAdminId),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             // Search bar
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -512,18 +848,35 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
-                    const Icon(Icons.search, color: Color(0xFFF3C56B), size: 18),
+                    const Icon(
+                      Icons.search,
+                      color: Color(0xFFF3C56B),
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onSubmitted: (value) => context.read<ChatController>().fetchAdminConversations(keyword: value),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        onSubmitted: (value) =>
+                            _loadConversationsForActiveTab(keyword: value),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                         decoration: InputDecoration(
-                          hintText: 'Tìm phòng hoặc khách thuê...',
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.45), fontWeight: FontWeight.bold, fontSize: 13),
+                          hintText: _activeTab == _AdminChatTab.direct
+                              ? 'Tìm superadmin...'
+                              : 'Tìm phòng hoặc khách thuê...',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.45),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
                         ),
                       ),
                     ),
@@ -533,14 +886,17 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
             ),
             // Conversation list
             Expanded(
-              child: chatController.isLoading && chatController.conversations.isEmpty
+              child: chatController.isLoading && visibleConversations.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: List.generate(
                           5,
                           (_) => Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
                             height: 72,
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.1),
@@ -550,128 +906,196 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                         ),
                       ),
                     )
-                  : chatController.conversations.isEmpty
-                      ? Center(
-                          child: Container(
-                            margin: const EdgeInsets.all(16),
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white.withOpacity(0.1)),
-                            ),
-                            child: Text(
-                              'Chưa có đoạn chat nào.',
-                              style: TextStyle(color: Colors.white.withOpacity(0.65), fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
+                  : visibleConversations.isEmpty
+                  ? Center(
+                      child: Container(
+                        margin: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
                           ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          itemCount: chatController.conversations.length,
-                          itemBuilder: (context, index) {
-                            final item = chatController.conversations[index];
-                            final selected = active?.id == item.id;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: InkWell(
-                                onTap: () async {
-                                  Navigator.pop(context);
-                                  final oldActive = context.read<ChatController>().activeConversation;
-                                  if (oldActive != null) {
-                                    context.read<WebSocketService>().unsubscribeFromChatConversation(oldActive.id);
-                                  }
-                                  await context.read<ChatController>().selectAdminConversation(item);
-                                  _subscribeConversation(item.id);
-                                  _hasMore = context.read<ChatController>().messages.length >= _kMessagesPerPage;
-                                  _scrollToBottom();
-                                },
+                        ),
+                        child: Text(
+                          _activeTab == _AdminChatTab.direct
+                              ? 'Chưa có superadmin nào để chat.'
+                              : 'Chưa có đoạn chat nào.',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.65),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      itemCount: visibleConversations.length,
+                      itemBuilder: (context, index) {
+                        final item = visibleConversations[index];
+                        final selected = active?.id == item.id;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: InkWell(
+                            onTap: () async {
+                              Navigator.pop(context);
+                              final oldActive = context
+                                  .read<ChatController>()
+                                  .activeConversation;
+                              if (oldActive != null) {
+                                context
+                                    .read<WebSocketService>()
+                                    .unsubscribeFromChatConversation(
+                                      oldActive.id,
+                                    );
+                              }
+                              final chatController = context
+                                  .read<ChatController>();
+                              await chatController.selectAdminConversation(
+                                item,
+                                currentAdminId: currentAdminId,
+                              );
+                              if (!mounted) return;
+                              _subscribeConversation(item.id);
+                              _hasMore =
+                                  chatController.messages.length >=
+                                  _kMessagesPerPage;
+                              _scrollToBottomAfterImages();
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? const Color(0xFFFFFAF1)
+                                    : Colors.transparent,
                                 borderRadius: BorderRadius.circular(20),
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: selected ? const Color(0xFFFFFAF1) : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(20),
-                                    boxShadow: selected
-                                        ? [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 12, offset: const Offset(0, 4))]
-                                        : null,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      // Room number badge
-                                      Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFF3C56B),
-                                          borderRadius: BorderRadius.circular(14),
-                                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 2))],
+                                boxShadow: selected
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 4),
                                         ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          item.roomNumber ?? 'P?',
-                                          style: const TextStyle(
-                                            color: Color(0xFF24170D),
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 12,
-                                          ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  // Room number badge
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF3C56B),
+                                      borderRadius: BorderRadius.circular(14),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.15),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
                                         ),
+                                      ],
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      item.listLeadingTextForAdmin(
+                                        currentAdminId,
                                       ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                      style: const TextStyle(
+                                        color: Color(0xFF24170D),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
                                           children: [
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    'Phòng ${item.roomNumber ?? '—'} · ${item.tenantName ?? 'Khách thuê'}',
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      color: selected ? const Color(0xFF24170D) : Colors.white,
-                                                      fontWeight: FontWeight.w900,
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
+                                            Expanded(
+                                              child: Text(
+                                                item.listTitleForAdmin(
+                                                  currentAdminId,
                                                 ),
-                                                if (item.adminUnreadCount > 0)
-                                                  Container(
-                                                    margin: const EdgeInsets.only(left: 6),
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(0xFF006DFF),
-                                                      borderRadius: BorderRadius.circular(10),
-                                                    ),
-                                                    child: Text(
-                                                      '${item.adminUnreadCount}',
-                                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 3),
-                                            Text(
-                                              item.lastMessage?.body ?? item.buildingName ?? 'Bắt đầu trò chuyện',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: selected ? const Color(0xFF24170D).withOpacity(0.7) : Colors.white.withOpacity(0.6),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 11,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: selected
+                                                      ? const Color(0xFF24170D)
+                                                      : Colors.white,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 13,
+                                                ),
                                               ),
                                             ),
+                                            if (item.unreadCountForAdmin(
+                                                  currentAdminId,
+                                                ) >
+                                                0)
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                  left: 6,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFF006DFF,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Text(
+                                                  '${item.unreadCountForAdmin(currentAdminId)}',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
+                                              ),
                                           ],
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          item.listSubtitleForAdmin(
+                                            currentAdminId,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: selected
+                                                ? const Color(
+                                                    0xFF24170D,
+                                                  ).withOpacity(0.7)
+                                                : Colors.white.withOpacity(0.6),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -684,8 +1108,14 @@ class _AdminMessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMine;
   final List<ChatMessage> allMessages;
+  final VoidCallback? onImageLoaded;
 
-  const _AdminMessageBubble({required this.message, required this.isMine, required this.allMessages});
+  const _AdminMessageBubble({
+    required this.message,
+    required this.isMine,
+    required this.allMessages,
+    this.onImageLoaded,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -693,10 +1123,14 @@ class _AdminMessageBubble extends StatelessWidget {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Container(
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
+            ),
             padding: hasBody
                 ? const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
                 : EdgeInsets.zero,
@@ -705,10 +1139,14 @@ class _AdminMessageBubble extends StatelessWidget {
                   ? (isMine ? const Color(0xFF24170D) : Colors.white)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(23),
-              border: (hasBody && !isMine) ? Border.all(color: const Color(0xFFE4E2D7)) : null,
+              border: (hasBody && !isMine)
+                  ? Border.all(color: const Color(0xFFE4E2D7))
+                  : null,
             ),
             child: Column(
-              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 if (message.body.isNotEmpty)
                   Text(
@@ -723,7 +1161,9 @@ class _AdminMessageBubble extends StatelessWidget {
                   if (message.body.isNotEmpty) const SizedBox(height: 8),
                   if (message.attachments.length == 1)
                     Align(
-                      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isMine
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: MediaQuery.of(context).size.width * 0.76,
@@ -732,12 +1172,18 @@ class _AdminMessageBubble extends StatelessWidget {
                         child: Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF3D2A18).withOpacity(0.1)),
+                            border: Border.all(
+                              color: const Color(0xFF3D2A18).withOpacity(0.1),
+                            ),
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: GestureDetector(
-                              onTap: () => _openImageGallery(context, message.attachments, 0),
+                              onTap: () => _openImageGallery(
+                                context,
+                                message.attachments,
+                                0,
+                              ),
                               child: _buildImage(message.attachments[0]),
                             ),
                           ),
@@ -748,19 +1194,24 @@ class _AdminMessageBubble extends StatelessWidget {
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 4,
-                        mainAxisSpacing: 4,
-                        childAspectRatio: 1.3,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 4,
+                            mainAxisSpacing: 4,
+                            childAspectRatio: 1.3,
+                          ),
                       itemCount: message.attachments.length,
                       itemBuilder: (context, idx) {
                         final url = message.attachments[idx];
                         return ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: GestureDetector(
-                            onTap: () => _openImageGallery(context, message.attachments, idx),
+                            onTap: () => _openImageGallery(
+                              context,
+                              message.attachments,
+                              idx,
+                            ),
                             child: _buildImage(url, fit: BoxFit.cover),
                           ),
                         );
@@ -773,7 +1224,9 @@ class _AdminMessageBubble extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
             child: Text(
-              message.optimistic ? 'Đang gửi...' : _formatTimeOnly(message.createdAt),
+              message.optimistic
+                  ? 'Đang gửi...'
+                  : _formatTimeOnly(message.createdAt),
               style: TextStyle(
                 fontSize: 10,
                 color: const Color(0xFF8B5E34).withOpacity(0.7),
@@ -792,8 +1245,14 @@ class _AdminMessageBubble extends StatelessWidget {
       return Image.network(
         url,
         fit: fit,
+        gaplessPlayback: true,
         loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
+          if (progress == null) {
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => onImageLoaded?.call(),
+            );
+            return child;
+          }
           return Container(
             color: Colors.black12,
             width: 150,
@@ -802,7 +1261,10 @@ class _AdminMessageBubble extends StatelessWidget {
               child: SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5E34)),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF8B5E34),
+                ),
               ),
             ),
           );
@@ -820,12 +1282,17 @@ class _AdminMessageBubble extends StatelessWidget {
     return Image.file(File(url), fit: fit);
   }
 
-  void _openImageGallery(BuildContext context, List<String> urls, int initialIndex) {
+  void _openImageGallery(
+    BuildContext context,
+    List<String> urls,
+    int initialIndex,
+  ) {
     showDialog(
       context: context,
       useSafeArea: false,
       barrierColor: Colors.black.withOpacity(0.95),
-      builder: (context) => _ImageGalleryOverlay(urls: urls, initialIndex: initialIndex),
+      builder: (context) =>
+          _ImageGalleryOverlay(urls: urls, initialIndex: initialIndex),
     );
   }
 }
@@ -842,7 +1309,8 @@ class _ImageGalleryOverlay extends StatefulWidget {
 
 class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
   late int _currentIndex;
-  final TransformationController _transformationController = TransformationController();
+  final TransformationController _transformationController =
+      TransformationController();
 
   @override
   void initState() {
@@ -893,8 +1361,15 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                   ? Image.network(
                       url,
                       fit: BoxFit.contain,
+                      gaplessPlayback: true,
                       errorBuilder: (context, error, stackTrace) {
-                        return const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 48));
+                        return const Center(
+                          child: Icon(
+                            Icons.broken_image,
+                            color: Colors.white54,
+                            size: 48,
+                          ),
+                        );
                       },
                     )
                   : Image.file(File(url), fit: BoxFit.contain),
@@ -909,7 +1384,10 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -920,25 +1398,44 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                     children: [
                       GestureDetector(
                         onTap: () {
-                          final currentScale = _transformationController.value.getMaxScaleOnAxis();
+                          final currentScale = _transformationController.value
+                              .getMaxScaleOnAxis();
                           final newScale = (currentScale - 0.3).clamp(0.5, 5.0);
-                          _transformationController.value = Matrix4.identity()..scale(newScale);
+                          _transformationController.value = Matrix4.identity()
+                            ..scale(newScale);
                         },
-                        child: const Icon(Icons.zoom_out, color: Colors.white, size: 18),
+                        child: const Icon(
+                          Icons.zoom_out,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: _resetZoom,
-                        child: const Text('Reset', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        child: const Text(
+                          'Reset',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () {
-                          final currentScale = _transformationController.value.getMaxScaleOnAxis();
+                          final currentScale = _transformationController.value
+                              .getMaxScaleOnAxis();
                           final newScale = (currentScale + 0.3).clamp(0.5, 5.0);
-                          _transformationController.value = Matrix4.identity()..scale(newScale);
+                          _transformationController.value = Matrix4.identity()
+                            ..scale(newScale);
                         },
-                        child: const Icon(Icons.zoom_in, color: Colors.white, size: 18),
+                        child: const Icon(
+                          Icons.zoom_in,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
                     ],
                   ),
@@ -953,7 +1450,11 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                       color: Colors.white.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],
@@ -977,7 +1478,11 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white.withOpacity(0.05)),
                     ),
-                    child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
+                    child: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                 ),
               ),
@@ -1000,7 +1505,11 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white.withOpacity(0.05)),
                     ),
-                    child: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+                    child: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                 ),
               ),
@@ -1014,14 +1523,21 @@ class _ImageGalleryOverlayState extends State<_ImageGalleryOverlay> {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
                     '${_currentIndex + 1} / ${widget.urls.length}',
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

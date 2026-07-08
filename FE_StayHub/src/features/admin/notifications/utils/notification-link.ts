@@ -21,7 +21,6 @@ const supportedAdminSections = new Set([
   'expenses',
   'facilities',
   'financials',
-  'fire-safety',
   'invoices',
   'maintenance',
   'meter-readings',
@@ -78,19 +77,6 @@ export function resolveNotificationActionPath(notification: LinkableNotification
 
   if (notification.notification_type === 2) {
     return invMatch ? `/admin/invoices?invoice_code=${invMatch[1]}` : '/admin/invoices'
-  }
-
-  if (notification.notification_type === 4) {
-    const alertIdMatch = content.match(/(?:alert|cảnh báo|canh bao)[^\d]*(\d+)/iu)
-    if (alertIdMatch) {
-      return `/admin/fire-safety?panel=alerts&alert_id=${alertIdMatch[1]}`
-    }
-
-    if (/AI\s*Camera|camera|lửa|khói|hút thuốc/iu.test(content)) {
-      return '/admin/fire-safety?panel=alerts'
-    }
-
-    return '/admin/fire-safety'
   }
 
   if (notification.notification_type === 6) {

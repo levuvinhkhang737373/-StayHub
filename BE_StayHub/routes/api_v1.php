@@ -27,8 +27,6 @@ use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\FinancialReportController;
-use App\Http\Controllers\Admin\FireSafetyAlertController;
-use App\Http\Controllers\Admin\SecurityCameraController;
 use App\Http\Controllers\Admin\VehicleController;
 use App\Http\Controllers\Tenant\AuthController as TenantAuthController;
 use App\Http\Controllers\Tenant\ChatController as TenantChatController;
@@ -175,17 +173,6 @@ Route::prefix('admin')->group(function (): void {
         Route::get('dashboard/overview', [DashboardController::class, 'overview']);
         Route::get('dashboard/utility-price-history', [DashboardController::class, 'utilityPriceHistory']);
 
-        // ==========================AI Camera Fire Safety===================
-        Route::patch('security-cameras/monitoring/bulk', [SecurityCameraController::class, 'bulkMonitoring']);
-        Route::patch('security-cameras/{securityCamera}/monitoring', [SecurityCameraController::class, 'monitoring']);
-        Route::post('security-cameras/{securityCamera}/analyze', [SecurityCameraController::class, 'analyze']);
-        Route::post('security-cameras/{securityCamera}/test-stream', [SecurityCameraController::class, 'testStream']);
-        Route::apiResource('security-cameras', SecurityCameraController::class)->parameters(['security-cameras' => 'securityCamera']);
-        Route::get('fire-safety-alerts', [FireSafetyAlertController::class, 'index']);
-        Route::get('fire-safety-alerts/{fireSafetyAlert}', [FireSafetyAlertController::class, 'show']);
-        Route::patch('fire-safety-alerts/{fireSafetyAlert}/acknowledge', [FireSafetyAlertController::class, 'acknowledge']);
-        Route::patch('fire-safety-alerts/{fireSafetyAlert}/resolve', [FireSafetyAlertController::class, 'resolve']);
-        Route::patch('fire-safety-alerts/{fireSafetyAlert}/false-alarm', [FireSafetyAlertController::class, 'markFalseAlarm']);
     });
 });
 

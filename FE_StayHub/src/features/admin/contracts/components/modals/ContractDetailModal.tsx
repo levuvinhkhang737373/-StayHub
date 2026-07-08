@@ -10,6 +10,7 @@ import { labelClass } from '../form/form-elements'
 import { DetailTile } from '../ui/ui-elements'
 import { respondToNegotiation } from '../../services/contracts.service'
 import { getVisibleErrorMessage } from '../../../shared/utils/error-message'
+import { getContractPdfRepresentativeTenant } from '../../utils/contract-pdf.helpers'
 
 function docSoTien(so: number): string {
   if (so === 0) return 'Không đồng'
@@ -115,7 +116,7 @@ export function ContractDetailModal({
 
   const handleExportPDF = () => {
     const tenantsList = (contract.contract_tenants || []).filter((ct) => ct.is_staying !== false)
-    const repTenant = tenantsList[0]?.tenant
+    const repTenant = getContractPdfRepresentativeTenant(contract)
     const landlord = contract.landlord_info
     let tenantsHtml = ''
     if (tenantsList.length === 0) {
@@ -284,7 +285,7 @@ export function ContractDetailModal({
 
         <div class="section-title">3. Trách nhiệm Bên B</div>
         <ul style="margin-left: 20px; padding-left: 15px; text-align: justify;">
-          <li>Đặt cọc với số tiền là <strong>${formatMoneyText(contract.deposit_amount)}</strong> đồng (Bằng chữ: <em>${docSoTien(depositAmountNum)}</em>), thanh toán tiền thuê phòng hàng tháng vào ngày <strong>${contract.billing_cycle_day || '……. '}</strong> + tiền điện + nước + dịch vụ.</li>
+          <li>Đặt cọc với số tiền là <strong>${formatMoneyText(contract.deposit_amount)}</strong> đồng (Bằng chữ: <em>${docSoTien(depositAmountNum)}</em>), cộng tiền điện + nước + dịch vụ hàng tháng.</li>
           <li>Đảm bảo các thiết bị và sửa chữa các hư hỏng trong phòng trong khi sử dụng. Nếu không sửa chữa thì khi trả phòng, bên A sẽ trừ vào tiền đặt cọc, giá trị cụ thể được tính theo giá thị trường.</li>
           <li>Chỉ sử dụng phòng trọ vào mục đích ở, với số lượng tối đa không quá 04 người (kể cả trẻ em); không chứa các thiết bị gây cháy nổ, hàng cấm... cung cấp giấy tờ tùy thân để đăng ký tạm trú theo quy định, giữ gìn an ninh trật tự, nếp sống văn hóa đô thị; không tụ tập nhậu nhẹt, cờ bạc và các hành vi vi phạm pháp luật khác.</li>
           <li>Không được tự ý cải tạo kiếm trúc phòng hoặc trang trí ảnh hưởng tới tường, cột, nền... Nếu có nhu cầu trên phải trao đổi với bên A để được thống nhất</li>

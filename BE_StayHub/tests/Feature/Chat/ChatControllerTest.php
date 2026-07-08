@@ -15,6 +15,7 @@ use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Tenant;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -92,7 +93,6 @@ class ChatControllerTest extends TestCase
             'room_id' => $this->room->id,
             'start_date' => '2026-06-01',
             'end_date' => '2026-12-01',
-            'billing_cycle_day' => 5,
             'room_price' => '3500000.00',
             'deposit_amount' => '3500000.00',
             'status' => Contract::STATUS_ACTIVE,
@@ -254,6 +254,38 @@ class ChatControllerTest extends TestCase
         ]);
         Event::assertDispatched(ChatMessageSent::class);
         Event::assertDispatched(NotificationSent::class);
+    }
+
+
+    public function test_chat_message_event_broadcasts_immediately_with_public_attachment_url(): void
+    {
+        config(['app.url' => 'http://localhost:8080']);
+        $conversation = ChatConversation::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'building_id' => $this->building->id,
+            'room_id' => $this->room->id,
+            'manager_admin_id' => $this->manager->id,
+            'status' => ChatConversation::STATUS_ACTIVE,
+        ]);
+        $message = ChatMessage::query()->create([
+            'conversation_id' => $conversation->id,
+            'sender_type' => 'admin',
+            'sender_id' => $this->manager->id,
+            'sender_role' => ChatMessage::SENDER_ADMIN,
+            'body' => '',
+            'attachments' => ['/upload/chats/realtime-image.jpg'],
+            'queued_at' => now(),
+            'sent_at' => now(),
+        ]);
+
+        $event = new ChatMessageSent($message);
+        $payload = $event->broadcastWith();
+
+        $this->assertInstanceOf(ShouldBroadcastNow::class, $event);
+        $this->assertSame(
+            'http://localhost:8080/upload/chats/realtime-image.jpg',
+            $payload['message']['attachments'][0]
+        );
     }
 
     private function createAdmin(string $username, string $email, string $phone, int $role = Admin::ROLE_BUILDING_MANAGER): Admin

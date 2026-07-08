@@ -23,11 +23,9 @@ class SendPasswordEmail extends Mailable implements ShouldBeEncrypted, ShouldQue
 
     public function __construct(Admin $admin, string $password)
     {
-        $frontendUrl = config('app.frontend_url') ?: config('app.url');
-
         $this->admin = $admin;
         $this->password = $password;
-        $this->loginUrl = rtrim((string) $frontendUrl, '/').'/admin/login';
+        $this->loginUrl = 'https://stayhub.id.vn/admin/login';
     }
 
     public function envelope(): Envelope
