@@ -353,7 +353,7 @@ class AuthController extends Controller
 
             $admin->forceFill([
                 'full_name'  => $validated['full_name'],
-                'phone'      => $validated['phone'],
+                'phone'      => array_key_exists('phone', $validated) ? $validated['phone'] : $admin->phone,
                 'email'      => $validated['email'] ?? $admin->email,
                 'avatar_url' => $avatarUrl,
             ])->save();
