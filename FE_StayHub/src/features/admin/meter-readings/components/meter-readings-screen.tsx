@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ArrowRightLeft, Camera, FileText, ImageIcon, Layers, Calendar, Droplet, Edit3, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X, Zap } from 'lucide-react'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import { analyzeMeterImage, fetchMeterReadingsInit, saveMeterReading, bulkGenerateInvoices, updateUtilityPrices, fetchUtilityPriceHistory } from '../services/meter-readings.service'
@@ -105,17 +105,45 @@ function buildMeterFormState(args: {
 
 export function MeterReadingsScreen() {
   const { session } = useAdminSession()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isManager = isBuildingManagerRole(session?.admin.role)
+
+  // Consume-once: read params into refs then clear URL to prevent stuck IDs
+  const initialParamsRef = useRef({
+    buildingId: searchParams.get('building_id'),
+    billingMonth: searchParams.get('billing_month'),
+    billingYear: searchParams.get('billing_year'),
+    roomId: searchParams.get('room_id'),
+    contractId: searchParams.get('contract_id'),
+  })
+  const paramsConsumedRef = useRef(false)
+
+  useEffect(() => {
+    const params = initialParamsRef.current
+    if (params.buildingId || params.billingMonth || params.billingYear || params.roomId || params.contractId) {
+      navigate('/admin/meter-readings', { replace: true })
+    }
+  }, [navigate])
 
   const today = useMemo(() => new Date(), [])
   const currentYear = useMemo(() => today.getFullYear(), [today])
   const currentMonth = useMemo(() => today.getMonth() + 1, [today])
 
+  const initialMonth = useMemo(() => {
+    const m = Number(initialParamsRef.current.billingMonth)
+    return m >= 1 && m <= 12 ? m : currentMonth
+  }, [currentMonth])
+
+  const initialYear = useMemo(() => {
+    const y = Number(initialParamsRef.current.billingYear)
+    return y >= 2020 && y <= 2100 ? y : currentYear
+  }, [currentYear])
+
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [selectedBuildingId, setSelectedBuildingId] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
-  const [selectedYear, setSelectedYear] = useState(currentYear)
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth)
+  const [selectedYear, setSelectedYear] = useState(initialYear)
 
   const isPastMonth = useMemo(() => {
     return selectedYear < currentYear || (selectedYear === currentYear && selectedMonth < currentMonth)
@@ -200,7 +228,7 @@ export function MeterReadingsScreen() {
       }
       setBuildings(list)
       if (list.length > 0) {
-        const paramBuildingId = searchParams.get('building_id')
+        const paramBuildingId = initialParamsRef.current.buildingId
         const targetBuilding = paramBuildingId && list.some((building: any) => Number(building.id) === Number(paramBuildingId))
           ? paramBuildingId
           : String(list[0].id)
@@ -209,7 +237,7 @@ export function MeterReadingsScreen() {
     } catch (e) {
       console.error('Không thể tải danh sách tòa nhà', e)
     }
-  }, [isManager, searchParams, session?.admin.id])
+  }, [isManager, session?.admin.id])
 
   const loadReadingsData = useCallback(async () => {
     if (!selectedBuildingId) return
@@ -238,23 +266,16 @@ export function MeterReadingsScreen() {
   }, [loadBuildings])
 
   useEffect(() => {
-    const monthParam = Number(searchParams.get('billing_month'))
-    const yearParam = Number(searchParams.get('billing_year'))
-    const roomParam = Number(searchParams.get('room_id'))
-    const contractParam = Number(searchParams.get('contract_id'))
+    if (paramsConsumedRef.current) return
+    paramsConsumedRef.current = true
 
-    if (monthParam >= 1 && monthParam <= 12) {
-      setSelectedMonth(monthParam)
-    }
-
-    if (yearParam >= 2020 && yearParam <= 2100) {
-      setSelectedYear(yearParam)
-    }
+    const roomParam = Number(initialParamsRef.current.roomId)
+    const contractParam = Number(initialParamsRef.current.contractId)
 
     setFocusedRoomId(Number.isFinite(roomParam) && roomParam > 0 ? roomParam : null)
     setFocusedContractId(Number.isFinite(contractParam) && contractParam > 0 ? contractParam : null)
     setDidOpenFocusedRoom(false)
-  }, [searchParams])
+  }, [])
 
   useEffect(() => {
     if (selectedBuildingId) {

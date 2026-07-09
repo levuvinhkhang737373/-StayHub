@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, MessageCircle, Search, Send, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { isBuildingManagerRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
@@ -62,17 +62,33 @@ function getDirectUnread(conversation: ChatConversationResource, adminId?: numbe
 export function AdminChatScreen() {
   const { echo } = useAdminSocket()
   const { session } = useAdminSession()
+  const navigate = useNavigate()
   const adminId = session?.admin?.id
   const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
   const isBuildingManager = isBuildingManagerRole(session?.admin?.role)
   const [searchParams] = useSearchParams()
-  const tenantIdParam = searchParams.get('tenant_id')
-  const conversationIdParam = searchParams.get('conversation_id')
-  const directConversationIdParam = searchParams.get('direct_conversation_id')
-  const requestedTab = searchParams.get('tab') as ChatTab | null
+
+  // Consume-once: read params into refs then clear URL to prevent stuck IDs
+  const initialParamsRef = useRef({
+    tenantId: searchParams.get('tenant_id'),
+    conversationId: searchParams.get('conversation_id'),
+    directConversationId: searchParams.get('direct_conversation_id'),
+    tab: searchParams.get('tab') as ChatTab | null,
+  })
+  const paramsConsumedRef = useRef(false)
+
+  const requestedTab = initialParamsRef.current.tab
   const defaultTab: ChatTab = isSuperAdmin ? 'direct' : requestedTab === 'direct' ? 'direct' : 'tenants'
 
   const [activeTab, setActiveTab] = useState<ChatTab>(defaultTab)
+
+  // Clear query params from URL after first render to prevent stuck IDs
+  useEffect(() => {
+    const params = initialParamsRef.current
+    if (params.tenantId || params.conversationId || params.directConversationId || params.tab) {
+      navigate('/admin/chat', { replace: true })
+    }
+  }, [navigate])
   const [tenantConversations, setTenantConversations] = useState<ChatConversationResource[]>([])
   const [directConversations, setDirectConversations] = useState<ChatConversationResource[]>([])
   const [activeTenantConversation, setActiveTenantConversation] = useState<ChatConversationResource | null>(null)
@@ -195,18 +211,23 @@ export function AdminChatScreen() {
     const data = response.result?.data || []
     setTenantConversations(data)
 
+    // Only use initial params if not yet consumed
     let targetConversation: ChatConversationResource | null = null
-    if (conversationIdParam) {
-      targetConversation = data.find((item) => Number(item.id) === Number(conversationIdParam)) || null
-    } else if (tenantIdParam) {
-      targetConversation = data.find((item) => Number(item.tenant_id) === Number(tenantIdParam)) || null
+    if (!paramsConsumedRef.current) {
+      const { conversationId, tenantId } = initialParamsRef.current
+      if (conversationId) {
+        targetConversation = data.find((item) => Number(item.id) === Number(conversationId)) || null
+      } else if (tenantId) {
+        targetConversation = data.find((item) => Number(item.tenant_id) === Number(tenantId)) || null
+      }
+      paramsConsumedRef.current = true
     }
 
     setActiveTenantConversation((current) => {
       if (targetConversation) return targetConversation
       return current && data.some((item) => item.id === current.id) ? current : data[0] || null
     })
-  }, [canUseTenantChat, conversationIdParam, keyword, showUnreadOnly, tenantIdParam])
+  }, [canUseTenantChat, keyword, showUnreadOnly])
 
   const loadDirectConversations = useCallback(async () => {
     if (!adminId) return
@@ -219,15 +240,21 @@ export function AdminChatScreen() {
     const data = response.result?.data || []
     setDirectConversations(data)
 
-    const targetConversation = directConversationIdParam
-      ? data.find((item) => Number(item.id) === Number(directConversationIdParam)) || null
-      : null
+    // Only use initial params if not yet consumed
+    let targetConversation: ChatConversationResource | null = null
+    if (!paramsConsumedRef.current) {
+      const { directConversationId } = initialParamsRef.current
+      if (directConversationId) {
+        targetConversation = data.find((item) => Number(item.id) === Number(directConversationId)) || null
+      }
+      paramsConsumedRef.current = true
+    }
 
     setActiveDirectConversation((current) => {
       if (targetConversation) return targetConversation
       return current && data.some((item) => item.id === current.id) ? current : data[0] || null
     })
-  }, [adminId, directConversationIdParam, keyword, showUnreadOnly])
+  }, [adminId, keyword, showUnreadOnly])
 
   const loadConversations = useCallback(async () => {
     setIsLoadingConversations(true)
@@ -239,7 +266,7 @@ export function AdminChatScreen() {
         await loadTenantConversations()
       }
     } catch (error: any) {
-      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách đoạn chat.', Boolean(keyword.trim() || showUnreadOnly || tenantIdParam || conversationIdParam || directConversationIdParam)))
+      setErrorMessage(getVisibleFilterErrorMessage(error, 'Không thể tải danh sách đoạn chat.', Boolean(keyword.trim() || showUnreadOnly)))
     } finally {
       setIsLoadingConversations(false)
     }
@@ -358,26 +385,8 @@ export function AdminChatScreen() {
     }
   }, [activeDirectConversation?.id, activeTab, activeTenantConversation?.id, loadMessages])
 
-  useEffect(() => {
-    if (tenantConversations.length === 0) return
-    let targetConversation: ChatConversationResource | null = null
-    if (conversationIdParam) {
-      targetConversation = tenantConversations.find((item) => Number(item.id) === Number(conversationIdParam)) || null
-    } else if (tenantIdParam) {
-      targetConversation = tenantConversations.find((item) => Number(item.tenant_id) === Number(tenantIdParam)) || null
-    }
-    if (targetConversation && activeTenantConversation?.id !== targetConversation.id) {
-      setActiveTenantConversation(targetConversation)
-    }
-  }, [activeTenantConversation?.id, conversationIdParam, tenantConversations, tenantIdParam])
-
-  useEffect(() => {
-    if (!directConversationIdParam || directConversations.length === 0) return
-    const targetConversation = directConversations.find((item) => Number(item.id) === Number(directConversationIdParam)) || null
-    if (targetConversation && activeDirectConversation?.id !== targetConversation.id) {
-      setActiveDirectConversation(targetConversation)
-    }
-  }, [activeDirectConversation?.id, directConversationIdParam, directConversations])
+  // Removed: param-sync effects that caused stuck IDs.
+  // Initial param selection is now handled once in loadTenantConversations / loadDirectConversations.
 
   useEffect(() => {
     if (!echo || !adminId) return

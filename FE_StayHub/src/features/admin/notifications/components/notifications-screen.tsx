@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -82,7 +82,19 @@ const filterTargetTypeOptions = [
 export function NotificationsScreen() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const notificationIdParam = searchParams.get('id')
+
+  // Consume-once: read params into refs then clear URL to prevent stuck IDs
+  const initialParamsRef = useRef({
+    notificationId: searchParams.get('id'),
+  })
+  const paramsConsumedRef = useRef(false)
+
+  useEffect(() => {
+    const params = initialParamsRef.current
+    if (params.notificationId) {
+      navigate('/admin/notifications', { replace: true })
+    }
+  }, [navigate])
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
   const { notifications: receivedNotifications, markAllAsRead, markAsRead } = useAdminNotifications()
@@ -249,12 +261,14 @@ export function NotificationsScreen() {
   }, [loadNotifications])
 
   useEffect(() => {
-    const notificationId = Number(notificationIdParam)
+    if (paramsConsumedRef.current) return
+    const notificationId = Number(initialParamsRef.current.notificationId)
     if (!Number.isFinite(notificationId) || notificationId <= 0) return
 
+    paramsConsumedRef.current = true
     const matchedNotification = notifications.find((item) => Number(item.id) === notificationId)
     void openDetail(matchedNotification || ({ id: notificationId } as AdminNotificationResource))
-  }, [notificationIdParam, notifications])
+  }, [notifications])
 
   useEffect(() => {
     function handleRefresh() {
@@ -324,7 +338,7 @@ export function NotificationsScreen() {
     setIsDetailOpen(false)
     setDetailNotification(null)
     setDetailErrorMessage(null)
-    if (notificationIdParam) {
+    if (initialParamsRef.current.notificationId) {
       navigate('/admin/notifications', { replace: true })
     }
   }

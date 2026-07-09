@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ArrowDown, ArrowRightLeft, CalendarDays, CalendarPlus2, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, Sparkles, X } from 'lucide-react'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
@@ -55,11 +55,29 @@ export function RoomMovementsScreen() {
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
   const currentAdmin = session?.admin ?? null
 
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tenantIdFilter = searchParams.get('tenant_id') || ''
-  const contractIdFilter = searchParams.get('contract_id') || ''
-  const keywordFilter = searchParams.get('keyword') || ''
-  const movementIdParam = searchParams.get('movement_id') || ''
+
+  // Consume-once: read params into refs then clear URL to prevent stuck IDs
+  const initialParamsRef = useRef({
+    tenantId: searchParams.get('tenant_id') || '',
+    contractId: searchParams.get('contract_id') || '',
+    keyword: searchParams.get('keyword') || '',
+    movementId: searchParams.get('movement_id') || '',
+  })
+  const paramsConsumedRef = useRef(false)
+
+  useEffect(() => {
+    const params = initialParamsRef.current
+    if (params.tenantId || params.contractId || params.keyword || params.movementId) {
+      navigate('/admin/room-movements', { replace: true })
+    }
+  }, [navigate])
+
+  const tenantIdFilter = initialParamsRef.current.tenantId
+  const contractIdFilter = initialParamsRef.current.contractId
+  const keywordFilter = initialParamsRef.current.keyword
+  const movementIdParam = initialParamsRef.current.movementId
   const deepLinkFilterKey = `${tenantIdFilter}:${contractIdFilter}:${keywordFilter}`
   const [keyword, setKeyword] = useState(keywordFilter)
   const [movementType, setMovementType] = useState<string | number>('')
@@ -135,11 +153,13 @@ export function RoomMovementsScreen() {
   }, [keywordFilter])
 
   useEffect(() => {
-    const movementId = Number(movementIdParam)
+    if (paramsConsumedRef.current) return
+    const movementId = Number(initialParamsRef.current.movementId)
     if (!Number.isFinite(movementId) || movementId <= 0) return
 
+    paramsConsumedRef.current = true
     void openDetail({ id: movementId } as AdminRoomMovementResource)
-  }, [movementIdParam])
+  }, [])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

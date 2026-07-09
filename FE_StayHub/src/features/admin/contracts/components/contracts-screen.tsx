@@ -106,10 +106,22 @@ export function ContractsScreen() {
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
 
   const [searchParams] = useSearchParams()
-  const contractIdParam = searchParams.get('id')
-  const contractCodeParam = searchParams.get('contract_code')
 
-  const [keyword, setKeyword] = useState(contractCodeParam || '')
+  // Consume-once: read params into refs then clear URL to prevent stuck IDs
+  const initialParamsRef = useRef({
+    contractId: searchParams.get('id'),
+    contractCode: searchParams.get('contract_code'),
+  })
+  const paramsConsumedRef = useRef(false)
+
+  useEffect(() => {
+    const params = initialParamsRef.current
+    if (params.contractId || params.contractCode) {
+      navigate('/admin/contracts', { replace: true })
+    }
+  }, [navigate])
+
+  const [keyword, setKeyword] = useState(initialParamsRef.current.contractCode || '')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedBuildingId, setSelectedBuildingId] = useState(isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : '')
   const [selectedRoomId, setSelectedRoomId] = useState('')
@@ -321,19 +333,25 @@ export function ContractsScreen() {
   }, [loadContracts])
 
   useEffect(() => {
-    if (contractIdParam) {
-      void viewContract({ id: Number(contractIdParam) } as any)
+    if (paramsConsumedRef.current) return
+    const contractId = initialParamsRef.current.contractId
+    if (contractId) {
+      paramsConsumedRef.current = true
+      void viewContract({ id: Number(contractId) } as any)
     }
-  }, [contractIdParam])
+  }, [])
 
   useEffect(() => {
-    if (!isLoading && contractCodeParam && contracts.length > 0) {
-      const found = contracts.find((c) => c.contract_code === contractCodeParam)
+    if (paramsConsumedRef.current) return
+    const contractCode = initialParamsRef.current.contractCode
+    if (!isLoading && contractCode && contracts.length > 0) {
+      paramsConsumedRef.current = true
+      const found = contracts.find((c) => c.contract_code === contractCode)
       if (found) {
         void viewContract(found)
       }
     }
-  }, [isLoading, contractCodeParam, contracts])
+  }, [isLoading, contracts])
 
   const viewContract = async (contract: AdminContractResource) => {
     setDetailContract(contract)

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Banknote,
   Building2,
@@ -94,11 +94,24 @@ export function InvoicesScreen() {
   const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
 
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const invoiceIdParam = searchParams.get('id')
-  const invoiceCodeParam = searchParams.get('invoice_code')
 
-  const [keyword, setKeyword] = useState(invoiceCodeParam || '')
+  // Consume-once: read params into refs then clear URL to prevent stuck IDs
+  const initialParamsRef = useRef({
+    invoiceId: searchParams.get('id'),
+    invoiceCode: searchParams.get('invoice_code'),
+  })
+  const paramsConsumedRef = useRef(false)
+
+  useEffect(() => {
+    const params = initialParamsRef.current
+    if (params.invoiceId || params.invoiceCode) {
+      navigate('/admin/invoices', { replace: true })
+    }
+  }, [navigate])
+
+  const [keyword, setKeyword] = useState(initialParamsRef.current.invoiceCode || '')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedBuildingId, setSelectedBuildingId] = useState(isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : '')
   const [selectedRoomId, setSelectedRoomId] = useState('')
@@ -292,19 +305,25 @@ export function InvoicesScreen() {
   }, [detailInvoice?.id, loadInvoices])
 
   useEffect(() => {
-    if (invoiceIdParam) {
-      void viewInvoice({ id: Number(invoiceIdParam) } as any)
+    if (paramsConsumedRef.current) return
+    const invoiceId = initialParamsRef.current.invoiceId
+    if (invoiceId) {
+      paramsConsumedRef.current = true
+      void viewInvoice({ id: Number(invoiceId) } as any)
     }
-  }, [invoiceIdParam])
+  }, [])
 
   useEffect(() => {
-    if (!isLoading && invoiceCodeParam && invoices.length > 0) {
-      const found = invoices.find((inv) => inv.invoice_code === invoiceCodeParam)
+    if (paramsConsumedRef.current) return
+    const invoiceCode = initialParamsRef.current.invoiceCode
+    if (!isLoading && invoiceCode && invoices.length > 0) {
+      paramsConsumedRef.current = true
+      const found = invoices.find((inv) => inv.invoice_code === invoiceCode)
       if (found) {
         void viewInvoice(found)
       }
     }
-  }, [isLoading, invoiceCodeParam, invoices])
+  }, [isLoading, invoices])
 
   const clearFilters = () => {
     setKeyword('')

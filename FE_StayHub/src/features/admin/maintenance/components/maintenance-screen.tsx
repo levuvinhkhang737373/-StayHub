@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Wrench,
   Eye,
@@ -65,12 +65,25 @@ const labelClass = 'mb-1.5 block px-1 text-[10px] font-black uppercase tracking-
 export function MaintenanceScreen() {
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin.role)
+  const navigate = useNavigate()
 
   const [searchParams] = useSearchParams()
-  const maintenanceIdParam = searchParams.get('id')
-  const requestCodeParam = searchParams.get('request_code')
 
-  const [keyword, setKeyword] = useState(requestCodeParam || '')
+  // Consume-once: read params into refs then clear URL to prevent stuck IDs
+  const initialParamsRef = useRef({
+    maintenanceId: searchParams.get('id'),
+    requestCode: searchParams.get('request_code'),
+  })
+  const paramsConsumedRef = useRef(false)
+
+  useEffect(() => {
+    const params = initialParamsRef.current
+    if (params.maintenanceId || params.requestCode) {
+      navigate('/admin/maintenance', { replace: true })
+    }
+  }, [navigate])
+
+  const [keyword, setKeyword] = useState(initialParamsRef.current.requestCode || '')
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedBuildingId, setSelectedBuildingId] = useState('')
   const [roomNumber, setRoomNumber] = useState('')
@@ -228,19 +241,25 @@ export function MaintenanceScreen() {
   }, [loadRequests])
 
   useEffect(() => {
-    if (maintenanceIdParam) {
-      void openDetail({ id: Number(maintenanceIdParam) } as any)
+    if (paramsConsumedRef.current) return
+    const maintenanceId = initialParamsRef.current.maintenanceId
+    if (maintenanceId) {
+      paramsConsumedRef.current = true
+      void openDetail({ id: Number(maintenanceId) } as any)
     }
-  }, [maintenanceIdParam])
+  }, [])
 
   useEffect(() => {
-    if (!isLoading && requestCodeParam && requests.length > 0) {
-      const found = requests.find((r) => r.request_code === requestCodeParam)
+    if (paramsConsumedRef.current) return
+    const requestCode = initialParamsRef.current.requestCode
+    if (!isLoading && requestCode && requests.length > 0) {
+      paramsConsumedRef.current = true
+      const found = requests.find((r) => r.request_code === requestCode)
       if (found) {
         void openDetail(found)
       }
     }
-  }, [isLoading, requestCodeParam, requests])
+  }, [isLoading, requests])
 
   // View details
   const openDetail = async (req: AdminMaintenanceRequestResource) => {
