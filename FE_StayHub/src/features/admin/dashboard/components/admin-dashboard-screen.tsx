@@ -140,15 +140,32 @@ function MetricCard({ metric, icon: Icon, tone, helper }: { metric: DashboardMet
 }
 
 function RevenueComboChart({ data }: { data: DashboardRevenuePoint[] }) {
-  const [activeMetric, setActiveMetric] = useState<'revenue' | 'expenses' | 'profit'>('revenue')
+  type RevenueMetricKey = 'revenue' | 'collected_revenue' | 'debt' | 'expenses' | 'profit'
+  const [activeMetric, setActiveMetric] = useState<RevenueMetricKey>('revenue')
   const metricOptions = {
     revenue: {
       label: 'Doanh thu',
-      summaryLabel: 'Tổng doanh thu',
+      summaryLabel: 'Tổng doanh thu dự kiến',
       color: '#f3c56b',
       darkColor: '#a65f16',
       topColor: '#fde7a7',
       key: 'revenue' as const,
+    },
+    collected_revenue: {
+      label: 'Đã thu',
+      summaryLabel: 'Tổng tiền đã thu',
+      color: '#16a34a',
+      darkColor: '#166534',
+      topColor: '#bbf7d0',
+      key: 'collected_revenue' as const,
+    },
+    debt: {
+      label: 'Công nợ',
+      summaryLabel: 'Tổng công nợ phải thu',
+      color: '#fb7185',
+      darkColor: '#be123c',
+      topColor: '#fecdd3',
+      key: 'debt' as const,
     },
     expenses: {
       label: 'Chi phí',
@@ -172,8 +189,8 @@ function RevenueComboChart({ data }: { data: DashboardRevenuePoint[] }) {
   }
   const activeOption = metricOptions[activeMetric]
 
-  if (!data.length || !hasPositiveValue(data.flatMap((item) => [item.revenue, item.expenses, Math.abs(item.profit)]))) {
-    return <EmptyState title="Chưa có dữ liệu tài chính" description="Doanh thu, chi phí và lợi nhuận sẽ xuất hiện sau khi phát sinh thanh toán hoặc phiếu chi." />
+  if (!data.length || !hasPositiveValue(data.flatMap((item) => [item.revenue, item.collected_revenue, item.debt, item.expenses, Math.abs(item.profit)]))) {
+    return <EmptyState title="Chưa có dữ liệu tài chính" description="Doanh thu, tiền đã thu, công nợ, chi phí và lợi nhuận sẽ xuất hiện khi phát sinh hóa đơn, thanh toán hoặc phiếu chi." />
   }
 
   const points = data.map((item, index) => ({ item, index, value: item[activeOption.key] }))
@@ -212,7 +229,7 @@ function RevenueComboChart({ data }: { data: DashboardRevenuePoint[] }) {
     <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
       <div className="min-w-0">
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-black text-[#6f6254]">
-          {(Object.keys(metricOptions) as Array<'revenue' | 'expenses' | 'profit'>).map((type) => {
+          {(Object.keys(metricOptions) as RevenueMetricKey[]).map((type) => {
             const option = metricOptions[type]
             const isActive = activeMetric === type
 
@@ -831,8 +848,8 @@ export function AdminDashboardScreen() {
   if (!overview) return null
 
   const kpiCards = [
-    { key: 'monthly_revenue', metric: overview.kpis.monthly_revenue, icon: Banknote, tone: 'bg-[#f3c56b]/35', helper: 'Tiền đã xác nhận trong tháng' },
-    { key: 'monthly_profit', metric: overview.kpis.monthly_profit, icon: TrendingUp, tone: 'bg-[#0f766e]/25', helper: 'Doanh thu trừ chi phí ghi nhận' },
+    { key: 'monthly_revenue', metric: overview.kpis.monthly_revenue, icon: Banknote, tone: 'bg-[#f3c56b]/35', helper: 'Đã thu + công nợ phải thu' },
+    { key: 'monthly_profit', metric: overview.kpis.monthly_profit, icon: TrendingUp, tone: 'bg-[#0f766e]/25', helper: 'Doanh thu dự kiến trừ chi phí' },
     { key: 'occupancy_rate', metric: overview.kpis.occupancy_rate, icon: Home, tone: 'bg-[#a65f16]/25', helper: `${formatNumber(overview.occupancy_chart.summary.available_slots)} chỗ còn trống` },
     { key: 'renting_tenants', metric: overview.kpis.renting_tenants, icon: Users, tone: 'bg-[#0f766e]/20', helper: '' },
     { key: 'outstanding_debt', metric: overview.kpis.outstanding_debt, icon: ReceiptText, tone: 'bg-rose-500/18' },
@@ -923,7 +940,7 @@ export function AdminDashboardScreen() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
-        <ChartCard title="Tài chính theo kỳ lọc" description="Bấm từng chỉ số để xem riêng doanh thu, chi phí hoặc lợi nhuận.">
+        <ChartCard title="Tài chính theo kỳ lọc" description="Bấm từng chỉ số để xem doanh thu dự kiến, đã thu, công nợ, chi phí hoặc lợi nhuận.">
           <RevenueComboChart data={overview.revenue_chart} />
         </ChartCard>
         <ChartCard title="Tỷ lệ lấp đầy" description={overview.occupancy_chart.mode === 'building' ? 'So sánh sức chứa đang sử dụng theo từng tòa.' : 'So sánh sức chứa đang sử dụng theo từng tầng.'}>

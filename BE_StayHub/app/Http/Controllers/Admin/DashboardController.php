@@ -14,6 +14,7 @@ use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\Expense;
 use App\Models\Invoice;
+use App\Models\InvoiceDebtRollover;
 use App\Models\MaintenanceRequest;
 use App\Models\MeterDevice;
 use App\Models\MeterReading;
@@ -21,6 +22,7 @@ use App\Models\Payment;
 use App\Models\Room;
 use App\Models\RoomMovement;
 use App\Models\Service;
+use App\Models\ServicePrice;
 use App\Models\Tenant;
 use App\Services\Invoice\InvoiceDebtRolloverService;
 use Illuminate\Database\Eloquent\Builder;
@@ -114,8 +116,8 @@ class DashboardController extends Controller
                     ])->values(),
                 ],
                 'kpis' => [
-                    'monthly_revenue' => $this->metric('Doanh thu tháng đang xem', $currentFinancial['revenue'], $previousFinancial['revenue'], 'money'),
-                    'monthly_profit' => $this->metric('Lợi nhuận tháng đang xem', $currentFinancial['profit'], $previousFinancial['profit'], 'money'),
+                    'monthly_revenue' => $this->metric($revenueLabel, $currentFinancial['revenue'], $previousFinancial['revenue'], 'money'),
+                    'monthly_profit' => $this->metric($profitLabel, $currentFinancial['profit'], $previousFinancial['profit'], 'money'),
                     'occupancy_rate' => $this->metric('Tỷ lệ lấp đầy', $occupancy['occupancy_rate'], null, 'percent'),
                     'renting_tenants' => $this->metric('Khách đang thuê', $tenantCount, null, 'count'),
                     'outstanding_debt' => $this->metric('Công nợ cần thu', $debt['amount'], null, 'money', [
@@ -263,6 +265,33 @@ class DashboardController extends Controller
 
     private function financialTotals(array $buildingIds, Carbon $start, Carbon $end, bool $includeGlobalExpenses = false, $roomMovements = null): array
     {
+        if ($roomMovements === null) {
+            $roomMovements = $this->scopedRoomMovementExtraChargeQuery($buildingIds)->get();
+        }
+
+        $collectedRevenue = $this->periodRevenue($buildingIds, $start, $end, $roomMovements);
+        $debt = $this->periodDebt($buildingIds, $start, $end);
+        $revenue = $collectedRevenue + $debt['total'];
+
+        $expenses = (float) $this->scopedExpenseQuery($buildingIds, $includeGlobalExpenses)
+            ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('amount');
+
+        return [
+            'revenue' => round($revenue, 2),
+            'collected_revenue' => round($collectedRevenue, 2),
+            'debt' => round($debt['total'], 2),
+            'outstanding_debt' => round($debt['total'], 2),
+            'current_debt' => round($debt['current'], 2),
+            'rolled_debt' => round($debt['rolled'], 2),
+            'expected_revenue' => round($revenue, 2),
+            'expenses' => round($expenses, 2),
+            'profit' => round($revenue - $expenses, 2),
+        ];
+    }
+
+    private function periodRevenue(array $buildingIds, Carbon $start, Carbon $end, Collection $roomMovements): float
+    {
         $paymentRevenue = (float) $this->scopedPaymentQuery($buildingIds)
             ->whereBetween('payment_date', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
             ->sum('amount');
@@ -271,36 +300,69 @@ class DashboardController extends Controller
             ->whereBetween('transaction_date', [$start->toDateString(), $end->toDateString()])
             ->sum('amount');
 
-        $extraRevenue = 0.0;
-        if ($roomMovements === null) {
-            $roomMovements = $this->scopedRoomMovementExtraChargeQuery($buildingIds)->get();
+        return $paymentRevenue + $deductionRevenue + $this->roomMovementExtraRevenue($roomMovements, $buildingIds, $start, $end);
+    }
+
+    private function periodDebt(array $buildingIds, Carbon $start, Carbon $end): array
+    {
+        $invoices = $this->scopedInvoiceQuery($buildingIds)
+            ->with(['debtRolloversIn', 'debtRolloversOut.targetInvoice:id,status'])
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->where('billing_year', (int) $start->year)
+            ->whereBetween('billing_month', [(int) $start->month, (int) $end->month])
+            ->get();
+
+        $currentDebt = 0.0;
+        $rolledDebt = 0.0;
+
+        foreach ($invoices as $invoice) {
+            $rolledInRemaining = $invoice->debtRolloversIn
+                ->whereIn('status', [InvoiceDebtRollover::STATUS_ACTIVE, InvoiceDebtRollover::STATUS_SETTLED])
+                ->sum(fn (InvoiceDebtRollover $rollover): float => max(0.0, (float) $rollover->amount - (float) $rollover->settled_amount));
+
+            $rolledOutRemaining = $invoice->debtRolloversOut
+                ->filter(fn (InvoiceDebtRollover $rollover): bool => (int) $rollover->status === InvoiceDebtRollover::STATUS_ACTIVE
+                    && (! $rollover->targetInvoice || (int) $rollover->targetInvoice->status !== Invoice::STATUS_CANCELLED))
+                ->sum(fn (InvoiceDebtRollover $rollover): float => max(0.0, (float) $rollover->amount - (float) $rollover->settled_amount));
+
+            $collectibleRemaining = max(0.0, (float) $invoice->remaining_amount - $rolledOutRemaining);
+            $invoiceCurrentDebt = max(0.0, $collectibleRemaining - $rolledInRemaining);
+
+            $currentDebt += $invoiceCurrentDebt;
+            $rolledDebt += min($rolledInRemaining, $collectibleRemaining);
         }
 
-        foreach ($roomMovements as $rm) {
-            $refs = $rm->settlement_payment_references ?? [];
-            if (is_array($refs)) {
-                foreach ($refs as $ref) {
-                    if (!empty($ref['paid_at'])) {
-                        $paidDate = Carbon::parse($ref['paid_at']);
-                        if ($paidDate->between($start->copy()->startOfDay(), $end->copy()->endOfDay())) {
-                            $extraRevenue += (float) ($ref['extra_amount'] ?? 0);
-                        }
-                    }
+        return [
+            'current' => round($currentDebt, 2),
+            'rolled' => round($rolledDebt, 2),
+            'total' => round($currentDebt + $rolledDebt, 2),
+        ];
+    }
+
+    private function roomMovementExtraRevenue(Collection $roomMovements, array $buildingIds, Carbon $start, Carbon $end): float
+    {
+        $extraRevenue = 0.0;
+
+        foreach ($roomMovements as $roomMovement) {
+            $refs = $roomMovement->settlement_payment_references ?? [];
+            if (! is_array($refs)) {
+                continue;
+            }
+
+            foreach ($refs as $ref) {
+                if (empty($ref['paid_at'])) {
+                    continue;
+                }
+
+                $buildingId = (int) ($roomMovement->toRoom?->building_id ?? 0);
+                $paidDate = Carbon::parse($ref['paid_at']);
+                if ($buildingId && in_array($buildingId, $buildingIds, true) && $paidDate->between($start->copy()->startOfDay(), $end->copy()->endOfDay())) {
+                    $extraRevenue += (float) ($ref['extra_amount'] ?? 0);
                 }
             }
         }
 
-        $revenue = $paymentRevenue + $deductionRevenue + $extraRevenue;
-
-        $expenses = (float) $this->scopedExpenseQuery($buildingIds, $includeGlobalExpenses)
-            ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
-            ->sum('amount');
-
-        return [
-            'revenue' => round($revenue, 2),
-            'expenses' => round($expenses, 2),
-            'profit' => round($revenue - $expenses, 2),
-        ];
+        return $extraRevenue;
     }
 
     private function revenueChart(array $buildingIds, array $monthRange, bool $includeGlobalExpenses, $roomMovements = null): array
@@ -312,6 +374,12 @@ class DashboardController extends Controller
                 'month' => $month['label'],
                 'month_key' => $month['key'],
                 'revenue' => $totals['revenue'],
+                'collected_revenue' => $totals['collected_revenue'],
+                'debt' => $totals['debt'],
+                'outstanding_debt' => $totals['outstanding_debt'],
+                'current_debt' => $totals['current_debt'],
+                'rolled_debt' => $totals['rolled_debt'],
+                'expected_revenue' => $totals['expected_revenue'],
                 'expenses' => $totals['expenses'],
                 'profit' => $totals['profit'],
             ];
@@ -623,15 +691,15 @@ class DashboardController extends Controller
             ->get()
             ->keyBy(fn ($row): string => sprintf('%04d-%02d-%d', (int) $row->billing_year, (int) $row->billing_month, (int) $row->meter_type));
 
-        $electricService = \App\Models\Service::whereIn('slug', ['electric', 'dien-sinh-hoat', 'dien'])->first();
-        $waterService = \App\Models\Service::whereIn('slug', ['water', 'nuoc-sinh-hoat', 'nuoc'])->first();
+        $electricService = Service::whereIn('slug', ['electric', 'dien-sinh-hoat', 'dien'])->first();
+        $waterService = Service::whereIn('slug', ['water', 'nuoc-sinh-hoat', 'nuoc'])->first();
 
         $servicePrices = collect();
         if ($electricService && $waterService) {
-            $servicePrices = \App\Models\ServicePrice::query()
+            $servicePrices = ServicePrice::query()
                 ->whereIn('building_id', $buildingIds)
                 ->whereIn('service_id', [$electricService->id, $waterService->id])
-                ->whereIn('status', [\App\Models\ServicePrice::STATUS_ACTIVE, \App\Models\ServicePrice::STATUS_EXPIRED])
+                ->whereIn('status', [ServicePrice::STATUS_ACTIVE, ServicePrice::STATUS_EXPIRED])
                 ->orderBy('effective_from', 'desc')
                 ->orderBy('id', 'desc')
                 ->get();
@@ -648,7 +716,8 @@ class DashboardController extends Controller
                     }
                     $effectiveFrom = Carbon::parse($price->effective_from)->startOfDay();
                     $effectiveTo = $price->effective_to ? Carbon::parse($price->effective_to)->endOfDay() : null;
-                    return $effectiveFrom->lessThanOrEqualTo($month['end']) && 
+
+                    return $effectiveFrom->lessThanOrEqualTo($month['end']) &&
                            ($effectiveTo === null || $effectiveTo->greaterThanOrEqualTo($month['start']));
                 });
                 $electricPrice = $ePriceRecord ? (float) $ePriceRecord->price : null;
@@ -661,7 +730,8 @@ class DashboardController extends Controller
                     }
                     $effectiveFrom = Carbon::parse($price->effective_from)->startOfDay();
                     $effectiveTo = $price->effective_to ? Carbon::parse($price->effective_to)->endOfDay() : null;
-                    return $effectiveFrom->lessThanOrEqualTo($month['end']) && 
+
+                    return $effectiveFrom->lessThanOrEqualTo($month['end']) &&
                            ($effectiveTo === null || $effectiveTo->greaterThanOrEqualTo($month['start']));
                 });
                 $waterPrice = $wPriceRecord ? (float) $wPriceRecord->price : null;
@@ -801,10 +871,10 @@ class DashboardController extends Controller
         }
 
         return $query->where(function (Builder $scopeQuery) use ($buildingIds, $includeGlobalExpenses): void {
-            $scopeQuery->where(function($q) use ($buildingIds) {
+            $scopeQuery->where(function ($q) use ($buildingIds) {
                 $q->whereIn('building_id', $buildingIds)
-                  ->orWhereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
-            })->whereHas('category', function(Builder $catQuery) {
+                    ->orWhereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+            })->whereHas('category', function (Builder $catQuery) {
                 $catQuery->where('name', '!=', 'Hoàn cọc hợp đồng');
             });
 
@@ -865,7 +935,7 @@ class DashboardController extends Controller
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereHas('contract.room', fn(Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+        return $query->whereHas('contract.room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
     private function scopedRoomMovementExtraChargeQuery(array $buildingIds): Builder
@@ -878,6 +948,6 @@ class DashboardController extends Controller
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereHas('toRoom', fn(Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
+        return $query->whereHas('toRoom', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 }
