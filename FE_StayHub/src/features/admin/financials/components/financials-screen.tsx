@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Banknote,
   Building2,
+  HandCoins,
   Loader2,
   ReceiptText,
   DollarSign,
@@ -141,43 +142,57 @@ export function FinancialsScreen() {
     .total-row { font-weight: bold; background-color: #fff1d6; }
     .profit-positive { color: #047857; font-weight: bold; text-align: right; }
     .profit-negative { color: #be123c; font-weight: bold; text-align: right; }
+    .debt { color: #b45309; font-weight: bold; text-align: right; }
   </style>
 </head>
 <body>
   <table>
     <!-- Tiêu đề lớn -->
-    <tr><td colspan="4" class="title" style="border:none;">BÁO CÁO TÀI CHÍNH STAYHUB</td></tr>
-    <tr><td colspan="4" class="subtitle" style="border:none;">Thời gian lọc: Tháng ${monthFrom}/${year} - Tháng ${monthTo}/${year}</td></tr>
-    <tr><td colspan="4" class="subtitle" style="border:none;padding-bottom:15px;">Tòa nhà: ${selectedBuildingName}</td></tr>
-    <tr><td colspan="4" style="border:none;height:10px;"></td></tr>
+    <tr><td colspan="5" class="title" style="border:none;">BÁO CÁO TÀI CHÍNH STAYHUB</td></tr>
+    <tr><td colspan="5" class="subtitle" style="border:none;">Thời gian lọc: Tháng ${monthFrom}/${year} - Tháng ${monthTo}/${year}</td></tr>
+    <tr><td colspan="5" class="subtitle" style="border:none;padding-bottom:15px;">Tòa nhà: ${selectedBuildingName}</td></tr>
+    <tr><td colspan="5" style="border:none;height:10px;"></td></tr>
 
-    <tr><td colspan="4" class="section-title" style="border:none;">I. TỔNG QUAN CHỈ TIÊU</td></tr>
+    <tr><td colspan="5" class="section-title" style="border:none;">I. TỔNG QUAN CHỈ TIÊU</td></tr>
     <tr>
       <td colspan="2" class="header">Chỉ số</td>
-      <td colspan="2" class="header">Giá trị</td>
+      <td colspan="3" class="header">Giá trị</td>
     </tr>
     <tr>
-      <td colspan="2">Tổng doanh thu</td>
-      <td colspan="2" class="number" style="font-weight:bold;color:#a65f16;">${formatCurrency(reportData.summary.revenue)}</td>
+      <td colspan="2">Tổng doanh thu (đã thu + công nợ)</td>
+      <td colspan="3" class="number" style="font-weight:bold;color:#a65f16;">${formatCurrency(reportData.summary.revenue)}</td>
+    </tr>
+    <tr>
+      <td colspan="2">Doanh thu đã thu</td>
+      <td colspan="3" class="number" style="font-weight:bold;color:#a65f16;">${formatCurrency(reportData.summary.collected_revenue || 0)}</td>
+    </tr>
+    <tr>
+      <td colspan="2">Công nợ còn phải thu</td>
+      <td colspan="3" class="debt">${formatCurrency(reportData.summary.debt || 0)}</td>
+    </tr>
+    <tr>
+      <td colspan="2">Tổng doanh thu ghi nhận</td>
+      <td colspan="3" class="number" style="font-weight:bold;color:#92400e;">${formatCurrency(reportData.summary.expected_revenue || reportData.summary.revenue)}</td>
     </tr>
     <tr>
       <td colspan="2">Tổng chi phí</td>
-      <td colspan="2" class="number" style="font-weight:bold;color:#0f766e;">${formatCurrency(reportData.summary.expenses)}</td>
+      <td colspan="3" class="number" style="font-weight:bold;color:#0f766e;">${formatCurrency(reportData.summary.expenses)}</td>
     </tr>
     <tr>
       <td colspan="2" class="total-row">Lợi nhuận ròng</td>
-      <td colspan="2" class="total-row ${reportData.summary.profit >= 0 ? 'profit-positive' : 'profit-negative'}">${formatCurrency(reportData.summary.profit)}</td>
+      <td colspan="3" class="total-row ${reportData.summary.profit >= 0 ? 'profit-positive' : 'profit-negative'}">${formatCurrency(reportData.summary.profit)}</td>
     </tr>
     <tr>
       <td colspan="2">Biên lợi nhuận ròng</td>
-      <td colspan="2" class="number" style="font-weight:bold;">${reportData.summary.profit_margin}%</td>
+      <td colspan="3" class="number" style="font-weight:bold;">${reportData.summary.profit_margin}%</td>
     </tr>
-    <tr><td colspan="4" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
 
-    <tr><td colspan="4" class="section-title" style="border:none;">II. XU HƯỚNG THEO THÁNG</td></tr>
+    <tr><td colspan="5" class="section-title" style="border:none;">II. XU HƯỚNG THEO THÁNG</td></tr>
     <tr>
       <td class="header">Tháng</td>
-      <td class="header">Doanh thu</td>
+      <td class="header">Doanh thu ghi nhận</td>
+      <td class="header">Công nợ</td>
       <td class="header">Chi phí</td>
       <td class="header">Lợi nhuận ròng</td>
     </tr>
@@ -189,17 +204,43 @@ export function FinancialsScreen() {
     <tr>
       <td class="text-cell">${pt.month}</td>
       <td class="number">${formatCurrency(pt.revenue)}</td>
+      <td class="debt">${formatCurrency(pt.debt || 0)}</td>
       <td class="number">${formatCurrency(pt.expenses)}</td>
       <td class="${isPositive ? 'profit-positive' : 'profit-negative'}">${formatCurrency(pt.profit)}</td>
     </tr>`;
     });
 
     html += `
-    <tr><td colspan="4" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
 
-    <tr><td colspan="4" class="section-title" style="border:none;">III. CƠ CẤU DOANH THU THEO DỊCH VỤ</td></tr>
+    <tr><td colspan="5" class="section-title" style="border:none;">III. CƠ CẤU CÔNG NỢ</td></tr>
     <tr>
-      <td colspan="2" class="header">Dịch vụ</td>
+      <td colspan="3" class="header">Loại công nợ</td>
+      <td class="header">Công nợ (VNĐ)</td>
+      <td class="header">Tỷ lệ (%)</td>
+    </tr>
+`;
+
+    ;(reportData.debt_breakdown || []).forEach((item) => {
+      html += `
+    <tr>
+      <td colspan="3">${item.label}</td>
+      <td class="debt">${formatCurrency(item.amount)}</td>
+      <td style="text-align:center;">${item.percentage}%</td>
+    </tr>`;
+    });
+
+    html += `
+    <tr>
+      <td colspan="3" class="total-row">TỔNG CỘNG CÔNG NỢ</td>
+      <td class="total-row debt">${formatCurrency(reportData.summary.debt || 0)}</td>
+      <td class="total-row" style="text-align:center;">100%</td>
+    </tr>
+    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
+
+    <tr><td colspan="5" class="section-title" style="border:none;">IV. CƠ CẤU DOANH THU THEO DỊCH VỤ</td></tr>
+    <tr>
+      <td colspan="3" class="header">Dịch vụ</td>
       <td class="header">Doanh thu (VNĐ)</td>
       <td class="header">Tỷ lệ (%)</td>
     </tr>
@@ -208,7 +249,7 @@ export function FinancialsScreen() {
     reportData.revenue_breakdown.forEach((item) => {
       html += `
     <tr>
-      <td colspan="2">${item.label}</td>
+      <td colspan="3">${item.label}</td>
       <td class="number">${formatCurrency(item.amount)}</td>
       <td style="text-align:center;">${item.percentage}%</td>
     </tr>`;
@@ -216,15 +257,15 @@ export function FinancialsScreen() {
 
     html += `
     <tr>
-      <td colspan="2" class="total-row">TỔNG CỘNG DOANH THU</td>
-      <td class="total-row number" style="color:#a65f16;">${formatCurrency(reportData.summary.revenue)}</td>
+      <td colspan="3" class="total-row">TỔNG CỘNG DOANH THU ĐÃ THU</td>
+      <td class="total-row number" style="color:#a65f16;">${formatCurrency(reportData.summary.collected_revenue || 0)}</td>
       <td class="total-row" style="text-align:center;">100%</td>
     </tr>
-    <tr><td colspan="4" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
 
-    <tr><td colspan="4" class="section-title" style="border:none;">IV. CƠ CẤU CHI PHÍ</td></tr>
+    <tr><td colspan="5" class="section-title" style="border:none;">V. CƠ CẤU CHI PHÍ</td></tr>
     <tr>
-      <td colspan="2" class="header">Danh mục</td>
+      <td colspan="3" class="header">Danh mục</td>
       <td class="header">Chi phí (VNĐ)</td>
       <td class="header">Tỷ lệ (%)</td>
     </tr>
@@ -233,7 +274,7 @@ export function FinancialsScreen() {
     reportData.expense_breakdown.forEach((item) => {
       html += `
     <tr>
-      <td colspan="2">${item.label}</td>
+      <td colspan="3">${item.label}</td>
       <td class="number">${formatCurrency(item.amount)}</td>
       <td style="text-align:center;">${item.percentage}%</td>
     </tr>`;
@@ -241,7 +282,7 @@ export function FinancialsScreen() {
 
     html += `
     <tr>
-      <td colspan="2" class="total-row">TỔNG CỘNG CHI PHÍ</td>
+      <td colspan="3" class="total-row">TỔNG CỘNG CHI PHÍ</td>
       <td class="total-row number" style="color:#0f766e;">${formatCurrency(reportData.summary.expenses)}</td>
       <td class="total-row" style="text-align:center;">100%</td>
     </tr>
@@ -249,12 +290,13 @@ export function FinancialsScreen() {
 
     if (buildingId === '' && reportData.top_buildings && reportData.top_buildings.length > 0) {
       html += `
-    <tr><td colspan="4" style="border:none;height:15px;"></td></tr>
-    <tr><td colspan="4" class="section-title" style="border:none;">V. HIỆU SUẤT DOANH THU TÒA NHÀ</td></tr>
+    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="5" class="section-title" style="border:none;">VI. HIỆU SUẤT DOANH THU & CÔNG NỢ TÒA NHÀ</td></tr>
     <tr>
       <td colspan="2" class="header">Tòa nhà</td>
       <td class="header">Doanh thu (VNĐ)</td>
-      <td class="header">Tỷ lệ (%)</td>
+      <td class="header">Công nợ (VNĐ)</td>
+      <td class="header">Tổng dự kiến</td>
     </tr>
 `;
       reportData.top_buildings.forEach((item) => {
@@ -262,14 +304,16 @@ export function FinancialsScreen() {
     <tr>
       <td colspan="2">${item.name}</td>
       <td class="number">${formatCurrency(item.revenue)}</td>
-      <td style="text-align:center;">${item.percentage}%</td>
+      <td class="debt">${formatCurrency(item.debt || 0)}</td>
+      <td class="number">${formatCurrency(item.expected_revenue || item.revenue)}</td>
     </tr>`;
       });
       html += `
     <tr>
-      <td colspan="2" class="total-row">TỔNG CỘNG DOANH THU</td>
-      <td class="total-row number" style="color:#a65f16;">${formatCurrency(reportData.summary.revenue)}</td>
-      <td class="total-row" style="text-align:center;">100%</td>
+      <td colspan="2" class="total-row">TỔNG CỘNG</td>
+      <td class="total-row number" style="color:#a65f16;">${formatCurrency(reportData.summary.collected_revenue || 0)}</td>
+      <td class="total-row debt">${formatCurrency(reportData.summary.debt || 0)}</td>
+      <td class="total-row number">${formatCurrency(reportData.summary.expected_revenue || reportData.summary.revenue)}</td>
     </tr>
 `;
     }
@@ -388,13 +432,20 @@ export function FinancialsScreen() {
         reportData && (
           <div className="space-y-6">
             {/* 5. KPI Cards */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <KpiCard
                 title="Tổng Doanh Thu"
                 value={reportData.summary.revenue}
                 icon={Banknote}
                 tone="revenue"
-                description="Tổng thu nhập đã thu trong kỳ"
+                description="Đã thu cộng công nợ phải thu trong kỳ"
+              />
+              <KpiCard
+                title="Công Nợ"
+                value={reportData.summary.debt || 0}
+                icon={HandCoins}
+                tone="debt"
+                description="Số tiền còn phải thu trong kỳ"
               />
               <KpiCard
                 title="Tổng Chi Phí"
@@ -437,14 +488,22 @@ export function FinancialsScreen() {
             {/* 7. Breakdowns */}
             <div className={cn(
               "grid gap-6",
-              buildingId === '' ? "lg:grid-cols-3" : "lg:grid-cols-2"
+              buildingId === '' ? "lg:grid-cols-4" : "lg:grid-cols-3"
             )}>
+              <BreakdownCard
+                title="Cơ Cấu Công Nợ"
+                subtitle="Phân bổ công nợ theo nguồn phát sinh"
+                items={reportData.debt_breakdown || []}
+                total={reportData.summary.debt || 0}
+                barColor="bg-amber-600"
+              />
+
               {/* Doanh thu breakdown */}
               <BreakdownCard
                 title="Cơ Cấu Doanh Thu"
                 subtitle="Phân bổ doanh thu theo dịch vụ"
                 items={reportData.revenue_breakdown}
-                total={reportData.summary.revenue}
+                total={reportData.summary.collected_revenue || 0}
                 barColor="bg-[#f3c56b]"
               />
 
@@ -480,7 +539,7 @@ interface KpiCardProps {
   title: string
   value: number | string
   icon: React.ComponentType<{ className?: string }>
-  tone: 'revenue' | 'expense' | 'profit' | 'loss' | 'margin'
+  tone: 'revenue' | 'debt' | 'expense' | 'profit' | 'loss' | 'margin'
   description: string
   isPercent?: boolean
 }
@@ -488,6 +547,7 @@ interface KpiCardProps {
 function KpiCard({ title, value, icon: Icon, tone, description, isPercent = false }: KpiCardProps) {
   const bgGradients = {
     revenue: 'bg-[radial-gradient(circle_at_86%_4%,rgba(243,197,107,0.15),transparent_60%)]',
+    debt: 'bg-[radial-gradient(circle_at_86%_4%,rgba(245,158,11,0.16),transparent_60%)]',
     expense: 'bg-[radial-gradient(circle_at_86%_4%,rgba(15,118,110,0.15),transparent_60%)]',
     profit: 'bg-[radial-gradient(circle_at_86%_4%,rgba(16,185,129,0.15),transparent_60%)]',
     loss: 'bg-[radial-gradient(circle_at_86%_4%,rgba(244,63,94,0.15),transparent_60%)]',
@@ -496,6 +556,7 @@ function KpiCard({ title, value, icon: Icon, tone, description, isPercent = fals
 
   const iconColors = {
     revenue: 'text-[#a65f16] bg-[#f3c56b]/15 border-[#f3c56b]/30',
+    debt: 'text-amber-700 bg-amber-500/15 border-amber-500/30',
     expense: 'text-[#0f766e] bg-[#0f766e]/15 border-[#0f766e]/30',
     profit: 'text-emerald-700 bg-emerald-500/15 border-emerald-500/30',
     loss: 'text-rose-700 bg-rose-500/15 border-rose-500/30',
@@ -504,6 +565,7 @@ function KpiCard({ title, value, icon: Icon, tone, description, isPercent = fals
 
   const textColors = {
     revenue: 'text-[#24170d]',
+    debt: 'text-amber-800',
     expense: 'text-[#24170d]',
     profit: 'text-emerald-800',
     loss: 'text-rose-800',
@@ -558,7 +620,7 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
   // Tìm mức giới hạn lớn nhất để căn tỉ lệ cột vẽ
   const maxVal = Math.max(
     1000000,
-    ...data.flatMap((d) => [d.revenue, d.expenses, Math.abs(d.profit)])
+    ...data.flatMap((d) => [d.revenue, d.debt || 0, d.expenses, Math.abs(d.profit)])
   )
   const minVal = Math.min(0, ...data.map((d) => d.profit))
   const range = maxVal - minVal || 1
@@ -567,8 +629,8 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
   const zeroY = yForValue(0)
 
   const slotWidth = chartWidth / data.length
-  // Độ rộng từng thanh (Doanh thu, Chi phí & Lợi nhuận)
-  const barWidth = Math.max(8, Math.min(18, slotWidth * 0.18))
+  // Độ rộng từng thanh (Doanh thu, Công nợ, Chi phí & Lợi nhuận)
+  const barWidth = Math.max(7, Math.min(16, slotWidth * 0.14))
 
   // Trục Y hiển thị 4 mức lưới
   const gridLines = Array.from({ length: 4 }).map((_, index) => {
@@ -593,6 +655,12 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
               <stop offset="0%" stopColor="#5eead4" />
               <stop offset="50%" stopColor="#0f766e" />
               <stop offset="100%" stopColor="#083f3b" />
+            </linearGradient>
+            {/* Gradient Công nợ */}
+            <linearGradient id="debtGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#fcd34d" />
+              <stop offset="50%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#b45309" />
             </linearGradient>
             {/* Gradient Lợi nhuận ròng */}
             <linearGradient id="profGrad" x1="0" x2="0" y1="0" y2="1">
@@ -631,19 +699,26 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
 
             // Cột Doanh Thu (Vàng - nằm bên trái)
             const revBarHeight = (d.revenue / range) * chartHeight
-            const revX = slotCenterX - 1.5 * barWidth - 2
+            const revX = slotCenterX - 2 * barWidth - 3
             const revY = d.revenue >= 0 ? zeroY - revBarHeight : zeroY
             const revH = Math.max(2, Math.abs(revBarHeight))
 
-            // Cột Chi Phí (Teal - nằm ở giữa)
+            // Cột Công nợ (Amber)
+            const debtValue = d.debt || 0
+            const debtBarHeight = (debtValue / range) * chartHeight
+            const debtX = slotCenterX - barWidth - 1
+            const debtY = debtValue >= 0 ? zeroY - debtBarHeight : zeroY
+            const debtH = Math.max(2, Math.abs(debtBarHeight))
+
+            // Cột Chi Phí (Teal)
             const expBarHeight = (d.expenses / range) * chartHeight
-            const expX = slotCenterX - 0.5 * barWidth
+            const expX = slotCenterX + 1
             const expY = d.expenses >= 0 ? zeroY - expBarHeight : zeroY
             const expH = Math.max(2, Math.abs(expBarHeight))
 
             // Cột Lợi nhuận ròng (Nâu - nằm bên phải)
             const profBarHeight = (d.profit / range) * chartHeight
-            const profX = slotCenterX + 0.5 * barWidth + 2
+            const profX = slotCenterX + barWidth + 3
             const profY = d.profit >= 0 ? zeroY - profBarHeight : zeroY
             const profH = Math.max(2, Math.abs(profBarHeight))
 
@@ -658,6 +733,18 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
                   width={barWidth}
                   height={revH}
                   fill="url(#revGrad)"
+                  rx="3"
+                  opacity={hoveredIndex === null || isHovered ? 1 : 0.45}
+                  className="transition-all duration-200"
+                />
+
+                {/* Cột Công nợ */}
+                <rect
+                  x={debtX}
+                  y={debtY}
+                  width={barWidth}
+                  height={debtH}
+                  fill="url(#debtGrad)"
                   rx="3"
                   opacity={hoveredIndex === null || isHovered ? 1 : 0.45}
                   className="transition-all duration-200"
@@ -740,6 +827,15 @@ function FinancialTrendChart({ data, hoveredIndex, setHoveredIndex }: TrendChart
               </span>
               <span className="text-xs font-black text-[#24170d]">
                 {formatCurrency(hoveredIndex !== null ? data[hoveredIndex].expenses : data.reduce((sum, item) => sum + item.expenses, 0))}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between border-b border-[#3d2a18]/5 pb-1.5">
+              <span className="text-xs font-bold text-[#6f6254] flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Công nợ
+              </span>
+              <span className="text-xs font-black text-amber-700">
+                {formatCurrency(hoveredIndex !== null ? data[hoveredIndex].debt || 0 : data.reduce((sum, item) => sum + (item.debt || 0), 0))}
               </span>
             </div>
 
@@ -827,7 +923,7 @@ function BreakdownCard({ title, subtitle, items, total, barColor }: BreakdownCar
 interface TopBuildingsCardProps {
   title: string
   subtitle: string
-  items?: { id: number; name: string; revenue: number; percentage: number }[]
+  items?: { id: number; name: string; revenue: number; debt?: number; expected_revenue?: number; percentage: number; expected_percentage?: number }[]
   total: number
 }
 
@@ -856,23 +952,28 @@ function TopBuildingsCard({ title, subtitle, items = [], total }: TopBuildingsCa
                   {item.name}
                 </span>
                 <div className="space-x-2 text-right">
-                  <span className="text-[#6f6254]">{item.percentage}%</span>
-                  <span className="text-[#24170d] font-black">{formatCurrency(item.revenue)}</span>
+                  <span className="text-[#6f6254]">{item.expected_percentage ?? item.percentage}%</span>
+                  <span className="text-[#24170d] font-black">{formatCurrency(item.expected_revenue || item.revenue)}</span>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between pl-6 text-[10px] font-bold text-[#8b5e34]/75">
+                <span>Đã thu: {formatCurrency(item.revenue)}</span>
+                <span>Công nợ: {formatCurrency(item.debt || 0)}</span>
               </div>
 
               {/* Progress bar */}
               <div className="h-2 w-full rounded-full bg-[#3d2a18]/5 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[#8b5e34] to-[#f3c56b]"
-                  style={{ width: `${item.percentage}%` }}
+                  style={{ width: `${item.expected_percentage ?? item.percentage}%` }}
                 />
               </div>
             </div>
           ))}
 
           <div className="border-t border-[#3d2a18]/10 pt-3 flex items-center justify-between font-black text-xs">
-            <span className="text-[#8b5e34]">TỔNG CỘNG DOANH THU</span>
+            <span className="text-[#8b5e34]">TỔNG CỘNG GHI NHẬN</span>
             <span className="text-[#24170d] text-sm">{formatCurrency(total)}</span>
           </div>
         </div>
