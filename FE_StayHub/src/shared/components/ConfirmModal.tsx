@@ -133,7 +133,7 @@ export function ConfirmModal({
                             )}
                             <button
                                 type="button"
-                                onClick={hideCancel ? onCancel : onConfirm}
+                                onClick={onConfirm}
                                 disabled={isLoading}
                                 className={cn(
                                     "inline-flex min-h-11 items-center justify-center rounded-xl px-5 py-2 text-xs font-black uppercase tracking-wider transition focus:outline-none focus:ring-4 disabled:opacity-50 sm:flex-1 cursor-pointer",

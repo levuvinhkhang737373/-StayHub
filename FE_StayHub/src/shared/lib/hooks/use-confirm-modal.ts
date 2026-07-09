@@ -39,11 +39,11 @@ export function useConfirmModal() {
             title,
             message,
             confirmLabel: "OK",
-            onConfirm: () => {},
+            onConfirm: closeConfirm,
             variant,
             hideCancel: true,
         });
-    }, []);
+    }, [closeConfirm]);
 
     return {
         confirmState,
