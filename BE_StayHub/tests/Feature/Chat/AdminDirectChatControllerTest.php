@@ -105,6 +105,84 @@ class AdminDirectChatControllerTest extends TestCase
         }
     }
 
+    public function test_building_manager_direct_chat_does_not_include_other_building_managers(): void
+    {
+        $otherManagerWithBuilding = $this->createAdmin('other_manager_with_building', 'other_manager_with_building@stayhub.local', '0911000007', Admin::ROLE_BUILDING_MANAGER);
+        $region = Region::query()->firstOrFail();
+
+        Building::query()->create([
+            'name' => 'Other Manager Direct Building',
+            'slug' => 'other-manager-direct-building',
+            'address' => '2 Direct Street',
+            'region_id' => $region->id,
+            'manager_admin_id' => $otherManagerWithBuilding->id,
+            'created_by' => $this->superAdmin->id,
+            'status' => Building::STATUS_ACTIVE,
+        ]);
+
+        ChatConversation::query()->create([
+            'conversation_type' => ChatConversation::TYPE_SUPER_ADMIN_MANAGER,
+            'super_admin_id' => $this->manager->id,
+            'manager_admin_id' => $otherManagerWithBuilding->id,
+            'status' => ChatConversation::STATUS_ACTIVE,
+        ]);
+        $conversationWithManagerAsSuperAdmin = ChatConversation::query()->create([
+            'conversation_type' => ChatConversation::TYPE_SUPER_ADMIN_MANAGER,
+            'super_admin_id' => $otherManagerWithBuilding->id,
+            'manager_admin_id' => $this->manager->id,
+            'status' => ChatConversation::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($this->manager, 'admin')
+            ->getJson('/api/v1/admin/chat/direct-conversations?per_page=50');
+
+        $response->assertOk()
+            ->assertJsonFragment(['super_admin_id' => $this->superAdmin->id])
+            ->assertJsonFragment(['super_admin_id' => $this->otherSuperAdmin->id])
+            ->assertJsonMissing(['manager_admin_id' => $otherManagerWithBuilding->id]);
+
+        foreach ($response->json('result.data') as $conversation) {
+            $this->assertSame($this->manager->id, $conversation['manager_admin_id']);
+            $this->assertContains($conversation['super_admin_id'], [$this->superAdmin->id, $this->otherSuperAdmin->id]);
+        }
+
+        $this->actingAs($this->manager, 'admin')
+            ->getJson('/api/v1/admin/chat/direct-conversations/' . $conversationWithManagerAsSuperAdmin->id . '/messages')
+            ->assertForbidden();
+    }
+
+    public function test_direct_chat_sync_uses_roles_instead_of_admin_id_order(): void
+    {
+        $earlyManager = $this->createAdmin('early_manager_direct', 'early_manager_direct@stayhub.local', '0911000008', Admin::ROLE_BUILDING_MANAGER);
+        $laterSuperAdmin = $this->createAdmin('later_super_direct', 'later_super_direct@stayhub.local', '0911000009', Admin::ROLE_SUPER_ADMIN);
+        $region = Region::query()->firstOrFail();
+
+        Building::query()->create([
+            'name' => 'Early Manager Direct Building',
+            'slug' => 'early-manager-direct-building',
+            'address' => '3 Direct Street',
+            'region_id' => $region->id,
+            'manager_admin_id' => $earlyManager->id,
+            'created_by' => $laterSuperAdmin->id,
+            'status' => Building::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($earlyManager, 'admin')
+            ->getJson('/api/v1/admin/chat/direct-conversations?per_page=50');
+
+        $response->assertOk()
+            ->assertJsonFragment([
+                'super_admin_id' => $laterSuperAdmin->id,
+                'manager_admin_id' => $earlyManager->id,
+            ]);
+
+        $this->assertDatabaseMissing('chat_conversations', [
+            'conversation_type' => ChatConversation::TYPE_SUPER_ADMIN_MANAGER,
+            'super_admin_id' => $earlyManager->id,
+            'manager_admin_id' => $laterSuperAdmin->id,
+        ]);
+    }
+
     public function test_direct_chat_message_is_private_to_exact_participants(): void
     {
         Event::fake([ChatMessageSent::class, NotificationSent::class]);

@@ -363,8 +363,11 @@ class ChatController extends ChangeNotifier {
         final conversation = ChatConversation.fromJson(
           Map<String, dynamic>.from(result['conversation'] as Map),
         );
-        _messages = _messages.where((item) => item.id != optimistic.id).toList()
-          ..add(message);
+        _messages = mergeChatMessages(
+          _messages,
+          message,
+          replaceOptimisticId: optimistic.id,
+        );
         upsertConversation(conversation);
         _activeConversation = conversation;
       }
@@ -437,10 +440,7 @@ class ChatController extends ChangeNotifier {
       final message = ChatMessage.fromJson(
         Map<String, dynamic>.from(messageJson),
       );
-      if (!_messages.any((item) => item.id == message.id)) {
-        _messages = _messages.where((item) => !item.optimistic).toList()
-          ..add(message);
-      }
+      _messages = mergeChatMessages(_messages, message);
     }
     notifyListeners();
   }
@@ -476,4 +476,32 @@ class ChatController extends ChangeNotifier {
       _conversations = updated;
     }
   }
+}
+
+List<ChatMessage> mergeChatMessages(
+  List<ChatMessage> currentMessages,
+  ChatMessage message, {
+  int? replaceOptimisticId,
+}) {
+  final merged = currentMessages
+      .where((item) => item.id != replaceOptimisticId)
+      .where((item) => item.id != message.id)
+      .where((item) => !_isMatchingOptimisticEcho(item, message))
+      .toList();
+
+  merged.add(message);
+  merged.sort((a, b) => a.id.compareTo(b.id));
+
+  return merged;
+}
+
+bool _isMatchingOptimisticEcho(ChatMessage current, ChatMessage incoming) {
+  if (!current.optimistic) return false;
+
+  return current.conversationId == incoming.conversationId &&
+      current.senderType == incoming.senderType &&
+      current.senderId == incoming.senderId &&
+      current.senderRole == incoming.senderRole &&
+      current.body.trim() == incoming.body.trim() &&
+      current.attachments.isEmpty == incoming.attachments.isEmpty;
 }

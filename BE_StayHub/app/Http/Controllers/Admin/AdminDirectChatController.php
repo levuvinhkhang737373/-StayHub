@@ -41,10 +41,26 @@ class AdminDirectChatController extends Controller
             $query = ChatConversation::query()
                 ->with(['superAdmin', 'manager.managedBuildings', 'lastMessage.sender'])
                 ->where('conversation_type', ChatConversation::TYPE_SUPER_ADMIN_MANAGER)
-                ->where(function (Builder $q) use ($admin): void {
-                    $q->where('super_admin_id', $admin->id)
-                      ->orWhere('manager_admin_id', $admin->id);
-                })
+                ->when(
+                    AdminScope::isSuperAdmin($admin),
+                    fn (Builder $query): Builder => $query
+                        ->where('super_admin_id', $admin->id)
+                        ->whereHas('manager', function (Builder $managerQuery): void {
+                            $managerQuery
+                                ->where('role', Admin::ROLE_BUILDING_MANAGER)
+                                ->where('status', Admin::STATUS_ACTIVE)
+                                ->whereHas('managedBuildings', function (Builder $buildingQuery): void {
+                                    $buildingQuery->where('status', Building::STATUS_ACTIVE);
+                                });
+                        }),
+                    fn (Builder $query): Builder => $query
+                        ->where('manager_admin_id', $admin->id)
+                        ->whereHas('superAdmin', function (Builder $superAdminQuery): void {
+                            $superAdminQuery
+                                ->where('role', Admin::ROLE_SUPER_ADMIN)
+                                ->where('status', Admin::STATUS_ACTIVE);
+                        })
+                )
                 ->when($request->boolean('unread'), function (Builder $query) use ($admin): void {
                     $query->where(function (Builder $sub) use ($admin): void {
                         $sub->where(fn ($q) => $q->where('super_admin_id', $admin->id)->where('admin_unread_count', '>', 0))
@@ -260,7 +276,7 @@ class AdminDirectChatController extends Controller
                 ->select('id')
                 ->chunkById(100, function ($otherAdmins) use ($admin): void {
                     foreach ($otherAdmins as $otherAdmin) {
-                        $this->firstOrCreateConversation($admin->id, $otherAdmin->id);
+                        $this->firstOrCreateConversation($otherAdmin->id, $admin->id);
                     }
                 });
         }
@@ -273,11 +289,8 @@ class AdminDirectChatController extends Controller
             ->where('status', Admin::STATUS_ACTIVE);
     }
 
-    private function firstOrCreateConversation(int $admin1Id, int $admin2Id): ChatConversation
+    private function firstOrCreateConversation(int $superAdminId, int $managerAdminId): ChatConversation
     {
-        $superAdminId = min($admin1Id, $admin2Id);
-        $managerAdminId = max($admin1Id, $admin2Id);
-
         try {
             return ChatConversation::query()->firstOrCreate([
                 'conversation_type' => ChatConversation::TYPE_SUPER_ADMIN_MANAGER,
@@ -305,7 +318,17 @@ class AdminDirectChatController extends Controller
             return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập đoạn chat này', 403, null, 403);
         }
 
-        if ((int) $conversation->super_admin_id === (int) $admin->id || (int) $conversation->manager_admin_id === (int) $admin->id) {
+        if (AdminScope::isSuperAdmin($admin)
+            && (int) $conversation->super_admin_id === (int) $admin->id
+            && $this->hasActiveBuildingManagerParticipant($conversation)
+        ) {
+            return true;
+        }
+
+        if (AdminScope::isBuildingManager($admin)
+            && (int) $conversation->manager_admin_id === (int) $admin->id
+            && $this->hasActiveSuperAdminParticipant($conversation)
+        ) {
             return true;
         }
 
@@ -351,5 +374,26 @@ class AdminDirectChatController extends Controller
     private function recipientAdminId(ChatConversation $conversation, Admin $sender): int
     {
         return (int) $conversation->super_admin_id === (int) $sender->id ? (int) $conversation->manager_admin_id : (int) $conversation->super_admin_id;
+    }
+
+    private function hasActiveSuperAdminParticipant(ChatConversation $conversation): bool
+    {
+        return Admin::query()
+            ->whereKey($conversation->super_admin_id)
+            ->where('role', Admin::ROLE_SUPER_ADMIN)
+            ->where('status', Admin::STATUS_ACTIVE)
+            ->exists();
+    }
+
+    private function hasActiveBuildingManagerParticipant(ChatConversation $conversation): bool
+    {
+        return Admin::query()
+            ->whereKey($conversation->manager_admin_id)
+            ->where('role', Admin::ROLE_BUILDING_MANAGER)
+            ->where('status', Admin::STATUS_ACTIVE)
+            ->whereHas('managedBuildings', function (Builder $query): void {
+                $query->where('status', Building::STATUS_ACTIVE);
+            })
+            ->exists();
     }
 }
