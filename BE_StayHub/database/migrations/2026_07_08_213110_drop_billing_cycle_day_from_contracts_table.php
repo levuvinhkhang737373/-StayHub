@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasColumn('contracts', 'billing_cycle_day')) {
+            return;
+        }
+
         Schema::table('contracts', function (Blueprint $table) {
             $table->dropColumn('billing_cycle_day');
         });
@@ -21,6 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (Schema::hasColumn('contracts', 'billing_cycle_day')) {
+            return;
+        }
+
         Schema::table('contracts', function (Blueprint $table) {
             $table->unsignedTinyInteger('billing_cycle_day')->default(5);
         });
