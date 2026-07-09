@@ -962,7 +962,7 @@ export function AdminDashboardScreen() {
       </div>
 
       <div className="grid gap-6">
-        <ChartCard title="Lượng sử dụng điện & nước" description="Biểu đồ cột 3D theo tổng lượng sử dụng từng tháng." action={<span className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/20 bg-[#f3c56b]/16 px-3 py-1.5 text-xs font-black text-[#8a4f18]"><Zap className="h-3.5 w-3.5" /> Tiêu thụ</span>}>
+        <ChartCard title="Lượng sử dụng điện & nước" description="" action={<span className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/20 bg-[#f3c56b]/16 px-3 py-1.5 text-xs font-black text-[#8a4f18]"><Zap className="h-3.5 w-3.5" /> Tiêu thụ</span>}>
           <UtilityUsageBarChart data={overview.utility_price_chart} />
         </ChartCard>
       </div>

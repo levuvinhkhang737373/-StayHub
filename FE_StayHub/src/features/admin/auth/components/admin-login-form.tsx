@@ -272,9 +272,7 @@ export function AdminLoginForm({ onLoginSuccess }: AdminLoginFormProps) {
             <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-[#0f766e]/12 blur-3xl" />
             <div className="relative flex items-start justify-between border-b border-[#3d2a18]/10 px-5 py-5 sm:px-6">
               <div className="pr-4">
-                <p className="text-xs font-black uppercase tracking-[0.3em] text-[#0f766e]">Biometric Keycard</p>
                 <h2 className="mt-2 text-3xl font-black tracking-tight text-[#24170d]">Đăng nhập Face ID</h2>
-                <p className="mt-1 text-sm font-semibold leading-5 text-[#6f6254]">Nhìn thẳng rồi xoay nhẹ mặt khi quét để chống ảnh giả.</p>
               </div>
               <button
                 type="button"
