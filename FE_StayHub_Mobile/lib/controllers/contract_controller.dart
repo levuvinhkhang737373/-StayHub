@@ -16,7 +16,6 @@ class ContractController extends ChangeNotifier {
       tenantName: 'Nguyễn Văn An',
       startDate: '2026-01-01',
       endDate: '2026-06-30',
-      billingCycleDay: 5,
       roomPrice: 3500000,
       depositAmount: 3500000,
       status: Contract.STATUS_ACTIVE,
@@ -30,7 +29,6 @@ class ContractController extends ChangeNotifier {
       tenantName: 'Trần Thị Bình',
       startDate: '2026-02-01',
       endDate: '2026-08-01',
-      billingCycleDay: 5,
       roomPrice: 3500000,
       depositAmount: 3500000,
       status: Contract.STATUS_ACTIVE,
@@ -44,7 +42,6 @@ class ContractController extends ChangeNotifier {
       tenantName: 'Lê Hoàng Cường',
       startDate: '2025-05-01',
       endDate: '2026-05-01',
-      billingCycleDay: 5,
       roomPrice: 3800000,
       depositAmount: 3800000,
       status: Contract.STATUS_EXPIRED,
@@ -67,7 +64,9 @@ class ContractController extends ChangeNotifier {
 
   /// Get count of contracts expiring within 30 days
   int get expiringContractsCount {
-    final activeContracts = contracts.where((c) => c.status == Contract.STATUS_ACTIVE).toList();
+    final activeContracts = contracts
+        .where((c) => c.status == Contract.STATUS_ACTIVE)
+        .toList();
     int count = 0;
     final now = DateTime.now();
     final thirtyDaysLater = now.add(const Duration(days: 30));
@@ -97,7 +96,9 @@ class ContractController extends ChangeNotifier {
           '/admin/contracts',
           fromJsonT: (json) {
             final dataList = json['data'] as List<dynamic>;
-            return dataList.map((item) => Contract.fromJson(item as Map<String, dynamic>)).toList();
+            return dataList
+                .map((item) => Contract.fromJson(item as Map<String, dynamic>))
+                .toList();
           },
         );
 
@@ -111,7 +112,9 @@ class ContractController extends ChangeNotifier {
           '/tenant/contracts',
           fromJsonT: (json) {
             final dataList = json as List<dynamic>;
-            return dataList.map((item) => Contract.fromJson(item as Map<String, dynamic>)).toList();
+            return dataList
+                .map((item) => Contract.fromJson(item as Map<String, dynamic>))
+                .toList();
           },
         );
 
@@ -181,7 +184,8 @@ class ContractController extends ChangeNotifier {
       int? tenantId;
       if (tenantResponse.status && tenantResponse.result != null) {
         for (var t in tenantResponse.result!) {
-          if (t['full_name']?.toString().toLowerCase().trim() == tenantName.toLowerCase().trim()) {
+          if (t['full_name']?.toString().toLowerCase().trim() ==
+              tenantName.toLowerCase().trim()) {
             tenantId = t['id'] as int?;
             break;
           }
@@ -189,7 +193,8 @@ class ContractController extends ChangeNotifier {
       }
 
       if (tenantId == null) {
-        _errorMessage = 'Không tìm thấy khách thuê "$tenantName" trong hệ thống.';
+        _errorMessage =
+            'Không tìm thấy khách thuê "$tenantName" trong hệ thống.';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -204,11 +209,7 @@ class ContractController extends ChangeNotifier {
         'room_price': rentalPrice.toStringAsFixed(2),
         'deposit_amount': depositAmount.toStringAsFixed(2),
         'tenants': [
-          {
-            'tenant_id': tenantId,
-            'join_date': startDate,
-            'is_staying': true,
-          }
+          {'tenant_id': tenantId, 'join_date': startDate, 'is_staying': true},
         ],
         'is_deposit_paid': true,
       };
@@ -292,19 +293,25 @@ class ContractController extends ChangeNotifier {
       );
 
       if (!responseDetail.status || responseDetail.result == null) {
-        _errorMessage = 'Không lấy được chi tiết hợp đồng: ${responseDetail.message}';
+        _errorMessage =
+            'Không lấy được chi tiết hợp đồng: ${responseDetail.message}';
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
       final contractData = responseDetail.result!;
-      final double roomPrice = double.tryParse(contractData['room_price']?.toString() ?? '0') ?? 0.0;
-      final double depositAmount = double.tryParse(contractData['deposit_amount']?.toString() ?? '0') ?? 0.0;
+      final double roomPrice =
+          double.tryParse(contractData['room_price']?.toString() ?? '0') ?? 0.0;
+      final double depositAmount =
+          double.tryParse(contractData['deposit_amount']?.toString() ?? '0') ??
+          0.0;
       final int roomId = contractData['room_id'] as int? ?? 0;
-      
+
       final oldEndDateStr = contractData['end_date'] as String?;
-      String newStartDate = DateTime.now().toString().split(' ')[0]; // default today
+      String newStartDate = DateTime.now().toString().split(
+        ' ',
+      )[0]; // default today
       if (oldEndDateStr != null && oldEndDateStr.isNotEmpty) {
         try {
           final oldEndDate = DateTime.parse(oldEndDateStr);
@@ -313,7 +320,8 @@ class ContractController extends ChangeNotifier {
         } catch (_) {}
       }
 
-      final tenantsList = contractData['contract_tenants'] as List<dynamic>? ?? [];
+      final tenantsList =
+          contractData['contract_tenants'] as List<dynamic>? ?? [];
       final List<Map<String, dynamic>> mappedTenants = tenantsList.map((ct) {
         return {
           'tenant_id': ct['tenant_id'],
@@ -323,7 +331,8 @@ class ContractController extends ChangeNotifier {
       }).toList();
 
       if (mappedTenants.isEmpty) {
-        _errorMessage = 'Không tìm thấy khách thuê trong hợp đồng cũ để gia hạn.';
+        _errorMessage =
+            'Không tìm thấy khách thuê trong hợp đồng cũ để gia hạn.';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -422,7 +431,8 @@ class ContractController extends ChangeNotifier {
         queryParameters: {'per_page': 1000},
         fromJsonT: (json) {
           if (json is List<dynamic>) return json;
-          if (json is Map<String, dynamic> && json['data'] is List<dynamic>) return json['data'] as List<dynamic>;
+          if (json is Map<String, dynamic> && json['data'] is List<dynamic>)
+            return json['data'] as List<dynamic>;
           return <dynamic>[];
         },
       );
@@ -438,7 +448,8 @@ class ContractController extends ChangeNotifier {
       }
 
       if (roomId == null) {
-        _errorMessage = 'Không tìm thấy phòng số $newRoomNumber trong hệ thống.';
+        _errorMessage =
+            'Không tìm thấy phòng số $newRoomNumber trong hệ thống.';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -450,14 +461,17 @@ class ContractController extends ChangeNotifier {
       );
 
       if (!responseDetail.status || responseDetail.result == null) {
-        _errorMessage = responseDetail.message.isNotEmpty ? responseDetail.message : 'Không thể tải hợp đồng cũ để lấy danh sách khách thuê.';
+        _errorMessage = responseDetail.message.isNotEmpty
+            ? responseDetail.message
+            : 'Không thể tải hợp đồng cũ để lấy danh sách khách thuê.';
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
       final contractData = responseDetail.result!;
-      final tenantsList = contractData['contract_tenants'] as List<dynamic>? ?? [];
+      final tenantsList =
+          contractData['contract_tenants'] as List<dynamic>? ?? [];
       final tenantIds = <int>{};
 
       for (final row in tenantsList) {
@@ -470,13 +484,18 @@ class ContractController extends ChangeNotifier {
         }
       }
 
-      final representativeTenantId = contractData['representative_tenant_id'] as int? ?? contractData['tenant_id'] as int?;
-      if (tenantIds.isEmpty && representativeTenantId != null && representativeTenantId > 0) {
+      final representativeTenantId =
+          contractData['representative_tenant_id'] as int? ??
+          contractData['tenant_id'] as int?;
+      if (tenantIds.isEmpty &&
+          representativeTenantId != null &&
+          representativeTenantId > 0) {
         tenantIds.add(representativeTenantId);
       }
 
       if (tenantIds.isEmpty) {
-        _errorMessage = 'Không tìm thấy khách thuê đang ở trong hợp đồng cũ để lên lịch chuyển phòng.';
+        _errorMessage =
+            'Không tìm thấy khách thuê đang ở trong hợp đồng cũ để lên lịch chuyển phòng.';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -488,7 +507,8 @@ class ContractController extends ChangeNotifier {
         'movement_date': movementDate,
         'deposit_deduction_amount': depositDeductionAmount.toStringAsFixed(2),
         'transfer_fee': transferFee.toStringAsFixed(2),
-        if (newDepositAmount != null) 'new_deposit_amount': newDepositAmount.toStringAsFixed(2),
+        if (newDepositAmount != null)
+          'new_deposit_amount': newDepositAmount.toStringAsFixed(2),
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       };
 
@@ -568,7 +588,6 @@ class ContractController extends ChangeNotifier {
     notifyListeners();
     return false;
   }
-
 }
 
 // Rename class internal helper so we avoid compiler warnings about duplicate declarations
@@ -583,7 +602,6 @@ class InvoiceContract extends Contract {
     required super.startDate,
     super.endDate,
     super.actualEndDate,
-    required super.billingCycleDay,
     required super.roomPrice,
     required super.depositAmount,
     required super.status,

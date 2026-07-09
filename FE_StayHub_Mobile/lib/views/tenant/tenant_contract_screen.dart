@@ -959,6 +959,8 @@ class _TenantContractDetailScreenState
                     ),
                   ),
                 ),
+              ),
+            )
           : null,
       body: Stack(
         children: [
@@ -974,21 +976,6 @@ class _TenantContractDetailScreenState
                 children: [
                   if (contractController.errorMessage != null) ...[
                     _buildErrorDisplay(contractController),
-                    const SizedBox(height: 16),
-                  ],
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Yêu cầu thương lượng giá trước đó của bạn đã bị quản lý từ chối. Bạn có thể ký hợp đồng theo giá cũ hoặc tiếp tục đề xuất mức thương lượng khác.',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: Color(0xFFB91C1C),
-                              height: 1.45,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     const SizedBox(height: 16),
                   ],
                   if (contract.status == Contract.STATUS_DRAFT &&
@@ -1804,11 +1791,6 @@ class _TenantContractDetailScreenState
               _buildInfoRow('Ngày bắt đầu:', contract.startDate),
               const Divider(height: 20, color: Color(0xFFF1F0EA)),
               _buildInfoRow('Ngày hết hạn:', contract.endDate ?? 'Vô thời hạn'),
-              const Divider(height: 20, color: Color(0xFFF1F0EA)),
-              _buildInfoRow(
-                'Chu kỳ đóng tiền:',
-                'Ngày ${contract.billingCycleDay} hàng tháng',
-              ),
             ],
           ),
         ),
