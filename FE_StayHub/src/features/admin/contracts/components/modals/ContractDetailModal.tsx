@@ -1,12 +1,13 @@
-import { FileText, X } from 'lucide-react'
+import { FileText, ReceiptText, Repeat2, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ConfirmModal } from '../../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../../shared/lib/hooks/use-confirm-modal'
 import { formatCurrency, formatDate, formatDateTime, formatMoneyText } from '../../../../../shared/lib/utils/format'
 import type { AdminContractResource } from '../../types/contract-api.model'
 import { getStatusLabel } from '../../utils/contract.helpers'
+import { canPayContractDeposit, canTransferContractRoom } from '../../utils/contract-actions.helpers'
 import { labelClass } from '../form/form-elements'
-import { DetailTile } from '../ui/ui-elements'
+import { ActionMenu, DetailTile } from '../ui/ui-elements'
 import { getContractPdfRepresentativeTenant } from '../../utils/contract-pdf.helpers'
 
 function docSoTien(so: number): string {
@@ -71,14 +72,17 @@ export function ContractDetailModal({
   errorMessage,
   onClose,
   onPayDeposit,
+  onTransferRoom,
 }: {
   contract: AdminContractResource
   isLoading: boolean
   errorMessage: string | null
   onClose: () => void
   onPayDeposit: (contract: AdminContractResource) => void
+  onTransferRoom: (contract: AdminContractResource) => void
 }) {
   const { confirmState, isConfirmLoading, closeConfirm } = useConfirmModal()
+  const hasHeaderActions = canPayContractDeposit(contract) || canTransferContractRoom(contract)
   const calculateMonths = (start?: string | null, end?: string | null) => {
     if (!start || !end) return '...'
     const s = new Date(start)
@@ -373,6 +377,24 @@ export function ContractDetailModal({
                 >
                   <FileText className="h-4 w-4" /> Xuất hợp đồng (PDF)
                 </button>
+              {hasHeaderActions && (
+                <ActionMenu
+                  items={[
+                    {
+                      label: 'Xác nhận tiền cọc',
+                      icon: <ReceiptText className="h-4 w-4" />,
+                      hidden: !canPayContractDeposit(contract),
+                      onClick: () => onPayDeposit(contract),
+                    },
+                    {
+                      label: 'Chuyển phòng',
+                      icon: <Repeat2 className="h-4 w-4" />,
+                      hidden: !canTransferContractRoom(contract),
+                      onClick: () => onTransferRoom(contract),
+                    },
+                  ]}
+                />
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -476,15 +498,6 @@ export function ContractDetailModal({
                 <div className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
                   <div className="flex items-center justify-between">
                     <p className={labelClass}>Giao dịch cọc</p>
-                    {!contract.is_deposit_paid && Number(contract.deposit_amount) > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => onPayDeposit(contract)}
-                        className="rounded-xl bg-[#24170d] px-3 py-1.5 text-xs font-black text-[#fff4df] transition hover:bg-[#3d2a18] active:scale-95"
-                      >
-                        Đóng cọc
-                      </button>
-                    )}
                   </div>
                   <div className="mt-3 space-y-2">
                     {(contract.deposit_transactions || []).map((transaction) => (

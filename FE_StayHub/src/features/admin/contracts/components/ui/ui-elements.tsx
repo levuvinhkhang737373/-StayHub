@@ -1,4 +1,5 @@
-import { type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '../../../../../shared/lib/utils/cn'
 import { STATUS_ACTIVE, STATUS_CANCELLED } from '../../utils/contract.helpers'
 
@@ -51,6 +52,121 @@ export function IconButton({
     >
       {children}
     </button>
+  )
+}
+
+export type ActionMenuItem = {
+  label: string
+  icon?: ReactNode
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+  hidden?: boolean
+}
+
+export function ActionMenu({ label = 'Thao tác', items }: { label?: string; items: ActionMenuItem[] }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 })
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const visibleItems = items.filter((item) => !item.hidden)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const updateMenuPosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      setMenuPosition({
+        top: rect.bottom + 8,
+        left: Math.max(12, Math.min(rect.right - 224, window.innerWidth - 236)),
+      })
+    }
+
+    updateMenuPosition()
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!buttonRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setIsOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+        buttonRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 text-xs font-black uppercase tracking-[0.14em] text-[#8b5e34] shadow-sm transition hover:border-[#3d2a18]/25 hover:bg-[#f3c56b]/15 hover:text-[#24170d] focus:outline-none focus:ring-4 focus:ring-[#3d2a18]/10 active:scale-95"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+      >
+        {label}
+        <span className={cn('text-[10px] transition-transform', isOpen && 'rotate-180')}>⌄</span>
+      </button>
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ top: menuPosition.top, left: menuPosition.left }}
+          className="fixed z-[80] w-56 overflow-hidden rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-1.5 text-left shadow-2xl shadow-stone-950/15"
+        >
+          {visibleItems.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              disabled={item.disabled}
+              onClick={() => {
+                if (item.disabled) return
+                setIsOpen(false)
+                item.onClick()
+              }}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-black transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-45',
+                item.danger
+                  ? 'text-rose-600 hover:bg-rose-50 focus:ring-rose-100'
+                  : 'text-[#3d2a18] hover:bg-[#f3c56b]/15 focus:ring-[#f3c56b]/20'
+              )}
+            >
+              {item.icon && <span className="flex h-5 w-5 shrink-0 items-center justify-center">{item.icon}</span>}
+              <span className="truncate">{item.label}</span>
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 

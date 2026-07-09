@@ -15,6 +15,8 @@ import {
   FileText,
   Plus,
   Power,
+  ReceiptText,
+  Repeat2,
   Trash2,
   UserPlus,
   Users,
@@ -59,7 +61,7 @@ import {
 } from '../utils/contract.helpers'
 import { getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 
-import { MetricCard, IconButton, StatusBadge } from './ui/ui-elements'
+import { MetricCard, StatusBadge, ActionMenu } from './ui/ui-elements'
 import { inputClass } from './form/form-elements'
 import { ContractDetailModal } from './modals/ContractDetailModal'
 import { PayDepositModal } from './modals/PayDepositModal'
@@ -67,6 +69,7 @@ import { DepositQRModal } from './modals/DepositQRModal'
 import { StatusModal } from './modals/StatusModal'
 import { TerminateContractModal, type TerminateContractForm } from './modals/TerminateContractModal'
 import { AddContractTenantModal, createDefaultAddContractTenantForm } from './modals/AddContractTenantModal'
+import { canPayContractDeposit, canTransferContractRoom, getContractTransferTenantId } from '../utils/contract-actions.helpers'
 
 type ContractRoomOption = {
   id: number
@@ -401,6 +404,12 @@ export function ContractsScreen() {
     void loadAvailableTenants(contract.id)
   }
 
+  const openTransferRoom = (contract: AdminContractResource) => {
+    const tenantId = getContractTransferTenantId(contract)
+
+    navigate(tenantId ? `/admin/transfer-room?tenantId=${tenantId}` : '/admin/transfer-room')
+  }
+
   const cancelAddTenantModal = () => {
     setAddingTenantContract(null)
     setAvailableTenants([])
@@ -697,7 +706,7 @@ export function ContractsScreen() {
                   <th className="px-5 py-4">Giá phòng / Cọc</th>
                   <th className="px-5 py-4 text-center">Khách & Xe</th>
                   <th className="px-5 py-4 text-center">Trạng thái</th>
-                  <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[232px] text-center">Thao tác</div></div></th>
+                  <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[124px] text-center">Thao tác</div></div></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -763,38 +772,66 @@ export function ContractsScreen() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <IconButton title="Xem chi tiết" success onClick={() => {
-                            void viewContract(contract)
-                          }}>
-                            <Eye className="h-5 w-5" />
-                          </IconButton>
-                          {Number(contract.status) === STATUS_EXPIRED && (
-                            <IconButton title="Gia hạn" onClick={() => navigate(`/admin/contracts/${contract.id}/renew`)}>
-                              <CalendarPlus className="h-5 w-5" />
-                            </IconButton>
-                          )}
-                          {Number(contract.status) === STATUS_ACTIVE && (
-                            <IconButton title="Thêm người vào phòng / hợp đồng" onClick={() => openAddTenantModal(contract)}>
-                              <UserPlus className="h-5 w-5" />
-                            </IconButton>
-                          )}
-                          {[STATUS_ACTIVE, STATUS_EXPIRED].includes(Number(contract.status)) && (
-                            <IconButton title="Thanh lý hợp đồng" onClick={() => openTerminateModal(contract)}>
-                              <ClipboardCheck className="h-5 w-5" />
-                            </IconButton>
-                          )}
-                          <IconButton title="Chỉnh sửa" onClick={() => navigate(`/admin/contracts/${contract.id}/edit`)}>
-                            <Edit3 className="h-5 w-5" />
-                          </IconButton>
-                          {Number(contract.status) === STATUS_PENDING_SIGN && (
-                            <IconButton title="Đổi trạng thái" onClick={() => openStatusModal(contract)}>
-                              <Power className="h-5 w-5" />
-                            </IconButton>
-                          )}
-                          <IconButton title="Xóa" disabled={deletingId === contract.id} danger onClick={() => void removeContract(contract)}>
-                            <Trash2 className="h-5 w-5" />
-                          </IconButton>
+                        <div className="flex justify-end">
+                          <ActionMenu
+                            items={[
+                              {
+                                label: 'Xem chi tiết',
+                                icon: <Eye className="h-4 w-4" />,
+                                onClick: () => {
+                                  void viewContract(contract)
+                                },
+                              },
+                              {
+                                label: 'Xác nhận tiền cọc',
+                                icon: <ReceiptText className="h-4 w-4" />,
+                                hidden: !canPayContractDeposit(contract),
+                                onClick: () => setPayingDepositContract(contract),
+                              },
+                              {
+                                label: 'Chuyển phòng',
+                                icon: <Repeat2 className="h-4 w-4" />,
+                                hidden: !canTransferContractRoom(contract),
+                                onClick: () => openTransferRoom(contract),
+                              },
+                              {
+                                label: 'Gia hạn',
+                                icon: <CalendarPlus className="h-4 w-4" />,
+                                hidden: Number(contract.status) !== STATUS_EXPIRED,
+                                onClick: () => navigate(`/admin/contracts/${contract.id}/renew`),
+                              },
+                              {
+                                label: 'Thêm người vào phòng',
+                                icon: <UserPlus className="h-4 w-4" />,
+                                hidden: Number(contract.status) !== STATUS_ACTIVE,
+                                onClick: () => openAddTenantModal(contract),
+                              },
+                              {
+                                label: 'Thanh lý hợp đồng',
+                                icon: <ClipboardCheck className="h-4 w-4" />,
+                                hidden: ![STATUS_ACTIVE, STATUS_EXPIRED].includes(Number(contract.status)),
+                                onClick: () => openTerminateModal(contract),
+                              },
+                              {
+                                label: 'Chỉnh sửa',
+                                icon: <Edit3 className="h-4 w-4" />,
+                                onClick: () => navigate(`/admin/contracts/${contract.id}/edit`),
+                              },
+                              {
+                                label: 'Đổi trạng thái',
+                                icon: <Power className="h-4 w-4" />,
+                                hidden: Number(contract.status) !== STATUS_PENDING_SIGN,
+                                onClick: () => openStatusModal(contract),
+                              },
+                              {
+                                label: 'Xóa',
+                                icon: <Trash2 className="h-4 w-4" />,
+                                disabled: deletingId === contract.id,
+                                danger: true,
+                                onClick: () => void removeContract(contract),
+                              },
+                            ]}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -892,6 +929,7 @@ export function ContractsScreen() {
           onPayDeposit={(contract) => {
             setPayingDepositContract(contract)
           }}
+          onTransferRoom={openTransferRoom}
         />
       )}
 
