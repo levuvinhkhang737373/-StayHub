@@ -449,13 +449,12 @@ export function CreateContractScreen() {
       if (key === 'room_id') {
         const roomIdStr = String(value)
         const selectedRoom = rooms.find((room) => String(room.id) === roomIdStr)
+        next.deposit_amount = ''
         if (selectedRoom && selectedRoom.base_price !== undefined && selectedRoom.base_price !== null) {
           const formattedPrice = formatMoneyInput(String(Math.round(Number(selectedRoom.base_price))))
           next.room_price = formattedPrice
-          next.deposit_amount = formattedPrice
         } else {
           next.room_price = ''
-          next.deposit_amount = '0'
         }
         if (selectedRoom && (selectedRoom as any).services) {
           next.services = ((selectedRoom as any).services || []).map((service: any) => ({
@@ -469,9 +468,6 @@ export function CreateContractScreen() {
         } else {
           next.services = []
         }
-      }
-      if (key === 'room_price') {
-        next.deposit_amount = String(value)
       }
       if (key === 'start_date' && typeof value === 'string') {
         next.vehicles = current.vehicles.map((v) => ({

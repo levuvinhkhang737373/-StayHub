@@ -42,7 +42,7 @@ export const defaultForm: ContractFormValues = {
   end_date: oneYearLaterStr,
   actual_end_date: '',
   room_price: '',
-  deposit_amount: '0',
+  deposit_amount: '',
   status: STATUS_PENDING_SIGN,
   contract_files: [],
   delete_contract_files: [],
