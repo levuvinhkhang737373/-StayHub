@@ -65,6 +65,15 @@ function formatCurrency(value: number): string {
   }).format(Math.round(value))
 }
 
+function formatDateDMY(dateStr: string): string {
+  if (!dateStr) return '—'
+  const dateOnly = dateStr.split(' ')[0]
+  const parts = dateOnly.split('-')
+  if (parts.length !== 3) return dateStr
+  const [year, month, day] = parts
+  return `${day}/${month}/${year}`
+}
+
 function todayDateString(reference = new Date()) {
   return dateToInputString(reference)
 }
@@ -873,13 +882,13 @@ export function TenantTransferRoomScreen() {
               </h1>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[28rem] xl:grid-cols-3 items-end">
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:min-w-[28rem] items-end">
               <MetricCard label="Khách chuyển" value={selectedTenantIds.length} icon={<Users className="h-4 w-4" />} />
               <MetricCard label="Cọc còn lại" value={oldDepositBalance} currency icon={<WalletCards className="h-4 w-4" />} />
               <button
                 type="button"
                 onClick={changeTenant}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-3xl border border-[#f3c56b]/25 bg-[#fffaf1]/10 px-4 text-xs font-black uppercase tracking-[0.16em] text-[#f3c56b] hover:bg-[#fffaf1]/18 hover:text-[#ffd56f] transition"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-3xl border border-[#f3c56b]/25 bg-[#fffaf1]/10 px-4 text-xs font-black uppercase tracking-[0.16em] text-[#f3c56b] hover:bg-[#fffaf1]/18 hover:text-[#ffd56f] transition col-span-2 md:col-span-1"
               >
                 Đổi khách thuê
               </button>
@@ -894,7 +903,7 @@ export function TenantTransferRoomScreen() {
           {/* Card A: Current Tenant & Contract Info + Roommates Checklist */}
           <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-5 shadow-xl shadow-[#6b3f1d]/6">
             <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/65">Thông tin hiện tại</span>
                   <h2 className="mt-1 text-xl font-black tracking-[-0.04em] text-[#24170d]">
@@ -907,10 +916,10 @@ export function TenantTransferRoomScreen() {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-1 items-end text-right">
+                <div className="flex flex-col gap-1 items-start sm:items-end text-left sm:text-right">
                   <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b5e34]/60">Ngày chuyển dự kiến</span>
                   <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#0f5f59] bg-[#0f766e]/10 border border-[#0f766e]/15 px-3 py-1.5 rounded-full">
-                    <CalendarDays className="h-4 w-4" /> {effectiveMovementDate}
+                    <CalendarDays className="h-4 w-4" /> {formatDateDMY(effectiveMovementDate)}
                   </span>
                 </div>
               </div>
@@ -1001,7 +1010,7 @@ export function TenantTransferRoomScreen() {
                   value={roomKeyword}
                   onChange={(event) => setRoomKeyword(event.target.value)}
                   placeholder="Số phòng, tầng..."
-                  className={cn(inputClass, 'pl-9 pr-3 py-2 text-xs rounded-xl')}
+                  className={cn(inputClass, 'pl-9 pr-3')}
                 />
               </label>
               <AdminSelect
@@ -1009,24 +1018,21 @@ export function TenantTransferRoomScreen() {
                 options={destinationBuildingOptions}
                 onChange={(value) => setSelectedBuildingId(String(value))}
                 disabled={Boolean(currentBuildingId) || destinationBuildingOptions.length <= 1}
-                className="text-xs"
               />
               <AdminSelect
                 value={selectedRoomTypeId}
                 options={roomTypeOptions}
                 onChange={(value) => setSelectedRoomTypeId(String(value))}
-                className="text-xs"
               />
               <AdminSelect
                 value={selectedFloor}
                 options={floorOptions}
                 onChange={(value) => setSelectedFloor(String(value))}
-                className="text-xs"
               />
             </div>
 
             {/* Rooms Grid list */}
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {isRoomsLoading && Array.from({ length: 6 }).map((_, index) => (
                 <div key={index} className="h-36 animate-pulse rounded-2xl bg-stone-100" />
               ))}
@@ -1259,7 +1265,7 @@ export function TenantTransferRoomScreen() {
             <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white p-6 shadow-xl shadow-[#6b3f1d]/6">
               <h3 className="text-lg font-black tracking-[-0.03em] text-[#24170d] border-b border-[#3d2a18]/8 pb-3 mb-5">Tóm tắt thanh toán</h3>
 
-              <div className="grid gap-6 md:grid-cols-3">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {/* Column 1: Cọc cũ & Tiền xe */}
                 <div className="space-y-4">
                   <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">Cọc cũ & Tiền xe</span>
@@ -1271,11 +1277,11 @@ export function TenantTransferRoomScreen() {
                     <div className="mt-3 border-t border-[#3d2a18]/8 pt-3">
                       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f5f59] mb-2">Preview phân bổ tiền xe ({vehicleBillingPreview.vehicleCount} xe)</p>
                       <div className="flex justify-between text-xs">
-                        <span className="font-semibold text-[#6f6254]">HĐ cũ:</span>
+                        <span className="font-semibold text-[#6f6254]">Hợp đồng cũ:</span>
                         <span className="font-black text-[#24170d]">{formatCurrency(vehicleBillingPreview.oldAmount)}</span>
                       </div>
                       <div className="flex justify-between text-xs mt-1">
-                        <span className="font-semibold text-[#6f6254]">HĐ mới:</span>
+                        <span className="font-semibold text-[#6f6254]">Hợp đồng mới:</span>
                         <span className="font-black text-[#0f5f59]">{formatCurrency(vehicleBillingPreview.newAmount)}</span>
                       </div>
                     </div>
@@ -1303,7 +1309,7 @@ export function TenantTransferRoomScreen() {
                 </div>
 
                 {/* Column 3: Quyết toán cuối cùng */}
-                <div className="space-y-4 flex flex-col justify-between">
+                <div className="space-y-4 flex flex-col justify-between md:col-span-2 lg:col-span-1">
                   <div className="space-y-4">
                     <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">Quyết toán & Xác nhận</span>
 
@@ -1474,7 +1480,7 @@ function TenantPicker({ keyword, buildingFilter, buildingOptions, isBuildingFilt
 
 function TransferResultPanel({ tenant, contract, result, selectedTenantCards, selectedRoom, manualRefundAmount, settlementDueAmount, extraChargeAmount, depositDueAmount, onNewTransfer, onViewMovement }: { tenant: AdminTenantResource; contract: AdminContractResource | null; result: TransferRoomResultResource; selectedTenantCards: TenantCardState[]; selectedRoom: AdminRoomResource | null; manualRefundAmount: number; settlementDueAmount: number; extraChargeAmount: number; depositDueAmount: number; onNewTransfer: () => void; onViewMovement: (transferCode: string) => void }) {
   const transferCode = result.transfer_code || result.movement.transfer_code || result.movements?.[0]?.transfer_code || ''
-  const scheduledDate = result.movement.movement_date || String(result.scheduled_payload?.movement_date ?? '—')
+  const scheduledDate = formatDateDMY(result.movement.movement_date || String(result.scheduled_payload?.movement_date ?? '—'))
   const movementStatus = result.status_label || result.movement.status_label || 'Chờ xử lý'
   const movementCount = result.movements?.length || 1
   const titleText = result.executed_immediately ? 'Đã chuyển phòng trong ngày' : result.blocked_immediately ? 'Lịch chuyển phòng đang bị chặn' : 'Đã lên lịch chuyển phòng'
@@ -1606,7 +1612,7 @@ function MetricCard({ label, value, icon, currency = false, suffix, textValue }:
         {icon}
         <span className="text-[10px] font-black uppercase tracking-[0.18em] opacity-75">{label}</span>
       </div>
-      <p className="mt-2 text-3xl font-black tracking-tight tabular-nums">
+      <p className="mt-2 text-2xl sm:text-3xl font-black tracking-tight tabular-nums">
         {textValue ?? (currency ? formatCurrency(value) : value)}
         {suffix ? <span className="ml-2 text-sm font-black uppercase tracking-[0.16em] text-[#f8e8c8]/72">{suffix}</span> : null}
       </p>
