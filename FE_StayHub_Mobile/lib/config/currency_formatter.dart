@@ -34,3 +34,10 @@ String formatMoney(num value) {
 double parseMoney(String value) {
   return double.tryParse(value.replaceAll('.', '')) ?? 0.0;
 }
+
+String formatMoneyInput(String value) {
+  String cleanText = value.replaceAll(RegExp(r'\D'), '');
+  if (cleanText.isEmpty) return '';
+  final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+  return cleanText.replaceAllMapped(reg, (Match m) => '${m[1]}.');
+}

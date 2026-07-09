@@ -5,6 +5,8 @@ import '../../config/currency_formatter.dart';
 import '../../controllers/contract_controller.dart';
 import '../../models/contract.dart';
 import '../auth/login_screen.dart'; // import GridPainter
+import 'create_contract_screen.dart';
+import 'room_transfer_screen.dart';
 
 class ContractsScreen extends StatefulWidget {
   const ContractsScreen({super.key});
@@ -251,175 +253,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
     );
   }
 
-  void _showChangeRoomDialog(Contract contract) {
-    final formKey = GlobalKey<FormState>();
-    final roomController = TextEditingController();
-    final movementDateController = TextEditingController(text: _nextMonthStartDateString());
-    final deductionController = TextEditingController(text: '0');
-    final feeController = TextEditingController(text: '0');
-    final depositController = TextEditingController();
-    final noteController = TextEditingController();
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1C1917),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Lên lịch chuyển phòng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1C1917))),
-                            Text('HĐ ${contract.contractCode} • Phòng ${contract.roomNumber}', style: const TextStyle(fontSize: 12, color: Color(0xFF78716C), fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFFBEB),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFDE68A)),
-                    ),
-                    child: const Text(
-                      'Mobile sẽ lên lịch chuyển toàn bộ khách đang ở trong hợp đồng này. Nếu cần chọn từng người/đại diện, vui lòng dùng web admin để thao tác chi tiết hơn.',
-                      style: TextStyle(fontSize: 12.5, color: Color(0xFF92400E), height: 1.45, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: roomController,
-                    decoration: _inputDecoration(labelText: 'Số phòng mới', prefixIcon: Icons.swap_horiz_rounded),
-                    validator: (value) => value == null || value.trim().isEmpty ? 'Vui lòng nhập số phòng mới' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: movementDateController,
-                    readOnly: true,
-                    decoration: _inputDecoration(
-                      labelText: 'Ngày chuyển cố định',
-                      prefixIcon: Icons.calendar_today_outlined,
-                      helperText: 'Chỉ cho chuyển vào ngày 01 của tháng kế tiếp',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: deductionController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [CurrencyInputFormatter()],
-                          decoration: _inputDecoration(labelText: 'Khấu trừ hư hao', prefixIcon: Icons.money_off_outlined),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: feeController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [CurrencyInputFormatter()],
-                          decoration: _inputDecoration(labelText: 'Phí chuyển', prefixIcon: Icons.local_taxi_outlined),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: depositController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [CurrencyInputFormatter()],
-                    decoration: _inputDecoration(labelText: 'Cọc phòng mới (tuỳ chọn)', prefixIcon: Icons.wallet_outlined),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: noteController,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: _inputDecoration(labelText: 'Ghi chú', prefixIcon: Icons.note_outlined),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                          child: const Text('HỦY'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (!(formKey.currentState?.validate() ?? false)) return;
-
-                            final success = await context.read<ContractController>().scheduleRoomTransfer(
-                                  contractId: contract.id,
-                                  newRoomNumber: roomController.text.trim(),
-                                  movementDate: movementDateController.text,
-                                  depositDeductionAmount: _parseMoney(deductionController.text),
-                                  transferFee: _parseMoney(feeController.text),
-                                  newDepositAmount: depositController.text.trim().isEmpty ? null : _parseMoney(depositController.text),
-                                  note: noteController.text,
-                                );
-
-                            if (success && mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Đã lên lịch chuyển phòng.'), backgroundColor: Colors.green),
-                              );
-                            } else if (mounted) {
-                              final errMsg = context.read<ContractController>().errorMessage ?? 'Lên lịch chuyển phòng thất bại';
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1C1917), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
-                          child: const Text('LÊN LỊCH', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -484,7 +318,17 @@ class _ContractsScreenState extends State<ContractsScreen> {
           ],
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: _showAddContractDialog,
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const CreateContractScreen(),
+              ),
+            );
+            if (result == true) {
+              contractController.fetchContracts('admin');
+            }
+          },
           backgroundColor: const Color(0xFF1C1917),
           foregroundColor: const Color(0xFFEAB308),
           child: const Icon(Icons.add),
@@ -541,15 +385,50 @@ class _ContractsScreenState extends State<ContractsScreen> {
                 _buildInfoRow(Icons.wallet_outlined, 'Đặt cọc:', formatMoney(contract.depositAmount)),
                 
                 // Actions strip
-                if (contract.status == Contract.STATUS_ACTIVE || contract.status == Contract.STATUS_EXPIRED) ...[
+                if (contract.status == Contract.STATUS_ACTIVE || 
+                    contract.status == Contract.STATUS_EXPIRED || 
+                    contract.status == Contract.STATUS_DRAFT) ...[
                   const Divider(height: 24, color: Color(0xFFE4E2D7)),
                   Row(
                     children: [
-                      if (contract.status == Contract.STATUS_EXPIRED)
-                        // Extend Button
+                      if (contract.status == Contract.STATUS_DRAFT)
+                        // Edit Button
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () => _showExtendDialog(contract.id),
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CreateContractScreen(contract: contract, isRenew: false),
+                                ),
+                              );
+                              if (result == true) {
+                                contractController.fetchContracts('admin');
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1C1917),
+                              side: const BorderSide(color: Color(0xFF1C1917)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Chỉnh sửa', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      if (contract.status == Contract.STATUS_EXPIRED)
+                        // Renew/Extend Screen Button
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CreateContractScreen(contract: contract, isRenew: true),
+                                ),
+                              );
+                              if (result == true) {
+                                contractController.fetchContracts('admin');
+                              }
+                            },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFFEAB308),
                               side: const BorderSide(color: Color(0xFFEAB308)),
@@ -562,7 +441,17 @@ class _ContractsScreenState extends State<ContractsScreen> {
                         // Change Room Button
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () => _showChangeRoomDialog(contract),
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RoomTransferScreen(contract: contract),
+                                ),
+                              );
+                              if (result == true) {
+                                contractController.fetchContracts('admin');
+                              }
+                            },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFF1C1917),
                               side: const BorderSide(color: Color(0xFF1C1917)),

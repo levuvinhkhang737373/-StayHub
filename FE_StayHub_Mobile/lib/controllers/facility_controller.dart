@@ -245,6 +245,36 @@ class FacilityController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fetch a single building detail with services and settings
+  Future<Map<String, dynamic>?> fetchBuildingDetail(int id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.get<Map<String, dynamic>>(
+        '/admin/buildings/$id',
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      if (response.status) {
+        return response.result;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi tải chi tiết tòa nhà: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return null;
+  }
+
   /// Create a Building
   Future<bool> createBuilding({
     required String name,

@@ -237,6 +237,159 @@ class ContractController extends ChangeNotifier {
     return false;
   }
 
+  /// Save a contract (Create, Edit or Renew)
+  Future<bool> saveContract({
+    required Map<String, dynamic> payload,
+    int? editContractId,
+    bool isRenew = false,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      late ApiEnvelope<Map<String, dynamic>> response;
+
+      if (isRenew && editContractId != null) {
+        response = await _apiService.post<Map<String, dynamic>>(
+          '/admin/contracts/$editContractId/renew',
+          data: payload,
+          fromJsonT: (json) => json as Map<String, dynamic>,
+        );
+      } else if (editContractId != null) {
+        response = await _apiService.put<Map<String, dynamic>>(
+          '/admin/contracts/$editContractId',
+          data: payload,
+          fromJsonT: (json) => json as Map<String, dynamic>,
+        );
+      } else {
+        response = await _apiService.post<Map<String, dynamic>>(
+          '/admin/contracts',
+          data: payload,
+          fromJsonT: (json) => json as Map<String, dynamic>,
+        );
+      }
+
+      if (response.status) {
+        await fetchContracts('admin');
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi lưu hợp đồng: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Fetch vehicles for tenant(s)
+  Future<List<dynamic>> fetchTenantVehicles(int tenantId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.get<List<dynamic>>(
+        '/admin/vehicles',
+        queryParameters: {
+          'tenant_id': tenantId,
+          'status': 1,
+          'per_page': 100,
+        },
+        fromJsonT: (json) => json['data'] as List<dynamic>,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      if (response.status && response.result != null) {
+        return response.result!;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi tải danh sách xe: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return [];
+  }
+
+  /// Fetch available rooms for a building (rooms with STATUS_ACTIVE and no active contracts)
+  Future<List<dynamic>> fetchAvailableRooms(int buildingId, {int? ignoreContractId}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.get<List<dynamic>>(
+        '/admin/contracts/available-rooms',
+        queryParameters: {
+          'building_id': buildingId,
+          if (ignoreContractId != null) 'ignore_contract_id': ignoreContractId,
+        },
+        fromJsonT: (json) => json as List<dynamic>,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      if (response.status && response.result != null) {
+        return response.result!;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi tải danh sách phòng trống: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return [];
+  }
+
+  /// Fetch a single contract detail
+  Future<Map<String, dynamic>?> fetchContractDetail(int id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.get<Map<String, dynamic>>(
+        '/admin/contracts/$id',
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      if (response.status) {
+        return response.result;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi tải chi tiết hợp đồng: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return null;
+  }
+
   /// Update contract details (Admin action)
   Future<bool> updateContract(Contract contract) async {
     _isLoading = true;
@@ -409,6 +562,7 @@ class ContractController extends ChangeNotifier {
   }
 
   /// Schedule room transfer (only first day of next month, backend validates date)
+  /// Schedule room transfer
   Future<bool> scheduleRoomTransfer({
     required int contractId,
     required String newRoomNumber,
@@ -417,6 +571,7 @@ class ContractController extends ChangeNotifier {
     double transferFee = 0,
     double? newDepositAmount,
     String? note,
+    List<int>? tenantIds,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -455,54 +610,60 @@ class ContractController extends ChangeNotifier {
         return false;
       }
 
-      final responseDetail = await _apiService.get<Map<String, dynamic>>(
-        '/admin/contracts/$contractId',
-        fromJsonT: (json) => json as Map<String, dynamic>,
-      );
+      List<int> finalTenantIds = [];
+      if (tenantIds != null && tenantIds.isNotEmpty) {
+        finalTenantIds = tenantIds;
+      } else {
+        final responseDetail = await _apiService.get<Map<String, dynamic>>(
+          '/admin/contracts/$contractId',
+          fromJsonT: (json) => json as Map<String, dynamic>,
+        );
 
-      if (!responseDetail.status || responseDetail.result == null) {
-        _errorMessage = responseDetail.message.isNotEmpty
-            ? responseDetail.message
-            : 'Không thể tải hợp đồng cũ để lấy danh sách khách thuê.';
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      final contractData = responseDetail.result!;
-      final tenantsList =
-          contractData['contract_tenants'] as List<dynamic>? ?? [];
-      final tenantIds = <int>{};
-
-      for (final row in tenantsList) {
-        if (row is! Map<String, dynamic>) continue;
-        if (row['is_staying'] == false) continue;
-
-        final tenantId = row['tenant_id'] as int?;
-        if (tenantId != null && tenantId > 0) {
-          tenantIds.add(tenantId);
+        if (!responseDetail.status || responseDetail.result == null) {
+          _errorMessage = responseDetail.message.isNotEmpty
+              ? responseDetail.message
+              : 'Không thể tải hợp đồng cũ để lấy danh sách khách thuê.';
+          _isLoading = false;
+          notifyListeners();
+          return false;
         }
-      }
 
-      final representativeTenantId =
-          contractData['representative_tenant_id'] as int? ??
-          contractData['tenant_id'] as int?;
-      if (tenantIds.isEmpty &&
-          representativeTenantId != null &&
-          representativeTenantId > 0) {
-        tenantIds.add(representativeTenantId);
-      }
+        final contractData = responseDetail.result!;
+        final tenantsList =
+            contractData['contract_tenants'] as List<dynamic>? ?? [];
+        final parsedIds = <int>{};
 
-      if (tenantIds.isEmpty) {
-        _errorMessage =
-            'Không tìm thấy khách thuê đang ở trong hợp đồng cũ để lên lịch chuyển phòng.';
-        _isLoading = false;
-        notifyListeners();
-        return false;
+        for (final row in tenantsList) {
+          if (row is! Map<String, dynamic>) continue;
+          if (row['is_staying'] == false) continue;
+
+          final tenantId = row['tenant_id'] as int?;
+          if (tenantId != null && tenantId > 0) {
+            parsedIds.add(tenantId);
+          }
+        }
+
+        final representativeTenantId =
+            contractData['representative_tenant_id'] as int? ??
+            contractData['tenant_id'] as int?;
+        if (parsedIds.isEmpty &&
+            representativeTenantId != null &&
+            representativeTenantId > 0) {
+          parsedIds.add(representativeTenantId);
+        }
+
+        if (parsedIds.isEmpty) {
+          _errorMessage =
+              'Không tìm thấy khách thuê đang ở trong hợp đồng cũ để lên lịch chuyển phòng.';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+        finalTenantIds = parsedIds.toList();
       }
 
       final payload = {
-        'tenant_ids': tenantIds.toList(),
+        'tenant_ids': finalTenantIds,
         'to_room_id': roomId,
         'movement_date': movementDate,
         'deposit_deduction_amount': depositDeductionAmount.toStringAsFixed(2),

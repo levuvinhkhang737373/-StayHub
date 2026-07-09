@@ -1,5 +1,6 @@
 import 'building.dart';
 import 'room_type.dart';
+import 'service.dart';
 
 class Room {
   final int id;
@@ -19,6 +20,7 @@ class Room {
   final String? roomTypeName;
   final Building? building;
   final RoomType? roomType;
+  final List<Service>? services;
 
   Room({
     required this.id,
@@ -38,9 +40,24 @@ class Room {
     this.roomTypeName,
     this.building,
     this.roomType,
+    this.services,
   });
 
   factory Room.fromJson(Map<String, dynamic> json) {
+    List<Service>? parsedServices;
+    if (json['services'] != null) {
+      parsedServices = (json['services'] as List<dynamic>)
+          .map((item) {
+            // pivot.price is service price in room/building
+            final sMap = Map<String, dynamic>.from(item as Map);
+            if (sMap['pivot'] != null && sMap['pivot']['price'] != null) {
+              sMap['price'] = sMap['pivot']['price'];
+            }
+            return Service.fromJson(sMap);
+          })
+          .toList();
+    }
+
     return Room(
       id: json['id'] as int,
       buildingId: json['building_id'] as int,
@@ -59,6 +76,7 @@ class Room {
       roomTypeName: json['room_type_name'] as String?,
       building: json['building'] != null ? Building.fromJson(json['building'] as Map<String, dynamic>) : null,
       roomType: json['room_type'] != null ? RoomType.fromJson(json['room_type'] as Map<String, dynamic>) : null,
+      services: parsedServices,
     );
   }
 
@@ -81,6 +99,7 @@ class Room {
       'room_type_name': roomTypeName,
       'building': building?.toJson(),
       'room_type': roomType?.toJson(),
+      'services': services?.map((s) => s.toJson()).toList(),
     };
   }
 
