@@ -670,7 +670,7 @@ export function ContractsScreen() {
           </div>
 
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left">
+            <table className="w-full min-w-[1100px] text-left">
               <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
                 <tr>
                   <th className="px-5 py-4">Hợp đồng</th>
