@@ -1,0 +1,70 @@
+@startuml
+|Admin|
+
+start
+
+:Đăng nhập hệ thống;
+:Chọn chức năng "Quản lý khách thuê";
+:Chọn "Tạo khách thuê mới";
+:Nhập thông tin khách thuê:
+- Tên, SĐT, Email, Giới tính, Ngày sinh
+- Địa chỉ thường trú, địa chỉ hiện tại
+- Thông tin CCCD/Hộ chiếu
+- Chọn tòa nhà trực thuộc;
+:Tải lên ảnh chân dung & ảnh mặt trước/sau CCCD (Tùy chọn);
+:Gửi yêu cầu tạo khách thuê;
+
+|Hệ thống|
+
+:Kiểm tra quyền tạo khách thuê;
+
+if (Có quyền quản lý khách thuê?) then (Không)
+  :Thông báo lỗi 403 (Không có quyền);
+  stop
+else (Có)
+endif
+
+:Xác thực dữ liệu đầu vào (RegisterRequest);
+
+if (Dữ liệu hợp lệ?) then (Không)
+  :Thông báo lỗi Validation;
+  stop
+else (Có)
+endif
+
+:Kiểm tra Chính sách giới tính của Tòa nhà;
+
+if (Giới tính phù hợp chính sách của tòa nhà?) then (Không)
+  :Thông báo lỗi 422\n"Giới tính khách thuê không phù hợp với chính sách của tòa nhà.";
+  stop
+else (Có)
+endif
+
+:Bắt đầu Database Transaction;
+
+:Tạo mật khẩu ngẫu nhiên ban đầu cho khách thuê;
+:Tạo bản ghi khách thuê mới trong bảng `tenants` (Trạng thái mặc định: 1 - Đang thuê);
+
+if (Có tải lên ảnh chân dung/CCCD?) then (Có)
+  :Upload ảnh lên Storage;
+  :Lưu đường dẫn ảnh vào bảng `tenants`;
+else (Không)
+endif
+
+:Ghi nhận hoạt động tạo khách thuê (AdminActivityLogger);
+:Commit Database Transaction;
+
+:Đẩy email thông báo mật khẩu vào hàng đợi (Queue Mail);
+
+fork
+  |Hệ thống|
+  :Trả về phản hồi 201 (Tạo thành công) cho Admin;
+  |Admin|
+  :Nhận thông báo "Tạo khách thuê thành công";
+  stop
+fork again
+  |Hệ thống|
+  :Hàng đợi chạy ngầm (Queue) gửi email chứa mật khẩu đăng nhập đến Email khách thuê;
+  stop
+end fork
+@endum

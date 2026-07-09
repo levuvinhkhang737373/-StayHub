@@ -14,7 +14,8 @@ const _kScrollUpThreshold = 80.0;
 enum _AdminChatTab { tenants, direct }
 
 class AdminChatScreen extends StatefulWidget {
-  const AdminChatScreen({super.key});
+  final bool isEmbedded;
+  const AdminChatScreen({super.key, this.isEmbedded = false});
 
   @override
   State<AdminChatScreen> createState() => _AdminChatScreenState();
@@ -310,7 +311,14 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: widget.isEmbedded
+            ? Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.white),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              )
+            : const BackButton(color: Colors.white),
         title: Builder(
           builder: (context) => GestureDetector(
             onTap: () => Scaffold.of(context).openDrawer(),

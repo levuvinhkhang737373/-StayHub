@@ -254,6 +254,36 @@ class _ContractsScreenState extends State<ContractsScreen> {
 
 
 
+  void _showAddTenantDialog(Contract contract) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return AddTenantToContractDialog(contract: contract);
+      },
+    ).then((result) {
+      if (result == true) {
+        context.read<ContractController>().fetchContracts('admin');
+      }
+    });
+  }
+
+  void _showTerminateContractDialog(Contract contract) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return TerminateContractDialog(contract: contract);
+      },
+    ).then((result) {
+      if (result == true) {
+        context.read<ContractController>().fetchContracts('admin');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final contractController = context.watch<ContractController>();
@@ -437,29 +467,31 @@ class _ContractsScreenState extends State<ContractsScreen> {
                           ),
                         ),
                       if (contract.status == Contract.STATUS_ACTIVE) ...[
+                        if (contract.room != null && contract.room!.currentOccupants < contract.room!.maxOccupants) ...[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _showAddTenantDialog(contract),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFEAB308),
+                                side: const BorderSide(color: Color(0xFFEAB308)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              child: const Text('Thêm người', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
                         // Terminate Button
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () async {
-                              final success = await contractController.terminateContract(contract.id);
-                              if (success && mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Hợp đồng đã chấm dứt'), backgroundColor: Colors.redAccent),
-                                );
-                              } else if (mounted) {
-                                final errMsg = contractController.errorMessage ?? 'Chấm dứt hợp đồng thất bại';
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
-                                );
-                              }
-                            },
+                            onPressed: () => _showTerminateContractDialog(contract),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.redAccent,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
-                            child: const Text('Kết thúc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            child: const Text('Thanh lý', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -511,6 +543,550 @@ class _ContractsScreenState extends State<ContractsScreen> {
       child: Text(
         contract.statusLabel.toUpperCase(),
         style: TextStyle(color: color, fontSize: 9.5, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+      ),
+    );
+  }
+}
+
+class AddTenantToContractDialog extends StatefulWidget {
+  final Contract contract;
+  const AddTenantToContractDialog({super.key, required this.contract});
+
+  @override
+  State<AddTenantToContractDialog> createState() => _AddTenantToContractDialogState();
+}
+
+class _AddTenantToContractDialogState extends State<AddTenantToContractDialog> {
+  final _formKey = GlobalKey<FormState>();
+  
+  List<dynamic> _tenants = [];
+  bool _isLoading = true;
+  String? _error;
+  
+  int? _selectedTenantId;
+  final TextEditingController _joinDateController = TextEditingController();
+  final TextEditingController _billingStartDateController = TextEditingController();
+  
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final today = DateTime.now();
+    final todayStr = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+    _joinDateController.text = todayStr;
+    _billingStartDateController.text = todayStr;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ContractController>().fetchAvailableTenants(widget.contract.id).then((list) {
+        if (mounted) {
+          setState(() {
+            _tenants = list;
+            _isLoading = false;
+            if (list.isNotEmpty) {
+              _selectedTenantId = list.first['id'] as int?;
+            }
+          });
+        }
+      }).catchError((e) {
+        if (mounted) {
+          setState(() {
+            _error = e.toString();
+            _isLoading = false;
+          });
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _joinDateController.dispose();
+    _billingStartDateController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate(TextEditingController controller) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1C1917),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF1C1917),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        controller.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedTenantId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn khách thuê')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    final success = await context.read<ContractController>().addTenantToContract(
+      contractId: widget.contract.id,
+      tenantId: _selectedTenantId!,
+      joinDate: _joinDateController.text,
+      billingStartDate: _billingStartDateController.text,
+    );
+
+    setState(() {
+      _isSaving = false;
+    });
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thêm khách thuê vào phòng thành công!'), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context, true);
+      } else {
+        final controller = context.read<ContractController>();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(controller.errorMessage ?? 'Thêm khách thuê thất bại'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Color(0xFF78716C), fontWeight: FontWeight.bold, fontSize: 13),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFFE4E2D7), width: 1.5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF7F6F0),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(28),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        top: 24,
+        left: 24,
+        right: 24,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Thêm người vào phòng ${widget.contract.roomNumber}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1C1917)),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Chọn khách thuê và điền thời gian tham gia tính phí.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+              const Divider(height: 32, color: Color(0xFFE4E2D7)),
+              
+              if (_isLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: CircularProgressIndicator(color: Color(0xFF1C1917)),
+                  ),
+                )
+              else if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text('Lỗi: $_error', style: const TextStyle(color: Colors.redAccent)),
+                )
+              else if (_tenants.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Text(
+                    'Không có khách thuê nào khả dụng (chưa có hợp đồng hoạt động) trong tòa nhà này.',
+                    style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              else ...[
+                DropdownButtonFormField<int>(
+                  value: _selectedTenantId,
+                  decoration: _inputDecoration('Chọn cư dân *'),
+                  items: _tenants.map<DropdownMenuItem<int>>((item) {
+                    final name = item['full_name'] ?? item['username'] ?? 'Không tên';
+                    final phone = item['phone'] ?? '';
+                    return DropdownMenuItem<int>(
+                      value: item['id'] as int,
+                      child: Text('$name ($phone)'),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedTenantId = val;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _joinDateController,
+                  readOnly: true,
+                  onTap: () => _selectDate(_joinDateController),
+                  decoration: _inputDecoration('Ngày tham gia phòng *').copyWith(
+                    suffixIcon: const Icon(Icons.calendar_today_rounded, color: Color(0xFF1C1917)),
+                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                  validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng chọn ngày tham gia' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _billingStartDateController,
+                  readOnly: true,
+                  onTap: () => _selectDate(_billingStartDateController),
+                  decoration: _inputDecoration('Ngày bắt đầu tính hóa đơn *').copyWith(
+                    suffixIcon: const Icon(Icons.calendar_today_rounded, color: Color(0xFF1C1917)),
+                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                  validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng chọn ngày tính tiền' : null,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _isSaving ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1C1917),
+                    foregroundColor: const Color(0xFFEAB308),
+                    disabledBackgroundColor: Colors.grey.shade400,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(color: Color(0xFFEAB308), strokeWidth: 3),
+                        )
+                      : const Text('LƯU THÔNG TIN', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF1C1917),
+                  side: const BorderSide(color: Color(0xFFE4E2D7)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('HỦY BỎ', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TerminateContractDialog extends StatefulWidget {
+  final Contract contract;
+  const TerminateContractDialog({super.key, required this.contract});
+
+  @override
+  State<TerminateContractDialog> createState() => _TerminateContractDialogState();
+}
+
+class _TerminateContractDialogState extends State<TerminateContractDialog> {
+  final _formKey = GlobalKey<FormState>();
+  
+  final TextEditingController _endDateController = TextEditingController();
+  final TextEditingController _deductionController = TextEditingController(text: '0');
+  final TextEditingController _noteController = TextEditingController();
+  int _paymentMethod = 2; // 2 = Chuyển khoản, 1 = Tiền mặt
+
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final today = DateTime.now();
+    _endDateController.text = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+  }
+
+  @override
+  void dispose() {
+    _endDateController.dispose();
+    _deductionController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1C1917),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF1C1917),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _endDateController.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    
+    final deduction = double.tryParse(_deductionController.text.trim()) ?? 0.0;
+    if (deduction < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Số tiền cấn trừ không được nhỏ hơn 0')),
+      );
+      return;
+    }
+
+    if (deduction > widget.contract.depositAmount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Số tiền cấn trừ (${formatMoney(deduction)}) không được vượt quá số tiền cọc (${formatMoney(widget.contract.depositAmount)})'
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    final success = await context.read<ContractController>().terminateContract(
+      widget.contract.id,
+      actualEndDate: _endDateController.text,
+      deductionAmount: deduction,
+      paymentMethod: _paymentMethod,
+      note: _noteController.text.trim(),
+    );
+
+    setState(() {
+      _isSaving = false;
+    });
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thanh lý hợp đồng thành công!'), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context, true);
+      } else {
+        final controller = context.read<ContractController>();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(controller.errorMessage ?? 'Thanh lý thất bại'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Color(0xFF78716C), fontWeight: FontWeight.bold, fontSize: 13),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFFE4E2D7), width: 1.5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF7F6F0),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(28),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        top: 24,
+        left: 24,
+        right: 24,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Thanh lý hợp đồng ${widget.contract.contractCode}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1C1917)),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Số tiền đặt cọc hiện tại: ${formatMoney(widget.contract.depositAmount)}',
+                style: const TextStyle(color: Color(0xFFEAB308), fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              const Divider(height: 32, color: Color(0xFFE4E2D7)),
+              
+              TextFormField(
+                controller: _endDateController,
+                readOnly: true,
+                onTap: _selectDate,
+                decoration: _inputDecoration('Ngày thanh lý hợp đồng *').copyWith(
+                  suffixIcon: const Icon(Icons.calendar_today_rounded, color: Color(0xFF1C1917)),
+                ),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng chọn ngày thanh lý' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _deductionController,
+                keyboardType: TextInputType.number,
+                decoration: _inputDecoration('Số tiền cấn trừ cọc (nếu có) *'),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'Vui lòng nhập số tiền cấn trừ';
+                  if (double.tryParse(val.trim()) == null) return 'Số tiền không hợp lệ';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                value: _paymentMethod,
+                decoration: _inputDecoration('Phương thức hoàn trả cọc *'),
+                items: const [
+                  DropdownMenuItem<int>(value: 2, child: Text('Chuyển khoản')),
+                  DropdownMenuItem<int>(value: 1, child: Text('Tiền mặt')),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _paymentMethod = val;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _noteController,
+                maxLines: 2,
+                decoration: _inputDecoration('Ghi chú thanh lý'),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isSaving ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade400,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                      )
+                    : const Text('XÁC NHẬN THANH LÝ', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF1C1917),
+                  side: const BorderSide(color: Color(0xFFE4E2D7)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('HỦY BỎ', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -568,26 +568,35 @@ class ContractController extends ChangeNotifier {
     return false;
   }
 
-  /// Terminate a contract (Kết thúc)
-  Future<bool> terminateContract(int id) async {
+  /// Terminate a contract (Thanh lý)
+  Future<bool> terminateContract(
+    int id, {
+    required String actualEndDate,
+    required double deductionAmount,
+    required int paymentMethod,
+    required String note,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       await _apiService.init();
-      final todayStr = DateTime.now().toString().split(' ')[0];
       final payload = {
-        'status': Contract.STATUS_LIQUIDATED,
-        'actual_end_date': todayStr,
-        'note': 'Chấm dứt hợp đồng qua Mobile App',
+        'actual_end_date': actualEndDate,
+        'deduction_amount': deductionAmount,
+        'payment_method': paymentMethod,
+        'note': note.trim().isEmpty ? 'Thanh lý hợp đồng qua Mobile App' : note.trim(),
       };
 
-      final response = await _apiService.patch<Map<String, dynamic>>(
-        '/admin/contracts/$id/status',
+      final response = await _apiService.post<dynamic>(
+        '/admin/contracts/$id/terminate',
         data: payload,
-        fromJsonT: (json) => json as Map<String, dynamic>,
+        fromJsonT: (json) => json,
       );
+
+      _isLoading = false;
+      notifyListeners();
 
       if (response.status) {
         await fetchContracts('admin');
@@ -598,7 +607,7 @@ class ContractController extends ChangeNotifier {
     } on ApiException catch (e) {
       _errorMessage = e.message;
     } catch (e) {
-      _errorMessage = 'Lỗi kết nối API: $e';
+      _errorMessage = 'Lỗi thanh lý hợp đồng: $e';
     }
 
     _isLoading = false;
@@ -788,6 +797,83 @@ class ContractController extends ChangeNotifier {
       _errorMessage = e.message;
     } catch (e) {
       _errorMessage = 'Lỗi kết nối API: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Lấy danh sách khách thuê có sẵn để thêm vào hợp đồng
+  Future<List<dynamic>> fetchAvailableTenants(int contractId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.get<List<dynamic>>(
+        '/admin/contracts/$contractId/available-tenants',
+        fromJsonT: (json) {
+          final data = json['data'] as List<dynamic>?;
+          return data ?? [];
+        },
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      if (response.status && response.result != null) {
+        return response.result!;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi tải danh sách khách thuê: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return [];
+  }
+
+  /// Thêm khách thuê vào hợp đồng
+  Future<bool> addTenantToContract({
+    required int contractId,
+    required int tenantId,
+    required String joinDate,
+    required String billingStartDate,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.post<dynamic>(
+        '/admin/contracts/$contractId/tenants',
+        data: {
+          'tenant_id': tenantId,
+          'join_date': joinDate,
+          'billing_start_date': billingStartDate,
+        },
+        fromJsonT: (json) => json,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+
+      if (response.status) {
+        await fetchContracts('admin');
+        return true;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi thêm khách thuê vào hợp đồng: $e';
     }
 
     _isLoading = false;

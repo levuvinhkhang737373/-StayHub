@@ -17,6 +17,7 @@ class ContractResource extends JsonResource
             'id' => $this->id,
             'contract_code' => $this->contract_code,
             'room_id' => $this->room_id,
+            'room' => new RoomResource($this->whenLoaded('room')),
             'room_code' => $this->whenLoaded('room', fn (): ?string => $this->room?->room_code),
             'room_number' => $this->whenLoaded('room', fn (): ?string => $this->room?->room_number),
             'building_id' => $this->whenLoaded('room', fn () => $this->room?->building_id),

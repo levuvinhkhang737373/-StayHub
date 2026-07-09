@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/tenant.dart';
 import '../services/api_service.dart';
 
@@ -263,5 +265,110 @@ class TenantController extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
     return null;
+  }
+
+  /// Tạo khách thuê mới
+  Future<bool> createTenant({
+    required Map<String, dynamic> data,
+    XFile? frontImage,
+    XFile? backImage,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final Map<String, dynamic> dataMap = Map.from(data);
+
+      if (frontImage != null) {
+        dataMap['front_image'] = await MultipartFile.fromFile(
+          frontImage.path,
+          filename: frontImage.name,
+        );
+      }
+      if (backImage != null) {
+        dataMap['back_image'] = await MultipartFile.fromFile(
+          backImage.path,
+          filename: backImage.name,
+        );
+      }
+
+      final formData = FormData.fromMap(dataMap);
+
+      final response = await _apiService.post<dynamic>(
+        '/admin/tenants',
+        data: formData,
+        fromJsonT: (json) => json,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      return response.status;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi tạo khách thuê: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Cập nhật khách thuê
+  Future<bool> updateTenant(
+    int id, {
+    required Map<String, dynamic> data,
+    XFile? frontImage,
+    XFile? backImage,
+    bool deleteFront = false,
+    bool deleteBack = false,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final Map<String, dynamic> dataMap = Map.from(data);
+      dataMap['_method'] = 'PATCH'; // Laravel handles PATCH requests via POST with _method field in multipart/form-data
+
+      if (frontImage != null) {
+        dataMap['front_image'] = await MultipartFile.fromFile(
+          frontImage.path,
+          filename: frontImage.name,
+        );
+      } else if (deleteFront) {
+        dataMap['delete_front_image'] = 'true';
+      }
+
+      if (backImage != null) {
+        dataMap['back_image'] = await MultipartFile.fromFile(
+          backImage.path,
+          filename: backImage.name,
+        );
+      } else if (deleteBack) {
+        dataMap['delete_back_image'] = 'true';
+      }
+
+      final formData = FormData.fromMap(dataMap);
+
+      final response = await _apiService.post<dynamic>(
+        '/admin/tenants/$id',
+        data: formData,
+        fromJsonT: (json) => json,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      return response.status;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi cập nhật khách thuê: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
 }

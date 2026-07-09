@@ -1363,9 +1363,6 @@ export function MeterReadingsScreen() {
                         <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
                         <div>
                           <p className="font-black">Đây là kỳ chốt chuyển phòng {activeRoom.transfer_code ? `(${activeRoom.transfer_code})` : ''}.</p>
-                          <p className="mt-0.5 text-xs font-bold text-[#6f6254]">
-                            Nhập chỉ số đúng ngày cắt {formatDisplayDate(activeRoom.utility_cutoff_date)}. Sau khi lưu đủ điện/nước, lập hóa đơn chốt để backend cho phép execute lịch chuyển.
-                          </p>
                         </div>
                       </div>
                     </div>

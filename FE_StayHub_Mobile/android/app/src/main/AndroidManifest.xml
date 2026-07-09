@@ -2,9 +2,9 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="fe_stayhub_mobile"
+        android:label="Stay Hub"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
