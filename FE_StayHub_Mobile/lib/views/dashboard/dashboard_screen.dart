@@ -37,17 +37,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<RoomController>().fetchRooms();
 
       final wsService = context.read<WebSocketService>();
-      final adminId = context.read<AuthController>().currentAdmin?.id;
+      final currentAdmin = context.read<AuthController>().currentAdmin;
+      final adminId = currentAdmin?.id;
       if (adminId != null) {
         wsService.subscribeToAdminChat(
           adminId,
           onMessage: (payload) {
             if (!mounted) return;
-            context.read<ChatController>().handleRealtimeMessage(payload);
+            context.read<ChatController>().handleRealtimeMessage(
+              payload,
+              currentAdminId: currentAdmin?.id,
+              currentAdminRole: currentAdmin?.role,
+            );
           },
           onRead: (payload) {
             if (!mounted) return;
-            context.read<ChatController>().handleRealtimeRead(payload);
+            context.read<ChatController>().handleRealtimeRead(
+              payload,
+              currentAdminId: currentAdmin?.id,
+              currentAdminRole: currentAdmin?.role,
+            );
           },
         );
 

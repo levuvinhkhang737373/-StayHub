@@ -115,6 +115,36 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void filterAdminDirectConversations({
+    int? currentAdminId,
+    int? currentAdminRole,
+  }) {
+    _directConversations = _directConversations
+        .where(
+          (conversation) => canShowDirectConversationForAdmin(
+            conversation,
+            currentAdminId,
+            currentAdminRole,
+          ),
+        )
+        .toList();
+
+    if (_conversations.any((item) => item.isDirect)) {
+      _conversations = _directConversations;
+    }
+
+    if (_activeConversation?.isDirect == true &&
+        !_directConversations.any(
+          (item) => item.id == _activeConversation!.id,
+        )) {
+      _activeConversation = _directConversations.isNotEmpty
+          ? _directConversations.first
+          : null;
+    }
+
+    notifyListeners();
+  }
+
   Future<void> selectAdminConversation(
     ChatConversation conversation, {
     int? currentAdminId,
@@ -426,13 +456,25 @@ class ChatController extends ChangeNotifier {
     } catch (_) {}
   }
 
-  void handleRealtimeMessage(Map<String, dynamic> payload) {
+  void handleRealtimeMessage(
+    Map<String, dynamic> payload, {
+    int? currentAdminId,
+    int? currentAdminRole,
+  }) {
     final conversationJson = payload['conversation'];
     final messageJson = payload['message'];
     if (conversationJson is Map) {
       final conversation = ChatConversation.fromJson(
         Map<String, dynamic>.from(conversationJson),
       );
+      if (conversation.isDirect &&
+          !canShowDirectConversationForAdmin(
+            conversation,
+            currentAdminId,
+            currentAdminRole,
+          )) {
+        return;
+      }
       upsertConversation(conversation);
       _activeConversation ??= conversation;
     }
@@ -445,13 +487,29 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void handleRealtimeRead(Map<String, dynamic> payload) {
+  void handleRealtimeRead(
+    Map<String, dynamic> payload, {
+    int? currentAdminId,
+    int? currentAdminRole,
+  }) {
     final conversationJson = payload['conversation'];
     if (conversationJson is Map) {
       final conversation = ChatConversation.fromJson(
         Map<String, dynamic>.from(conversationJson),
       );
-      upsertConversation(conversation);
+      if (conversation.isDirect &&
+          !canShowDirectConversationForAdmin(
+            conversation,
+            currentAdminId,
+            currentAdminRole,
+          )) {
+        return;
+      }
+      upsertConversation(
+        conversation,
+        currentAdminId: currentAdminId,
+        currentAdminRole: currentAdminRole,
+      );
       if (_activeConversation?.id == conversation.id) {
         _activeConversation = conversation;
       }
@@ -459,7 +517,20 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  void upsertConversation(ChatConversation conversation) {
+  void upsertConversation(
+    ChatConversation conversation, {
+    int? currentAdminId,
+    int? currentAdminRole,
+  }) {
+    if (conversation.isDirect &&
+        !canShowDirectConversationForAdmin(
+          conversation,
+          currentAdminId,
+          currentAdminRole,
+        )) {
+      return;
+    }
+
     final target = conversation.isDirect
         ? _directConversations
         : _tenantConversations;
@@ -476,6 +547,30 @@ class ChatController extends ChangeNotifier {
       _conversations = updated;
     }
   }
+}
+
+bool canShowDirectConversationForAdmin(
+  ChatConversation conversation,
+  int? currentAdminId,
+  int? currentAdminRole,
+) {
+  if (!conversation.isDirect) return true;
+  if (currentAdminId == null || currentAdminRole == null) return true;
+
+  const buildingManagerRole = 1;
+  const superAdminRole = 2;
+
+  if (currentAdminRole == buildingManagerRole) {
+    return conversation.managerAdminId == currentAdminId &&
+        conversation.superAdminId != currentAdminId;
+  }
+
+  if (currentAdminRole == superAdminRole) {
+    return conversation.superAdminId == currentAdminId &&
+        conversation.managerAdminId != currentAdminId;
+  }
+
+  return false;
 }
 
 List<ChatMessage> mergeChatMessages(

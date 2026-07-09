@@ -69,11 +69,19 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
           currentAdminId,
           onMessage: (payload) {
             if (!mounted) return;
-            chatController.handleRealtimeMessage(payload);
+            chatController.handleRealtimeMessage(
+              payload,
+              currentAdminId: currentAdminId,
+              currentAdminRole: authController.currentAdmin?.role,
+            );
           },
           onRead: (payload) {
             if (!mounted) return;
-            chatController.handleRealtimeRead(payload);
+            chatController.handleRealtimeRead(
+              payload,
+              currentAdminId: currentAdminId,
+              currentAdminRole: authController.currentAdmin?.role,
+            );
           },
         );
       }
@@ -118,6 +126,11 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     final chatController = context.read<ChatController>();
     if (_activeTab == _AdminChatTab.direct) {
       await chatController.fetchAdminDirectConversations(keyword: keyword);
+      final currentAdmin = context.read<AuthController>().currentAdmin;
+      chatController.filterAdminDirectConversations(
+        currentAdminId: currentAdmin?.id,
+        currentAdminRole: currentAdmin?.role,
+      );
       return;
     }
 
@@ -200,16 +213,25 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   }
 
   void _subscribeConversation(int conversationId) {
+    final currentAdmin = context.read<AuthController>().currentAdmin;
     context.read<WebSocketService>().subscribeToChatConversation(
       conversationId,
       onMessage: (payload) {
         if (!mounted) return;
-        context.read<ChatController>().handleRealtimeMessage(payload);
+        context.read<ChatController>().handleRealtimeMessage(
+          payload,
+          currentAdminId: currentAdmin?.id,
+          currentAdminRole: currentAdmin?.role,
+        );
         _scrollToBottom();
       },
       onRead: (payload) {
         if (!mounted) return;
-        context.read<ChatController>().handleRealtimeRead(payload);
+        context.read<ChatController>().handleRealtimeRead(
+          payload,
+          currentAdminId: currentAdmin?.id,
+          currentAdminRole: currentAdmin?.role,
+        );
       },
     );
   }
