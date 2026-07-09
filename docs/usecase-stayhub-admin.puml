@@ -1,0 +1,238 @@
+@startuml StayHub_Admin_Web_UseCase_ChiTiet
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "Quản trị tổng" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+actor "AI Service" as AI
+
+rectangle "Phân hệ Admin Web" {
+  package "Xác thực & tài khoản cá nhân" {
+    usecase "Đăng nhập bằng username/password" as A_Login
+    usecase "Đăng nhập FaceID" as A_FaceLogin
+    usecase "Xem phiên đăng nhập" as A_Me
+    usecase "Đăng ký FaceID" as A_RegisterFace
+    usecase "Xóa FaceID" as A_DeleteFace
+    usecase "Đổi mật khẩu" as A_ChangePassword
+    usecase "Cập nhật hồ sơ" as A_Profile
+    usecase "Đăng xuất" as A_Logout
+  }
+
+  package "Cơ sở lưu trú" {
+    usecase "CRUD khu vực" as A_Regions
+    usecase "Đổi trạng thái khu vực" as A_RegionStatus
+    usecase "CRUD tòa nhà" as A_Buildings
+    usecase "Đổi trạng thái tòa nhà" as A_BuildingStatus
+    usecase "Cập nhật giá điện/nước" as A_UtilityPrices
+    usecase "Xem lịch sử giá điện/nước" as A_UtilityHistory
+    usecase "CRUD loại phòng" as A_RoomTypes
+    usecase "Đổi trạng thái loại phòng" as A_RoomTypeStatus
+    usecase "CRUD phòng" as A_Rooms
+    usecase "Đổi trạng thái phòng" as A_RoomStatus
+    usecase "CRUD mẫu tài sản" as A_AssetTemplates
+    usecase "Đổi trạng thái mẫu tài sản" as A_AssetStatus
+  }
+
+  package "Khách thuê & hợp đồng" {
+    usecase "CRUD khách thuê" as A_Tenants
+    usecase "Đổi trạng thái khách thuê" as A_TenantStatus
+    usecase "CRUD phương tiện" as A_Vehicles
+    usecase "Đổi trạng thái phương tiện" as A_VehicleStatus
+    usecase "Xem phòng khả dụng" as A_AvailableRooms
+    usecase "CRUD hợp đồng" as A_Contracts
+    usecase "Xem khách thuê khả dụng" as A_AvailableTenants
+    usecase "Thêm khách thuê vào hợp đồng" as A_AddTenantContract
+    usecase "Gia hạn hợp đồng" as A_Renew
+    usecase "Chấm dứt hợp đồng" as A_Terminate
+    usecase "Cập nhật trạng thái hợp đồng" as A_ContractStatus
+    usecase "Ghi nhận giao dịch cọc" as A_Deposit
+    usecase "Chuyển phòng khách thuê" as A_TransferRoom
+    usecase "Xem lịch sử phòng & cọc" as A_RoomMovements
+    usecase "Cập nhật ngày chuyển phòng" as A_UpdateTransferDate
+    usecase "Ghi nhận tiền quyết toán chuyển phòng" as A_SettlementPayment
+  }
+
+  package "Dịch vụ & điện nước" {
+    usecase "CRUD dịch vụ" as A_Services
+    usecase "Đổi trạng thái dịch vụ" as A_ServiceStatus
+    usecase "CRUD đồng hồ" as A_Meters
+    usecase "Đổi trạng thái đồng hồ" as A_MeterStatus
+    usecase "Khởi tạo dữ liệu chốt điện/nước" as A_MeterInit
+    usecase "Lưu chỉ số điện/nước" as A_SaveReading
+    usecase "Phân tích ảnh công tơ" as A_AnalyzeMeter
+    usecase "Sinh hóa đơn hàng loạt theo tòa nhà" as A_BulkInvoice
+  }
+
+  package "Tài chính & báo cáo" {
+    usecase "Xem/tìm hóa đơn" as A_InvoiceList
+    usecase "Xem chi tiết hóa đơn" as A_InvoiceDetail
+    usecase "Tạo hóa đơn" as A_GenerateInvoice
+    usecase "Xem trước hóa đơn" as A_PreviewInvoice
+    usecase "Cập nhật/phát hành lại hóa đơn" as A_UpdateInvoice
+    usecase "Ghi nhận thanh toán" as A_RecordPayment
+    usecase "Xác nhận thanh toán" as A_ConfirmPayment
+    usecase "Hủy hóa đơn" as A_CancelInvoice
+    usecase "Xem lịch sử thanh toán" as A_PaymentHistory
+    usecase "Xem công nợ" as A_Debts
+    usecase "CRUD phiếu chi" as A_Expenses
+    usecase "Hủy phiếu chi" as A_CancelExpense
+    usecase "CRUD danh mục phiếu chi" as A_ExpenseCategories
+    usecase "Đổi trạng thái danh mục phiếu chi" as A_ExpenseCategoryStatus
+    usecase "Xem báo cáo lợi nhuận" as A_FinancialReport
+  }
+
+  package "Vận hành" {
+    usecase "Xem yêu cầu bảo trì" as A_MaintenanceList
+    usecase "Xem chi tiết bảo trì" as A_MaintenanceDetail
+    usecase "Cập nhật trạng thái bảo trì" as A_UpdateMaintenanceStatus
+    usecase "CRUD thông báo" as A_Notifications
+    usecase "Đánh dấu thông báo đã đọc" as A_ReadNotifications
+    usecase "Chat với khách thuê" as A_TenantChat
+    usecase "Chat nội bộ admin" as A_DirectChat
+  }
+
+  package "Hệ thống" {
+    usecase "CRUD tài khoản admin" as A_AdminAccounts
+    usecase "Đổi trạng thái tài khoản admin" as A_AdminAccountStatus
+    usecase "Xem nhật ký admin" as A_AdminLogs
+    usecase "CRUD cài đặt" as A_Settings
+    usecase "Bật/tắt công khai cài đặt" as A_SettingPublic
+    usecase "Xem dashboard tổng quan" as A_Dashboard
+  }
+}
+
+SuperAdmin -- A_Login
+SuperAdmin -- A_FaceLogin
+SuperAdmin -- A_Me
+SuperAdmin -- A_RegisterFace
+SuperAdmin -- A_DeleteFace
+SuperAdmin -- A_ChangePassword
+SuperAdmin -- A_Profile
+SuperAdmin -- A_Logout
+SuperAdmin -- A_Regions
+SuperAdmin -- A_RegionStatus
+SuperAdmin -- A_Buildings
+SuperAdmin -- A_BuildingStatus
+SuperAdmin -- A_UtilityPrices
+SuperAdmin -- A_UtilityHistory
+SuperAdmin -- A_RoomTypes
+SuperAdmin -- A_RoomTypeStatus
+SuperAdmin -- A_Rooms
+SuperAdmin -- A_RoomStatus
+SuperAdmin -- A_AssetTemplates
+SuperAdmin -- A_AssetStatus
+SuperAdmin -- A_Tenants
+SuperAdmin -- A_TenantStatus
+SuperAdmin -- A_Vehicles
+SuperAdmin -- A_VehicleStatus
+SuperAdmin -- A_AvailableRooms
+SuperAdmin -- A_Contracts
+SuperAdmin -- A_AvailableTenants
+SuperAdmin -- A_AddTenantContract
+SuperAdmin -- A_Renew
+SuperAdmin -- A_Terminate
+SuperAdmin -- A_ContractStatus
+SuperAdmin -- A_Deposit
+SuperAdmin -- A_TransferRoom
+SuperAdmin -- A_RoomMovements
+SuperAdmin -- A_UpdateTransferDate
+SuperAdmin -- A_SettlementPayment
+SuperAdmin -- A_Services
+SuperAdmin -- A_ServiceStatus
+SuperAdmin -- A_Meters
+SuperAdmin -- A_MeterStatus
+SuperAdmin -- A_MeterInit
+SuperAdmin -- A_SaveReading
+SuperAdmin -- A_AnalyzeMeter
+SuperAdmin -- A_BulkInvoice
+SuperAdmin -- A_InvoiceList
+SuperAdmin -- A_InvoiceDetail
+SuperAdmin -- A_GenerateInvoice
+SuperAdmin -- A_PreviewInvoice
+SuperAdmin -- A_UpdateInvoice
+SuperAdmin -- A_RecordPayment
+SuperAdmin -- A_ConfirmPayment
+SuperAdmin -- A_CancelInvoice
+SuperAdmin -- A_PaymentHistory
+SuperAdmin -- A_Debts
+SuperAdmin -- A_Expenses
+SuperAdmin -- A_CancelExpense
+SuperAdmin -- A_ExpenseCategories
+SuperAdmin -- A_ExpenseCategoryStatus
+SuperAdmin -- A_FinancialReport
+SuperAdmin -- A_MaintenanceList
+SuperAdmin -- A_MaintenanceDetail
+SuperAdmin -- A_UpdateMaintenanceStatus
+SuperAdmin -- A_Notifications
+SuperAdmin -- A_ReadNotifications
+SuperAdmin -- A_TenantChat
+SuperAdmin -- A_DirectChat
+SuperAdmin -- A_AdminAccounts
+SuperAdmin -- A_AdminAccountStatus
+SuperAdmin -- A_AdminLogs
+SuperAdmin -- A_Settings
+SuperAdmin -- A_SettingPublic
+SuperAdmin -- A_Dashboard
+
+BuildingManager -- A_Login
+BuildingManager -- A_FaceLogin
+BuildingManager -- A_Me
+BuildingManager -- A_RegisterFace
+BuildingManager -- A_DeleteFace
+BuildingManager -- A_ChangePassword
+BuildingManager -- A_Profile
+BuildingManager -- A_Logout
+BuildingManager -- A_Rooms
+BuildingManager -- A_RoomStatus
+BuildingManager -- A_Tenants
+BuildingManager -- A_TenantStatus
+BuildingManager -- A_Vehicles
+BuildingManager -- A_VehicleStatus
+BuildingManager -- A_AvailableRooms
+BuildingManager -- A_Contracts
+BuildingManager -- A_AvailableTenants
+BuildingManager -- A_AddTenantContract
+BuildingManager -- A_Renew
+BuildingManager -- A_Terminate
+BuildingManager -- A_ContractStatus
+BuildingManager -- A_Deposit
+BuildingManager -- A_TransferRoom
+BuildingManager -- A_RoomMovements
+BuildingManager -- A_UpdateTransferDate
+BuildingManager -- A_SettlementPayment
+BuildingManager -- A_Meters
+BuildingManager -- A_MeterStatus
+BuildingManager -- A_MeterInit
+BuildingManager -- A_SaveReading
+BuildingManager -- A_AnalyzeMeter
+BuildingManager -- A_BulkInvoice
+BuildingManager -- A_InvoiceList
+BuildingManager -- A_InvoiceDetail
+BuildingManager -- A_GenerateInvoice
+BuildingManager -- A_PreviewInvoice
+BuildingManager -- A_UpdateInvoice
+BuildingManager -- A_RecordPayment
+BuildingManager -- A_ConfirmPayment
+BuildingManager -- A_CancelInvoice
+BuildingManager -- A_PaymentHistory
+BuildingManager -- A_Debts
+BuildingManager -- A_Expenses
+BuildingManager -- A_CancelExpense
+BuildingManager -- A_ExpenseCategories
+BuildingManager -- A_FinancialReport
+BuildingManager -- A_MaintenanceList
+BuildingManager -- A_MaintenanceDetail
+BuildingManager -- A_UpdateMaintenanceStatus
+BuildingManager -- A_Notifications
+BuildingManager -- A_ReadNotifications
+BuildingManager -- A_TenantChat
+BuildingManager -- A_DirectChat
+BuildingManager -- A_Settings
+BuildingManager -- A_SettingPublic
+BuildingManager -- A_Dashboard
+
+A_FaceLogin ..> AI : <<include>>
+A_RegisterFace ..> AI : <<include>>
+A_AnalyzeMeter ..> AI : <<include>>
+@enduml

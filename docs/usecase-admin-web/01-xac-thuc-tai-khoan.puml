@@ -1,0 +1,47 @@
+@startuml StayHub_Admin_Web_01_XacThuc_TaiKhoan
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFF8E7
+  BorderColor #7C5C20
+  ArrowColor #7C5C20
+}
+
+actor "Quản trị tổng" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+actor "AI Service" as AI
+
+rectangle "Xác thực & tài khoản cá nhân" {
+  usecase "Đăng nhập bằng username/password" as Login
+  usecase "Đăng nhập FaceID" as FaceLogin
+  usecase "Xem phiên đăng nhập" as Me
+  usecase "Đăng ký FaceID" as RegisterFace
+  usecase "Xóa FaceID" as DeleteFace
+  usecase "Đổi mật khẩu" as ChangePassword
+  usecase "Cập nhật hồ sơ" as Profile
+  usecase "Đăng xuất" as Logout
+}
+
+SuperAdmin -- Login
+SuperAdmin -- FaceLogin
+SuperAdmin -- Me
+SuperAdmin -- RegisterFace
+SuperAdmin -- DeleteFace
+SuperAdmin -- ChangePassword
+SuperAdmin -- Profile
+SuperAdmin -- Logout
+
+BuildingManager -- Login
+BuildingManager -- FaceLogin
+BuildingManager -- Me
+BuildingManager -- RegisterFace
+BuildingManager -- DeleteFace
+BuildingManager -- ChangePassword
+BuildingManager -- Profile
+BuildingManager -- Logout
+
+FaceLogin ..> Login : <<extend>>
+FaceLogin ..> AI : <<include>>
+RegisterFace ..> AI : <<include>>
+@enduml

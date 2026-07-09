@@ -1,0 +1,52 @@
+@startuml UC_10_HopDong
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Quản lí hợp đồng" as Main
+  usecase "Xem danh sách hợp đồng" as ListContracts
+  usecase "Xem chi tiết hợp đồng" as ViewContract
+  usecase "Xem phòng khả dụng" as AvailableRooms
+  usecase "Tạo hợp đồng" as AddContract
+  usecase "Sửa hợp đồng" as EditContract
+  usecase "Xóa hợp đồng" as DeleteContract
+  usecase "Cập nhật trạng thái hợp đồng" as ContractStatus
+  usecase "Thêm khách thuê vào hợp đồng" as AddTenantToContract
+  usecase "Xem khách thuê khả dụng" as AvailableTenants
+  usecase "Gia hạn hợp đồng" as RenewContract
+  usecase "Chấm dứt hợp đồng" as TerminateContract
+  usecase "Ghi nhận giao dịch cọc" as DepositTransaction
+  usecase "Tạo phương tiện khi lập hợp đồng" as CreateVehicle
+}
+
+ListContracts ..> Main : <<extend>>
+ViewContract ..> Main : <<extend>>
+AvailableRooms ..> Main : <<extend>>
+AddContract ..> Main : <<extend>>
+EditContract ..> Main : <<extend>>
+DeleteContract ..> Main : <<extend>>
+ContractStatus ..> Main : <<extend>>
+AddTenantToContract ..> Main : <<extend>>
+AvailableTenants ..> Main : <<extend>>
+RenewContract ..> Main : <<extend>>
+TerminateContract ..> Main : <<extend>>
+DepositTransaction ..> Main : <<extend>>
+CreateVehicle ..> Main : <<extend>>
+SuperAdmin -- Main
+BuildingManager -- Main
+@enduml

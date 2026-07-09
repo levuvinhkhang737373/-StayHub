@@ -1,0 +1,42 @@
+@startuml UC_11_ChuyenPhong_LichSuCoc
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+actor "Scheduler/Queue" as Scheduler
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Quản lí chuyển phòng & lịch sử cọc" as Main
+  usecase "Lập lịch chuyển phòng khách thuê" as TransferTenant
+  usecase "Xem lịch sử phòng & cọc" as ViewMovements
+  usecase "Xem chi tiết lịch sử phòng/cọc" as ViewMovementDetail
+  usecase "Cập nhật ngày chuyển phòng" as UpdateTransferDate
+  usecase "Ghi nhận tiền quyết toán" as RecordSettlement
+  usecase "Thực thi chuyển phòng theo lịch" as ExecuteScheduled
+  usecase "Thông báo chốt điện/nước khi chuyển phòng" as NotifyCutoff
+}
+
+TransferTenant ..> Main : <<extend>>
+ViewMovements ..> Main : <<extend>>
+ViewMovementDetail ..> Main : <<extend>>
+UpdateTransferDate ..> Main : <<extend>>
+RecordSettlement ..> Main : <<extend>>
+ExecuteScheduled ..> Main : <<extend>>
+NotifyCutoff ..> Main : <<extend>>
+SuperAdmin -- Main
+BuildingManager -- Main
+Scheduler -- Main
+@enduml

@@ -1,0 +1,44 @@
+@startuml UC_19_Chat
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Quản lí chat" as Main
+  usecase "Xem cuộc trò chuyện với khách thuê" as TenantConversations
+  usecase "Xem tin nhắn khách thuê" as TenantMessages
+  usecase "Gửi tin nhắn cho khách thuê" as SendTenantMessage
+  usecase "Đánh dấu chat khách thuê đã đọc" as ReadTenantChat
+  usecase "Xem cuộc trò chuyện nội bộ admin" as DirectConversations
+  usecase "Xem tin nhắn nội bộ admin" as DirectMessages
+  usecase "Gửi tin nhắn nội bộ admin" as SendDirectMessage
+  usecase "Đánh dấu chat nội bộ đã đọc" as ReadDirectChat
+  usecase "Gửi ảnh trong chat" as SendImages
+}
+
+TenantConversations ..> Main : <<extend>>
+TenantMessages ..> Main : <<extend>>
+SendTenantMessage ..> Main : <<extend>>
+ReadTenantChat ..> Main : <<extend>>
+DirectConversations ..> Main : <<extend>>
+DirectMessages ..> Main : <<extend>>
+SendDirectMessage ..> Main : <<extend>>
+ReadDirectChat ..> Main : <<extend>>
+SendImages ..> Main : <<extend>>
+SuperAdmin -- Main
+BuildingManager -- Main
+@enduml

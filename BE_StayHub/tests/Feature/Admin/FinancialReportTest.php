@@ -356,6 +356,114 @@ class FinancialReportTest extends TestCase
         $this->assertEquals(2000000.00, (float) $response->json('result.debt_breakdown.0.amount'));
     }
 
+    public function test_revenue_breakdown_splits_current_items_and_collected_rolled_debt(): void
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-BREAKDOWN-DEBT',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-05-01',
+            'end_date' => '2026-12-01',
+            'room_price' => 5000000.00,
+            'deposit_amount' => 5000000.00,
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $mayInvoice = Invoice::create([
+            'room_id' => $this->room->id,
+            'contract_id' => $contract->id,
+            'invoice_code' => 'HD-BREAKDOWN-05',
+            'billing_month' => 5,
+            'billing_year' => 2026,
+            'period_start' => '2026-05-01',
+            'period_end' => '2026-05-31',
+            'previous_debt_amount' => 0.00,
+            'total_amount' => 1000000.00,
+            'paid_amount' => 1000000.00,
+            'remaining_amount' => 0.00,
+            'status' => Invoice::STATUS_PAID,
+            'due_date' => '2026-05-10',
+        ]);
+
+        $invoice = Invoice::create([
+            'room_id' => $this->room->id,
+            'contract_id' => $contract->id,
+            'invoice_code' => 'HD-BREAKDOWN-06',
+            'billing_month' => 6,
+            'billing_year' => 2026,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'previous_debt_amount' => 1000000.00,
+            'total_amount' => 3000000.00,
+            'paid_amount' => 1500000.00,
+            'remaining_amount' => 1500000.00,
+            'status' => Invoice::STATUS_PARTIALLY_PAID,
+            'due_date' => '2026-06-10',
+        ]);
+
+        InvoiceDebtRollover::create([
+            'source_invoice_id' => $mayInvoice->id,
+            'target_invoice_id' => $invoice->id,
+            'amount' => 1000000.00,
+            'settled_amount' => 1000000.00,
+            'status' => InvoiceDebtRollover::STATUS_SETTLED,
+        ]);
+
+        InvoiceItem::create([
+            'invoice_id' => $invoice->id,
+            'item_type' => InvoiceItem::ITEM_TYPE_ROOM,
+            'description' => 'Tiền phòng tháng 6',
+            'quantity' => 1,
+            'unit_price' => 2000000.00,
+            'amount' => 2000000.00,
+        ]);
+
+        InvoiceItem::create([
+            'invoice_id' => $invoice->id,
+            'item_type' => InvoiceItem::ITEM_TYPE_OLD_DEBT,
+            'description' => 'Nợ cũ tháng 5',
+            'quantity' => 1,
+            'unit_price' => 1000000.00,
+            'amount' => 1000000.00,
+        ]);
+
+        $payment = Payment::create([
+            'payment_code' => 'PAY-BREAKDOWN-001',
+            'invoice_id' => $invoice->id,
+            'amount' => 1500000.00,
+            'payment_date' => '2026-06-15 09:00:00',
+            'status' => Payment::STATUS_CONFIRMED,
+            'payment_method' => Payment::PAYMENT_METHOD_CASH,
+        ]);
+
+        Payment::create([
+            'payment_code' => 'PAY-BREAKDOWN-ALLOC-001',
+            'invoice_id' => $mayInvoice->id,
+            'allocated_from_payment_id' => $payment->id,
+            'invoice_debt_rollover_id' => $invoice->debtRolloversIn()->first()->id,
+            'is_internal_allocation' => true,
+            'amount' => 1000000.00,
+            'payment_date' => '2026-06-15 09:00:00',
+            'status' => Payment::STATUS_CONFIRMED,
+            'payment_method' => Payment::PAYMENT_METHOD_CASH,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/financials/report?year=2026&month_from=6&month_to=6');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+
+        $this->assertEquals(3000000.00, (float) $response->json('result.summary.revenue'));
+        $this->assertEquals(1500000.00, (float) $response->json('result.summary.collected_revenue'));
+        $this->assertEquals(1500000.00, (float) $response->json('result.summary.debt'));
+        $this->assertEquals('Thu nợ cũ', $response->json('result.revenue_breakdown.0.label'));
+        $this->assertEquals(1000000.00, (float) $response->json('result.revenue_breakdown.0.amount'));
+        $this->assertEquals('Tiền phòng', $response->json('result.revenue_breakdown.1.label'));
+        $this->assertEquals(500000.00, (float) $response->json('result.revenue_breakdown.1.amount'));
+        $this->assertCount(2, $response->json('result.revenue_breakdown'));
+    }
+
     public function test_building_manager_report_only_contains_managed_building_debt(): void
     {
         $otherManager = Admin::create([

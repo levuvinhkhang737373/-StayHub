@@ -148,50 +148,59 @@ export function FinancialsScreen() {
 <body>
   <table>
     <!-- Tiêu đề lớn -->
-    <tr><td colspan="5" class="title" style="border:none;">BÁO CÁO TÀI CHÍNH STAYHUB</td></tr>
-    <tr><td colspan="5" class="subtitle" style="border:none;">Thời gian lọc: Tháng ${monthFrom}/${year} - Tháng ${monthTo}/${year}</td></tr>
-    <tr><td colspan="5" class="subtitle" style="border:none;padding-bottom:15px;">Tòa nhà: ${selectedBuildingName}</td></tr>
-    <tr><td colspan="5" style="border:none;height:10px;"></td></tr>
+    <tr><td colspan="6" class="title" style="border:none;">BÁO CÁO TÀI CHÍNH STAYHUB</td></tr>
+    <tr><td colspan="6" class="subtitle" style="border:none;">Thời gian lọc: Tháng ${monthFrom}/${year} - Tháng ${monthTo}/${year}</td></tr>
+    <tr><td colspan="6" class="subtitle" style="border:none;padding-bottom:15px;">Tòa nhà: ${selectedBuildingName}</td></tr>
+    <tr><td colspan="6" style="border:none;height:10px;"></td></tr>
 
-    <tr><td colspan="5" class="section-title" style="border:none;">I. TỔNG QUAN CHỈ TIÊU</td></tr>
+    <tr><td colspan="6" class="section-title" style="border:none;">I. TỔNG QUAN CHỈ TIÊU</td></tr>
     <tr>
-      <td colspan="2" class="header">Chỉ số</td>
+      <td colspan="3" class="header">Chỉ số</td>
       <td colspan="3" class="header">Giá trị</td>
     </tr>
     <tr>
-      <td colspan="2">Tổng doanh thu (đã thu + công nợ)</td>
+      <td colspan="3">Doanh thu dự kiến (đã thu + công nợ)</td>
       <td colspan="3" class="number" style="font-weight:bold;color:#a65f16;">${formatCurrency(reportData.summary.revenue)}</td>
     </tr>
     <tr>
-      <td colspan="2">Doanh thu đã thu</td>
+      <td colspan="3">Tiền đã thu</td>
       <td colspan="3" class="number" style="font-weight:bold;color:#a65f16;">${formatCurrency(reportData.summary.collected_revenue || 0)}</td>
     </tr>
     <tr>
-      <td colspan="2">Công nợ còn phải thu</td>
+      <td colspan="3">Công nợ còn phải thu</td>
       <td colspan="3" class="debt">${formatCurrency(reportData.summary.debt || 0)}</td>
     </tr>
     <tr>
-      <td colspan="2">Tổng doanh thu ghi nhận</td>
+      <td colspan="3">Nợ kỳ hiện tại</td>
+      <td colspan="3" class="debt">${formatCurrency(reportData.summary.current_debt || 0)}</td>
+    </tr>
+    <tr>
+      <td colspan="3">Nợ cũ chuyển sang</td>
+      <td colspan="3" class="debt">${formatCurrency(reportData.summary.rolled_debt || 0)}</td>
+    </tr>
+    <tr>
+      <td colspan="3">Tổng doanh thu dự kiến</td>
       <td colspan="3" class="number" style="font-weight:bold;color:#92400e;">${formatCurrency(reportData.summary.expected_revenue || reportData.summary.revenue)}</td>
     </tr>
     <tr>
-      <td colspan="2">Tổng chi phí</td>
+      <td colspan="3">Tổng chi phí</td>
       <td colspan="3" class="number" style="font-weight:bold;color:#0f766e;">${formatCurrency(reportData.summary.expenses)}</td>
     </tr>
     <tr>
-      <td colspan="2" class="total-row">Lợi nhuận ròng</td>
+      <td colspan="3" class="total-row">Lợi nhuận ròng</td>
       <td colspan="3" class="total-row ${reportData.summary.profit >= 0 ? 'profit-positive' : 'profit-negative'}">${formatCurrency(reportData.summary.profit)}</td>
     </tr>
     <tr>
-      <td colspan="2">Biên lợi nhuận ròng</td>
+      <td colspan="3">Biên lợi nhuận ròng</td>
       <td colspan="3" class="number" style="font-weight:bold;">${reportData.summary.profit_margin}%</td>
     </tr>
-    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="6" style="border:none;height:15px;"></td></tr>
 
-    <tr><td colspan="5" class="section-title" style="border:none;">II. XU HƯỚNG THEO THÁNG</td></tr>
+    <tr><td colspan="6" class="section-title" style="border:none;">II. XU HƯỚNG THEO THÁNG</td></tr>
     <tr>
       <td class="header">Tháng</td>
-      <td class="header">Doanh thu ghi nhận</td>
+      <td class="header">Doanh thu dự kiến</td>
+      <td class="header">Đã thu</td>
       <td class="header">Công nợ</td>
       <td class="header">Chi phí</td>
       <td class="header">Lợi nhuận ròng</td>
@@ -204,6 +213,7 @@ export function FinancialsScreen() {
     <tr>
       <td class="text-cell">${pt.month}</td>
       <td class="number">${formatCurrency(pt.revenue)}</td>
+      <td class="number">${formatCurrency(pt.collected_revenue || 0)}</td>
       <td class="debt">${formatCurrency(pt.debt || 0)}</td>
       <td class="number">${formatCurrency(pt.expenses)}</td>
       <td class="${isPositive ? 'profit-positive' : 'profit-negative'}">${formatCurrency(pt.profit)}</td>
@@ -211,11 +221,11 @@ export function FinancialsScreen() {
     });
 
     html += `
-    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="6" style="border:none;height:15px;"></td></tr>
 
-    <tr><td colspan="5" class="section-title" style="border:none;">III. CƠ CẤU CÔNG NỢ</td></tr>
+    <tr><td colspan="6" class="section-title" style="border:none;">III. CƠ CẤU CÔNG NỢ</td></tr>
     <tr>
-      <td colspan="3" class="header">Loại công nợ</td>
+      <td colspan="4" class="header">Loại công nợ</td>
       <td class="header">Công nợ (VNĐ)</td>
       <td class="header">Tỷ lệ (%)</td>
     </tr>
@@ -224,7 +234,7 @@ export function FinancialsScreen() {
     ;(reportData.debt_breakdown || []).forEach((item) => {
       html += `
     <tr>
-      <td colspan="3">${item.label}</td>
+      <td colspan="4">${item.label}</td>
       <td class="debt">${formatCurrency(item.amount)}</td>
       <td style="text-align:center;">${item.percentage}%</td>
     </tr>`;
@@ -232,16 +242,16 @@ export function FinancialsScreen() {
 
     html += `
     <tr>
-      <td colspan="3" class="total-row">TỔNG CỘNG CÔNG NỢ</td>
+      <td colspan="4" class="total-row">TỔNG CỘNG CÔNG NỢ</td>
       <td class="total-row debt">${formatCurrency(reportData.summary.debt || 0)}</td>
       <td class="total-row" style="text-align:center;">100%</td>
     </tr>
-    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="6" style="border:none;height:15px;"></td></tr>
 
-    <tr><td colspan="5" class="section-title" style="border:none;">IV. CƠ CẤU DOANH THU THEO DỊCH VỤ</td></tr>
+    <tr><td colspan="6" class="section-title" style="border:none;">IV. CƠ CẤU TIỀN ĐÃ THU</td></tr>
     <tr>
-      <td colspan="3" class="header">Dịch vụ</td>
-      <td class="header">Doanh thu (VNĐ)</td>
+      <td colspan="4" class="header">Nguồn thu</td>
+      <td class="header">Đã thu (VNĐ)</td>
       <td class="header">Tỷ lệ (%)</td>
     </tr>
 `;
@@ -249,7 +259,7 @@ export function FinancialsScreen() {
     reportData.revenue_breakdown.forEach((item) => {
       html += `
     <tr>
-      <td colspan="3">${item.label}</td>
+      <td colspan="4">${item.label}</td>
       <td class="number">${formatCurrency(item.amount)}</td>
       <td style="text-align:center;">${item.percentage}%</td>
     </tr>`;
@@ -257,15 +267,15 @@ export function FinancialsScreen() {
 
     html += `
     <tr>
-      <td colspan="3" class="total-row">TỔNG CỘNG DOANH THU ĐÃ THU</td>
+      <td colspan="4" class="total-row">TỔNG CỘNG TIỀN ĐÃ THU</td>
       <td class="total-row number" style="color:#a65f16;">${formatCurrency(reportData.summary.collected_revenue || 0)}</td>
       <td class="total-row" style="text-align:center;">100%</td>
     </tr>
-    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="6" style="border:none;height:15px;"></td></tr>
 
-    <tr><td colspan="5" class="section-title" style="border:none;">V. CƠ CẤU CHI PHÍ</td></tr>
+    <tr><td colspan="6" class="section-title" style="border:none;">V. CƠ CẤU CHI PHÍ</td></tr>
     <tr>
-      <td colspan="3" class="header">Danh mục</td>
+      <td colspan="4" class="header">Danh mục</td>
       <td class="header">Chi phí (VNĐ)</td>
       <td class="header">Tỷ lệ (%)</td>
     </tr>
@@ -274,7 +284,7 @@ export function FinancialsScreen() {
     reportData.expense_breakdown.forEach((item) => {
       html += `
     <tr>
-      <td colspan="3">${item.label}</td>
+      <td colspan="4">${item.label}</td>
       <td class="number">${formatCurrency(item.amount)}</td>
       <td style="text-align:center;">${item.percentage}%</td>
     </tr>`;
@@ -282,7 +292,7 @@ export function FinancialsScreen() {
 
     html += `
     <tr>
-      <td colspan="3" class="total-row">TỔNG CỘNG CHI PHÍ</td>
+      <td colspan="4" class="total-row">TỔNG CỘNG CHI PHÍ</td>
       <td class="total-row number" style="color:#0f766e;">${formatCurrency(reportData.summary.expenses)}</td>
       <td class="total-row" style="text-align:center;">100%</td>
     </tr>
@@ -290,11 +300,11 @@ export function FinancialsScreen() {
 
     if (buildingId === '' && reportData.top_buildings && reportData.top_buildings.length > 0) {
       html += `
-    <tr><td colspan="5" style="border:none;height:15px;"></td></tr>
-    <tr><td colspan="5" class="section-title" style="border:none;">VI. HIỆU SUẤT DOANH THU & CÔNG NỢ TÒA NHÀ</td></tr>
+    <tr><td colspan="6" style="border:none;height:15px;"></td></tr>
+    <tr><td colspan="6" class="section-title" style="border:none;">VI. HIỆU SUẤT DOANH THU & CÔNG NỢ TÒA NHÀ</td></tr>
     <tr>
-      <td colspan="2" class="header">Tòa nhà</td>
-      <td class="header">Doanh thu (VNĐ)</td>
+      <td colspan="3" class="header">Tòa nhà</td>
+      <td class="header">Đã thu (VNĐ)</td>
       <td class="header">Công nợ (VNĐ)</td>
       <td class="header">Tổng dự kiến</td>
     </tr>
@@ -302,7 +312,7 @@ export function FinancialsScreen() {
       reportData.top_buildings.forEach((item) => {
         html += `
     <tr>
-      <td colspan="2">${item.name}</td>
+      <td colspan="3">${item.name}</td>
       <td class="number">${formatCurrency(item.revenue)}</td>
       <td class="debt">${formatCurrency(item.debt || 0)}</td>
       <td class="number">${formatCurrency(item.expected_revenue || item.revenue)}</td>
@@ -310,7 +320,7 @@ export function FinancialsScreen() {
       });
       html += `
     <tr>
-      <td colspan="2" class="total-row">TỔNG CỘNG</td>
+      <td colspan="3" class="total-row">TỔNG CỘNG</td>
       <td class="total-row number" style="color:#a65f16;">${formatCurrency(reportData.summary.collected_revenue || 0)}</td>
       <td class="total-row debt">${formatCurrency(reportData.summary.debt || 0)}</td>
       <td class="total-row number">${formatCurrency(reportData.summary.expected_revenue || reportData.summary.revenue)}</td>

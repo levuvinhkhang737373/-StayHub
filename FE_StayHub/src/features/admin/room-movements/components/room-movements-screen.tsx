@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowRightLeft, CalendarDays, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowRightLeft, CalendarDays, CalendarPlus2, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, Sparkles, X } from 'lucide-react'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
@@ -11,8 +11,9 @@ import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-se
 import type { AdminProfile } from '../../auth/types/admin-auth.model'
 import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
 import type { AdminRoomResource, BuildingResource } from '../../rooms/types/rooms.model'
-import { fetchAdminRoomMovementDetail, fetchAdminRoomMovements, recordAdminRoomMovementSettlementCashPayment } from '../services/room-movements.service'
+import { fetchAdminRoomMovementDetail, fetchAdminRoomMovements, recordAdminRoomMovementSettlementCashPayment, updateAdminRoomMovementTransferDate } from '../services/room-movements.service'
 import type { AdminRoomMovementPaginationMeta, AdminRoomMovementResource } from '../types/room-movement-api.model'
+import { canUpdateTransferDate, toDateInputValue } from '../utils/transfer-date.helpers'
 
 const MOVEMENT_TRANSFER = 2
 const MOVEMENT_CHECKOUT = 1
@@ -82,6 +83,11 @@ export function RoomMovementsScreen() {
   const [cashPaymentNote, setCashPaymentNote] = useState('')
   const [isCashPaymentSubmitting, setIsCashPaymentSubmitting] = useState(false)
   const [cashPaymentErrorMessage, setCashPaymentErrorMessage] = useState<string | null>(null)
+  const [transferDateMovement, setTransferDateMovement] = useState<AdminRoomMovementResource | null>(null)
+  const [transferDateValue, setTransferDateValue] = useState('')
+  const [transferDateNote, setTransferDateNote] = useState('')
+  const [isTransferDateSubmitting, setIsTransferDateSubmitting] = useState(false)
+  const [transferDateErrorMessage, setTransferDateErrorMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const currentPage = pageState.key === deepLinkFilterKey ? pageState.page : 1
@@ -278,6 +284,60 @@ export function RoomMovementsScreen() {
     setCashPaymentErrorMessage(null)
   }
 
+  function openTransferDateEditor(movement: AdminRoomMovementResource) {
+    setTransferDateMovement(movement)
+    setTransferDateValue(toDateInputValue(movement.movement_date))
+    setTransferDateNote('')
+    setTransferDateErrorMessage(null)
+  }
+
+  function closeTransferDateEditor() {
+    if (isTransferDateSubmitting) return
+    setTransferDateMovement(null)
+    setTransferDateValue('')
+    setTransferDateNote('')
+    setTransferDateErrorMessage(null)
+  }
+
+  async function submitTransferDate() {
+    if (!transferDateMovement) return
+
+    const currentDate = toDateInputValue(transferDateMovement.movement_date)
+    if (!transferDateValue) {
+      setTransferDateErrorMessage('Vui lòng chọn ngày chuyển phòng mới.')
+      return
+    }
+
+    if (currentDate && currentDate === transferDateValue) {
+      setTransferDateErrorMessage('Ngày chuyển mới phải khác ngày hiện tại của lịch chuyển.')
+      return
+    }
+
+    setIsTransferDateSubmitting(true)
+    setTransferDateErrorMessage(null)
+
+    try {
+      const response = await updateAdminRoomMovementTransferDate(transferDateMovement.id, {
+        movement_date: transferDateValue,
+        note: transferDateNote.trim() || undefined,
+      })
+
+      const freshMovement = response.result?.movement
+      if (freshMovement) {
+        setSelectedMovement(freshMovement)
+      }
+
+      setTransferDateMovement(null)
+      setTransferDateValue('')
+      setTransferDateNote('')
+      await loadMovements()
+    } catch (error) {
+      setTransferDateErrorMessage(getVisibleErrorMessage(error, 'Không thể cập nhật ngày chuyển phòng.'))
+    } finally {
+      setIsTransferDateSubmitting(false)
+    }
+  }
+
   async function submitCashPayment() {
     if (!cashPaymentMovement) return
 
@@ -428,9 +488,16 @@ export function RoomMovementsScreen() {
                       </p>
                     </td>
                     <td className={cn(tableBodyCellClass, 'pr-4 text-right')}>
-                      <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
-                        <Eye className="h-4.5 w-4.5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {canUpdateTransferDate(movement) && (
+                          <button type="button" onClick={() => openTransferDateEditor(movement)} className="group/date inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#9a5b13] shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3c56b]/60 hover:bg-[#f3c56b]/25 hover:text-[#6f3b08] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-95" title="Đổi ngày chuyển" aria-label="Đổi ngày chuyển phòng">
+                            <CalendarPlus2 className="h-4.5 w-4.5 transition group-hover/date:rotate-6" />
+                          </button>
+                        )}
+                        <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
+                          <Eye className="h-4.5 w-4.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -485,7 +552,21 @@ export function RoomMovementsScreen() {
       </section>
 
       {isDetailOpen && selectedMovement && (
-        <DetailModal movement={selectedMovement} currentAdmin={currentAdmin} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} onOpenCashPayment={openCashPayment} />
+        <DetailModal movement={selectedMovement} currentAdmin={currentAdmin} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} onOpenCashPayment={openCashPayment} onOpenTransferDate={openTransferDateEditor} />
+      )}
+
+      {transferDateMovement && (
+        <TransferDateModal
+          movement={transferDateMovement}
+          movementDate={transferDateValue}
+          note={transferDateNote}
+          errorMessage={transferDateErrorMessage}
+          isSubmitting={isTransferDateSubmitting}
+          onDateChange={setTransferDateValue}
+          onNoteChange={setTransferDateNote}
+          onClose={closeTransferDateEditor}
+          onConfirm={() => void submitTransferDate()}
+        />
       )}
 
       {cashPaymentMovement && (
@@ -566,10 +647,11 @@ function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
   )
 }
 
-function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose, onOpenCashPayment }: { movement: AdminRoomMovementResource; currentAdmin: AdminProfile | null; isLoading: boolean; errorMessage: string | null; onClose: () => void; onOpenCashPayment: (movement: AdminRoomMovementResource) => void }) {
+function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose, onOpenCashPayment, onOpenTransferDate }: { movement: AdminRoomMovementResource; currentAdmin: AdminProfile | null; isLoading: boolean; errorMessage: string | null; onClose: () => void; onOpenCashPayment: (movement: AdminRoomMovementResource) => void; onOpenTransferDate: (movement: AdminRoomMovementResource) => void }) {
   const hasMeterReadings = Boolean(movement.final_electric_reading || movement.final_water_reading)
   const settlementBreakdown = useMemo(() => makeSettlementBreakdown(movement), [movement])
   const canCollectCash = canRecordCashSettlementPayment(movement, currentAdmin)
+  const canReschedule = canUpdateTransferDate(movement)
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
@@ -585,9 +667,16 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                 {movement.transfer_code && <span className="rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/10 px-3 py-1 text-xs font-black text-[#f3c56b]">{movement.transfer_code}</span>}
               </div>
             </div>
-            <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết lịch sử">
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {canReschedule && (
+                <button type="button" onClick={() => onOpenTransferDate(movement)} className="hidden min-h-10 items-center justify-center gap-2 rounded-xl border border-[#f3c56b]/30 bg-[#f3c56b]/14 px-4 text-xs font-black uppercase tracking-[0.14em] text-[#f3c56b] transition hover:bg-[#f3c56b]/22 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15 sm:inline-flex">
+                  <CalendarPlus2 className="h-4 w-4" /> Đổi ngày
+                </button>
+              )}
+              <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết lịch sử">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -611,7 +700,13 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                   </div>
                 </div>
 
-                 <div className="mt-6 border-t border-[#3d2a18]/10 pt-4">
+                {canReschedule && (
+                  <button type="button" onClick={() => onOpenTransferDate(movement)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#f3c56b]/30 bg-[#24170d] px-4 py-3 text-sm font-black text-[#fff4df] shadow-lg shadow-[#24170d]/10 transition hover:-translate-y-0.5 hover:bg-[#3d2a18] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-[0.99]">
+                    <CalendarPlus2 className="h-4.5 w-4.5 text-[#f3c56b]" /> Cập nhật ngày chuyển phòng
+                  </button>
+                )}
+
+                <div className="mt-6 border-t border-[#3d2a18]/10 pt-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Luồng phòng</p>
                   <div className="mt-3 grid grid-cols-2 gap-2.5">
                     <div className="col-span-2">
@@ -704,6 +799,86 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
           </div>
         </div>
       </aside>
+    </div>
+  )
+}
+
+function TransferDateModal({ movement, movementDate, note, errorMessage, isSubmitting, onDateChange, onNoteChange, onClose, onConfirm }: { movement: AdminRoomMovementResource; movementDate: string; note: string; errorMessage: string | null; isSubmitting: boolean; onDateChange: (value: string) => void; onNoteChange: (value: string) => void; onClose: () => void; onConfirm: () => void }) {
+  const currentDate = toDateInputValue(movement.movement_date)
+  const hasChanged = Boolean(movementDate && movementDate !== currentDate)
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="transfer-date-title">
+      <button type="button" aria-label="Đóng đổi ngày chuyển phòng" onClick={onClose} className="absolute inset-0 bg-[#100906]/80 backdrop-blur-md" />
+      <aside className="relative z-10 w-full max-w-3xl overflow-hidden rounded-[2.25rem] border border-[#f3c56b]/30 bg-[#fffaf1] shadow-2xl shadow-black/35">
+        <div className="relative overflow-hidden bg-[#24170d] p-5 text-[#fff4df] sm:p-6">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_10%,rgba(243,197,107,0.34),transparent_34%),radial-gradient(circle_at_88%_0%,rgba(125,223,211,0.22),transparent_30%),linear-gradient(135deg,#24170d_0%,#3d2a18_55%,#0f3f3b_100%)]" />
+          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full border border-[#f3c56b]/20" />
+          <div className="relative flex items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/25 bg-[#f3c56b]/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#f3c56b]">
+                <Sparkles className="h-3.5 w-3.5" /> Reschedule
+              </span>
+              <h2 id="transfer-date-title" className="mt-3 text-2xl font-black tracking-[-0.035em] sm:text-3xl">Cập nhật ngày chuyển phòng</h2>
+            </div>
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60" aria-label="Đóng đổi ngày chuyển phòng">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-5 p-5 sm:p-6">
+          {errorMessage && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
+
+          <section className="grid gap-3 sm:grid-cols-3">
+            <DetailTile label="Mã chuyển" value={movement.transfer_code || '—'} />
+            <DetailTile label="Khách thuê" value={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`} />
+            <DetailTile label="Trạng thái" value={<StatusBadge movement={movement} />} />
+          </section>
+
+          <section className="relative overflow-hidden rounded-[1.75rem] border border-[#3d2a18]/10 bg-white/70 p-4 shadow-sm">
+            <div className="pointer-events-none absolute inset-y-4 left-1/2 hidden w-px bg-gradient-to-b from-transparent via-[#f3c56b]/55 to-transparent sm:block" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <DatePreviewCard label="Ngày hiện tại" value={currentDate || '—'} tone="muted" icon={<Clock3 className="h-4 w-4" />} />
+              <DatePreviewCard label="Ngày mới" value={movementDate || 'Chưa chọn'} tone={hasChanged ? 'active' : 'muted'} icon={<CalendarPlus2 className="h-4 w-4" />} />
+            </div>
+          </section>
+
+          <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">Ngày chuyển mới</span>
+              <AdminDateInput value={movementDate} onChange={onDateChange} placeholder="Chọn ngày chuyển" className={cn(inputClass, 'mt-2 bg-white')} />
+            </label>
+
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/70">Ghi chú đổi lịch</span>
+              <textarea value={note} onChange={(event) => onNoteChange(event.target.value)} maxLength={500} rows={5} className="mt-2 w-full resize-none rounded-2xl border border-[#3d2a18]/10 bg-white px-4 py-3 text-sm font-bold text-[#24170d] outline-none transition placeholder:text-[#8b5e34]/45 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" placeholder="Ví dụ: Khách xin dời lịch, đợi hoàn tất điện nước phòng cũ..." />
+            </label>
+          </div>
+
+
+
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-[#3d2a18]/10 bg-white px-5 text-sm font-black text-[#6f6254] transition hover:bg-[#fff4df] disabled:cursor-not-allowed disabled:opacity-60">Hủy</button>
+            <button type="button" onClick={onConfirm} disabled={isSubmitting || !hasChanged} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-5 text-sm font-black text-[#fff4df] shadow-lg shadow-[#24170d]/15 transition hover:-translate-y-0.5 hover:bg-[#3d2a18] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-60">
+              {isSubmitting ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <CalendarPlus2 className="h-4.5 w-4.5 text-[#f3c56b]" />}
+              Lưu ngày chuyển mới
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function DatePreviewCard({ label, value, tone, icon }: { label: string; value: string; tone: 'active' | 'muted'; icon: ReactNode }) {
+  return (
+    <div className={cn('rounded-[1.35rem] border p-4 transition', tone === 'active' ? 'border-[#0f766e]/25 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#fffaf1] text-[#6f6254]')}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{label}</p>
+        <span className={cn('flex h-9 w-9 items-center justify-center rounded-2xl', tone === 'active' ? 'bg-[#0f766e] text-white' : 'bg-[#3d2a18]/8 text-[#8b5e34]')}>{icon}</span>
+      </div>
+      <p className="mt-3 text-2xl font-black tabular-nums tracking-[-0.03em] text-[#24170d]">{value}</p>
     </div>
   )
 }

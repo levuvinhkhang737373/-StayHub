@@ -1,0 +1,55 @@
+@startuml StayHub_Admin_Web_04_DichVu_DienNuoc
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFF8E7
+  BorderColor #7C5C20
+  ArrowColor #7C5C20
+}
+
+actor "Quản trị tổng" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+actor "AI Service" as AI
+
+rectangle "Dịch vụ & điện nước" {
+  usecase "CRUD dịch vụ" as Services
+  usecase "Đổi trạng thái dịch vụ" as ServiceStatus
+  usecase "CRUD đồng hồ điện/nước" as Meters
+  usecase "Đổi trạng thái đồng hồ" as MeterStatus
+  usecase "Khởi tạo dữ liệu chốt điện/nước" as MeterInit
+  usecase "Lưu chỉ số điện/nước" as SaveReading
+  usecase "Phân tích ảnh công tơ" as AnalyzeMeter
+  usecase "Sinh hóa đơn hàng loạt theo tòa nhà" as BulkInvoice
+  usecase "Cập nhật giá điện/nước" as UtilityPrices
+  usecase "Xem lịch sử giá điện/nước" as UtilityHistory
+}
+
+SuperAdmin -- Services
+SuperAdmin -- ServiceStatus
+SuperAdmin -- Meters
+SuperAdmin -- MeterStatus
+SuperAdmin -- MeterInit
+SuperAdmin -- SaveReading
+SuperAdmin -- AnalyzeMeter
+SuperAdmin -- BulkInvoice
+SuperAdmin -- UtilityPrices
+SuperAdmin -- UtilityHistory
+
+BuildingManager -- Meters
+BuildingManager -- MeterStatus
+BuildingManager -- MeterInit
+BuildingManager -- SaveReading
+BuildingManager -- AnalyzeMeter
+BuildingManager -- BulkInvoice
+BuildingManager -- UtilityPrices
+BuildingManager -- UtilityHistory
+
+ServiceStatus ..> Services : <<extend>>
+MeterStatus ..> Meters : <<extend>>
+SaveReading ..> MeterInit : <<include>>
+AnalyzeMeter ..> SaveReading : <<extend>>
+AnalyzeMeter ..> AI : <<include>>
+BulkInvoice ..> SaveReading : <<extend>>
+UtilityHistory ..> UtilityPrices : <<include>>
+@enduml

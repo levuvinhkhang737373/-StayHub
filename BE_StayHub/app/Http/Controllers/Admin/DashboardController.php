@@ -828,9 +828,9 @@ class DashboardController extends Controller
                     });
             })
             ->orderByDesc('due_date')
-            ->limit(6)
             ->get()
             ->filter(fn (Invoice $invoice): bool => DecimalMoney::isPositive($this->debtRolloverService->collectibleRemainingAmount($invoice)))
+            ->take(6)
             ->each(function (Invoice $invoice) use ($activities): void {
                 $activities->push([
                     'type' => 'invoice',

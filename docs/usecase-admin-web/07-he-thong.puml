@@ -1,0 +1,39 @@
+@startuml StayHub_Admin_Web_07_HeThong
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFF8E7
+  BorderColor #7C5C20
+  ArrowColor #7C5C20
+}
+
+actor "Quản trị tổng" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+
+rectangle "Hệ thống" {
+  usecase "CRUD tài khoản admin" as AdminAccounts
+  usecase "Đổi trạng thái tài khoản admin" as AdminAccountStatus
+  usecase "Xem danh sách nhật ký admin" as AdminLogs
+  usecase "Xem chi tiết nhật ký admin" as AdminLogDetail
+  usecase "CRUD cài đặt" as Settings
+  usecase "Bật/tắt công khai cài đặt" as SettingPublic
+  usecase "Xem dashboard tổng quan" as Dashboard
+}
+
+SuperAdmin -- AdminAccounts
+SuperAdmin -- AdminAccountStatus
+SuperAdmin -- AdminLogs
+SuperAdmin -- AdminLogDetail
+SuperAdmin -- Settings
+SuperAdmin -- SettingPublic
+SuperAdmin -- Dashboard
+
+BuildingManager -- Settings
+BuildingManager -- SettingPublic
+BuildingManager -- Dashboard
+
+AdminAccountStatus ..> AdminAccounts : <<extend>>
+AdminLogDetail ..> AdminLogs : <<include>>
+SettingPublic ..> Settings : <<extend>>
+@enduml

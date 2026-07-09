@@ -1,0 +1,51 @@
+@startuml UC_12_HoaDon_ThanhToan
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+actor "SePay" as SePay
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Quản lí hóa đơn & thanh toán" as Main
+  usecase "Xem danh sách hóa đơn" as ListInvoices
+  usecase "Xem chi tiết hóa đơn" as ViewInvoice
+  usecase "Xem trước hóa đơn" as PreviewInvoice
+  usecase "Tạo hóa đơn" as GenerateInvoice
+  usecase "Cập nhật/phát hành lại hóa đơn" as UpdateInvoice
+  usecase "Ghi nhận thanh toán" as RecordPayment
+  usecase "Xác nhận thanh toán" as ConfirmPayment
+  usecase "Hủy hóa đơn" as CancelInvoice
+  usecase "Xem lịch sử thanh toán" as PaymentHistory
+  usecase "Nhận webhook SePay" as SePayWebhook
+  usecase "Tự động cập nhật thanh toán" as AutoPayment
+}
+
+ListInvoices ..> Main : <<extend>>
+ViewInvoice ..> Main : <<extend>>
+PreviewInvoice ..> Main : <<extend>>
+GenerateInvoice ..> Main : <<extend>>
+UpdateInvoice ..> Main : <<extend>>
+RecordPayment ..> Main : <<extend>>
+ConfirmPayment ..> Main : <<extend>>
+CancelInvoice ..> Main : <<extend>>
+PaymentHistory ..> Main : <<extend>>
+SePayWebhook ..> Main : <<extend>>
+AutoPayment ..> Main : <<extend>>
+SuperAdmin -- Main
+BuildingManager -- Main
+SePay -- Main
+SePayWebhook ..> AutoPayment : <<include>>
+@enduml

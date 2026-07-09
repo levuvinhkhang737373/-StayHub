@@ -1,0 +1,45 @@
+@startuml UC_01_XacThuc_Admin
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+actor "AI Service" as AI
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Quản lí xác thực admin" as Main
+  usecase "Đăng nhập bằng tài khoản" as Login
+  usecase "Đăng nhập bằng FaceID" as FaceLogin
+  usecase "Xem thông tin phiên đăng nhập" as Me
+  usecase "Đăng ký FaceID" as RegisterFace
+  usecase "Xóa FaceID" as DeleteFace
+  usecase "Đổi mật khẩu" as ChangePassword
+  usecase "Cập nhật hồ sơ" as UpdateProfile
+  usecase "Đăng xuất" as Logout
+}
+
+Login ..> Main : <<extend>>
+FaceLogin ..> Main : <<extend>>
+Me ..> Main : <<extend>>
+RegisterFace ..> Main : <<extend>>
+DeleteFace ..> Main : <<extend>>
+ChangePassword ..> Main : <<extend>>
+UpdateProfile ..> Main : <<extend>>
+Logout ..> Main : <<extend>>
+SuperAdmin -- Main
+BuildingManager -- Main
+FaceLogin ..> AI : <<include>>
+RegisterFace ..> AI : <<include>>
+@enduml

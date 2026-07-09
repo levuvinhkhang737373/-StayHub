@@ -1,0 +1,38 @@
+@startuml UC_22_CaiDat
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Quản lí cài đặt" as Main
+  usecase "Xem danh sách cài đặt" as ListSettings
+  usecase "Xem chi tiết cài đặt" as ViewSetting
+  usecase "Thêm cài đặt" as AddSetting
+  usecase "Sửa cài đặt" as EditSetting
+  usecase "Xóa cài đặt" as DeleteSetting
+  usecase "Bật/tắt công khai cài đặt" as TogglePublic
+}
+
+ListSettings ..> Main : <<extend>>
+ViewSetting ..> Main : <<extend>>
+AddSetting ..> Main : <<extend>>
+EditSetting ..> Main : <<extend>>
+DeleteSetting ..> Main : <<extend>>
+TogglePublic ..> Main : <<extend>>
+SuperAdmin -- Main
+BuildingManager -- Main
+@enduml

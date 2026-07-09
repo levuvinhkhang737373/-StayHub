@@ -384,6 +384,168 @@ class DashboardControllerTest extends TestCase
         $this->assertEquals($this->building->id, $response->json('result.filters.buildings.0.id'));
     }
 
+    public function test_dashboard_recent_debt_activity_excludes_fully_rolled_source_invoice(): void
+    {
+        Carbon::setTestNow('2026-06-20 10:00:00');
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-DASH-ACTIVITY-DEBT',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-05-01',
+            'end_date' => '2026-12-01',
+            'room_price' => 5000000.00,
+            'deposit_amount' => 5000000.00,
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $mayInvoice = Invoice::create([
+            'room_id' => $this->room->id,
+            'contract_id' => $contract->id,
+            'invoice_code' => 'DASH-ACTIVITY-05',
+            'billing_month' => 5,
+            'billing_year' => 2026,
+            'period_start' => '2026-05-01',
+            'period_end' => '2026-05-31',
+            'previous_debt_amount' => 0.00,
+            'total_amount' => 1000000.00,
+            'paid_amount' => 0.00,
+            'remaining_amount' => 1000000.00,
+            'status' => Invoice::STATUS_OVERDUE,
+            'due_date' => '2026-05-10',
+        ]);
+
+        $juneInvoice = Invoice::create([
+            'room_id' => $this->room->id,
+            'contract_id' => $contract->id,
+            'invoice_code' => 'DASH-ACTIVITY-06',
+            'billing_month' => 6,
+            'billing_year' => 2026,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'previous_debt_amount' => 1000000.00,
+            'total_amount' => 3000000.00,
+            'paid_amount' => 0.00,
+            'remaining_amount' => 3000000.00,
+            'status' => Invoice::STATUS_UNPAID,
+            'due_date' => '2026-06-10',
+        ]);
+
+        InvoiceDebtRollover::create([
+            'source_invoice_id' => $mayInvoice->id,
+            'target_invoice_id' => $juneInvoice->id,
+            'amount' => 1000000.00,
+            'settled_amount' => 0.00,
+            'status' => InvoiceDebtRollover::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/dashboard/overview?year=2026&month_from=6&month_to=6');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+
+        $invoiceActivities = collect($response->json('result.recent_activities'))
+            ->where('type', 'invoice')
+            ->values();
+
+        $this->assertCount(1, $invoiceActivities);
+        $this->assertStringContainsString('DASH-ACTIVITY-06', $invoiceActivities->first()['title']);
+        $this->assertEquals(3000000.00, (float) $response->json('result.kpis.outstanding_debt.value'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_dashboard_recent_debt_activity_still_shows_collectible_invoice_after_many_rolled_sources(): void
+    {
+        Carbon::setTestNow('2026-07-20 10:00:00');
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-DASH-ACTIVITY-LIMIT',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-05-01',
+            'end_date' => '2026-12-01',
+            'room_price' => 5000000.00,
+            'deposit_amount' => 5000000.00,
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        for ($index = 1; $index <= 6; $index++) {
+            $sourceInvoice = Invoice::create([
+                'room_id' => $this->room->id,
+                'contract_id' => $contract->id,
+                'invoice_code' => sprintf('DASH-ROLLED-SRC-%02d', $index),
+                'billing_month' => 5,
+                'billing_year' => 2026,
+                'period_start' => '2026-05-01',
+                'period_end' => '2026-05-31',
+                'previous_debt_amount' => 0.00,
+                'total_amount' => 1000000.00,
+                'paid_amount' => 0.00,
+                'remaining_amount' => 1000000.00,
+                'status' => Invoice::STATUS_OVERDUE,
+                'due_date' => Carbon::create(2026, 7, 10 + $index)->toDateString(),
+            ]);
+
+            $targetInvoice = Invoice::create([
+                'room_id' => $this->room->id,
+                'contract_id' => $contract->id,
+                'invoice_code' => sprintf('DASH-ROLLED-TGT-%02d', $index),
+                'billing_month' => 7,
+                'billing_year' => 2026,
+                'period_start' => '2026-07-01',
+                'period_end' => '2026-07-31',
+                'previous_debt_amount' => 1000000.00,
+                'total_amount' => 1000000.00,
+                'paid_amount' => 0.00,
+                'remaining_amount' => 1000000.00,
+                'status' => Invoice::STATUS_UNPAID,
+                'due_date' => '2026-08-10',
+            ]);
+
+            InvoiceDebtRollover::create([
+                'source_invoice_id' => $sourceInvoice->id,
+                'target_invoice_id' => $targetInvoice->id,
+                'amount' => 1000000.00,
+                'settled_amount' => 0.00,
+                'status' => InvoiceDebtRollover::STATUS_ACTIVE,
+            ]);
+        }
+
+        Invoice::create([
+            'room_id' => $this->room->id,
+            'contract_id' => $contract->id,
+            'invoice_code' => 'DASH-COLLECTIBLE-AFTER-ROLLED',
+            'billing_month' => 6,
+            'billing_year' => 2026,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'previous_debt_amount' => 0.00,
+            'total_amount' => 2000000.00,
+            'paid_amount' => 0.00,
+            'remaining_amount' => 2000000.00,
+            'status' => Invoice::STATUS_OVERDUE,
+            'due_date' => '2026-06-01',
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/dashboard/overview?year=2026&month_from=7&month_to=7');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+
+        $invoiceActivities = collect($response->json('result.recent_activities'))
+            ->where('type', 'invoice')
+            ->values();
+
+        $this->assertTrue(
+            $invoiceActivities->contains(fn (array $activity): bool => str_contains($activity['title'], 'DASH-COLLECTIBLE-AFTER-ROLLED'))
+        );
+
+        Carbon::setTestNow();
+    }
+
     public function test_superadmin_can_access_price_history_without_building_id(): void
     {
         // Seed some initial service prices

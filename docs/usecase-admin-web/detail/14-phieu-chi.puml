@@ -1,0 +1,38 @@
+@startuml UC_14_PhieuChi
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Quản lí phiếu chi" as Main
+  usecase "Xem danh sách phiếu chi" as ListExpenses
+  usecase "Xem chi tiết phiếu chi" as ViewExpense
+  usecase "Thêm phiếu chi" as AddExpense
+  usecase "Sửa phiếu chi" as EditExpense
+  usecase "Hủy phiếu chi" as CancelExpense
+  usecase "Tìm kiếm/lọc phiếu chi" as FilterExpense
+}
+
+ListExpenses ..> Main : <<extend>>
+ViewExpense ..> Main : <<extend>>
+AddExpense ..> Main : <<extend>>
+EditExpense ..> Main : <<extend>>
+CancelExpense ..> Main : <<extend>>
+FilterExpense ..> Main : <<extend>>
+SuperAdmin -- Main
+BuildingManager -- Main
+@enduml

@@ -1,0 +1,42 @@
+@startuml UC_03_LoaiPhong_MauTaiSan
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Quản lí loại phòng & mẫu tài sản" as Main
+  usecase "Thêm loại phòng" as AddRoomType
+  usecase "Sửa loại phòng" as EditRoomType
+  usecase "Xóa loại phòng" as DeleteRoomType
+  usecase "Chuyển trạng thái loại phòng" as RoomTypeStatus
+  usecase "Thêm mẫu tài sản" as AddAsset
+  usecase "Sửa mẫu tài sản" as EditAsset
+  usecase "Xóa mẫu tài sản" as DeleteAsset
+  usecase "Chuyển trạng thái mẫu tài sản" as AssetStatus
+  usecase "Xem chi tiết mẫu tài sản" as ViewAsset
+}
+
+AddRoomType ..> Main : <<extend>>
+EditRoomType ..> Main : <<extend>>
+DeleteRoomType ..> Main : <<extend>>
+RoomTypeStatus ..> Main : <<extend>>
+AddAsset ..> Main : <<extend>>
+EditAsset ..> Main : <<extend>>
+DeleteAsset ..> Main : <<extend>>
+AssetStatus ..> Main : <<extend>>
+ViewAsset ..> Main : <<extend>>
+SuperAdmin -- Main
+@enduml

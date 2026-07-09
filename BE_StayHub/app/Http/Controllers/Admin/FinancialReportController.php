@@ -269,10 +269,31 @@ class FinancialReportController extends Controller
             ->with(['invoice.items'])
             ->get();
 
+        $rolledDebtCollections = $payments->isEmpty()
+            ? collect()
+            : Payment::query()
+                ->whereIn('allocated_from_payment_id', $payments->pluck('id'))
+                ->where('is_internal_allocation', true)
+                ->where('status', Payment::STATUS_CONFIRMED)
+                ->select('allocated_from_payment_id', DB::raw('SUM(amount) as amount'))
+                ->groupBy('allocated_from_payment_id')
+                ->pluck('amount', 'allocated_from_payment_id');
+
         $itemRevenueMap = [];
         foreach ($payments as $payment) {
             $invoice = $payment->invoice;
             if (! $invoice) {
+                continue;
+            }
+
+            $paymentAmount = (float) $payment->amount;
+            $rolledDebtAmount = min($paymentAmount, max(0.0, (float) ($rolledDebtCollections[(int) $payment->id] ?? 0)));
+            if ($rolledDebtAmount > 0) {
+                $itemRevenueMap['Thu nợ cũ'] = ($itemRevenueMap['Thu nợ cũ'] ?? 0.0) + $rolledDebtAmount;
+            }
+
+            $currentItemPaymentAmount = max(0.0, $paymentAmount - $rolledDebtAmount);
+            if ($currentItemPaymentAmount <= 0) {
                 continue;
             }
 
@@ -281,8 +302,8 @@ class FinancialReportController extends Controller
                 continue;
             }
 
-            $paymentAmount = min((float) $payment->amount, $netInvoiceAmount);
-            $ratio = $paymentAmount / $netInvoiceAmount;
+            $currentItemPaymentAmount = min($currentItemPaymentAmount, $netInvoiceAmount);
+            $ratio = $currentItemPaymentAmount / $netInvoiceAmount;
 
             foreach ($invoice->items as $item) {
                 if ((int) $item->item_type === InvoiceItem::ITEM_TYPE_OLD_DEBT) {
@@ -310,6 +331,7 @@ class FinancialReportController extends Controller
         $itemLabels = InvoiceItem::ITEM_TYPE_LABELS + [
             'Khấu trừ cọc' => 'Khấu trừ cọc',
             'Phí chuyển phòng' => 'Phí chuyển phòng',
+            'Thu nợ cũ' => 'Thu nợ cũ',
         ];
 
         $revenueBreakdown = [];

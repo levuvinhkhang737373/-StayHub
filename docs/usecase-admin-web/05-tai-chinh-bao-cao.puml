@@ -1,0 +1,77 @@
+@startuml StayHub_Admin_Web_05_TaiChinh_BaoCao
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFF8E7
+  BorderColor #7C5C20
+  ArrowColor #7C5C20
+}
+
+actor "Quản trị tổng" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+actor "SePay" as SePay
+
+rectangle "Tài chính & báo cáo" {
+  usecase "Xem/tìm hóa đơn" as InvoiceList
+  usecase "Xem chi tiết hóa đơn" as InvoiceDetail
+  usecase "Tạo hóa đơn" as GenerateInvoice
+  usecase "Xem trước hóa đơn" as PreviewInvoice
+  usecase "Cập nhật/phát hành lại hóa đơn" as UpdateInvoice
+  usecase "Ghi nhận thanh toán" as RecordPayment
+  usecase "Xác nhận thanh toán" as ConfirmPayment
+  usecase "Hủy hóa đơn" as CancelInvoice
+  usecase "Xem lịch sử thanh toán" as PaymentHistory
+  usecase "Xem công nợ" as Debts
+  usecase "CRUD phiếu chi" as Expenses
+  usecase "Hủy phiếu chi" as CancelExpense
+  usecase "CRUD danh mục phiếu chi" as ExpenseCategories
+  usecase "Đổi trạng thái danh mục phiếu chi" as ExpenseCategoryStatus
+  usecase "Xem báo cáo lợi nhuận" as FinancialReport
+  usecase "Webhook thanh toán SePay" as SePayWebhook
+  usecase "Tự động cập nhật thanh toán" as AutoPaymentUpdate
+}
+
+SuperAdmin -- InvoiceList
+SuperAdmin -- InvoiceDetail
+SuperAdmin -- GenerateInvoice
+SuperAdmin -- PreviewInvoice
+SuperAdmin -- UpdateInvoice
+SuperAdmin -- RecordPayment
+SuperAdmin -- ConfirmPayment
+SuperAdmin -- CancelInvoice
+SuperAdmin -- PaymentHistory
+SuperAdmin -- Debts
+SuperAdmin -- Expenses
+SuperAdmin -- CancelExpense
+SuperAdmin -- ExpenseCategories
+SuperAdmin -- ExpenseCategoryStatus
+SuperAdmin -- FinancialReport
+
+BuildingManager -- InvoiceList
+BuildingManager -- InvoiceDetail
+BuildingManager -- GenerateInvoice
+BuildingManager -- PreviewInvoice
+BuildingManager -- UpdateInvoice
+BuildingManager -- RecordPayment
+BuildingManager -- ConfirmPayment
+BuildingManager -- CancelInvoice
+BuildingManager -- PaymentHistory
+BuildingManager -- Debts
+BuildingManager -- Expenses
+BuildingManager -- CancelExpense
+BuildingManager -- ExpenseCategories
+BuildingManager -- FinancialReport
+
+SePay -- SePayWebhook
+InvoiceDetail ..> InvoiceList : <<include>>
+PreviewInvoice ..> GenerateInvoice : <<extend>>
+UpdateInvoice ..> InvoiceDetail : <<extend>>
+RecordPayment ..> InvoiceDetail : <<extend>>
+ConfirmPayment ..> RecordPayment : <<extend>>
+CancelInvoice ..> InvoiceDetail : <<extend>>
+CancelExpense ..> Expenses : <<extend>>
+ExpenseCategoryStatus ..> ExpenseCategories : <<extend>>
+SePayWebhook ..> AutoPaymentUpdate : <<include>>
+AutoPaymentUpdate ..> ConfirmPayment : <<include>>
+@enduml

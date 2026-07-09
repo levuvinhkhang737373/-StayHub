@@ -1,0 +1,71 @@
+@startuml StayHub_Admin_Web_06_VanHanh
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFF8E7
+  BorderColor #7C5C20
+  ArrowColor #7C5C20
+}
+
+actor "Quản trị tổng" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+
+rectangle "Vận hành" {
+  usecase "Xem danh sách bảo trì" as MaintenanceList
+  usecase "Xem chi tiết bảo trì" as MaintenanceDetail
+  usecase "Cập nhật trạng thái bảo trì" as UpdateMaintenanceStatus
+  usecase "CRUD thông báo" as Notifications
+  usecase "Đánh dấu một thông báo đã đọc" as ReadNotification
+  usecase "Đánh dấu tất cả thông báo đã đọc" as ReadAllNotifications
+  usecase "Xem cuộc trò chuyện khách thuê" as TenantChatList
+  usecase "Xem tin nhắn khách thuê" as TenantChatMessages
+  usecase "Gửi tin nhắn cho khách thuê" as SendTenantMessage
+  usecase "Đánh dấu chat khách thuê đã đọc" as ReadTenantChat
+  usecase "Xem cuộc trò chuyện nội bộ admin" as DirectChatList
+  usecase "Xem tin nhắn nội bộ admin" as DirectChatMessages
+  usecase "Gửi tin nhắn nội bộ admin" as SendDirectMessage
+  usecase "Đánh dấu chat nội bộ đã đọc" as ReadDirectChat
+}
+
+SuperAdmin -- MaintenanceList
+SuperAdmin -- MaintenanceDetail
+SuperAdmin -- UpdateMaintenanceStatus
+SuperAdmin -- Notifications
+SuperAdmin -- ReadNotification
+SuperAdmin -- ReadAllNotifications
+SuperAdmin -- TenantChatList
+SuperAdmin -- TenantChatMessages
+SuperAdmin -- SendTenantMessage
+SuperAdmin -- ReadTenantChat
+SuperAdmin -- DirectChatList
+SuperAdmin -- DirectChatMessages
+SuperAdmin -- SendDirectMessage
+SuperAdmin -- ReadDirectChat
+
+BuildingManager -- MaintenanceList
+BuildingManager -- MaintenanceDetail
+BuildingManager -- UpdateMaintenanceStatus
+BuildingManager -- Notifications
+BuildingManager -- ReadNotification
+BuildingManager -- ReadAllNotifications
+BuildingManager -- TenantChatList
+BuildingManager -- TenantChatMessages
+BuildingManager -- SendTenantMessage
+BuildingManager -- ReadTenantChat
+BuildingManager -- DirectChatList
+BuildingManager -- DirectChatMessages
+BuildingManager -- SendDirectMessage
+BuildingManager -- ReadDirectChat
+
+MaintenanceDetail ..> MaintenanceList : <<include>>
+UpdateMaintenanceStatus ..> MaintenanceDetail : <<extend>>
+ReadNotification ..> Notifications : <<extend>>
+ReadAllNotifications ..> Notifications : <<extend>>
+TenantChatMessages ..> TenantChatList : <<include>>
+SendTenantMessage ..> TenantChatMessages : <<extend>>
+ReadTenantChat ..> TenantChatMessages : <<extend>>
+DirectChatMessages ..> DirectChatList : <<include>>
+SendDirectMessage ..> DirectChatMessages : <<extend>>
+ReadDirectChat ..> DirectChatMessages : <<extend>>
+@enduml

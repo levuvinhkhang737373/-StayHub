@@ -1,0 +1,40 @@
+@startuml UC_07_ChotChiSo_HoaDonHangLoat
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  ArrowColor #222222
+  FontSize 13
+}
+skinparam rectangle {
+  BorderColor #222222
+  BackgroundColor white
+}
+
+actor "Super admin" as SuperAdmin
+actor "Quản lý tòa nhà" as BuildingManager
+actor "AI Service" as AI
+
+rectangle "Hệ thống StayHub Admin Web" {
+  usecase "Chốt điện nước & sinh hóa đơn hàng loạt" as Main
+  usecase "Khởi tạo dữ liệu chốt chỉ số" as InitReading
+  usecase "Phân tích ảnh công tơ" as AnalyzeImage
+  usecase "Lưu chỉ số điện/nước" as SaveReading
+  usecase "Cập nhật giá điện/nước" as UpdatePrices
+  usecase "Xem lịch sử giá điện/nước" as ViewPriceHistory
+  usecase "Sinh hóa đơn hàng loạt theo tòa nhà" as BulkGenerate
+}
+
+InitReading ..> Main : <<extend>>
+AnalyzeImage ..> Main : <<extend>>
+SaveReading ..> Main : <<extend>>
+UpdatePrices ..> Main : <<extend>>
+ViewPriceHistory ..> Main : <<extend>>
+BulkGenerate ..> Main : <<extend>>
+SuperAdmin -- Main
+BuildingManager -- Main
+AnalyzeImage ..> AI : <<include>>
+@enduml
