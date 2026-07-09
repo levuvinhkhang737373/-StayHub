@@ -105,15 +105,43 @@ class _TenantsScreenState extends State<TenantsScreen> {
               _buildBottomSheetRow(Icons.meeting_room_outlined, 'Phòng:', tenant.roomNumber != null ? 'Phòng ${tenant.roomNumber}' : 'Chưa có phòng'),
               _buildBottomSheetRow(Icons.business_outlined, 'Tòa nhà:', tenant.buildingName ?? 'Chưa cấu hình'),
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEAB308),
-                  foregroundColor: const Color(0xFF1C1917),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('ĐÓNG', style: TextStyle(fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(
+                          context,
+                          '/admin/create-tenant',
+                          arguments: tenant,
+                        ).then((_) {
+                          context.read<TenantController>().fetchTenants();
+                        });
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFEAB308),
+                        side: const BorderSide(color: Color(0xFFEAB308)),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('CHỈNH SỬA', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEAB308),
+                        foregroundColor: const Color(0xFF1C1917),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('ĐÓNG', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -262,6 +290,17 @@ class _TenantsScreenState extends State<TenantsScreen> {
             ],
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.pushNamed(context, '/admin/create-tenant').then((_) {
+            context.read<TenantController>().fetchTenants();
+          });
+        },
+        backgroundColor: const Color(0xFFEAB308),
+        foregroundColor: const Color(0xFF1C1917),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.add, size: 28),
       ),
     );
   }

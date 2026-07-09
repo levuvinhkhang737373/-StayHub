@@ -1,0 +1,72 @@
+@startuml
+|Admin|
+
+start
+
+:Đăng nhập hệ thống;
+:Chọn chức năng "Tạo tòa nhà";
+:Nhập thông tin tòa nhà\n(Tên, địa chỉ, số tầng, chính sách giới tính);
+:Tải lên hình ảnh tòa nhà;
+:Gửi yêu cầu tạo tòa nhà;
+
+|Hệ thống|
+
+:Kiểm tra vai trò người tạo;
+
+if (Là Super Admin?) then (Không)
+  :Thông báo lỗi 403 (Chỉ super admin mới được tạo);
+  stop
+else (Có)
+endif
+
+:Xác thực dữ liệu đầu vào (RegisterRequest);
+
+if (Dữ liệu hợp lệ?) then (Không)
+  :Thông báo lỗi Validation;
+  stop
+else (Có)
+endif
+
+:Tạo bản ghi tòa nhà trong CSDL;
+:Lưu trữ hình ảnh vào Storage;
+:Đồng bộ cấu hình ban đầu;
+:Trả về thông tin chi tiết tòa nhà;
+
+|Admin|
+
+:Nhận thông báo "Tạo tòa nhà thành công";
+:Chọn chức năng "Cấu hình đơn giá dịch vụ";
+:Chọn Tòa nhà cần cấu hình;
+:Nhập đơn giá Điện (electric_price);
+:Nhập đơn giá Nước (water_price);
+:Chọn Tháng & Năm áp dụng (billing_month/year);
+:Gửi yêu cầu cập nhật đơn giá dịch vụ;
+
+|Hệ thống|
+
+:Kiểm tra quyền truy cập tòa nhà;
+
+if (Có quyền quản lý tòa nhà?) then (Không)
+  :Thông báo lỗi 403 (Không có quyền quản lý);
+  stop
+else (Có)
+endif
+
+:Kiểm tra thời điểm áp dụng;
+
+if (Tháng/Năm áp dụng ở quá khứ?) then (Đúng)
+  :Thông báo lỗi 422:\n"Không thể thay đổi đơn giá cho tháng cũ.";
+  stop
+else (Không)
+endif
+
+:Truy vấn Service ID cho dịch vụ Điện & Nước;
+:Lập lịch áp dụng từ ngày đầu tiên của tháng đã chọn;
+:Cập nhật/Thêm mới đơn giá vào bảng `service_prices`;
+
+|Admin|
+
+:Nhận thông báo "Cấu hình giá dịch vụ thành công!";
+
+stop
+@endum

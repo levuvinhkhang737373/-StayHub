@@ -12,6 +12,7 @@ import '../../controllers/chat_controller.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import '../settings/settings_screen.dart';
+import '../admin/admin_realtime_chat_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -24,7 +25,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
   StreamSubscription? _debugSubscription;
   StreamSubscription? _wsAdminEventsSubscription;
-  final Set<String> _readNotificationKeys = {};
+
 
   @override
   void initState() {
@@ -35,6 +36,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<ContractController>().fetchContracts('admin');
       context.read<NotificationController>().fetchNotifications(isAdmin: true);
       context.read<RoomController>().fetchRooms();
+      context.read<ChatController>().fetchAdminTenantConversations();
+      context.read<ChatController>().fetchAdminDirectConversations();
 
       final wsService = context.read<WebSocketService>();
       final currentAdmin = context.read<AuthController>().currentAdmin;
@@ -284,146 +287,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  Widget _buildNotificationsTab(List<Map<String, dynamic>> items) {
-    return RefreshIndicator(
-      color: const Color(0xFF1C1917),
-      onRefresh: () => context
-          .read<NotificationController>()
-          .fetchNotifications(isAdmin: true),
-      child: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: GridPainter())),
-          items.isEmpty
-              ? const Center(
-                  child: SingleChildScrollView(
-                    physics: AlwaysScrollableScrollPhysics(),
-                    child: SizedBox(
-                      height: 300,
-                      child: Center(
-                        child: Text(
-                          'Không có thông báo mới nào từ khách hàng.',
-                          style: TextStyle(color: Colors.grey, fontSize: 14),
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    final isRead = item['isRead'] as bool;
-                    return Card(
-                      color: isRead
-                          ? Colors.white
-                          : const Color(0xFFFFFBEB), // Highlight unread
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: isRead
-                              ? const Color(0xFFE4E2D7)
-                              : const Color(0xFFFDE68A),
-                          width: isRead ? 1.0 : 1.5,
-                        ),
-                      ),
-                      elevation: 0,
-                      child: InkWell(
-                        onTap: () {
-                          if (!isRead) {
-                            setState(() {
-                              _readNotificationKeys.add(item['key'] as String);
-                            });
-                          }
-                          if (item['type'] == 'request') {
-                            Navigator.pushNamed(context, '/admin/maintenance');
-                          } else if (item['type'] == 'invoice') {
-                            Navigator.pushNamed(context, '/admin/invoices');
-                          } else if (item['type'] == 'chat') {
-                            Navigator.pushNamed(
-                              context,
-                              '/admin/chat',
-                              arguments: item['tenant_id'],
-                            );
-                          } else {
-                            Navigator.pushNamed(context, '/admin/contracts');
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        isRead
-                                            ? Icons.campaign_outlined
-                                            : Icons.campaign_rounded,
-                                        color: isRead
-                                            ? Colors.grey
-                                            : const Color(0xFFEAB308),
-                                        size: 24,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      if (!isRead)
-                                        Container(
-                                          width: 8,
-                                          height: 8,
-                                          decoration: const BoxDecoration(
-                                            color: Colors.redAccent,
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  Text(
-                                    item['date'],
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                item['title'],
-                                style: TextStyle(
-                                  fontWeight: isRead
-                                      ? FontWeight.bold
-                                      : FontWeight.w900,
-                                  fontSize: 15,
-                                  color: const Color(0xFF1C1917),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                item['subtitle'],
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF44403C),
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ],
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -436,60 +300,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final admin = authController.currentAdmin;
 
-    // Filter notification items from database:
-    final List<Map<String, dynamic>> items = [];
 
-    for (final notif in notificationController.notifications) {
-      final key = 'db_notif_${notif.id}';
-      final isReadLocal = _readNotificationKeys.contains(key) || notif.isRead;
-
-      IconData icon = Icons.notifications_none_rounded;
-      Color color = Colors.blue;
-
-      if (notif.notificationType == 1) {
-        icon = Icons.handyman_outlined;
-        color = Colors.deepOrange;
-      } else if (notif.notificationType == 2) {
-        icon = Icons.receipt_long_outlined;
-        color = Colors.indigo;
-      } else if (notif.notificationType == 3) {
-        icon = Icons.campaign_rounded;
-        color = const Color(0xFFEAB308);
-      } else if (notif.notificationType == 4) {
-        icon = Icons.warning_amber_rounded;
-        color = Colors.redAccent;
-      } else if (notif.notificationType == 6) {
-        icon = Icons.chat_rounded;
-        color = Colors.teal;
-      }
-
-      // Format date
-      String displayDate = notif.createdAt;
-      try {
-        final parsed = DateTime.parse(notif.createdAt).toLocal();
-        displayDate =
-            '${parsed.hour.toString().padLeft(2, "0")}:${parsed.minute.toString().padLeft(2, "0")} ${parsed.day.toString().padLeft(2, "0")}/${parsed.month.toString().padLeft(2, "0")}/${parsed.year}';
-      } catch (_) {}
-
-      items.add({
-        'key': key,
-        'id': notif.id,
-        'type': notif.notificationType == 1
-            ? 'request'
-            : notif.notificationType == 2
-            ? 'invoice'
-            : notif.notificationType == 6
-            ? 'chat'
-            : 'system',
-        'title': notif.title,
-        'subtitle': notif.content,
-        'date': displayDate,
-        'icon': icon,
-        'color': color,
-        'isRead': isReadLocal,
-        'tenant_id': notif.tenantId,
-      });
-    }
 
     int notificationCount = notificationController.unreadCount;
 
@@ -706,14 +517,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 '/admin/room-transfer',
                               ),
                             ),
-                            _buildMenuCard(
-                              title: 'Đoạn chat',
-                              subtitle: 'Trả lời tenant realtime',
-                              icon: Icons.chat_bubble_rounded,
-                              color: Colors.green,
-                              onTap: () =>
-                                  Navigator.pushNamed(context, '/admin/chat'),
-                            ),
+
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -774,41 +578,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
         ],
       ),
-      // Tab 1: Settings Screen (embedded directly)
+      // Tab 1: Realtime Chat
+      const AdminChatScreen(isEmbedded: true),
+      // Tab 2: Settings Screen (embedded directly)
       const SettingsScreen(),
-      // Tab 2: Customer Notifications
-      _buildNotificationsTab(items),
     ];
+
+    final chatController = context.watch<ChatController>();
+    final int unreadChatCount = chatController.tenantConversations.fold(0, (sum, item) => sum + item.adminUnreadCount) +
+        chatController.directConversations.fold(0, (sum, item) => sum + item.adminUnreadCount);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
-      appBar: _currentIndex == 1
+      appBar: _currentIndex != 0
           ? null
           : AppBar(
               actions: [
-                if (_currentIndex == 2 && items.any((item) => !item['isRead']))
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        for (final item in items) {
-                          _readNotificationKeys.add(item['key'] as String);
-                        }
-                      });
-                    },
-                    icon: const Icon(
-                      Icons.done_all,
-                      color: Color(0xFFEAB308),
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Đọc tất cả',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                notificationCount > 0
+                    ? Badge(
+                        label: Text('$notificationCount'),
+                        backgroundColor: Colors.redAccent,
+                        textColor: Colors.white,
+                        child: IconButton(
+                          icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
+                          onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
+                        ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
+                        onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
                       ),
-                    ),
-                  ),
               ],
               title: Row(
                 children: [
@@ -818,11 +617,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     size: 24,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    _currentIndex == 0
-                        ? 'StayHub Command Center'
-                        : 'Thông báo từ khách',
-                    style: const TextStyle(
+                  const Text(
+                    'StayHub Command Center',
+                    style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
@@ -851,29 +648,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
             activeIcon: Icon(Icons.dashboard),
             label: 'Chức năng',
           ),
+          BottomNavigationBarItem(
+            icon: unreadChatCount > 0
+                ? Badge(
+                    label: Text('$unreadChatCount'),
+                    backgroundColor: Colors.redAccent,
+                    textColor: Colors.white,
+                    child: const Icon(Icons.chat_bubble_outline_rounded),
+                  )
+                : const Icon(Icons.chat_bubble_outline_rounded),
+            activeIcon: unreadChatCount > 0
+                ? Badge(
+                    label: Text('$unreadChatCount'),
+                    backgroundColor: Colors.redAccent,
+                    textColor: Colors.white,
+                    child: const Icon(Icons.chat_bubble_rounded),
+                  )
+                : const Icon(Icons.chat_bubble_rounded),
+            label: 'Đoạn chat',
+          ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
             label: 'Tài khoản',
-          ),
-          BottomNavigationBarItem(
-            icon: notificationCount > 0
-                ? Badge(
-                    label: Text('$notificationCount'),
-                    backgroundColor: Colors.redAccent,
-                    textColor: Colors.white,
-                    child: const Icon(Icons.notifications_outlined),
-                  )
-                : const Icon(Icons.notifications_outlined),
-            activeIcon: notificationCount > 0
-                ? Badge(
-                    label: Text('$notificationCount'),
-                    backgroundColor: Colors.redAccent,
-                    textColor: Colors.white,
-                    child: const Icon(Icons.notifications),
-                  )
-                : const Icon(Icons.notifications),
-            label: 'Thông báo',
           ),
         ],
       ),

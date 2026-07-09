@@ -1,0 +1,93 @@
+@startuml
+|Admin|
+
+start
+
+:Đăng nhập hệ thống;
+:Chọn chức năng "Ghi số điện nước";
+:Chọn Phòng & Thiết bị đo (Điện/Nước);
+:Nhập chỉ số mới (current_reading);
+note right
+  Có thể chụp ảnh đồng hồ để AI
+  tự động phân tích & đề xuất số đo
+end note
+:Nhập ngày ghi chỉ số & chọn Tháng/Năm thanh toán;
+:Gửi yêu cầu chốt chỉ số;
+
+|Hệ thống|
+
+:Kiểm tra quyền ghi chỉ số của Admin;
+if (Có quyền quản lý tòa nhà?) then (Không)
+  :Thông báo lỗi 403;
+  stop
+else (Có)
+endif
+
+:Kiểm tra tháng chốt chỉ số;
+if (Tháng chốt thuộc quá khứ (trừ ngày chuyển phòng)?) then (Có)
+  :Thông báo lỗi 422 (Không được chốt tháng cũ);
+  stop
+else (Không)
+endif
+
+:Truy vấn chỉ số cũ gần nhất;
+note right
+  Lấy chỉ số từ lần chốt trước đó
+  hoặc chỉ số ban đầu của thiết bị
+end note
+
+if (Chỉ số mới < Chỉ số cũ?) then (Có)
+  :Thông báo lỗi 422 (Chỉ số mới không được nhỏ hơn chỉ số cũ);
+  stop
+else (Không)
+endif
+
+:Tính toán lượng tiêu thụ (consumption = mới - cũ);
+:Lưu chỉ số chốt vào bảng `meter_readings` (Status: Confirmed);
+:Cập nhật chỉ số hiện tại của thiết bị trong bảng `meter_devices`;
+:Thông báo chốt số đồng hồ thành công;
+
+|Admin|
+
+:Chọn chức năng "Lập hóa đơn";
+:Chọn Hợp đồng/Phòng cần lập hóa đơn;
+:Chọn Tháng/Năm lập hóa đơn;
+:Nhập các khoản phụ thu/giảm trừ bổ sung (Tùy chọn);
+:Yêu cầu "Xem trước hóa đơn (Preview)";
+
+|Hệ thống|
+
+:Tính toán các khoản phí dự kiến:
+- Tiền phòng (Giá gốc hợp đồng)
+- Tiền điện/nước (Lấy từ lượng tiêu thụ đã chốt nhân đơn giá)
+- Phí dịch vụ cố định (Wifi, rác, vệ sinh...)
+- Phí gửi xe (Theo số lượng xe đã đăng ký)
+- Nợ cũ tồn đọng dồn sang (Debt Rollover);
+:Trả về bản xem trước (Preview) hóa đơn;
+
+|Admin|
+
+:Xác nhận thông tin xem trước;
+:Bấm "Lập và phát hành hóa đơn (Generate)";
+
+|Hệ thống|
+
+:Bắt đầu Database Transaction;
+:Tạo bản ghi hóa đơn mới trong bảng `invoices` (Status: Issued);
+:Sinh mã hóa đơn tự động (invoice_code);
+:Tạo chi tiết các mục hóa đơn trong bảng `invoice_items`;
+:Liên kết chỉ số điện nước đã chốt vào hóa đơn (Đóng dấu đã lập hóa đơn);
+:Cộng dồn nợ cũ vào bảng `invoice_debt_rollovers` (nếu có);
+:Ghi nhận hoạt động lập hóa đơn (AdminActivityLogger);
+:Commit Database Transaction;
+
+:Kích hoạt sự kiện InvoiceIssued:
+- Gửi tin nhắn thông báo đẩy (Push Notification) đến cư dân
+- Gửi email chi tiết hóa đơn kèm QR thanh toán cho cư dân;
+
+|Admin|
+
+:Nhận thông báo "Lập và phát hành hóa đơn thành công";
+
+stop
+@endum

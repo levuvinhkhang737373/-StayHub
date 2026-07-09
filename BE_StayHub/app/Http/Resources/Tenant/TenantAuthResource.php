@@ -31,7 +31,7 @@ class TenantAuthResource extends JsonResource
             'identity_number' => $this->identity_number,
             'identity_date' => $this->identity_date ? $this->identity_date->toDateString() : null,
             'identity_place' => $this->identity_place,
-            'avatar_url' => $this->avatar_url,
+            'avatar_url' => $this->avatar_url ? \App\Helpers\ImageHelper::temporaryUrlFromDisk($this->avatar_url) : null,
         ];
     }
 

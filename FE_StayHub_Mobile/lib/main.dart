@@ -15,6 +15,7 @@ import 'controllers/chat_controller.dart';
 import 'services/websocket_service.dart';
 import 'controllers/meter_reading_controller.dart';
 import 'services/api_service.dart';
+import 'models/tenant.dart';
 
 import 'views/auth/login_screen.dart';
 import 'views/auth/forgot_password_screen.dart';
@@ -24,6 +25,7 @@ import 'views/facilities/facilities_screen.dart';
 import 'views/services/services_screen.dart';
 import 'views/settings/settings_screen.dart';
 import 'views/admin/tenants_screen.dart';
+import 'views/admin/create_tenant_screen.dart';
 import 'views/admin/rooms_screen.dart';
 import 'views/admin/meters_screen.dart';
 import 'views/admin/invoices_screen.dart';
@@ -32,6 +34,7 @@ import 'views/admin/contracts_screen.dart';
 import 'views/admin/chat_screen.dart';
 import 'views/admin/admin_realtime_chat_screen.dart' as admin_chat;
 import 'views/admin/room_transfer_screen.dart';
+import 'views/admin/customer_notifications_screen.dart';
 
 import 'views/tenant/tenant_dashboard_screen.dart';
 import 'views/tenant/tenant_invoices_screen.dart';
@@ -173,6 +176,10 @@ class _MyAppState extends State<MyApp> {
         '/settings': (_) => const SettingsScreen(),
         // Admin Operations
         '/admin/tenants': (_) => const TenantsScreen(),
+        '/admin/create-tenant': (context) {
+          final tenant = ModalRoute.of(context)!.settings.arguments as Tenant?;
+          return CreateTenantScreen(tenant: tenant);
+        },
         '/admin/rooms': (_) => const RoomsScreen(),
         '/admin/meters': (_) => const MetersScreen(),
         '/admin/invoices': (_) => const InvoicesScreen(),
@@ -180,6 +187,7 @@ class _MyAppState extends State<MyApp> {
         '/admin/contracts': (_) => const ContractsScreen(),
         '/admin/room-transfer': (_) => const RoomTransferScreen(contract: null),
         '/admin/notifications': (_) => const AdminNotificationScreen(),
+        '/admin/customer-notifications': (_) => const AdminCustomerNotificationsScreen(),
         '/admin/chat': (_) => const admin_chat.AdminChatScreen(),
         // Tenant Operations
         '/tenant-dashboard': (_) => const TenantDashboardScreen(),

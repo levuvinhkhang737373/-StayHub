@@ -1,0 +1,109 @@
+@startuml
+|Admin|
+
+start
+
+:Đăng nhập hệ thống;
+:Chọn chức năng "Quản lý hợp đồng";
+:Chọn "Tạo hợp đồng mới";
+:Nhập thông tin hợp đồng:
+- Tòa nhà, chọn Phòng muốn thuê
+- Khách thuê đại diện & Khách ở cùng (Cotenants)
+- Ngày bắt đầu, Ngày kết thúc
+- Tiền thuê phòng, Tiền cọc
+- Danh sách xe đăng ký (Tùy chọn)
+- Danh sách dịch vụ và đơn giá tùy chỉnh (Điện, nước, internet, rác...);
+:Đánh dấu đã thu tiền cọc & chọn phương thức thanh toán (Tùy chọn);
+:Tải lên file đính kèm hợp đồng (Tùy chọn);
+:Gửi yêu cầu tạo hợp đồng;
+
+|Hệ thống|
+
+:Kiểm tra quyền tạo hợp đồng;
+
+if (Có quyền quản lý hợp đồng?) then (Không)
+  :Thông báo lỗi 403 (Không có quyền);
+  stop
+else (Có)
+endif
+
+:Xác thực dữ liệu đầu vào (RegisterRequest);
+
+if (Dữ liệu hợp lệ?) then (Không)
+  :Thông báo lỗi Validation;
+  stop
+else (Có)
+endif
+
+:Bắt đầu Database Transaction;
+
+:Tìm kiếm phòng & khóa dữ liệu (lockForUpdate);
+
+if (Phòng có tồn tại & đang hoạt động?) then (Không)
+  :Thông báo lỗi 404 (Không tìm thấy phòng);
+  stop
+else (Có)
+endif
+
+:Kiểm tra phòng đã có hợp đồng Active/Pending nào chưa;
+
+if (Đã có hợp đồng chưa thanh lý?) then (Có)
+  :Thông báo lỗi 400 (Phòng đã có hợp đồng);
+  stop
+else (Không)
+endif
+
+:Kiểm tra danh sách khách thuê:
+- Ràng buộc giới tính với chính sách tòa nhà
+- Kiểm tra khách thuê đã có hợp đồng khác chưa
+- Đảm bảo có đúng 1 người đại diện;
+
+if (Khách thuê hợp lệ?) then (Không)
+  :Thông báo lỗi 422;
+  stop
+else (Có)
+endif
+
+:Kiểm tra sức chứa của phòng;
+
+if (Số lượng khách vượt tối đa (max_occupants)?) then (Có)
+  :Thông báo lỗi 422 (Vượt quá sức chứa);
+  stop
+else (Không)
+endif
+
+:Tạo bản ghi hợp đồng mới trong bảng `contracts`;
+:Sinh mã hợp đồng tự động (contract_code);
+:Tạo file chữ ký tạm thời (Fake Signature);
+
+if (Có file đính kèm hợp đồng?) then (Có)
+  :Lưu trữ tài liệu đính kèm vào Storage;
+  :Cập nhật đường dẫn file vào bảng `contracts`;
+else (Không)
+endif
+
+:Ghi nhận các mối quan hệ:
+- Thêm khách thuê vào bảng `contract_tenants`
+- Đăng ký phương tiện vào bảng `contract_vehicles` / `vehicles`;
+
+:Đồng bộ & cập nhật đơn giá dịch vụ của phòng (`room_services`):
+- Cập nhật giá dịch vụ được cấu hình riêng
+- Xóa các dịch vụ không được tích chọn;
+
+if (Có tích chọn "Đã thu tiền cọc"?) then (Có)
+  :Tạo giao dịch thu cọc trong bảng `contract_deposit_transactions`;
+else (Không)
+endif
+
+:Cập nhật lại số lượng người đang ở (current_occupants) của phòng;
+:Ghi nhận hoạt động tạo hợp đồng (AdminActivityLogger);
+:Commit Database Transaction;
+
+:Gửi thông báo (Notification) và Email tới các khách thuê trong hợp đồng;
+
+|Admin|
+
+:Nhận thông báo "Tạo hợp đồng thành công" kèm chi tiết hợp đồng;
+
+stop
+@endum

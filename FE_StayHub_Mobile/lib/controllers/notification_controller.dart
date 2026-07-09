@@ -59,10 +59,11 @@ class NotificationController extends ChangeNotifier {
   }
 
   /// Đánh dấu một thông báo đã đọc
-  Future<bool> markAsRead(int id) async {
+  Future<bool> markAsRead(int id, {bool isAdmin = false}) async {
     try {
+      final path = isAdmin ? '/admin/notifications/$id/read' : '/tenant/notifications/$id/read';
       final response = await _apiService.post<dynamic>(
-        '/tenant/notifications/$id/read',
+        path,
         fromJsonT: (json) => json,
       );
 
@@ -93,10 +94,11 @@ class NotificationController extends ChangeNotifier {
   }
 
   /// Đánh dấu đã đọc toàn bộ thông báo
-  Future<bool> markAllAsRead() async {
+  Future<bool> markAllAsRead({bool isAdmin = false}) async {
     try {
+      final path = isAdmin ? '/admin/notifications/read-all' : '/tenant/notifications/read-all';
       final response = await _apiService.post<dynamic>(
-        '/tenant/notifications/read-all',
+        path,
         fromJsonT: (json) => json,
       );
 
