@@ -324,6 +324,51 @@ class ContractController extends ChangeNotifier {
     return [];
   }
 
+  /// Register a new vehicle via API
+  Future<Map<String, dynamic>?> registerNewVehicle({
+    required int tenantId,
+    required int vehicleType,
+    required String licensePlate,
+    String? brand,
+    String? color,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.post<Map<String, dynamic>>(
+        '/admin/vehicles',
+        data: {
+          'tenant_id': tenantId,
+          'vehicle_type': vehicleType,
+          'license_plate': licensePlate,
+          'brand': brand,
+          'color': color,
+          'is_active': true,
+        },
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      if (response.status && response.result != null) {
+        return response.result!;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi đăng ký xe: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return null;
+  }
+
   /// Fetch available rooms for a building (rooms with STATUS_ACTIVE and no active contracts)
   Future<List<dynamic>> fetchAvailableRooms(int buildingId, {int? ignoreContractId}) async {
     _isLoading = true;

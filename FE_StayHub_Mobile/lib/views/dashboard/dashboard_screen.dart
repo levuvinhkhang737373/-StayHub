@@ -697,6 +697,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             ),
                             _buildMenuCard(
+                              title: 'Chuyển phòng',
+                              subtitle: 'Lên lịch chuyển cư dân',
+                              icon: Icons.swap_horiz_rounded,
+                              color: Colors.brown,
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                '/admin/room-transfer',
+                              ),
+                            ),
+                            _buildMenuCard(
                               title: 'Đoạn chat',
                               subtitle: 'Trả lời tenant realtime',
                               icon: Icons.chat_bubble_rounded,

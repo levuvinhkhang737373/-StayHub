@@ -54,6 +54,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
   List<Map<String, dynamic>> _selectedTenants = []; // tenant_id, tenantName, join_date, isRepresentative
   List<Map<String, dynamic>> _selectedVehicles = []; // vehicle_id, license_plate, started_at, monthly_fee, charge_policy
   List<Map<String, dynamic>> _selectedServices = []; // service_id, name, price, charge_method_label, unit_name, is_checked
+  List<Map<String, dynamic>> _allFetchedVehicles = []; // Cached available vehicles of selected tenants
 
   bool get isEditMode => widget.contract != null && !widget.isRenew;
   bool get isRenewMode => widget.contract != null && widget.isRenew;
@@ -154,14 +155,37 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
           final vehiclesList = contractData['contract_vehicles'] as List<dynamic>? ?? [];
           _selectedVehicles = vehiclesList.map((cv) {
             final v = cv['vehicle'];
+            String name = v?['license_plate']?.toString() ?? '';
+            if (name.isEmpty) name = v?['brand']?.toString() ?? '';
+            if (name.isEmpty) {
+              final typeVal = v?['vehicle_type'];
+              name = typeVal == 1 ? 'Xe máy' : (typeVal == 2 ? 'Xe đạp' : 'Ô tô');
+            }
+            if (v != null) {
+              if (!_allFetchedVehicles.any((fav) => fav['id'] == v['id'])) {
+                _allFetchedVehicles.add(v);
+              }
+            }
             return {
               'vehicle_id': cv['vehicle_id'] ?? v?['id'],
-              'license_plate': v?['license_plate'] ?? 'Chưa xác định',
+              'license_plate': name.isNotEmpty ? name : 'Chưa xác định',
               'started_at': isRenewMode ? _startDateController.text : (cv['started_at'] ?? _startDateController.text),
               'monthly_fee': double.parse((cv['monthly_fee'] ?? 0).toString()).round(),
               'charge_policy': cv['charge_policy'] ?? 1,
             };
           }).toList();
+
+          // Fetch other vehicles for these tenants
+          for (var t in _selectedTenants) {
+            try {
+              final tenantVehicles = await contractController.fetchTenantVehicles(t['tenant_id']);
+              for (var v in tenantVehicles) {
+                if (!_allFetchedVehicles.any((fav) => fav['id'] == v['id'])) {
+                  _allFetchedVehicles.add(v);
+                }
+              }
+            } catch (_) {}
+          }
 
           // Pre-fill Services
           final servicesList = contractData['contract_services'] as List<dynamic>? ?? [];
@@ -214,10 +238,8 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       final systemServices = serviceController.services;
 
       _selectedServices = systemServices.map((service) {
-        final customPrice = servicePrices.firstWhere(
-          (sp) => sp['service_id'] == service.id && sp['status'] == 1,
-          orElse: () => null,
-        );
+        final customPrices = servicePrices.where((sp) => sp['service_id'] == service.id && sp['status'] == 1);
+        final customPrice = customPrices.isNotEmpty ? customPrices.first : null;
         final initialPrice = customPrice != null 
             ? double.parse(customPrice['price'].toString()).round().toString() 
             : (service.price != null ? service.price!.round().toString() : '0');
@@ -252,7 +274,6 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         'tenant_id': tenant.id,
         'tenantName': tenant.fullName,
         'join_date': _startDateController.text,
-        'isRepresentative': _selectedTenants.isEmpty, // first is representative by default
       });
     });
 
@@ -262,10 +283,19 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       if (vehicles.isNotEmpty) {
         setState(() {
           for (var v in vehicles) {
+            if (!_allFetchedVehicles.any((fav) => fav['id'] == v['id'])) {
+              _allFetchedVehicles.add(v);
+            }
             if (!_selectedVehicles.any((sv) => sv['vehicle_id'] == v['id'])) {
+              String name = v['license_plate']?.toString() ?? '';
+              if (name.isEmpty) name = v['brand']?.toString() ?? '';
+              if (name.isEmpty) {
+                final typeVal = v['vehicle_type'];
+                name = typeVal == 1 ? 'Xe máy' : (typeVal == 2 ? 'Xe đạp' : 'Ô tô');
+              }
               _selectedVehicles.add({
                 'vehicle_id': v['id'],
-                'license_plate': v['license_plate'] ?? 'Chưa xác định',
+                'license_plate': name.isNotEmpty ? name : 'Chưa xác định',
                 'started_at': _startDateController.text,
                 'monthly_fee': double.parse((v['monthly_fee'] ?? 0).toString()).round(),
                 'charge_policy': 1, // Monthly default
@@ -277,22 +307,21 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
     } catch (_) {}
   }
 
-  void _selectRepresentative(int tenantId) {
-    setState(() {
-      for (var t in _selectedTenants) {
-        t['isRepresentative'] = t['tenant_id'] == tenantId;
-      }
-    });
-  }
-
   void _removeTenantRow(int tenantId) {
     setState(() {
       _selectedTenants.removeWhere((t) => t['tenant_id'] == tenantId);
-      // Remove their vehicles as well
-      // In a real app we might verify first, but keeping it simple like web
-      if (_selectedTenants.isNotEmpty && !_selectedTenants.any((t) => t['isRepresentative'] == true)) {
-        _selectedTenants.first['isRepresentative'] = true;
-      }
+      // Remove vehicles belonging to this tenant from selected vehicles list
+      _selectedVehicles.removeWhere((sv) {
+        final vehicleId = sv['vehicle_id'];
+        if (vehicleId != null) {
+          final matchedList = _allFetchedVehicles.where((fav) => fav['id'] == vehicleId);
+          final matchedVehicle = matchedList.isNotEmpty ? matchedList.first : null;
+          if (matchedVehicle != null && matchedVehicle['tenant_id'] == tenantId) {
+            return true;
+          }
+        }
+        return false;
+      });
     });
   }
 
@@ -305,9 +334,11 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
           builder: (context, setDialogState) {
             final filtered = _allTenants.where((t) {
               final query = search.toLowerCase();
-              return t.fullName.toLowerCase().contains(query) ||
+              final matchesQuery = t.fullName.toLowerCase().contains(query) ||
                   (t.phone?.contains(query) ?? false) ||
                   (t.identityNumber.contains(query));
+              final hasActiveContract = t.roomNumber != null && t.roomNumber!.isNotEmpty;
+              return matchesQuery && !hasActiveContract && t.status == 1;
             }).toList();
 
             return AlertDialog(
@@ -369,67 +400,148 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
     );
   }
 
-  void _showAddVehicleDialog() {
-    // Show manual registration or list of vehicles if any
+  void _showCreateVehicleDialog() {
+    if (_selectedTenants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng thêm khách thuê trước khi tạo xe!'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
     final licenseController = TextEditingController();
-    final feeController = TextEditingController(text: '0');
-    int policy = 1;
+    final brandController = TextEditingController();
+    final colorController = TextEditingController();
+    int selectedTenantId = _selectedTenants.first['tenant_id'];
+    int selectedType = 1; // Xe máy
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Đăng ký phương tiện mới'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: licenseController,
-                decoration: const InputDecoration(labelText: 'Biển số xe / Nhãn hiệu', border: OutlineInputBorder()),
+        bool isDialogLoading = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Tạo xe mới trong hệ thống'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isDialogLoading)
+                      const Center(child: CircularProgressIndicator(color: Color(0xFF1C1917)))
+                    else ...[
+                      DropdownButtonFormField<int>(
+                        value: selectedTenantId,
+                        decoration: _inputDecoration(labelText: 'Chủ sở hữu (Khách thuê)', prefixIcon: Icons.person),
+                        items: _selectedTenants.map((t) {
+                          return DropdownMenuItem<int>(
+                            value: t['tenant_id'] as int,
+                            child: Text(t['tenantName'] as String, overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() {
+                              selectedTenantId = val;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int>(
+                        value: selectedType,
+                        decoration: _inputDecoration(labelText: 'Loại phương tiện', prefixIcon: Icons.category),
+                        items: const [
+                          DropdownMenuItem(value: 1, child: Text('Xe máy')),
+                          DropdownMenuItem(value: 2, child: Text('Xe đạp')),
+                          DropdownMenuItem(value: 3, child: Text('Ô tô')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() {
+                              selectedType = val;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: licenseController,
+                        decoration: _inputDecoration(labelText: 'Biển số xe', prefixIcon: Icons.credit_card),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: brandController,
+                        decoration: _inputDecoration(labelText: 'Nhãn hiệu (VD: Honda Vision)', prefixIcon: Icons.branding_watermark),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: colorController,
+                        decoration: _inputDecoration(labelText: 'Màu sắc (Tùy chọn)', prefixIcon: Icons.color_lens),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: feeController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Phí gửi xe hàng tháng (đ)', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                value: policy,
-                decoration: const InputDecoration(labelText: 'Chính sách tính phí', border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 1, child: Text('Hàng tháng (Cố định)')),
-                  DropdownMenuItem(value: 2, child: Text('Hàng ngày (Tính ngày)')),
-                  DropdownMenuItem(value: 3, child: Text('Miễn phí')),
-                ],
-                onChanged: (val) {
-                  if (val != null) policy = val;
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('HỦY'),
-            ),
-            TextButton(
-              onPressed: () {
-                if (licenseController.text.trim().isEmpty) return;
-                setState(() {
-                  _selectedVehicles.add({
-                    'vehicle_id': null, // Custom added vehicle
-                    'license_plate': licenseController.text.trim(),
-                    'started_at': _startDateController.text,
-                    'monthly_fee': double.tryParse(feeController.text) ?? 0,
-                    'charge_policy': policy,
-                  });
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('THÊM', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917))),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('HỦY'),
+                ),
+                TextButton(
+                  onPressed: isDialogLoading ? null : () async {
+                    if (licenseController.text.trim().isEmpty && (selectedType == 1 || selectedType == 3)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vui lòng nhập biển số xe!'), backgroundColor: Colors.redAccent),
+                      );
+                      return;
+                    }
+                    setDialogState(() {
+                      isDialogLoading = true;
+                    });
+                    final newVehicle = await context.read<ContractController>().registerNewVehicle(
+                      tenantId: selectedTenantId,
+                      vehicleType: selectedType,
+                      licensePlate: licenseController.text.trim(),
+                      brand: brandController.text.trim().isNotEmpty ? brandController.text.trim() : null,
+                      color: colorController.text.trim().isNotEmpty ? colorController.text.trim() : null,
+                    );
+                    if (newVehicle != null) {
+                      setState(() {
+                        // 1. Add to fetched vehicles list
+                        _allFetchedVehicles.add(newVehicle);
+                        
+                        // 2. Add directly to selected vehicles in form
+                        String name = newVehicle['license_plate']?.toString() ?? '';
+                        if (name.isEmpty) name = newVehicle['brand']?.toString() ?? '';
+                        if (name.isEmpty) {
+                          final typeVal = newVehicle['vehicle_type'];
+                          name = typeVal == 1 ? 'Xe máy' : (typeVal == 2 ? 'Xe đạp' : 'Ô tô');
+                        }
+                        _selectedVehicles.add({
+                          'vehicle_id': newVehicle['id'],
+                          'license_plate': name,
+                          'started_at': _startDateController.text,
+                          'monthly_fee': double.parse((newVehicle['monthly_fee'] ?? 0).toString()).round(),
+                          'charge_policy': 1,
+                        });
+                      });
+                      if (context.mounted) Navigator.pop(context);
+                    } else {
+                      setDialogState(() {
+                        isDialogLoading = false;
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(context.read<ContractController>().errorMessage ?? 'Lỗi tạo xe mới')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('TẠO MỚI', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917))),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -455,7 +567,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       return;
     }
 
-    final repTenant = _selectedTenants.firstWhere((t) => t['isRepresentative'] == true, orElse: () => _selectedTenants.first);
+    final representativeTenantId = _selectedTenants.first['tenant_id'];
 
     // Build payload
     final payload = {
@@ -468,7 +580,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       'is_deposit_paid': _isDepositPaid,
       'deposit_payment_method': _depositPaymentMethod,
       'note': _noteController.text.trim(),
-      'representative_tenant_id': repTenant['tenant_id'],
+      'representative_tenant_id': representativeTenantId,
       'tenants': _selectedTenants.map((t) => {
         'tenant_id': t['tenant_id'],
         'join_date': t['join_date'],
@@ -598,10 +710,11 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
           if (_isLoading)
             const Center(child: CircularProgressIndicator(color: Color(0xFF1C1917)))
           else
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -609,7 +722,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
                         child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent)),
                       ),
 
@@ -781,25 +894,80 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemCount: _selectedTenants.length,
-                                separatorBuilder: (_, __) => const Divider(),
+                                separatorBuilder: (_, __) => const SizedBox(height: 8),
                                 itemBuilder: (context, idx) {
                                   final st = _selectedTenants[idx];
-                                  return ListTile(
-                                    title: Text(st['tenantName'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    subtitle: Text('Ngày vào ở: ${st['join_date']}'),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
+                                  final isRep = idx == 0;
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isRep ? const Color(0xFFFFFDF9) : const Color(0xFFFBFBFA),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isRep ? const Color(0xFFEAB308).withValues(alpha: 0.3) : const Color(0xFFE4E2D7),
+                                      ),
+                                    ),
+                                    child: Row(
                                       children: [
-                                        // Representative indicator
-                                        FilterChip(
-                                          label: const Text('Người Đại Diện', style: TextStyle(fontSize: 11)),
-                                          selected: st['isRepresentative'] == true,
-                                          selectedColor: const Color(0xFFFEF08A),
-                                          checkmarkColor: Colors.black,
-                                          onSelected: (_) => _selectRepresentative(st['tenant_id']),
+                                        CircleAvatar(
+                                          radius: 18,
+                                          backgroundColor: isRep ? const Color(0xFFEAB308).withValues(alpha: 0.15) : const Color(0xFF1C1917).withValues(alpha: 0.05),
+                                          child: Text(
+                                            st['tenantName'].isNotEmpty ? st['tenantName'].substring(0, 1).toUpperCase() : 'T',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: isRep ? const Color(0xFF8B5E34) : const Color(0xFF1C1917),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Row(
+                                                      children: [
+                                                        Flexible(
+                                                          child: Text(
+                                                            st['tenantName'],
+                                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                                            overflow: TextOverflow.ellipsis,
+                                                          ),
+                                                        ),
+                                                        if (isRep) ...[
+                                                          const SizedBox(width: 8),
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                            decoration: BoxDecoration(
+                                                              color: const Color(0xFFEAB308).withValues(alpha: 0.12),
+                                                              borderRadius: BorderRadius.circular(4),
+                                                              border: Border.all(color: const Color(0xFFEAB308).withValues(alpha: 0.3)),
+                                                            ),
+                                                            child: const Text(
+                                                              'ĐẠI DIỆN',
+                                                              style: TextStyle(color: Color(0xFF8B5E34), fontSize: 8, fontWeight: FontWeight.bold),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Ngày vào ở: ${st['join_date']}',
+                                                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                         IconButton(
-                                          icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                                          icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
                                           onPressed: () => _removeTenantRow(st['tenant_id']),
                                         ),
                                       ],
@@ -822,24 +990,51 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            _buildSectionHeader('Đăng ký Phương tiện', Icons.directions_car_filled_outlined),
+                            const SizedBox(height: 12),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                _buildSectionHeader('Đăng ký Phương tiện', Icons.directions_car_filled_outlined),
-                                ElevatedButton.icon(
-                                  onPressed: _showAddVehicleDialog,
-                                  icon: const Icon(Icons.add, size: 16),
-                                  label: const Text('ĐĂNG KÝ XE', style: TextStyle(fontSize: 12)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1C1917),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _showCreateVehicleDialog(),
+                                    icon: const Icon(Icons.add_circle_outline, size: 16),
+                                    label: const Text('TẠO XE MỚI', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: const Color(0xFF1C1917),
+                                      side: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        _selectedVehicles.add({
+                                          'vehicle_id': null,
+                                          'license_plate': '',
+                                          'started_at': _startDateController.text,
+                                          'monthly_fee': 0,
+                                          'charge_policy': 1,
+                                        });
+                                      });
+                                    },
+                                    icon: const Icon(Icons.add_circle, size: 16),
+                                    label: const Text('THÊM DÒNG XE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1C1917),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            const Divider(),
+                            const Divider(height: 24),
                             if (_selectedVehicles.isEmpty)
                               const Padding(
                                 padding: EdgeInsets.all(16),
@@ -850,23 +1045,134 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemCount: _selectedVehicles.length,
-                                separatorBuilder: (_, __) => const Divider(),
+                                separatorBuilder: (_, __) => const SizedBox(height: 12),
                                 itemBuilder: (context, idx) {
                                   final sv = _selectedVehicles[idx];
-                                  final policyLabel = sv['charge_policy'] == 1 
-                                      ? 'Cố định' 
-                                      : (sv['charge_policy'] == 2 ? 'Theo ngày' : 'Miễn phí');
+                                  final isUnselected = sv['vehicle_id'] == null;
 
-                                  return ListTile(
-                                    title: Text(sv['license_plate'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    subtitle: Text('Đơn giá: ${formatMoney(sv['monthly_fee'])} • Cách thu: $policyLabel'),
-                                    trailing: IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.grey),
-                                      onPressed: () {
-                                        setState(() {
-                                          _selectedVehicles.removeAt(idx);
-                                        });
-                                      },
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFBFBFA),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFFE4E2D7)),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        if (isUnselected) ...[
+                                          // Vehicle Picker dropdown
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: DropdownButtonFormField<int>(
+                                                  value: null,
+                                                  decoration: _inputDecoration(labelText: 'Chọn phương tiện', prefixIcon: Icons.directions_car),
+                                                  items: _allFetchedVehicles.where((v) {
+                                                    return !_selectedVehicles.any((selected) => selected['vehicle_id'] == v['id']);
+                                                  }).map((v) {
+                                                    String name = v['license_plate']?.toString() ?? '';
+                                                    if (name.isEmpty) name = v['brand']?.toString() ?? '';
+                                                    if (name.isEmpty) {
+                                                      final typeVal = v['vehicle_type'];
+                                                      name = typeVal == 1 ? 'Xe máy' : (typeVal == 2 ? 'Xe đạp' : 'Ô tô');
+                                                    }
+                                                    return DropdownMenuItem<int>(
+                                                      value: v['id'] as int,
+                                                      child: Text(name, overflow: TextOverflow.ellipsis),
+                                                    );
+                                                  }).toList(),
+                                                  onChanged: (val) {
+                                                    if (val != null) {
+                                                      final selected = _allFetchedVehicles.firstWhere((v) => v['id'] == val);
+                                                      setState(() {
+                                                        sv['vehicle_id'] = val;
+                                                        String name = selected['license_plate']?.toString() ?? '';
+                                                        if (name.isEmpty) name = selected['brand']?.toString() ?? '';
+                                                        if (name.isEmpty) {
+                                                          final typeVal = selected['vehicle_type'];
+                                                          name = typeVal == 1 ? 'Xe máy' : (typeVal == 2 ? 'Xe đạp' : 'Ô tô');
+                                                        }
+                                                        sv['license_plate'] = name;
+                                                        sv['monthly_fee'] = double.parse((selected['monthly_fee'] ?? 0).toString()).round();
+                                                        sv['charge_policy'] = selected['charge_policy'] ?? 1;
+                                                      });
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              IconButton(
+                                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _selectedVehicles.removeAt(idx);
+                                                  });
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ] else ...[
+                                          // Details & price settings
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  const Icon(Icons.directions_car, size: 18, color: Color(0xFF1C1917)),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    sv['license_plate'],
+                                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1C1917)),
+                                                  ),
+                                                ],
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _selectedVehicles.removeAt(idx);
+                                                  });
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: TextFormField(
+                                                  initialValue: sv['monthly_fee'].toString(),
+                                                  keyboardType: TextInputType.number,
+                                                  decoration: _inputDecoration(labelText: 'Phí gửi (đ/tháng)'),
+                                                  onChanged: (val) {
+                                                    sv['monthly_fee'] = double.tryParse(val) ?? 0;
+                                                  },
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: DropdownButtonFormField<int>(
+                                                  value: sv['charge_policy'],
+                                                  decoration: _inputDecoration(labelText: 'Chu kỳ'),
+                                                  items: const [
+                                                    DropdownMenuItem(value: 1, child: Text('Hàng tháng')),
+                                                    DropdownMenuItem(value: 2, child: Text('Hàng ngày')),
+                                                    DropdownMenuItem(value: 3, child: Text('Miễn phí')),
+                                                  ],
+                                                  onChanged: (val) {
+                                                    if (val != null) {
+                                                      setState(() {
+                                                        sv['charge_policy'] = val;
+                                                      });
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   );
                                 },
@@ -887,43 +1193,86 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             _buildSectionHeader('Dịch vụ phòng áp dụng', Icons.electrical_services_outlined),
-                            const Divider(),
+                            const Divider(height: 24),
                             if (_selectedServices.isEmpty)
                               const Padding(
                                 padding: EdgeInsets.all(16),
                                 child: Text('Không tìm thấy dịch vụ nào.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
                               )
                             else
-                              ListView.builder(
+                              ListView.separated(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemCount: _selectedServices.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 12),
                                 itemBuilder: (context, idx) {
                                   final s = _selectedServices[idx];
-                                  return CheckboxListTile(
-                                    title: Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    subtitle: Text('Hình thức: ${s['charge_method_label']} • Đơn giá: ${formatMoney(double.tryParse(s['price'].toString()) ?? 0)} / ${s['unit_name']}'),
-                                    value: s['is_checked'] == true,
-                                    activeColor: const Color(0xFF1C1917),
-                                    onChanged: (val) {
-                                      setState(() {
-                                        s['is_checked'] = val;
-                                      });
-                                    },
-                                    secondary: SizedBox(
-                                      width: 100,
-                                      child: TextFormField(
-                                        initialValue: s['price'].toString(),
-                                        keyboardType: TextInputType.number,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Giá tiền',
-                                          isDense: true,
-                                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                        ),
-                                        onChanged: (val) {
-                                          s['price'] = val;
-                                        },
+                                  final isChecked = s['is_checked'] == true;
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: isChecked ? const Color(0xFFFFFDF9) : const Color(0xFFFBFBFA),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isChecked ? const Color(0xFFEAB308).withValues(alpha: 0.3) : const Color(0xFFE4E2D7),
+                                        width: isChecked ? 1.5 : 1.0,
                                       ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Checkbox(
+                                          value: isChecked,
+                                          activeColor: const Color(0xFF1C1917),
+                                          onChanged: (val) {
+                                            setState(() {
+                                              s['is_checked'] = val;
+                                            });
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Hình thức: ${s['charge_method_label']}',
+                                                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                              ),
+                                              Text(
+                                                'Đơn giá gốc: ${formatMoney(double.tryParse(s['price'].toString()) ?? 0)} / ${s['unit_name']}',
+                                                style: const TextStyle(fontSize: 11, color: Colors.brown, fontWeight: FontWeight.w500),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        SizedBox(
+                                          width: 110,
+                                          child: TextFormField(
+                                            initialValue: s['price'].toString(),
+                                            keyboardType: TextInputType.number,
+                                            inputFormatters: [CurrencyInputFormatter()],
+                                            enabled: isChecked,
+                                            decoration: InputDecoration(
+                                              labelText: 'Giá mới (${s['unit_name']})',
+                                              labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
+                                              isDense: true,
+                                              filled: true,
+                                              fillColor: isChecked ? Colors.white : Colors.grey[100],
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                                borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                              ),
+                                            ),
+                                            onChanged: (val) {
+                                              s['price'] = parseMoney(val).round().toString();
+                                            },
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   );
                                 },
@@ -932,6 +1281,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 16),
 
                     // Deposit details & Note
@@ -945,26 +1295,14 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                           children: [
                             _buildSectionHeader('Thanh toán cọc & Ghi chú', Icons.payment_outlined),
                             const SizedBox(height: 12),
-                            CheckboxListTile(
-                              title: const Text('Đã thu tiền đặt cọc'),
-                              value: _isDepositPaid,
-                              activeColor: const Color(0xFF1C1917),
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() {
-                                    _isDepositPaid = val;
-                                  });
-                                }
-                              },
-                            ),
-                            if (_isDepositPaid) ...[
+                            if (!isEditMode && !isRenewMode) ...[
                               const SizedBox(height: 8),
                               DropdownButtonFormField<int>(
                                 value: _depositPaymentMethod,
-                                decoration: _inputDecoration(labelText: 'Phương thức thanh toán cọc', prefixIcon: Icons.payment),
+                                decoration: _inputDecoration(labelText: 'Phương thức đóng cọc', prefixIcon: Icons.payment),
                                 items: const [
                                   DropdownMenuItem(value: 1, child: Text('Tiền mặt')),
-                                  DropdownMenuItem(value: 2, child: Text('Chuyển khoản ngân hàng')),
+                                  DropdownMenuItem(value: 2, child: Text('Chuyển khoản QR ngân hàng')),
                                 ],
                                 onChanged: (val) {
                                   if (val != null) {
@@ -1008,6 +1346,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                 ),
               ),
             ),
+          ),
         ],
       ),
     );

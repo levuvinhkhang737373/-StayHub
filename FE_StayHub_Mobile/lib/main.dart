@@ -31,6 +31,7 @@ import 'views/admin/maintenance_screen.dart';
 import 'views/admin/contracts_screen.dart';
 import 'views/admin/chat_screen.dart';
 import 'views/admin/admin_realtime_chat_screen.dart' as admin_chat;
+import 'views/admin/room_transfer_screen.dart';
 
 import 'views/tenant/tenant_dashboard_screen.dart';
 import 'views/tenant/tenant_invoices_screen.dart';
@@ -177,6 +178,7 @@ class _MyAppState extends State<MyApp> {
         '/admin/invoices': (_) => const InvoicesScreen(),
         '/admin/maintenance': (_) => const MaintenanceScreen(),
         '/admin/contracts': (_) => const ContractsScreen(),
+        '/admin/room-transfer': (_) => const RoomTransferScreen(contract: null),
         '/admin/notifications': (_) => const AdminNotificationScreen(),
         '/admin/chat': (_) => const admin_chat.AdminChatScreen(),
         // Tenant Operations
