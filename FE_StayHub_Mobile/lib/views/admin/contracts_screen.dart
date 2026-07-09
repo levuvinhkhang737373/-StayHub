@@ -6,7 +6,6 @@ import '../../controllers/contract_controller.dart';
 import '../../models/contract.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import 'create_contract_screen.dart';
-import 'room_transfer_screen.dart';
 
 class ContractsScreen extends StatefulWidget {
   const ContractsScreen({super.key});
@@ -438,30 +437,6 @@ class _ContractsScreenState extends State<ContractsScreen> {
                           ),
                         ),
                       if (contract.status == Contract.STATUS_ACTIVE) ...[
-                        // Change Room Button
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => RoomTransferScreen(contract: contract),
-                                ),
-                              );
-                              if (result == true) {
-                                contractController.fetchContracts('admin');
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF1C1917),
-                              side: const BorderSide(color: Color(0xFF1C1917)),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            child: const Text('Lên lịch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-
                         // Terminate Button
                         Expanded(
                           child: ElevatedButton(

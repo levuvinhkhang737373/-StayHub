@@ -213,4 +213,55 @@ class TenantController extends ChangeNotifier {
     notifyListeners();
     return success;
   }
+
+  /// Lấy thông tin chi tiết của một khách thuê (bao gồm hợp đồng hiện tại)
+  Future<Map<String, dynamic>?> fetchTenantDetail(int id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiService.init();
+      final response = await _apiService.get<Map<String, dynamic>>(
+        '/admin/tenants/$id',
+        fromJsonT: (json) => json as Map<String, dynamic>,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      if (response.status && response.result != null) {
+        return response.result;
+      } else {
+        _errorMessage = response.message;
+      }
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi tải chi tiết khách thuê: $e';
+    }
+
+    // Chế độ mock dự phòng khi API lỗi hoặc chưa kết nối
+    try {
+      final t = _mockTenants.firstWhere((element) => element.id == id);
+      _isLoading = false;
+      notifyListeners();
+      return {
+        'id': t.id,
+        'full_name': t.fullName,
+        'phone': t.phone,
+        'email': t.email,
+        'username': t.username,
+        'status': t.status,
+        'room_number': t.roomNumber,
+        'building_name': t.buildingName,
+        'current_contract': {
+          'id': t.id, // Giả lập contract_id bằng tenant_id cho mock
+        }
+      };
+    } catch (_) {}
+
+    _isLoading = false;
+    notifyListeners();
+    return null;
+  }
 }

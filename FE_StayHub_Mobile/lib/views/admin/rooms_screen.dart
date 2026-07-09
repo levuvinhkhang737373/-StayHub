@@ -308,9 +308,27 @@ class _RoomsScreenState extends State<RoomsScreen> {
                   ),
                 ),
 
+              // Metric cards scroll view
+              if (rooms.isNotEmpty)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      _buildMetricCard('TỔNG SỐ PHÒNG', rooms.length, Colors.blueGrey),
+                      const SizedBox(width: 10),
+                      _buildMetricCard('ĐANG CHO THUÊ', rooms.where((r) => r.currentOccupants > 0 && r.status == 1).length, const Color(0xFFD97706)),
+                      const SizedBox(width: 10),
+                      _buildMetricCard('PHÒNG TRỐNG', rooms.where((r) => r.currentOccupants == 0 && r.status == 1).length, const Color(0xFF0F766E)),
+                      const SizedBox(width: 10),
+                      _buildMetricCard('ĐANG BẢO TRÌ', rooms.where((r) => r.status == 2).length, Colors.redAccent),
+                    ],
+                  ),
+                ),
+
               // Legend indicators
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: Row(
                   children: [
                     Expanded(
@@ -320,8 +338,8 @@ class _RoomsScreenState extends State<RoomsScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          _buildLegendItem('Phòng trống', Colors.green),
-                          _buildLegendItem('Đang ở', const Color(0xFFEAB308)),
+                          _buildLegendItem('Phòng trống', const Color(0xFF0F766E)),
+                          _buildLegendItem('Đang ở', const Color(0xFFD97706)),
                           _buildLegendItem('Bảo trì', Colors.redAccent),
                           _buildLegendItem('Tắt', Colors.grey),
                         ],
@@ -330,7 +348,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
               // Rooms list
               Expanded(
@@ -346,97 +364,144 @@ class _RoomsScreenState extends State<RoomsScreen> {
                                 Text(
                                   'Vui lòng chọn tòa nhà để xem danh sách phòng',
                                   style: TextStyle(color: Colors.grey, fontSize: 14),
+                                  textAlign: TextAlign.center,
                                 ),
                               ],
                             ),
                           )
                         : rooms.isEmpty
                             ? const Center(child: Text('Không tìm thấy phòng nào.', style: TextStyle(color: Colors.grey)))
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: rooms.length,
-                            itemBuilder: (context, index) {
-                              final room = rooms[index];
-                              final statusColor = _getStatusColor(room);
-                              return Card(
-                                color: Colors.white,
-                                margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: BorderSide(color: statusColor.withOpacity(0.5), width: 1.5),
-                                ),
-                                elevation: 0,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Row(
-                                    children: [
-                                      // Status Circle
-                                      Container(
-                                          width: 12,
-                                          height: 12,
-                                          decoration: BoxDecoration(
-                                            color: statusColor,
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                        ),
-                                      const SizedBox(width: 16),
-                                      
-                                      // Info
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'Phòng ${room.roomNumber}',
-                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1C1917)),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Tầng: ${room.floor} | Diện tích: ${room.areaM2}m² | Tòa: ${room.buildingName ?? ""}',
-                                              style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              'Đơn giá: ${formatMoney(room.basePrice)} / tháng',
-                                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      
-                                      // Occupants & Actions
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: rooms.length,
+                                itemBuilder: (context, index) {
+                                  final room = rooms[index];
+                                  final statusColor = _getStatusColor(room);
+
+                                  String statusText = 'Ngừng sử dụng';
+                                  Color tagBgColor = Colors.grey[200]!;
+                                  Color tagTextColor = Colors.grey[700]!;
+
+                                  if (room.status == 1) {
+                                    if (room.currentOccupants == 0) {
+                                      statusText = 'Trống';
+                                      tagBgColor = const Color(0xFF0F766E).withOpacity(0.12);
+                                      tagTextColor = const Color(0xFF0F766E);
+                                    } else {
+                                      statusText = 'Đang thuê';
+                                      tagBgColor = const Color(0xFFD97706).withOpacity(0.12);
+                                      tagTextColor = const Color(0xFFD97706);
+                                    }
+                                  } else if (room.status == 2) {
+                                    statusText = 'Đang bảo trì';
+                                    tagBgColor = Colors.red[50]!;
+                                    tagTextColor = Colors.red[900]!;
+                                  }
+
+                                  return Card(
+                                    color: Colors.white,
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      side: BorderSide(color: const Color(0xFF3D2A18).withOpacity(0.1), width: 1),
+                                    ),
+                                    elevation: 0,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
                                         children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF7F6F0),
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(Icons.people, size: 14, color: Color(0xFF1C1917)),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  '${room.currentOccupants}/${room.maxOccupants}',
-                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'Phòng ${room.roomNumber}',
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1C1917)),
+                                              ),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: tagBgColor,
+                                                  borderRadius: BorderRadius.circular(20),
                                                 ),
-                                              ],
-                                            ),
+                                                child: Text(
+                                                  statusText,
+                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: tagTextColor),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          IconButton(
-                                            icon: const Icon(Icons.edit_note, color: Color(0xFF1C1917)),
-                                            onPressed: () => _changeStatus(room),
+                                          const SizedBox(height: 8),
+                                          const Divider(height: 1, color: Color(0xFFF1EFE9)),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      'Tầng: ${room.floor}  •  Diện tích: ${room.areaM2}m²',
+                                                      style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'Giá: ${formatMoney(room.basePrice)} / tháng',
+                                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.end,
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFF7F6F0),
+                                                      borderRadius: BorderRadius.circular(10),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        const Icon(Icons.people_outline, size: 14, color: Color(0xFF1C1917)),
+                                                        const SizedBox(width: 4),
+                                                        Text(
+                                                          '${room.currentOccupants}/${room.maxOccupants}',
+                                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  InkWell(
+                                                    onTap: () => _changeStatus(room),
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                      decoration: BoxDecoration(
+                                                        border: Border.all(color: const Color(0xFF1C1917).withOpacity(0.15)),
+                                                        borderRadius: BorderRadius.circular(20),
+                                                      ),
+                                                      child: const Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Icon(Icons.power_settings_new, size: 13, color: Color(0xFF1C1917)),
+                                                          SizedBox(width: 4),
+                                                          Text('Cập nhật', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF1C1917))),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
                                         ],
-                                      )
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
               ),
             ],
           ),
@@ -457,6 +522,41 @@ class _RoomsScreenState extends State<RoomsScreen> {
         const SizedBox(width: 6),
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
       ],
+    );
+  }
+
+  Widget _buildMetricCard(String label, int value, Color color) {
+    return Container(
+      width: 120,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1917),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              color: Colors.white.withOpacity(0.6),
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$value',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFFEAB308),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

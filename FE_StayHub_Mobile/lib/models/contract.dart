@@ -244,7 +244,7 @@ class Contract {
       id: json['id'] as int,
       contractCode: json['contract_code'] as String? ?? '',
       roomId: json['room_id'] as int? ?? 0,
-      roomNumber: json['room_number'] as String? ?? '',
+      roomNumber: json['room_number'] as String? ?? (json['room']?['room_number'] as String? ?? ''),
       representativeTenantId:
           json['representative_tenant_id'] as int? ??
           json['tenant_id'] as int? ??
