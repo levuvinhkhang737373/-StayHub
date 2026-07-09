@@ -86,6 +86,47 @@ class AuthControllerTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_admin_profile_can_update_email(): void
+    {
+        $admin = $this->createAdmin('profile_email_admin', Admin::ROLE_SUPER_ADMIN);
+
+        $response = $this->actingAs($admin, 'admin')->patchJson('/api/v1/admin/profile', [
+            'full_name' => 'Profile Email Admin',
+            'phone' => '0912345678',
+            'email' => 'profile-email-updated@stayhub.local',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('result.admin.email', 'profile-email-updated@stayhub.local');
+
+        $this->assertDatabaseHas('admins', [
+            'id' => $admin->id,
+            'email' => 'profile-email-updated@stayhub.local',
+        ]);
+    }
+
+    public function test_admin_profile_rejects_duplicate_email(): void
+    {
+        $admin = $this->createAdmin('profile_email_owner', Admin::ROLE_SUPER_ADMIN);
+        $otherAdmin = $this->createAdmin('profile_email_other', Admin::ROLE_BUILDING_MANAGER);
+
+        $response = $this->actingAs($admin, 'admin')->patchJson('/api/v1/admin/profile', [
+            'full_name' => 'Profile Email Owner',
+            'phone' => '0912345678',
+            'email' => $otherAdmin->email,
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonPath('result.email.0', 'Email này đã được sử dụng bởi tài khoản khác.');
+
+        $this->assertDatabaseHas('admins', [
+            'id' => $admin->id,
+            'email' => 'profile_email_owner@stayhub.local',
+        ]);
+    }
+
     private function useRealBroadcasterForAuth(): void
     {
         config([

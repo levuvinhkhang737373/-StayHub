@@ -1334,7 +1334,6 @@ export function MeterReadingsScreen() {
             <div className="bg-[#24170d] px-6 py-5 text-[#fff4df] sm:px-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Utility Record</p>
                   <h2 id="reading-dialog-title" className="mt-1.5 text-2xl font-black tracking-tight sm:text-3xl">Chốt chỉ số - Phòng {activeRoom.room_number}</h2>
                   <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Khách thuê đại diện: {activeRoom.tenant_name || 'Không có (Phòng trống)'}</p>
                   {activeRoom.should_finalize_before_transfer && (

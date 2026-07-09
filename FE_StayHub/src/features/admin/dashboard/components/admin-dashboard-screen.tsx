@@ -36,19 +36,19 @@ import {
   type DashboardRevenuePoint,
   type UtilityReadingHistoryItem,
 } from '../services/dashboard.service'
+import { getDashboardMonthFilterOptions } from '../utils/dashboard-month-filter.helpers'
 
 const SUPER_ADMIN_ROLE_ID = 2
 const CURRENT_YEAR = new Date().getFullYear()
 const CURRENT_MONTH = new Date().getMonth() + 1
+const currentMonthKey = () => {
+  const currentDate = new Date()
+  return `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}`
+}
 const YEAR_OPTIONS = Array.from({ length: 7 }).map((_, index) => {
   const year = CURRENT_YEAR - index
   return { value: year, label: String(year) }
 })
-const MONTH_FILTER_OPTIONS = Array.from({ length: 12 }).map((_, index) => ({
-  value: index + 1,
-  label: `Tháng ${index + 1}`,
-}))
-
 const invoiceColors = ['#f3c56b', '#a65f16', '#0f766e', '#dc2626', '#6f6254']
 function formatNumber(value: number | null | undefined) {
   return new Intl.NumberFormat('vi-VN').format(Math.round(Number(value || 0)))
@@ -767,8 +767,17 @@ export function AdminDashboardScreen() {
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR)
   const [selectedMonthFrom, setSelectedMonthFrom] = useState(1)
   const [selectedMonthTo, setSelectedMonthTo] = useState(CURRENT_MONTH)
+  const [visibleMonthKey, setVisibleMonthKey] = useState(currentMonthKey)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setVisibleMonthKey(currentMonthKey())
+    }, 60 * 1000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -818,6 +827,11 @@ export function AdminDashboardScreen() {
 
   const isSuperAdmin = overview?.meta.role === SUPER_ADMIN_ROLE_ID
   const effectiveBuildingValue = selectedBuildingId || (overview?.meta.selected_building_id ? String(overview.meta.selected_building_id) : '')
+  const monthFilterOptions = useMemo(() => {
+    const [year = CURRENT_YEAR, month = CURRENT_MONTH] = visibleMonthKey.split('-').map(Number)
+    return getDashboardMonthFilterOptions(selectedYear, new Date(year, month - 1, 1))
+  }, [selectedYear, visibleMonthKey])
+
   const buildingOptions = useMemo(() => {
     const options = overview?.filters.buildings.map((building) => ({ value: String(building.id), label: building.name })) || []
     return isSuperAdmin ? [{ value: '', label: 'Tất cả tòa nhà' }, ...options] : options
@@ -882,13 +896,28 @@ export function AdminDashboardScreen() {
               </div>
               <div>
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#f3c56b]">Năm</label>
-                <AdminSelect value={selectedYear} options={YEAR_OPTIONS} menuMinWidth={170} wrapLabel onChange={(value) => { setIsLoading(true); setError(null); setSelectedYear(Number(value)) }} />
+                <AdminSelect
+                  value={selectedYear}
+                  options={YEAR_OPTIONS}
+                  menuMinWidth={170}
+                  wrapLabel
+                  onChange={(value) => {
+                    const year = Number(value)
+                    const latestMonth = getDashboardMonthFilterOptions(year).at(-1)?.value ?? 12
+
+                    setIsLoading(true)
+                    setError(null)
+                    setSelectedYear(year)
+                    setSelectedMonthFrom((month) => Math.min(month, latestMonth))
+                    setSelectedMonthTo((month) => Math.min(month, latestMonth))
+                  }}
+                />
               </div>
               <div>
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#f3c56b]">Từ tháng</label>
                 <AdminSelect
                   value={selectedMonthFrom}
-                  options={MONTH_FILTER_OPTIONS}
+                  options={monthFilterOptions}
                   menuMinWidth={190}
                   wrapLabel
                   onChange={(value) => {
@@ -904,7 +933,7 @@ export function AdminDashboardScreen() {
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#f3c56b]">Đến tháng</label>
                 <AdminSelect
                   value={selectedMonthTo}
-                  options={MONTH_FILTER_OPTIONS}
+                  options={monthFilterOptions}
                   menuMinWidth={190}
                   wrapLabel
                   onChange={(value) => {

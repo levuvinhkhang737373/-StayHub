@@ -6,7 +6,7 @@ import { changeAdminPassword, deleteAdminFaceId, registerAdminFaceId, updateAdmi
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { cn } from '../../shared/lib/utils/cn'
 import { resolveAssetUrl } from '../../shared/lib/utils/asset-url'
-import { validateChangePasswordForm, validateDeleteFaceIdPassword, type ChangePasswordErrors, type ChangePasswordForm } from './account-settings.validation'
+import { validateChangePasswordForm, validateDeleteFaceIdPassword, validateProfileForm, type ChangePasswordErrors, type ChangePasswordForm, type ProfileFormErrors } from './account-settings.validation'
 
 interface AccountSettingsModalProps {
   isOpen: boolean
@@ -43,6 +43,8 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [profileErrors, setProfileErrors] = useState<ProfileFormErrors>({})
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
   const [infoError, setInfoError] = useState<string | null>(null)
   const [isInfoSubmitting, setIsInfoSubmitting] = useState(false)
@@ -61,6 +63,8 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     if (isOpen && admin) {
       setFullName(admin.full_name || '')
       setPhone(admin.phone || '')
+      setEmail(admin.email || '')
+      setProfileErrors({})
       setInfoMessage(null)
       setInfoError(null)
       setAvatarFile(null)
@@ -284,27 +288,22 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   }
 
   async function handleSaveProfile() {
-    if (!fullName.trim()) {
-      setInfoError('Họ và tên không được để trống')
+    const errors = validateProfileForm({ fullName, email, phone })
+
+    setProfileErrors(errors)
+    setInfoError(null)
+    setInfoMessage(null)
+
+    if (Object.keys(errors).length > 0) {
       return
     }
 
-    const phoneTrimmed = phone.trim()
-    if (phoneTrimmed) {
-      const phoneRegex = /^(0[3|5|7|8|9])+([0-9]{8})$/
-      if (!phoneRegex.test(phoneTrimmed)) {
-        setInfoError('Số điện thoại không đúng định dạng Việt Nam (phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08, 09)')
-        return
-      }
-    }
-
     setIsInfoSubmitting(true)
-    setInfoError(null)
-    setInfoMessage(null)
 
     try {
       const response = await updateAdminProfile({
         full_name: fullName.trim(),
+        email: email.trim(),
         phone: phone.trim() || undefined,
         avatar: avatarFile,
       })
@@ -314,10 +313,37 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       setAvatarFile(null)
       setAvatarPreview(null)
     } catch (error) {
+      if (error && typeof error === 'object' && 'validationErrors' in error) {
+        const validationErrors = error.validationErrors as Record<string, string[]> | null
+        setProfileErrors({
+          fullName: validationErrors?.full_name?.[0],
+          phone: validationErrors?.phone?.[0],
+          email: validationErrors?.email?.[0],
+        })
+      }
+
       setInfoError(error instanceof Error ? error.message : 'Cập nhật thông tin cá nhân thất bại, vui lòng thử lại.')
     } finally {
       setIsInfoSubmitting(false)
     }
+  }
+
+  function updateProfileField(field: keyof ProfileFormErrors, value: string) {
+    if (field === 'fullName') {
+      setFullName(value)
+    }
+
+    if (field === 'phone') {
+      setPhone(value.replace(/[^0-9]/g, ''))
+    }
+
+    if (field === 'email') {
+      setEmail(value)
+    }
+
+    setProfileErrors((current) => ({ ...current, [field]: undefined }))
+    setInfoError(null)
+    setInfoMessage(null)
   }
 
   const modal = (
@@ -404,7 +430,13 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Họ và Tên</label>
-                        <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20" />
+                        <input
+                          type="text"
+                          value={fullName}
+                          onChange={(e) => updateProfileField('fullName', e.target.value)}
+                          className={cn('w-full rounded-2xl border bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:ring-4 focus:ring-[#f3c56b]/20', profileErrors.fullName ? 'border-rose-300 focus:border-rose-400' : 'border-[#3d2a18]/10 focus:border-[#f3c56b]')}
+                        />
+                        {profileErrors.fullName ? <p className="mt-2 text-xs font-bold text-rose-600">{profileErrors.fullName}</p> : null}
                       </div>
                       <div>
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Số điện thoại</label>
@@ -412,16 +444,21 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
                           type="text"
                           value={phone}
                           maxLength={10}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/[^0-9]/g, '')
-                            setPhone(val)
-                          }}
-                          className="w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20"
+                          onChange={(e) => updateProfileField('phone', e.target.value)}
+                          className={cn('w-full rounded-2xl border bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:ring-4 focus:ring-[#f3c56b]/20', profileErrors.phone ? 'border-rose-300 focus:border-rose-400' : 'border-[#3d2a18]/10 focus:border-[#f3c56b]')}
                         />
+                        {profileErrors.phone ? <p className="mt-2 text-xs font-bold text-rose-600">{profileErrors.phone}</p> : null}
                       </div>
                       <div className="md:col-span-2">
-                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Email (Không thể đổi)</label>
-                        <input type="email" defaultValue={admin?.email || ''} disabled className="w-full cursor-not-allowed rounded-2xl border border-[#3d2a18]/10 bg-[#efe2cf]/65 px-4 py-2.5 text-[#6f6254] outline-none" />
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-[#8b5e34]/70">Email</label>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => updateProfileField('email', e.target.value)}
+                          autoComplete="email"
+                          className={cn('w-full rounded-2xl border bg-[#fff7e8] px-4 py-2.5 text-[#24170d] outline-none transition focus:ring-4 focus:ring-[#f3c56b]/20', profileErrors.email ? 'border-rose-300 focus:border-rose-400' : 'border-[#3d2a18]/10 focus:border-[#f3c56b]')}
+                        />
+                        {profileErrors.email ? <p className="mt-2 text-xs font-bold text-rose-600">{profileErrors.email}</p> : null}
                       </div>
                     </div>
                   </motion.div>

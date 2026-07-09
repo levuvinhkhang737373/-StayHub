@@ -5,6 +5,7 @@ use App\Helpers\AdminActivityLogger;
 use App\Helpers\ApiResponse;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Auth\UpdateProfileRequest;
 use App\Http\Resources\Admin\AdminAuthResource;
 use App\Models\Admin;
 use App\Models\Building;
@@ -314,7 +315,7 @@ class AuthController extends Controller
     /**
      * Cập nhật thông tin profile admin hiện tại.
      */
-    public function updateProfile(Request $request): JsonResponse
+    public function updateProfile(UpdateProfileRequest $request): JsonResponse
     {
         try {
             $admin = $request->user('admin');
@@ -322,30 +323,10 @@ class AuthController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
             }
 
-            \Illuminate\Support\Facades\Log::info('Update Profile Request:', [
-                'has_file_avatar' => $request->hasFile('avatar'),
-                'avatar_file_details' => $request->file('avatar') ? [
-                    'original_name' => $request->file('avatar')->getClientOriginalName(),
-                    'mime_type' => $request->file('avatar')->getMimeType(),
-                    'size' => $request->file('avatar')->getSize(),
-                ] : null,
-                'params' => $request->all(),
-            ]);
-
-            $validated = $request->validate([
-                'full_name' => ['required', 'string', 'max:150'],
-                'phone'     => ['nullable', 'string', 'regex:/^(0[3|5|7|8|9])+([0-9]{8})$/'],
-                'email'     => ['sometimes', 'required', 'email', 'max:150', \Illuminate\Validation\Rule::unique('admins', 'email')->ignore($admin->id)],
-                'avatar'    => ['nullable', 'image', 'max:5120'],
-            ], [
-                'phone.regex' => 'Số điện thoại không đúng định dạng Việt Nam (phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08, 09).',
-                'email.required' => 'Email không được để trống.',
-                'email.email' => 'Email không đúng định dạng.',
-                'email.unique' => 'Email này đã được sử dụng bởi tài khoản khác.',
-            ]);
+            $validated = $request->validated();
 
             $oldData = $admin->only(['full_name', 'phone', 'email', 'avatar_url']);
-            
+
             $avatarUrl = $admin->avatar_url;
             if ($request->hasFile('avatar')) {
                 $avatarUrl = ImageHelper::update($request->file('avatar'), $admin->avatar_url, 'avatars');
