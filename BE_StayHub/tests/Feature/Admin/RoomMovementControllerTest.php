@@ -240,6 +240,40 @@ class RoomMovementControllerTest extends TestCase
         $this->assertDatabaseCount('contracts', 1);
     }
 
+    public function test_transfer_tenant_requires_new_deposit_greater_than_destination_room_price(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Asia/Ho_Chi_Minh'));
+
+        $admin = $this->createAdmin('super_room_move_deposit', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa cọc chuyển phòng', 'toa-coc-chuyen-phong');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'C101', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'C102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_move_deposit');
+        $oldContract = $this->createContract($fromRoom, $admin, 'HD-DEPOSIT-MOVE');
+
+        ContractTenant::create([
+            'contract_id' => $oldContract->id,
+            'tenant_id' => $tenant->id,
+            'join_date' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin, 'admin')->postJson('/api/v1/admin/room-transfers/tenant', [
+            'tenant_ids' => [$tenant->id],
+            'to_room_id' => $toRoom->id,
+            'movement_date' => now('Asia/Ho_Chi_Minh')->addMonthNoOverflow()->startOfMonth()->toDateString(),
+            'new_deposit_amount' => 1000,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Tiền cọc yêu cầu phòng mới phải lớn hơn tiền phòng mới.');
+
+        $this->assertDatabaseCount('room_movements', 0);
+    }
+
     public function test_room_movement_index_filters_and_scopes_by_managed_building(): void
     {
         $superAdmin = $this->createAdmin('super_history', Admin::ROLE_SUPER_ADMIN);

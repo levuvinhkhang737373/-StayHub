@@ -771,6 +771,15 @@ export function TenantTransferRoomScreen() {
     setSubmitError(null)
     setFieldErrors({})
 
+    const destinationRoomPrice = moneyNumber(selectedRoom.base_price)
+    if (!destinationRoomHasContract && requiredNewDeposit <= destinationRoomPrice) {
+      setFieldErrors({
+        new_deposit_amount: ['Tiền cọc yêu cầu phòng mới phải lớn hơn tiền phòng mới.'],
+      })
+      setSubmitError('Tiền cọc yêu cầu phòng mới phải lớn hơn tiền phòng mới.')
+      return
+    }
+
     const payload: TransferTenantPayload = {
       tenant_ids: selectedTenantIds,
       to_room_id: selectedRoom.id,

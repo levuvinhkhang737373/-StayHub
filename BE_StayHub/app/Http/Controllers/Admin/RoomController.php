@@ -408,6 +408,7 @@ class RoomController extends Controller
         $toRoom = Room::query()->with('building')->lockForUpdate()->find((int) $validated['to_room_id']);
 
         $this->assertScheduleIsAllowed($admin, $tenantIds, $sourceContract, $fromRoom, $toRoom, $movementDate);
+        $this->assertNewDepositExceedsDestinationRoomPrice($validated, $toRoom);
         $this->assertNoPendingTransfers($tenantIds);
         $this->assertNoPendingTransferForSourceContract((int) $sourceContract->id);
 
@@ -574,6 +575,25 @@ class RoomController extends Controller
 
         if ($hasPendingTransfer) {
             throw ValidationException::withMessages(['tenant_ids' => 'Một hoặc nhiều khách thuê đã có lịch chuyển phòng chưa hoàn tất.']);
+        }
+    }
+
+    private function assertNewDepositExceedsDestinationRoomPrice(array $validated, Room $toRoom): void
+    {
+        if ($this->activeDestinationContract($toRoom)) {
+            return;
+        }
+
+        if (! array_key_exists('new_deposit_amount', $validated)) {
+            return;
+        }
+
+        $newDepositAmount = DecimalMoney::normalize($validated['new_deposit_amount']);
+
+        if (DecimalMoney::compare($newDepositAmount, $toRoom->base_price) <= 0) {
+            throw ValidationException::withMessages([
+                'new_deposit_amount' => 'Tiền cọc yêu cầu phòng mới phải lớn hơn tiền phòng mới.',
+            ]);
         }
     }
 
