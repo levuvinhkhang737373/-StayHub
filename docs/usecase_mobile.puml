@@ -1,101 +1,71 @@
-@startuml
+@startuml Usecase_Mobile_StayHub
+skinparam actorStyle awesome
 left to right direction
-skinparam packageStyle rectangle
-skinparam shadowing false
-skinparam ranksep 100
-skinparam nodesep 50
 
-' Define Actors
-actor "Người dùng" as User
-actor "Quản lý tòa nhà" as Manager
-actor "Khách thuê" as Tenant
+skinparam package {
+    BackgroundColor #FFF8EC
+    BorderColor #EAB308
+    FontColor #1C1917
+}
 
-' Inheritance relations
-Manager -up-|> User
-Tenant -up-|> User
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #1C1917
+    ArrowColor #1C1917
+    ActorBorderColor #1C1917
+    FontName "Inter"
+}
 
-rectangle "Hệ thống StayHub Mobile" {
+actor "Quản trị viên (Admin/Manager)" as Admin
+actor "Khách thuê (Tenant/Resident)" as Tenant
 
-    rectangle "Tài khoản & Thiết lập" {
-        usecase "Đăng nhập" as UC_Login
-        usecase "Đăng xuất" as UC_Logout
-        usecase "Đổi mật khẩu" as UC_ChangePassword
-        usecase "Cập nhật thông tin cá nhân\n(Họ tên, SĐT, Avatar)" as UC_UpdateProfile
-        usecase "Nhắn tin trực tuyến (Chat)" as UC_Chat
-        usecase "Nhận thông báo Realtime" as UC_ReceiveNotifications
-        
-        usecase "Quên mật khẩu" as UC_ForgotPassword
-        usecase "Đặt lại mật khẩu" as UC_ResetPassword
-        UC_ForgotPassword .down.> UC_ResetPassword : <<include>>
+rectangle "Phân hệ Mobile StayHub" {
+    package "Xác thực & Tài khoản" {
+        usecase "Đăng nhập hệ thống" as UC_Login
+        usecase "Xem thông tin cá nhân & cài đặt" as UC_Profile
     }
 
-    rectangle "Hợp đồng (Khách thuê)" {
-        usecase "Xem danh sách hợp đồng" as UC_TenantContracts
-        usecase "Ký hợp đồng điện tử" as UC_SignContract
-        UC_TenantContracts <.. UC_SignContract : <<extend>>
+    package "Phân hệ Quản trị viên (Admin Role)" {
+        usecase "Quản lý hợp đồng\n(Lập mới, gia hạn, thanh lý)" as UC_ManageContracts
+        usecase "Thêm người vào hợp đồng" as UC_AddTenantContract
+        usecase "Chuyển phòng cho cư dân" as UC_RoomTransfer
+        usecase "Quản lý thông tin khách thuê" as UC_ManageTenants
+        usecase "Ghi nhận chỉ số Điện / Nước" as UC_Meters
+        usecase "Quản lý Hóa đơn & Thu phí" as UC_Invoices
+        usecase "Tiếp nhận & duyệt yêu cầu bảo trì" as UC_ManageMaintenance
+        usecase "Gửi thông báo hàng loạt" as UC_Notifications
+        usecase "Nhắn tin hỗ trợ cư dân (Chat)" as UC_ChatAdmin
     }
 
-    rectangle "Hóa đơn & Bảo trì (Khách thuê)" {
-        usecase "Xem & Thanh toán Hóa đơn" as UC_ViewInvoices
-        usecase "Gửi yêu cầu bảo trì" as UC_CreateMaintenance
-        usecase "Xem chỉ số điện nước" as UC_ViewUtilities
-    }
-
-    rectangle "Quản lý Hợp đồng (Admin)" {
-        usecase "Quản lý hợp đồng" as UC_ManageContracts
-        usecase "Lập hợp đồng mới" as UC_CreateContract
-        usecase "Chỉnh sửa hợp đồng nháp" as UC_EditContract
-        usecase "Gia hạn hợp đồng" as UC_RenewContract
-        usecase "Thanh lý hợp đồng" as UC_TerminateContract
-        usecase "Lên lịch chuyển phòng" as UC_TransferRoom
-
-        UC_ManageContracts <.. UC_CreateContract : <<extend>>
-        UC_ManageContracts <.. UC_EditContract : <<extend>>
-        UC_ManageContracts <.. UC_RenewContract : <<extend>>
-        UC_ManageContracts <.. UC_TerminateContract : <<extend>>
-        UC_ManageContracts <.. UC_TransferRoom : <<extend>>
-    }
-
-    rectangle "Hóa đơn & Điện nước (Admin)" {
-        usecase "Quản lý hóa đơn" as UC_ManageInvoices
-        usecase "Xác nhận thanh toán" as UC_ConfirmPayment
-        UC_ManageInvoices <.. UC_ConfirmPayment : <<extend>>
-
-        usecase "Ghi chỉ số đồng hồ điện nước" as UC_RecordMeter
-        usecase "Nhận diện chỉ số qua ảnh (AI)" as UC_MeterAI
-        UC_RecordMeter <.. UC_MeterAI : <<extend>>
-    }
-
-    rectangle "Vận hành & Thống kê (Admin)" {
-        usecase "Quản lý phòng trọ\n(Xem DS, Đổi trạng thái)" as UC_ManageRooms
-        usecase "Quản lý khách thuê\n(Xem DS, Đổi trạng thái)" as UC_ManageTenants
-        usecase "Quản lý yêu cầu bảo trì\n(Cập nhật, phân công)" as UC_ManageMaintenance
-        usecase "Xem thống kê tổng quan" as UC_ViewStats
+    package "Phân hệ Khách thuê (Tenant Role)" {
+        usecase "Xem tổng quan Dashboard" as UC_TenantDashboard
+        usecase "Xem chi tiết & Ký hợp đồng điện tử" as UC_SignContract
+        usecase "Xem hóa đơn & Xác nhận thanh toán" as UC_TenantInvoices
+        usecase "Tạo yêu cầu sửa chữa/bảo trì" as UC_CreateMaintenance
+        usecase "Xem lịch sử tiêu thụ Điện/Nước" as UC_TenantUtilities
+        usecase "Trò chuyện với Ban quản lý (Chat)" as UC_ChatTenant
     }
 }
 
-' Links for Shared Accounts
-User --> UC_Login
-User --> UC_Logout
-User --> UC_ChangePassword
-User --> UC_UpdateProfile
-User --> UC_Chat
-User --> UC_ReceiveNotifications
+Admin --> UC_Login
+Admin --> UC_Profile
+Admin --> UC_ManageContracts
+Admin --> UC_AddTenantContract
+Admin --> UC_RoomTransfer
+Admin --> UC_ManageTenants
+Admin --> UC_Meters
+Admin --> UC_Invoices
+Admin --> UC_ManageMaintenance
+Admin --> UC_Notifications
+Admin --> UC_ChatAdmin
 
-' Tenant Links
-Tenant --> UC_ForgotPassword
-Tenant --> UC_TenantContracts
-Tenant --> UC_ViewInvoices
+Tenant --> UC_Login
+Tenant --> UC_Profile
+Tenant --> UC_TenantDashboard
+Tenant --> UC_SignContract
+Tenant --> UC_TenantInvoices
 Tenant --> UC_CreateMaintenance
-Tenant --> UC_ViewUtilities
+Tenant --> UC_TenantUtilities
+Tenant --> UC_ChatTenant
 
-' Manager Links
-Manager --> UC_ViewStats
-Manager --> UC_ManageRooms
-Manager --> UC_ManageTenants
-Manager --> UC_ManageContracts
-Manager --> UC_ManageInvoices
-Manager --> UC_RecordMeter
-Manager --> UC_ManageMaintenance
-
-@endum
+@enduml
