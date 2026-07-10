@@ -112,6 +112,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         _removeChannelsMatching(
           (channelName) =>
               channelName == StayHubRealtimeContract.adminMaintenanceChannel ||
+              channelName == StayHubRealtimeContract.adminPaymentsChannel ||
               channelName.startsWith(
                 StayHubRealtimeContract.adminBuildingChannelPrefix,
               ) ||
@@ -363,6 +364,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     _onAdminMaintenanceCallback = onMaintenanceCreated;
     if (_isConnected) {
       _subscribeToAdminMaintenanceChannel();
+      _subscribeToAdminPaymentsChannel();
     } else {
       _ensureConnected();
     }
@@ -430,33 +432,6 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
         subscriptions.add(subscription);
       }
 
-      // Bind to ContractDepositPaid event on admin channel
-      final depositSubscription = channel.bind('ContractDepositPaid').listen((
-        event,
-      ) {
-        debugPrint('WS Event: ContractDepositPaid (Admin) -> ${event.data}');
-        Map<String, dynamic>? parsedData;
-        try {
-          final rawData = event.data;
-          if (rawData != null) {
-            if (rawData is String) {
-              parsedData = jsonDecode(rawData) as Map<String, dynamic>;
-            } else if (rawData is Map) {
-              parsedData = Map<String, dynamic>.from(rawData);
-            }
-          }
-        } catch (e) {
-          debugPrint('WS Error decoding JSON: $e');
-        }
-
-        // Broadcast event locally
-        _addNotificationEvent({
-          'type': 'admin_contract_deposit_paid',
-          'data': parsedData ?? event.data,
-        });
-      });
-      subscriptions.add(depositSubscription);
-
       // Bind to NotificationSent event on admin channel
       final adminNotificationSubscription = channel
           .bind('NotificationSent')
@@ -484,11 +459,78 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
           });
       subscriptions.add(adminNotificationSubscription);
 
-      // Bind to InvoicePaid event on admin channel
+      _eventSubscriptions[channelName] = subscriptions;
+      channel.subscribe();
+      debugPrint(
+        'WS: Subscribed to private channel $channelName successfully!',
+      );
+    } catch (e) {
+      debugPrint('WS Subscription Error ($channelName): $e');
+    }
+  }
+
+  Future<void> _subscribeToAdminPaymentsChannel() async {
+    if (_client == null || !_isConnected) return;
+
+    const channelName = StayHubRealtimeContract.adminPaymentsChannel;
+    if (_activeChannels.containsKey(channelName)) return;
+
+    _addDebugLog('Đang đăng ký kênh $channelName...');
+
+    try {
+      final channel = _client!.privateChannel(
+        _privateChannelName(channelName),
+        authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
+          onAuthFailed: (exception, trace) {
+            debugPrint('WS Auth failed for channel $channelName: $exception');
+            unawaited(_handleChannelAuthFailed(channelName, exception));
+          },
+        ),
+      );
+
+      _activeChannels[channelName] = channel;
+
+      StreamSubscription? successSubscription;
+      successSubscription = channel.whenSubscriptionSucceeded().listen((event) {
+        debugPrint('WS: Subscription to $channelName succeeded!');
+        _addDebugLog('Đăng ký kênh $channelName thành công!');
+        successSubscription?.cancel();
+      });
+
+      final List<StreamSubscription> subscriptions = [];
+
+      // Bind to ContractDepositPaid event on admin payments channel
+      final depositSubscription = channel.bind('ContractDepositPaid').listen((
+        event,
+      ) {
+        debugPrint('WS Event: ContractDepositPaid (Admin Payments) -> ${event.data}');
+        Map<String, dynamic>? parsedData;
+        try {
+          final rawData = event.data;
+          if (rawData != null) {
+            if (rawData is String) {
+              parsedData = jsonDecode(rawData) as Map<String, dynamic>;
+            } else if (rawData is Map) {
+              parsedData = Map<String, dynamic>.from(rawData);
+            }
+          }
+        } catch (e) {
+          debugPrint('WS Error decoding JSON: $e');
+        }
+
+        // Broadcast event locally
+        _addNotificationEvent({
+          'type': 'admin_contract_deposit_paid',
+          'data': parsedData ?? event.data,
+        });
+      });
+      subscriptions.add(depositSubscription);
+
+      // Bind to InvoicePaid event on admin payments channel
       final adminInvoicePaidSubscription = channel.bind('InvoicePaid').listen((
         event,
       ) {
-        debugPrint('WS Event: InvoicePaid (Admin) -> ${event.data}');
+        debugPrint('WS Event: InvoicePaid (Admin Payments) -> ${event.data}');
         try {
           final rawData = event.data;
           if (rawData != null) {
@@ -506,15 +548,16 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
             });
           }
         } catch (e) {
-          debugPrint('WS Error handling InvoicePaid (Admin): $e');
+          debugPrint('WS Error handling InvoicePaid (Admin Payments): $e');
         }
       });
       subscriptions.add(adminInvoicePaidSubscription);
 
+      // Bind to InvoiceReissued event on admin payments channel
       final adminInvoiceReissuedSubscription = channel
           .bind('InvoiceReissued')
           .listen((event) {
-            debugPrint('WS Event: InvoiceReissued (Admin) -> ${event.data}');
+            debugPrint('WS Event: InvoiceReissued (Admin Payments) -> ${event.data}');
             try {
               final rawData = event.data;
               if (rawData != null) {
@@ -532,7 +575,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
                 });
               }
             } catch (e) {
-              debugPrint('WS Error handling InvoiceReissued (Admin): $e');
+              debugPrint('WS Error handling InvoiceReissued (Admin Payments): $e');
             }
           });
       subscriptions.add(adminInvoiceReissuedSubscription);
@@ -768,6 +811,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   void _triggerPendingSubscriptions() {
     if (_onAdminMaintenanceCallback != null) {
       _subscribeToAdminMaintenanceChannel();
+      _subscribeToAdminPaymentsChannel();
     }
     if (_tenantId != null) {
       _subscribeToTenantChannel(_tenantId!);
