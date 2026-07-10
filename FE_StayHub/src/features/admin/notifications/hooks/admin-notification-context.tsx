@@ -181,13 +181,13 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
   useEffect(() => {
     if (!adminId || !echo) return
 
+    const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
     const channel = echo.private('admin-maintenance')
 
     channel.listen('.MaintenanceRequestCreated', (event: any) => {
       console.log('WS: Received MaintenanceRequestCreated', event)
       const request = event.request
       if (request) {
-        const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
         const managedBuildings = session?.admin?.managed_buildings || []
         const isManagerOfBuilding = managedBuildings.some(b => Number(b.id) === Number(request.building_id))
 
@@ -267,42 +267,6 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
-    channel.listen('.NotificationSent', (event: any) => {
-      console.log('WS: Received NotificationSent', event)
-      const notification = event.notification
-      if (notification) {
-        const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
-        const managedBuildings = session?.admin?.managed_buildings || []
-        const isManagerOfBuilding = managedBuildings.some(b => Number(b.id) === Number(notification.building_id))
-
-        if (isSuperAdmin || isManagerOfBuilding || !notification.building_id) {
-          // Always dispatch notification-refresh for the admin notifications list screen
-          window.dispatchEvent(new CustomEvent('notification-refresh'))
-
-          if (Number(notification.target_type) === 5) { // TARGET_TYPE_ADMIN = 5
-            const link = resolveNotificationActionPath(notification)
-
-            if (Number(notification.notification_type) === 6 && Number(notification.target_admin_id) !== Number(adminId)) {
-              return
-            }
-
-            addNotification({
-              title: notification.title,
-              description: notification.content,
-              link: link || undefined,
-              type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : notification.notification_type === 6 ? 'chat' : 'system',
-            })
-          }
-
-          if (notification.notification_type === 2) {
-            window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: notification }))
-          } else if (notification.title === 'Hợp đồng đã được ký' || notification.title === 'Hợp đồng hết hạn') {
-            window.dispatchEvent(new CustomEvent('contract-refresh', { detail: notification }))
-          }
-        }
-      }
-    })
-
     const managedBuildings = session?.admin?.managed_buildings || []
     const buildingChannels = managedBuildings.map((b) => {
       const bCh = echo.private(`admin-building.${b.id}`)
@@ -319,8 +283,36 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
           window.dispatchEvent(new CustomEvent('contract-refresh', { detail: contract }))
         }
       })
+      bCh.listen('.NotificationSent', (event: any) => {
+        handleScopedAdminNotification(event.notification)
+      })
       return { id: b.id, channel: bCh }
     })
+
+    const superAdminChannel = isSuperAdmin ? echo.private('admin-super') : null
+    superAdminChannel?.listen('.NotificationSent', (event: any) => {
+      handleScopedAdminNotification(event.notification)
+    })
+
+    function handleScopedAdminNotification(notification: any) {
+      if (!notification || Number(notification.target_type) !== 5) return
+      if (notification.target_admin_id && Number(notification.target_admin_id) !== Number(adminId)) return
+
+      window.dispatchEvent(new CustomEvent('notification-refresh', { detail: notification }))
+
+      addNotification({
+        title: notification.title,
+        description: notification.content,
+        link: resolveNotificationActionPath(notification) || undefined,
+        type: notification.notification_type === 1 ? 'maintenance' : notification.notification_type === 2 ? 'invoice' : notification.notification_type === 6 ? 'chat' : 'system',
+      })
+
+      if (notification.notification_type === 2) {
+        window.dispatchEvent(new CustomEvent('invoice-refresh', { detail: notification }))
+      } else if (notification.title === 'Hợp đồng đã được ký' || notification.title === 'Hợp đồng hết hạn') {
+        window.dispatchEvent(new CustomEvent('contract-refresh', { detail: notification }))
+      }
+    }
 
     const adminChatChannel = echo.private(`chat.admin.${adminId}`)
     adminChatChannel.listen('.NotificationSent', (event: any) => {
@@ -347,10 +339,11 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       channel.stopListening('.ContractDepositPaid')
       channel.stopListening('.InvoicePaid')
       channel.stopListening('.InvoiceReissued')
-      channel.stopListening('.NotificationSent')
       buildingChannels.forEach((bc) => {
         bc.channel.stopListening('.ContractExpired')
+        bc.channel.stopListening('.NotificationSent')
       })
+      superAdminChannel?.stopListening('.NotificationSent')
       adminChatChannel.stopListening('.NotificationSent')
     }
   }, [adminId, echo, session, addNotification])

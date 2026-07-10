@@ -10,6 +10,10 @@ Broadcast::channel('admin-maintenance', function ($user) {
     return $user instanceof \App\Models\Admin;
 }, ['guards' => ['admin']]);
 
+Broadcast::channel('admin-super', function ($user) {
+    return $user instanceof \App\Models\Admin && \App\Helpers\AdminScope::isSuperAdmin($user);
+}, ['guards' => ['admin']]);
+
 Broadcast::channel('admin-building.{buildingId}', function ($user, $buildingId) {
     if (! ($user instanceof \App\Models\Admin)) {
         return false;

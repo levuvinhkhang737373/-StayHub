@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { listenAdminSessionInvalidated } from '../../../../shared/lib/api/admin-session-events'
 import { fetchAdminMe } from '../services/admin-auth.service'
 import type { AdminLoginResult } from '../types/admin-auth.model'
-import { AdminSessionContext, type AdminSessionStatus } from './admin-session-store'
+import { AdminSessionContext, normalizeAdminSession, type AdminSessionStatus } from './admin-session-store'
 
 const LEGACY_ADMIN_SESSION_KEY = 'stayhub_admin_session'
 
@@ -13,9 +13,11 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
   const sessionVersionRef = useRef(0)
 
   const saveSession = useCallback((payload: AdminLoginResult) => {
+    const nextSession = normalizeAdminSession(payload)
+
     sessionVersionRef.current += 1
-    setSession(payload)
-    setStatus('authenticated')
+    setSession(nextSession)
+    setStatus(nextSession ? 'authenticated' : 'guest')
   }, [])
 
   const clearSession = useCallback(() => {
@@ -34,14 +36,14 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
 
     const refreshPromise = fetchAdminMe()
       .then((response): AdminLoginResult | null => {
-        const nextSession = { admin: response.result }
+        const nextSession = normalizeAdminSession(response.result)
 
         if (sessionVersionRef.current !== startedVersion) {
           return null
         }
 
         setSession(nextSession)
-        setStatus('authenticated')
+        setStatus(nextSession ? 'authenticated' : 'guest')
 
         return nextSession
       })
@@ -68,18 +70,19 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
     return listenAdminSessionInvalidated(clearSession)
   }, [clearSession])
 
-  const isAuthenticated = useMemo(() => Boolean(session?.admin), [session])
+  const normalizedSession = useMemo(() => normalizeAdminSession(session), [session])
+  const isAuthenticated = useMemo(() => Boolean(normalizedSession?.admin), [normalizedSession])
   const isChecking = status === 'checking'
 
   const value = useMemo(() => ({
-    session,
+    session: normalizedSession,
     status,
     isAuthenticated,
     isChecking,
     saveSession,
     clearSession,
     refreshSession,
-  }), [clearSession, isAuthenticated, isChecking, refreshSession, saveSession, session, status])
+  }), [clearSession, isAuthenticated, isChecking, normalizedSession, refreshSession, saveSession, status])
 
   return <AdminSessionContext.Provider value={value}>{children}</AdminSessionContext.Provider>
 }

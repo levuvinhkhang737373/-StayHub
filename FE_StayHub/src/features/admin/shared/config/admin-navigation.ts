@@ -58,7 +58,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'expenses', label: 'Phiếu chi', icon: CreditCard, group: 'Tài chính & Báo cáo', href: '/admin/expenses', access: 'all' },
   { id: 'expense_categories', label: 'Danh mục phiếu chi', icon: Tags, group: 'Tài chính & Báo cáo', href: '/admin/expense-categories', access: 'all', readOnlyForAdmin: true },
   { id: 'financials', label: 'Báo cáo lợi nhuận', icon: BarChart3, group: 'Tài chính & Báo cáo', href: '/admin/financials', access: 'all' },
-  { id: 'vehicles', label: 'Bãi xe & Phương tiện', icon: Car, group: 'Vận hành', href: '/admin/vehicles', access: 'all' },
+  { id: 'vehicles', label: 'Phương tiện', icon: Car, group: 'Vận hành', href: '/admin/vehicles', access: 'all' },
   { id: 'maintenance', label: 'Bảo trì', icon: Wrench, group: 'Vận hành', href: '/admin/maintenance', access: 'all' },
   { id: 'system_users', label: 'Tài khoản admin', icon: ShieldCheck, group: 'Hệ thống', href: '/admin/system-users', access: 'superadmin' },
   { id: 'activity_logs', label: 'Nhật ký admin', icon: History, group: 'Hệ thống', href: '/admin/activity-logs', access: 'superadmin' },
@@ -99,4 +99,14 @@ export function getAdminRoleLabel(role?: string | number | null) {
   if (isSuperAdminRole(role)) return 'Quản trị tổng'
   if (isBuildingManagerRole(role)) return 'Quản lý tòa nhà'
   return 'Không xác định'
+}
+
+export function resolveAdminRoleLabel(role?: string | number | null, roleLabel?: string | null) {
+  const normalizedRoleLabel = roleLabel?.trim()
+
+  if (normalizedRoleLabel && normalizedRoleLabel.toLowerCase() !== 'không xác định') {
+    return normalizedRoleLabel
+  }
+
+  return getAdminRoleLabel(role)
 }

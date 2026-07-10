@@ -329,7 +329,6 @@ export function RoomServicePricesScreen() {
             <div className="bg-[#24170d] p-5 text-[#fff4df]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Room Service Pricing</p>
                   <h2 id="room-service-price-dialog-title" className="mt-1.5 text-2xl font-black tracking-tight">Lên lịch giá phòng {editingRoom.room_number}</h2>
                   <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Áp dụng từ {monthLabel(billingMonth, billingYear)} · không bao gồm điện/nước</p>
                 </div>
@@ -372,12 +371,11 @@ export function RoomServicePricesScreen() {
             </div>
 
             <div className="flex flex-col gap-2 border-t border-[#3d2a18]/10 bg-[#fff7e8]/80 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs font-bold text-[#6f6254]">Tenant nhận realtime notification ngay khi lưu lịch giá.</p>
               <div className="flex gap-2">
                 <button type="button" onClick={closeEditModal} disabled={isSaving} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] px-5 text-xs font-black uppercase tracking-wider text-[#6f6254] disabled:opacity-50">Hủy</button>
                 <button type="button" onClick={() => void handleSave()} disabled={isSaving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#24170d] px-5 text-xs font-black uppercase tracking-wider text-[#fff4df] shadow-md shadow-[#24170d]/10 disabled:opacity-50">
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 text-[#f3c56b]" />}
-                  {isSaving ? 'Đang lưu...' : 'Lưu lịch giá'}
+                  {isSaving ? 'Đang lưu...' : 'Lưu giá'}
                 </button>
               </div>
             </div>

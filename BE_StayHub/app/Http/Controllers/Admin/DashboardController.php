@@ -119,7 +119,7 @@ class DashboardController extends Controller
                     'monthly_revenue' => $this->metric($revenueLabel, $currentFinancial['revenue'], $previousFinancial['revenue'], 'money'),
                     'monthly_profit' => $this->metric($profitLabel, $currentFinancial['profit'], $previousFinancial['profit'], 'money'),
                     'occupancy_rate' => $this->metric('Tỷ lệ lấp đầy', $occupancy['occupancy_rate'], null, 'percent'),
-                    'renting_tenants' => $this->metric('Khách đang thuê', $tenantCount, null, 'count'),
+                    'renting_tenants' => $this->metric('Khách thuê', $tenantCount, null, 'count'),
                     'outstanding_debt' => $this->metric('Công nợ cần thu', $debt['amount'], null, 'money', [
                         'count' => $debt['count'],
                         'overdue_count' => $debt['overdue_count'],

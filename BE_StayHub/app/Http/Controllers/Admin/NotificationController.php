@@ -11,6 +11,7 @@ use App\Http\Requests\Admin\Notification\UpdateRequest;
 use App\Http\Resources\Admin\NotificationResource;
 use App\Models\Notification;
 use App\Models\NotificationRead;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -314,70 +315,27 @@ class NotificationController extends Controller
         }
     }
 
-    private function accessibleQuery($admin)
+    private function accessibleQuery($admin): Builder
     {
         $query = Notification::query()
-            ->where(function ($q) use ($admin) {
-                $q->where(function ($nonChatQuery) {
-                    $nonChatQuery->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
-                        ->where(function ($scopedQuery) {
-                            $scopedQuery->whereNotNull('created_by')
-                                ->orWhere('target_type', Notification::TARGET_TYPE_ADMIN)
-                                ->orWhereIn('title', [
-                                    'Yêu cầu sửa chữa mới',
-                                    'Phản hồi mới từ khách thuê',
-                                    'Hợp đồng hết hạn',
-                                    'Thanh toán đặt cọc thành công',
-                                    'Hợp đồng đã được ký',
-                                    'Hóa đơn đã được thanh toán',
-                                    'Thanh toán hóa đơn thành công',
-                                    'Yêu cầu thương lượng giá hợp đồng',
-                                    'Thanh toán chuyển phòng',
-                                    'Tin nhắn mới từ khách thuê',
-                                ]);
-                        });
-                })->orWhere(function ($chatQuery) use ($admin) {
-                    $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
-                        ->where('target_type', Notification::TARGET_TYPE_ADMIN)
-                        ->where('target_admin_id', $admin->id);
-                });
-            });
-
-        $query->where(function ($q) use ($admin) {
-            $q->where(function ($nonChatQuery) use ($admin) {
-                $nonChatQuery->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
-                    ->where(function ($targetAdminQuery) use ($admin) {
-                        $targetAdminQuery->whereNull('target_admin_id')
-                            ->orWhere('target_admin_id', $admin->id);
-                    });
-            })
-            ->orWhere(function ($chatQuery) use ($admin) {
-                $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
-                    ->where('target_type', Notification::TARGET_TYPE_ADMIN)
-                    ->where('target_admin_id', $admin->id);
-            });
-        });
+            ->where(fn (Builder $targetAdminQuery): Builder => $targetAdminQuery
+                ->whereNull('target_admin_id')
+                ->orWhere('target_admin_id', $admin->id)
+            );
 
         if (! AdminScope::isSuperAdmin($admin)) {
-            $query->where(function ($q) use ($admin) {
-                $q->where(function ($nonChatQuery) use ($admin) {
-                    $nonChatQuery->where('notification_type', '!=', Notification::NOTIFICATION_TYPE_CHAT)
-                        ->where(function ($scopedQuery) use ($admin) {
-                            $scopedQuery->whereIn('building_id', function ($db) use ($admin) {
-                                $db->select('id')
-                                    ->from('buildings')
-                                    ->where('manager_admin_id', $admin->id);
-                            })
-                            ->orWhere('target_type', Notification::TARGET_TYPE_ALL)
-                            ->orWhere('target_admin_id', $admin->id)
-                            ->orWhere('created_by', $admin->id);
-                        });
-                })->orWhere(function ($chatQuery) use ($admin) {
-                    $chatQuery->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
-                        ->where('target_type', Notification::TARGET_TYPE_ADMIN)
-                        ->where('target_admin_id', $admin->id);
-                });
-            });
+            $query->where(fn (Builder $scopeQuery): Builder => $scopeQuery
+                ->where('created_by', $admin->id)
+                ->orWhere('target_admin_id', $admin->id)
+                ->orWhere(fn (Builder $buildingQuery): Builder => $buildingQuery
+                    ->whereNotNull('building_id')
+                    ->whereIn('building_id', function ($buildingIds) use ($admin): void {
+                        $buildingIds->select('id')
+                            ->from('buildings')
+                            ->where('manager_admin_id', $admin->id);
+                    })
+                )
+            );
         }
 
         return $query;

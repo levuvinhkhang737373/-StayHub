@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { isBuildingManagerRole, useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { logoutAdmin } from '../../features/admin/auth/services/admin-auth.service'
 import { AdminNavList } from '../../features/admin/shared/components/AdminNavList'
-import { getActiveAdminNavItem, getAdminRoleLabel, getVisibleAdminNavItems } from '../../features/admin/shared/config/admin-navigation'
+import { getActiveAdminNavItem, getVisibleAdminNavItems, resolveAdminRoleLabel } from '../../features/admin/shared/config/admin-navigation'
 import { AccountSettingsModal } from './AccountSettingsModal'
 import { useAdminNotifications } from '../../features/admin/notifications/hooks/admin-notification-context'
 import { useAdminSocket } from '../../shared/lib/socket/socket-context'
@@ -17,8 +17,8 @@ export function AdminHeader() {
   const { clearSession, session } = useAdminSession()
   const visibleItems = useMemo(() => getVisibleAdminNavItems(session?.admin.role), [session?.admin.role])
   const activeItem = useMemo(() => getActiveAdminNavItem(location.pathname, visibleItems), [location.pathname, visibleItems])
-  const adminName = session?.admin.full_name || 'Admin'
-  const adminRole = session?.admin.role_label || getAdminRoleLabel(session?.admin.role)
+  const adminName = session?.admin.full_name || session?.admin.username || 'Admin'
+  const adminRole = resolveAdminRoleLabel(session?.admin.role, session?.admin.role_label)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)

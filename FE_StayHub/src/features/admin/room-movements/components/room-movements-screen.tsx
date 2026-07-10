@@ -1049,7 +1049,7 @@ function makeSettlementBreakdown(movement: AdminRoomMovementResource) {
     usesOldDeposit,
     oldDepositTitle: usesOldDeposit ? 'Cọc cũ được quyết toán' : 'Cọc cũ giữ tại hợp đồng nguồn',
     oldDepositDescription: usesOldDeposit
-      ? 'Backend dùng số dư cọc cũ để trừ phí/khấu trừ trước, sau đó mới chuyển sang hợp đồng đích hoặc hoàn phần dư.'
+      ? 'dùng số dư cọc cũ để trừ phí/khấu trừ trước, sau đó mới chuyển sang hợp đồng đích hoặc hoàn phần dư.'
       : 'Đây là luồng chuyển một phần hoặc sang hợp đồng đích đã có cọc: cọc cũ không đem bù cọc mới, khoản phát sinh được thu riêng trong settlement.',
     legacyRefundAmount,
   }

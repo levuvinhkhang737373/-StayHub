@@ -4,7 +4,7 @@ import { LogOut, User, Bell, MessageCircle } from 'lucide-react'
 import { isBuildingManagerRole, useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
 import { logoutAdmin } from '../../features/admin/auth/services/admin-auth.service'
 import { AdminNavList } from '../../features/admin/shared/components/AdminNavList'
-import { getAdminRoleLabel, getVisibleAdminNavItems } from '../../features/admin/shared/config/admin-navigation'
+import { getVisibleAdminNavItems, resolveAdminRoleLabel } from '../../features/admin/shared/config/admin-navigation'
 import { AccountSettingsModal } from './AccountSettingsModal'
 import { resolveAssetUrl } from '../../shared/lib/utils/asset-url'
 import { useAdminNotifications } from '../../features/admin/notifications/hooks/admin-notification-context'
@@ -14,8 +14,8 @@ import { cn } from '../../shared/lib/utils/cn'
 
 export function AdminSidebar() {
   const { clearSession, session } = useAdminSession()
-  const adminName = session?.admin.full_name || 'Admin'
-  const adminRole = session?.admin.role_label || getAdminRoleLabel(session?.admin.role)
+  const adminName = session?.admin.full_name || session?.admin.username || 'Admin'
+  const adminRole = resolveAdminRoleLabel(session?.admin.role, session?.admin.role_label)
   const visibleItems = useMemo(() => getVisibleAdminNavItems(session?.admin.role), [session?.admin.role])
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)

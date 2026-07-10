@@ -24,16 +24,24 @@ class NotificationSent implements ShouldBroadcast
     {
         $channels = [];
 
-        if ($this->notification->notification_type !== Notification::NOTIFICATION_TYPE_CHAT) {
-            $channels[] = new PrivateChannel('admin-maintenance');
-        }
-
         if ((int) $this->notification->target_type === Notification::TARGET_TYPE_ADMIN) {
             if ($this->notification->target_admin_id) {
                 $channels[] = new PrivateChannel('chat.admin.' . $this->notification->target_admin_id);
             }
 
+            if ($this->notification->building_id) {
+                $channels[] = new PrivateChannel('admin-building.' . $this->notification->building_id);
+            }
+
+            if (! $this->notification->target_admin_id && ! $this->notification->building_id) {
+                $channels[] = new PrivateChannel('admin-super');
+            }
+
             return $channels;
+        }
+
+        if ($this->notification->notification_type !== Notification::NOTIFICATION_TYPE_CHAT) {
+            $channels[] = new PrivateChannel('admin-maintenance');
         }
 
         if ((int) $this->notification->target_type === Notification::TARGET_TYPE_TENANT) {

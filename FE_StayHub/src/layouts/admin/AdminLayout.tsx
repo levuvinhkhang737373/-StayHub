@@ -4,11 +4,14 @@ import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-sessi
 import { AdminFooter } from './AdminFooter'
 import { AdminHeader } from './AdminHeader'
 import { AdminSidebar } from './AdminSidebar'
+import { resolveAdminLayoutState, type AdminLayoutState } from './admin-layout-state'
 import { cn } from '../../shared/lib/utils/cn'
 
 export function AdminLayout() {
-  const { refreshSession } = useAdminSession()
-  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'guest'>('checking')
+  const location = useLocation()
+  const { refreshSession, session } = useAdminSession()
+  const [authStatus, setAuthStatus] = useState<AdminLayoutState>('checking')
+  const resolvedAuthStatus = resolveAdminLayoutState(authStatus, Boolean(session?.admin))
 
   useEffect(() => {
     let isMounted = true
@@ -28,7 +31,7 @@ export function AdminLayout() {
     }
   }, [refreshSession])
 
-  if (authStatus === 'checking') {
+  if (resolvedAuthStatus === 'checking') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f4efe6] bg-[radial-gradient(circle_at_20%_10%,rgba(243,197,107,0.3),transparent_28%),radial-gradient(circle_at_85%_18%,rgba(15,118,110,0.12),transparent_30%)] text-sm font-black text-[#6f6254]">
         Đang kiểm tra phiên đăng nhập...
@@ -36,11 +39,10 @@ export function AdminLayout() {
     )
   }
 
-  if (authStatus === 'guest') {
+  if (resolvedAuthStatus === 'guest') {
     return <Navigate to="/admin/login" replace />
   }
 
-  const location = useLocation()
   const isChatPage = location.pathname === '/admin/chat'
 
   return (

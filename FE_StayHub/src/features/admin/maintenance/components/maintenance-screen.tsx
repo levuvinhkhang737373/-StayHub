@@ -9,7 +9,6 @@ import {
   X,
   CheckCircle2,
   Clock,
-  AlertTriangle,
   User,
   Image as ImageIcon,
   Building

@@ -4,12 +4,7 @@ import type {
   TransferRoomResultResource,
 } from '../types/TranferModel';
 
-/**
- * Lưu ý: route backend hiện đặt là `room-transfers/...` (xem comment cuối file
- * RoomTransferController.php) - đổi prefix sang `admin/room-transfers/...` để khớp
- * convention các route admin khác (admin/tenants, admin/rooms...) và áp đúng middleware
- * nhóm admin (hiện route mẫu chỉ có auth:sanctum, chưa có check quyền admin).
- */
+
 export async function transferTenantRoom(payload: TransferTenantPayload) {
   return apiRequest<TransferRoomResultResource>({
     url: 'admin/room-transfers/tenant',
