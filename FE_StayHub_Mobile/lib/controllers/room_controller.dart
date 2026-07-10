@@ -167,6 +167,7 @@ class RoomController extends ChangeNotifier {
     try {
       final response = await _apiService.patch<dynamic>(
         '/admin/rooms/$id/status',
+        data: {'status': status},
         fromJsonT: (json) => json,
       );
 
