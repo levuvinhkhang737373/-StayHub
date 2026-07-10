@@ -52,10 +52,19 @@ class NotificationSent implements ShouldBroadcast
                 $channels[] = new PrivateChannel('tenant.' . $id);
             }
         } elseif ((int) $this->notification->target_type === Notification::TARGET_TYPE_BUILDING) {
-            // Tìm tất cả khách thuê thuộc tòa nhà đó
+            // Tìm tất cả khách thuê thuộc tòa nhà đó (qua table tenants hoặc qua contracts)
             $tenantIds = \App\Models\Tenant::query()
                 ->where('building_id', $this->notification->building_id)
-                ->pluck('id');
+                ->orWhereHas('contracts', function ($q) {
+                    $q->where('contracts.status', \App\Models\Contract::STATUS_ACTIVE)
+                      ->whereHas('room', function ($rq) {
+                          $rq->where('building_id', $this->notification->building_id);
+                      })
+                      ->where('contract_tenants.is_staying', true)
+                      ->whereNull('contract_tenants.leave_date');
+                })
+                ->pluck('id')
+                ->unique();
             foreach ($tenantIds as $id) {
                 $channels[] = new PrivateChannel('tenant.' . $id);
             }

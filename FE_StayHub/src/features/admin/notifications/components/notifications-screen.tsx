@@ -168,7 +168,7 @@ export function NotificationsScreen() {
     building_id: '',
     room_id: '',
     tenant_id: '',
-    status: 1,
+    status: 2,
   }), [isSuperAdmin])
 
   // Drawer / Form state
@@ -300,8 +300,10 @@ export function NotificationsScreen() {
   }
 
   const openEditForm = (notif: AdminNotificationResource) => {
-    setErrorMessage('Không thể chỉnh sửa thông báo đã gửi.')
-    return
+    if (Number(notif.status) === 2) {
+      setErrorMessage('Không thể chỉnh sửa thông báo đã gửi.')
+      return
+    }
     setEditingNotificationId(notif.id)
     setForm({
       title: notif.title || '',
