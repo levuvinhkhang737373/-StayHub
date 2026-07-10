@@ -42,11 +42,7 @@
                                 </tr>
                             </table>
 
-                            <div style="margin:26px 0;text-align:center;">
-                                <a href="{{ $loginUrl }}" style="display:inline-block;background:#f3c56b;color:#24170d;text-decoration:none;font-size:15px;font-weight:900;padding:14px 24px;border-radius:16px;">Đăng nhập cổng khách thuê</a>
-                            </div>
-
-                            <p style="margin:0 0 10px;font-size:14px;line-height:1.7;color:#6f6254;">Vì lý do bảo mật, hãy đổi mật khẩu sau lần đăng nhập đầu tiên và không chia sẻ mật khẩu này cho người khác.</p>
+                            <p style="margin:20px 0 10px;font-size:14px;line-height:1.7;color:#6f6254;">Vì lý do bảo mật, hãy đổi mật khẩu sau lần đăng nhập đầu tiên và không chia sẻ mật khẩu này cho người khác.</p>
                             <p style="margin:0;font-size:13px;line-height:1.6;color:#8b5e34;">Nếu bạn không yêu cầu tài khoản này, vui lòng liên hệ quản lý tòa nhà hoặc bộ phận hỗ trợ StayHub.</p>
                         </td>
                     </tr>

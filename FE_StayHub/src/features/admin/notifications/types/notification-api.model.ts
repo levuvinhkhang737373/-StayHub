@@ -17,6 +17,7 @@ export interface AdminNotificationResource {
   published_at: string | null
   status: number
   status_label?: string | null
+  is_read?: boolean
   created_by: number | null
   creator_name?: string | null
   created_at: string
@@ -49,5 +50,12 @@ export interface AdminNotificationPaginator {
     per_page: number
     total: number
     last_page: number
+  }
+  stats?: {
+    total: number
+    draft: number
+    sent: number
+    cancelled: number
+    unread: number
   }
 }

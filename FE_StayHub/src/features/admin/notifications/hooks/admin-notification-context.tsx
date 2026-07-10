@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { fetchAdminNotifications, markAdminNotificationRead, markAllAdminNotificationsRead } from '../services/notification.service'
+import type { AdminNotificationResource } from '../types/notification-api.model'
 import { resolveNotificationActionPath } from '../utils/notification-link'
 
 export interface ReceivedNotification {
@@ -34,84 +35,85 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
   const navigate = useNavigate()
   const { session } = useAdminSession()
   const [notifications, setNotifications] = useState<ReceivedNotification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [toasts, setToasts] = useState<ReceivedNotification[]>([])
 
   const adminId = session?.admin?.id
 
-  // Load notifications from API and merge with local read states on mount
-  useEffect(() => {
+  const mapApiNotifications = useCallback((list: AdminNotificationResource[]) => {
+    return list.reduce<ReceivedNotification[]>((acc, item) => {
+      if (Number(item.notification_type) === 6 && Number(item.target_admin_id) !== Number(adminId)) {
+        return acc
+      }
+
+      if (Number(item.created_by) === Number(adminId)) {
+        return acc
+      }
+
+      let notifType: ReceivedNotification['type'] = 'system'
+      if (item.notification_type === 1) {
+        notifType = 'maintenance'
+      } else if (item.notification_type === 2) {
+        notifType = 'invoice'
+      } else if (item.notification_type === 6) {
+        notifType = 'chat'
+      }
+
+      const link = resolveNotificationActionPath(item)
+
+      acc.push({
+        id: String(item.id),
+        title: item.title,
+        description: item.content || '',
+        link: link || undefined,
+        read: item.is_read ?? false,
+        createdAt: item.created_at,
+        type: notifType,
+      })
+
+      return acc
+    }, [])
+  }, [adminId])
+
+  const loadNotificationsFromApi = useCallback(async () => {
     if (!adminId || !session) {
       setNotifications([])
+      setUnreadCount(0)
       return
     }
 
-    let isMounted = true
+    try {
+      const res = await fetchAdminNotifications({ per_page: 500 })
 
-    const loadNotificationsFromApi = async () => {
-      try {
+      if (res.status && res.result) {
+        const mapped = mapApiNotifications(res.result.data || [])
+        const stats = res.result.stats ?? { unread: 0 }
 
-
-        const res = await fetchAdminNotifications({ per_page: 500 })
-        if (!isMounted) return
-
-        if (res.status && res.result) {
-          // Safeguard to ensure result is an array
-          const list = res.result.data || []
-
-          const mapped = list.reduce<ReceivedNotification[]>((acc, item: any) => {
-            // Exclude chat notifications not targeting this admin
-            if (Number(item.notification_type) === 6 && Number(item.target_admin_id) !== Number(adminId)) {
-              return acc
-            }
-
-
-
-            // Exclude notifications created by the current admin themselves (outgoing)
-            if (Number(item.created_by) === Number(adminId)) {
-              return acc
-            }
-
-            const notifId = String(item.id)
-
-            let notifType: ReceivedNotification['type'] = 'system'
-            if (item.notification_type === 1) {
-              notifType = 'maintenance'
-            } else if (item.notification_type === 2) {
-              notifType = 'invoice'
-            } else if (item.notification_type === 6) {
-              notifType = 'chat'
-            }
-
-            const link = resolveNotificationActionPath(item)
-
-            acc.push({
-              id: notifId,
-              title: item.title,
-              description: item.content || '',
-              link: link || undefined,
-              read: item.is_read ?? false,
-              createdAt: item.created_at,
-              type: notifType,
-            })
-
-            return acc
-          }, [])
-
-          setNotifications(mapped)
-          localStorage.setItem(`stayhub_admin_notifications_${adminId}`, JSON.stringify(mapped))
-        }
-      } catch (e) {
-        console.error('Failed to load notifications from API', e)
+        setNotifications(mapped)
+        setUnreadCount(Number(stats.unread ?? 0))
+        localStorage.setItem(`stayhub_admin_notifications_${adminId}`, JSON.stringify(mapped))
       }
+    } catch (e) {
+      console.error('Failed to load notifications from API', e)
+    }
+  }, [adminId, session, mapApiNotifications])
+
+  useEffect(() => {
+    void loadNotificationsFromApi()
+  }, [loadNotificationsFromApi])
+
+  useEffect(() => {
+    const handleNotificationRefresh = () => {
+      void loadNotificationsFromApi()
     }
 
-    void loadNotificationsFromApi()
+    window.addEventListener('notification-refresh', handleNotificationRefresh)
 
     return () => {
-      isMounted = false
+      window.removeEventListener('notification-refresh', handleNotificationRefresh)
     }
-  }, [adminId, session])
+  }, [loadNotificationsFromApi])
 
   // Save notifications to localStorage whenever they change
   const saveNotifications = useCallback((newNotifs: ReceivedNotification[]) => {
@@ -354,28 +356,39 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
   }, [adminId, echo, session, addNotification])
 
   const markAsRead = (id: string) => {
+    const notification = notifications.find((n) => n.id === id)
+    const hasServerId = !isNaN(Number(id))
     const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
     saveNotifications(updated)
-    if (!isNaN(Number(id))) {
-      markAdminNotificationRead(Number(id)).catch((err) => {
-        console.error('Failed to mark notification as read on backend', err)
-      })
+    if (hasServerId && notification && !notification.read) {
+      setUnreadCount((count) => Math.max(0, count - 1))
+    }
+    if (hasServerId) {
+      markAdminNotificationRead(Number(id))
+        .then(() => loadNotificationsFromApi())
+        .catch((err) => {
+          console.error('Failed to mark notification as read on backend', err)
+          void loadNotificationsFromApi()
+        })
     }
   }
 
   const markAllAsRead = () => {
     const updated = notifications.map((n) => ({ ...n, read: true }))
     saveNotifications(updated)
-    markAllAdminNotificationsRead().catch((err) => {
-      console.error('Failed to mark all notifications as read on backend', err)
-    })
+    setUnreadCount(0)
+    markAllAdminNotificationsRead()
+      .then(() => loadNotificationsFromApi())
+      .catch((err) => {
+        console.error('Failed to mark all notifications as read on backend', err)
+        void loadNotificationsFromApi()
+      })
   }
 
   const clearAll = () => {
     saveNotifications([])
+    setUnreadCount(0)
   }
-
-  const unreadCount = notifications.filter((n) => !n.read).length
 
   // Generate dynamic premium chimes using AudioContext
   const playChimeSound = () => {

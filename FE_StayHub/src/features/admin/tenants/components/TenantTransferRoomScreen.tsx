@@ -1591,7 +1591,7 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
               </div>
             </div>
             <div className="mt-5 rounded-[1.5rem] border border-[#f3c56b]/20 bg-[#f3c56b]/10 p-4 text-sm font-semibold leading-6 text-[#f8e8c8]/85">
-              Không có phiếu chi auto. Admin tự tạo phiếu chi cho phần hoàn cọc nếu cần.
+              Admin tự tạo phiếu chi cho phần hoàn cọc nếu cần.
             </div>
           </section>
 
