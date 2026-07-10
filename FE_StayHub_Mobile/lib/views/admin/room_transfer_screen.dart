@@ -627,10 +627,14 @@ class _RoomTransferScreenState extends State<RoomTransferScreen> {
       final maxOcc = room['max_occupants'] as int? ?? 99;
       final currOcc = room['current_occupants'] as int? ?? 0;
       final status = room['status'] as int? ?? 1;
+      final roomId = room['id'] as int? ?? 0;
 
       final matchesQuery = roomNo.contains(query);
       // Chỉ hiển thị phòng đang hoạt động (status == 1) và trống (currOcc == 0) hoặc chưa đầy (currOcc < maxOcc)
-      final isAvailable = status == 1 && (currOcc == 0 || currOcc < maxOcc);
+      // Loại trừ phòng hiện tại của cư dân (_activeContract!.roomId)
+      final isAvailable = status == 1 &&
+          (currOcc == 0 || currOcc < maxOcc) &&
+          roomId != _activeContract!.roomId;
       return matchesQuery && isAvailable;
     }).toList();
 
