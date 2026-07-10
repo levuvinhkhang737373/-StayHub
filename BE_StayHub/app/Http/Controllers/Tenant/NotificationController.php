@@ -67,20 +67,17 @@ class NotificationController extends Controller
             // Truy vấn các thông báo phù hợp với phạm vi của khách thuê
             $notifications = Notification::query()
                 ->where('status', Notification::STATUS_SENT)
-                ->where(function ($q) use ($tenant, $buildingId, $roomId, $dateLimit) {
-                    $q->where(function ($sub) use ($dateLimit) {
-                          $sub->where('target_type', Notification::TARGET_TYPE_ALL)
-                              ->where('published_at', '>=', $dateLimit);
+                ->where(function ($q) use ($tenant, $buildingId, $roomId) {
+                    $q->where(function ($sub) {
+                          $sub->where('target_type', Notification::TARGET_TYPE_ALL);
                       })
-                      ->orWhere(function ($sub) use ($buildingId, $dateLimit) {
+                      ->orWhere(function ($sub) use ($buildingId) {
                           $sub->where('target_type', Notification::TARGET_TYPE_BUILDING)
-                              ->where('building_id', $buildingId)
-                              ->where('published_at', '>=', $dateLimit);
+                              ->where('building_id', $buildingId);
                       })
-                      ->orWhere(function ($sub) use ($roomId, $dateLimit) {
+                      ->orWhere(function ($sub) use ($roomId) {
                           $sub->where('target_type', Notification::TARGET_TYPE_ROOM)
-                              ->where('room_id', $roomId)
-                              ->where('published_at', '>=', $dateLimit);
+                              ->where('room_id', $roomId);
                       })
                       ->orWhere(function ($sub) use ($tenant) {
                           $sub->where('target_type', Notification::TARGET_TYPE_TENANT)
@@ -188,20 +185,17 @@ class NotificationController extends Controller
             // Tìm toàn bộ danh sách thông báo chưa đọc của tenant
             $notificationIds = Notification::query()
                 ->where('status', Notification::STATUS_SENT)
-                ->where(function ($q) use ($tenant, $buildingId, $roomId, $dateLimit) {
-                    $q->where(function ($sub) use ($dateLimit) {
-                          $sub->where('target_type', Notification::TARGET_TYPE_ALL)
-                              ->where('published_at', '>=', $dateLimit);
+                ->where(function ($q) use ($tenant, $buildingId, $roomId) {
+                    $q->where(function ($sub) {
+                          $sub->where('target_type', Notification::TARGET_TYPE_ALL);
                       })
-                      ->orWhere(function ($sub) use ($buildingId, $dateLimit) {
+                      ->orWhere(function ($sub) use ($buildingId) {
                           $sub->where('target_type', Notification::TARGET_TYPE_BUILDING)
-                              ->where('building_id', $buildingId)
-                              ->where('published_at', '>=', $dateLimit);
+                              ->where('building_id', $buildingId);
                       })
-                      ->orWhere(function ($sub) use ($roomId, $dateLimit) {
+                      ->orWhere(function ($sub) use ($roomId) {
                           $sub->where('target_type', Notification::TARGET_TYPE_ROOM)
-                              ->where('room_id', $roomId)
-                              ->where('published_at', '>=', $dateLimit);
+                              ->where('room_id', $roomId);
                       })
                       ->orWhere(function ($sub) use ($tenant) {
                           $sub->where('target_type', Notification::TARGET_TYPE_TENANT)
