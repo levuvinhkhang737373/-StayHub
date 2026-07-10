@@ -45,7 +45,8 @@ class TenantContractScreen extends StatefulWidget {
   State<TenantContractScreen> createState() => _TenantContractScreenState();
 }
 
-class _TenantContractScreenState extends State<TenantContractScreen> with WidgetsBindingObserver {
+class _TenantContractScreenState extends State<TenantContractScreen>
+    with WidgetsBindingObserver {
   StreamSubscription? _wsSubscription;
 
   @override
@@ -570,8 +571,8 @@ class TenantContractDetailScreen extends StatefulWidget {
       _TenantContractDetailScreenState();
 }
 
-class _TenantContractDetailScreenState
-    extends State<TenantContractDetailScreen> with WidgetsBindingObserver {
+class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
+    with WidgetsBindingObserver {
   StreamSubscription? _wsSubscription;
 
   @override
@@ -609,7 +610,9 @@ class _TenantContractDetailScreenState
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted) {
-      debugPrint('WS: App resumed in contract detail, reloading contracts for tenant...');
+      debugPrint(
+        'WS: App resumed in contract detail, reloading contracts for tenant...',
+      );
       context.read<ContractController>().fetchContracts('tenant');
     }
   }
@@ -949,9 +952,7 @@ class _TenantContractDetailScreenState
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1C1917),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -1837,59 +1838,7 @@ class _TenantContractDetailScreenState
               if (contract.roomServices != null &&
                   contract.roomServices!.isNotEmpty) ...[
                 const Divider(height: 20, color: Color(0xFFF1F0EA)),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(
-                          Icons.room_service_rounded,
-                          size: 16,
-                          color: Color(0xFF78716C),
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'CÁC DỊCH VỤ CỦA PHÒNG',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF78716C),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    ...contract.roomServices!.map((svc) {
-                      final priceVal = svc['price'] != null
-                          ? double.tryParse(svc['price'].toString()) ?? 0.0
-                          : 0.0;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              svc['name']?.toString() ?? '',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF44403C),
-                              ),
-                            ),
-                            Text(
-                              '${_formatCurrency(priceVal)} / ${svc['unit_name'] ?? 'tháng'}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1C1917),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ],
-                ),
+                _buildContractServicesSection(contract.roomServices!),
               ],
               // Contract Vehicles Section
               if (contract.contractVehicles != null &&
@@ -1921,45 +1870,48 @@ class _TenantContractDetailScreenState
                     ...contract.contractVehicles!
                         .where((v) => v['is_active'] != false)
                         .map((v) {
-                      final vehicleData =
-                          v['vehicle'] as Map<String, dynamic>?;
-                      final licensePlate =
-                          vehicleData?['license_plate']?.toString() ??
+                          final vehicleData =
+                              v['vehicle'] as Map<String, dynamic>?;
+                          final licensePlate =
+                              vehicleData?['license_plate']?.toString() ??
                               'Xe #${v['vehicle_id']}';
-                      final typeLabel =
-                          vehicleData?['vehicle_type_label']?.toString() ?? '';
-                      final feeVal = v['monthly_fee'] != null
-                          ? double.tryParse(v['monthly_fee'].toString()) ?? 0.0
-                          : 0.0;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                typeLabel.isNotEmpty
-                                    ? '$typeLabel: $licensePlate'
-                                    : 'Xe: $licensePlate',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF44403C),
+                          final typeLabel =
+                              vehicleData?['vehicle_type_label']?.toString() ??
+                              '';
+                          final feeVal = v['monthly_fee'] != null
+                              ? double.tryParse(v['monthly_fee'].toString()) ??
+                                    0.0
+                              : 0.0;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    typeLabel.isNotEmpty
+                                        ? '$typeLabel: $licensePlate'
+                                        : 'Xe: $licensePlate',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF44403C),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                                Text(
+                                  '${_formatCurrency(feeVal)} / tháng',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1C1917),
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '${_formatCurrency(feeVal)} / tháng',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1C1917),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
+                          );
+                        })
+                        .toList(),
                   ],
                 ),
               ],
@@ -2113,6 +2065,105 @@ class _TenantContractDetailScreenState
     );
   }
 
+  Widget _buildContractServicesSection(List<ContractRoomService> services) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: const [
+            Icon(
+              Icons.room_service_rounded,
+              size: 16,
+              color: Color(0xFF78716C),
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'CÁC DỊCH VỤ CỦA PHÒNG',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF78716C),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...services.map(_buildContractServiceTile),
+      ],
+    );
+  }
+
+  Widget _buildContractServiceTile(ContractRoomService service) {
+    final isContractPrice =
+        service.priceSource == 'contract' ||
+        service.priceSource == 'contract_vehicle';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isContractPrice
+            ? const Color(0xFFFFFBEB)
+            : const Color(0xFFFAFAF9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isContractPrice
+              ? const Color(0xFFFDE68A)
+              : const Color(0xFFE7E5E4),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 7,
+            height: 28,
+            decoration: BoxDecoration(
+              color: isContractPrice
+                  ? const Color(0xFFD97706)
+                  : const Color(0xFFA8A29E),
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              service.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.25,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF44403C),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              _formatCurrency(service.price),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1C1917),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInfoRow(
     String label,
     String value, {
@@ -2178,5 +2229,4 @@ class _TenantContractDetailScreenState
       ),
     );
   }
-
 }

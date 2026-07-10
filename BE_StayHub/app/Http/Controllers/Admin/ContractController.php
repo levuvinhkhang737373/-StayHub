@@ -73,11 +73,25 @@ class ContractController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền bỏ qua hợp đồng này', 403, null, 403);
             }
 
+            $targetDate = now()->startOfDay();
             $rooms = Room::query()
-                ->with(['services' => function ($query) {
-                    $query->select('services.id', 'services.name', 'services.slug', 'services.charge_method', 'services.unit_name')
-                          ->withPivot('price');
-                }])
+                ->with([
+                    'roomServices' => function ($query) use ($targetDate): void {
+                        $query->select(['id', 'room_id', 'service_id'])
+                            ->with([
+                                'service:id,name,slug,charge_method,unit_name,is_required,is_active',
+                                'prices' => fn ($priceQuery) => $priceQuery
+                                    ->whereNull('contract_id')
+                                    ->whereDate('effective_from', '<=', $targetDate->toDateString())
+                                    ->where(function (Builder $scope) use ($targetDate): void {
+                                        $scope->whereNull('effective_to')
+                                            ->orWhereDate('effective_to', '>=', $targetDate->toDateString());
+                                    })
+                                    ->orderByDesc('effective_from')
+                                    ->orderByDesc('id'),
+                            ]);
+                    },
+                ])
                 ->select(['id', 'building_id', 'room_number', 'status', 'base_price', 'max_occupants', 'current_occupants'])
                 ->where('building_id', $buildingId)
                 ->where('status', Room::STATUS_ACTIVE)
@@ -86,7 +100,30 @@ class ContractController extends Controller
                         ->when($ignoreContractId > 0, fn (Builder $contractQuery): Builder => $contractQuery->whereKeyNot($ignoreContractId));
                 })
                 ->orderBy('room_number')
-                ->get();
+                ->get()
+                ->map(fn (Room $room): array => [
+                    'id' => $room->id,
+                    'building_id' => $room->building_id,
+                    'room_number' => $room->room_number,
+                    'status' => $room->status,
+                    'base_price' => $room->base_price,
+                    'max_occupants' => $room->max_occupants,
+                    'current_occupants' => $room->current_occupants,
+                    'services' => $room->roomServices
+                        ->filter(fn (RoomService $roomService): bool => (bool) $roomService->service?->is_active)
+                        ->map(fn (RoomService $roomService): array => [
+                            'id' => $roomService->service?->id,
+                            'name' => $roomService->service?->name,
+                            'slug' => $roomService->service?->slug,
+                            'charge_method' => $roomService->service?->charge_method,
+                            'unit_name' => $roomService->service?->unit_name,
+                            'is_required' => $roomService->service?->is_required,
+                            'room_service_id' => $roomService->id,
+                            'price' => (string) ($roomService->prices->first()?->price ?? '0.00'),
+                        ])
+                        ->values()
+                        ->all(),
+                ]);
 
             return ApiResponse::responseJson(true, 'Danh sách phòng khả dụng', 200, $rooms, 200);
         } catch (\Exception $e) {
@@ -1662,15 +1699,10 @@ class ContractController extends Controller
                 continue;
             }
 
-            $roomService = RoomService::query()->updateOrCreate(
-                [
-                    'room_id' => $room->id,
-                    'service_id' => (int) $item['service_id'],
-                ],
-                [
-                    'price' => $item['price'],
-                ]
-            );
+            $roomService = RoomService::query()->firstOrCreate([
+                'room_id' => $room->id,
+                'service_id' => (int) $item['service_id'],
+            ]);
 
             $this->upsertContractRoomServicePrice($roomService, $contract, $contractStart, $contractEnd, (string) $item['price'], $admin);
         }
@@ -1681,23 +1713,20 @@ class ContractController extends Controller
         $effectiveFrom = $contractStart->toDateString();
         $effectiveTo = $contractEnd?->toDateString();
 
-        RoomServicePrice::query()
+        $existing = RoomServicePrice::query()
             ->where('room_service_id', $roomService->id)
-            ->where(function (Builder $query) use ($contract, $effectiveFrom): void {
-                $query->where('contract_id', $contract->id)
-                    ->orWhere(function (Builder $baseQuery) use ($effectiveFrom): void {
-                        $baseQuery->whereNull('contract_id')->whereDate('effective_from', $effectiveFrom);
-                    });
-            })
+            ->where('contract_id', $contract->id)
+            ->whereDate('effective_from', $effectiveFrom)
             ->lockForUpdate()
-            ->first()?->forceFill([
-                'contract_id' => $contract->id,
+            ->first();
+
+        if ($existing) {
+            $existing->forceFill([
                 'price' => $price,
                 'effective_to' => $effectiveTo,
                 'created_by' => $admin->id,
             ])->save();
 
-        if (RoomServicePrice::query()->where('room_service_id', $roomService->id)->whereDate('effective_from', $effectiveFrom)->exists()) {
             return;
         }
 
@@ -1731,9 +1760,7 @@ class ContractController extends Controller
     {
         RoomServicePrice::query()
             ->where('room_service_id', $roomService->id)
-            ->when($exceptContract, fn (Builder $query): Builder => $query->where(function (Builder $scope) use ($exceptContract): void {
-                $scope->whereNull('contract_id')->orWhere('contract_id', '!=', $exceptContract->id);
-            }))
+            ->when($exceptContract, fn (Builder $query): Builder => $query->where('contract_id', $exceptContract->id))
             ->where(function (Builder $query) use ($endDate): void {
                 $query->whereNull('effective_to')
                     ->orWhereDate('effective_to', '>', $endDate);
@@ -2145,7 +2172,9 @@ class ContractController extends Controller
     {
         return [
             'room:id,building_id,room_type_id,room_number,slug,floor,area_m2,base_price,max_occupants,current_occupants,status,description,created_by,created_at,updated_at',
-            'room.services',
+            'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+            'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
+            'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->whereNull('contract_id')->orderByDesc('effective_from')->orderByDesc('id'),
             'room.building:id,name,slug,manager_admin_id,status,address,gender_policy',
             'room.roomType:id,name,slug,status',
             'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),

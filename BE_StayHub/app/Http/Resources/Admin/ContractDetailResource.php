@@ -31,17 +31,18 @@ class ContractDetailResource extends JsonResource
             'deposit_due_amount' => $this->depositDueAmount(),
             'status' => $this->status,
             'status_label' => Contract::STATUS_LABELS[$this->status] ?? null,
-            'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('services')
-                ? $this->room->services->map(fn ($service) => [
-                    'id' => $service->id,
-                    'name' => $service->name,
-                    'slug' => $service->slug,
-                    'charge_method' => $service->charge_method,
-                    'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? '',
-                    'unit_name' => $service->unit_name,
-                    'price' => $this->contractRoomServicePrice($service),
-                    'is_required' => $service->is_required,
-                ])
+            'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('roomServices')
+                ? $this->room->roomServices->filter(fn ($roomService) => $roomService->service)->map(fn ($roomService) => [
+                    'room_service_id' => $roomService->id,
+                    'id' => $roomService->service->id,
+                    'name' => $roomService->service->name,
+                    'slug' => $roomService->service->slug,
+                    'charge_method' => $roomService->service->charge_method,
+                    'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$roomService->service->charge_method] ?? '',
+                    'unit_name' => $roomService->service->unit_name,
+                    'price' => $this->contractRoomServicePrice((int) $roomService->service_id),
+                    'is_required' => $roomService->service->is_required,
+                ])->values()
                 : null,
             'payment_status' => $this->payment_status,
             'payment_status_label' => Contract::PAYMENT_STATUS_LABELS[$this->payment_status] ?? null,
@@ -95,18 +96,18 @@ class ContractDetailResource extends JsonResource
             ->all();
     }
 
-    private function contractRoomServicePrice($service): string
+    private function contractRoomServicePrice(int $serviceId): string
     {
         if (! $this->relationLoaded('roomServicePrices')) {
-            return (string) $service->pivot->price;
+            return '0.00';
         }
 
         $roomServicePrice = $this->roomServicePrices
-            ->filter(fn (RoomServicePrice $price): bool => (int) $price->roomService?->service_id === (int) $service->id)
+            ->filter(fn (RoomServicePrice $price): bool => (int) $price->roomService?->service_id === $serviceId)
             ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
             ->first();
 
-        return (string) ($roomServicePrice?->price ?? $service->pivot->price);
+        return (string) ($roomServicePrice?->price ?? '0.00');
     }
 
     private function depositDueAmount(): string

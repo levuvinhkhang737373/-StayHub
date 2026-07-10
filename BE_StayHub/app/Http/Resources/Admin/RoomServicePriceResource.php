@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Admin;
 
+use App\Models\Contract;
 use App\Models\RoomServicePrice;
 use App\Models\Service;
 use Illuminate\Http\Request;
@@ -9,11 +10,32 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class RoomServicePriceResource extends JsonResource
 {
+    private ?Contract $selectedContract = null;
+
+    public function selectedContract(?Contract $contract): self
+    {
+        $this->selectedContract = $contract;
+
+        return $this;
+    }
+
     public function toArray(Request $request): array
     {
-        $targetDate = $this->targetDate();
+        $currentDate = now()->startOfDay()->toDateString();
+        $targetDate = $this->targetDate($request);
+        [$periodStart, $periodEnd] = $this->targetPeriod($request);
+        $currentPrice = $this->effectivePriceFor($currentDate);
+        $selectedContractId = $this->selectedContract?->id;
+        $currentContractPrice = $this->contractPriceFor($currentDate, $currentDate, $selectedContractId);
+        $currentDisplayPrice = $currentContractPrice ?: $currentPrice;
         $effectivePrice = $this->effectivePriceFor($targetDate);
         $scheduledPrice = $this->scheduledPriceFor($targetDate);
+        $contractPrice = $this->contractPriceFor($periodStart, $periodEnd, $selectedContractId);
+        $scheduledContractPrice = $contractPrice?->effective_from?->toDateString() === $targetDate ? $contractPrice : null;
+        $targetScheduledPrice = $scheduledPrice ?: $scheduledContractPrice;
+        $contract = $contractPrice?->contract ?? $this->selectedContract;
+        $contractEnded = $contract ? $this->contractEnded($contract) : false;
+        $displayPrice = $contractPrice ?: $effectivePrice;
         $service = $this->service;
 
         return [
@@ -25,31 +47,53 @@ class RoomServicePriceResource extends JsonResource
             'charge_method' => $service?->charge_method,
             'charge_method_label' => $service ? (Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? null) : null,
             'unit_name' => $service?->unit_name,
-            'base_price' => $effectivePrice ? (string) $effectivePrice->price : '0.00',
+            'base_price' => $currentPrice ? (string) $currentPrice->price : '0.00',
+            'current_price' => $currentDisplayPrice ? (string) $currentDisplayPrice->price : '0.00',
+            'old_price' => $currentDisplayPrice ? (string) $currentDisplayPrice->price : '0.00',
             'effective_price' => $effectivePrice ? (string) $effectivePrice->price : '0.00',
-            'scheduled_price' => $scheduledPrice ? (string) $scheduledPrice->price : null,
+            'display_price' => $displayPrice ? (string) $displayPrice->price : '0.00',
+            'display_price_source' => $contractPrice ? 'contract' : 'room',
+            'new_price' => $targetScheduledPrice ? (string) $targetScheduledPrice->price : null,
+            'scheduled_price' => $targetScheduledPrice ? (string) $targetScheduledPrice->price : null,
+            'active_contract_id' => $contract?->id ?? $contractPrice?->contract_id,
+            'active_contract_code' => $contract?->contract_code,
+            'contract_status' => $contract?->status,
+            'contract_status_label' => $contract ? (Contract::STATUS_LABELS[$contract->status] ?? null) : null,
+            'contract_is_ended' => $contractEnded,
+            'contract_price' => $contractPrice ? (string) $contractPrice->price : null,
+            'contract_effective_from' => optional($contractPrice?->effective_from)->toDateString(),
+            'contract_effective_to' => optional($contractPrice?->effective_to)->toDateString(),
             'effective_from' => optional($effectivePrice?->effective_from)->toDateString(),
             'effective_to' => optional($effectivePrice?->effective_to)->toDateString(),
-            'status_label' => $this->statusLabel($effectivePrice),
+            'status_label' => $contractEnded ? 'Hết hiệu lực' : $this->statusLabel($effectivePrice),
             'created_by' => $scheduledPrice?->created_by,
             'creator_name' => $scheduledPrice?->relationLoaded('creator') ? $scheduledPrice?->creator?->full_name : null,
             'created_at' => optional($scheduledPrice?->created_at)->toDateTimeString(),
         ];
     }
 
-    private function targetDate(): string
+    private function targetDate(Request $request): string
     {
-        $month = (int) request()->query('billing_month', now()->addMonthNoOverflow()->month);
-        $year = (int) request()->query('billing_year', now()->addMonthNoOverflow()->year);
-
-        return now()->setDate($year, $month, 1)->startOfDay()->toDateString();
+        return $this->targetPeriod($request)[0];
     }
 
-    private function effectivePriceFor(string $targetDate): ?RoomServicePrice
+    private function targetPeriod(Request $request): array
+    {
+        $month = (int) $request->input('billing_month', now()->addMonthNoOverflow()->month);
+        $year = (int) $request->input('billing_year', now()->addMonthNoOverflow()->year);
+        $periodStart = now()->setDate($year, $month, 1)->startOfDay();
+
+        return [
+            $periodStart->toDateString(),
+            $periodStart->copy()->endOfMonth()->toDateString(),
+        ];
+    }
+
+    private function effectivePriceFor(string $targetDate, ?int $contractId = null): ?RoomServicePrice
     {
         return $this->relationLoaded('prices')
             ? $this->prices
-                ->filter(fn (RoomServicePrice $price): bool => $price->contract_id === null && $price->effective_from->toDateString() <= $targetDate && ($price->effective_to === null || $price->effective_to->toDateString() >= $targetDate))
+                ->filter(fn (RoomServicePrice $price): bool => (int) $price->contract_id === (int) $contractId && $price->effective_from->toDateString() <= $targetDate && ($price->effective_to === null || $price->effective_to->toDateString() >= $targetDate))
                 ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from->toDateString())
                 ->first()
             : null;
@@ -60,6 +104,35 @@ class RoomServicePriceResource extends JsonResource
         return $this->relationLoaded('prices')
             ? $this->prices->first(fn (RoomServicePrice $price): bool => $price->contract_id === null && $price->effective_from->toDateString() === $targetDate)
             : null;
+    }
+
+    private function contractPriceFor(string $periodStart, string $periodEnd, ?int $contractId = null): ?RoomServicePrice
+    {
+        return $this->relationLoaded('prices')
+            ? $this->prices
+                ->filter(fn (RoomServicePrice $price): bool => $price->contract_id !== null
+                    && ($contractId === null || (int) $price->contract_id === $contractId)
+                    && $price->effective_from->toDateString() <= $periodEnd
+                    && ($price->effective_to === null || $price->effective_to->toDateString() >= $periodStart))
+                ->sortByDesc(fn (RoomServicePrice $price): string => sprintf(
+                    '%d-%s-%010d',
+                    $price->contract && in_array((int) $price->contract->status, Contract::RESERVED_STATUSES, true) ? 1 : 0,
+                    optional($price->contract?->start_date)->toDateString() ?? $price->effective_from->toDateString(),
+                    (int) $price->id
+                ))
+                ->first()
+            : null;
+    }
+
+    private function contractEnded(Contract $contract): bool
+    {
+        if (! in_array((int) $contract->status, Contract::RESERVED_STATUSES, true)) {
+            return true;
+        }
+
+        $endDate = $contract->actual_end_date ?: $contract->end_date;
+
+        return $endDate !== null && $endDate->copy()->startOfDay()->lt(now()->startOfDay());
     }
 
     private function statusLabel(?RoomServicePrice $price): string

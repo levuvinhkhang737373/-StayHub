@@ -577,11 +577,16 @@ class ExecuteScheduledRoomTransfers extends Command
         foreach ($sourcePrices as $sourcePrice) {
             $targetRoomService = $targetRoomServices->get((int) $sourcePrice->roomService?->service_id);
             if (! $targetRoomService) {
-                continue;
+                $targetRoomService = RoomService::query()->create([
+                    'room_id' => $room->id,
+                    'service_id' => (int) $sourcePrice->roomService?->service_id,
+                ]);
+                $targetRoomServices->put((int) $sourcePrice->roomService?->service_id, $targetRoomService);
             }
 
             RoomServicePrice::query()
                 ->where('room_service_id', $targetRoomService->id)
+                ->where('contract_id', $newContract->id)
                 ->whereNull('effective_to')
                 ->whereDate('effective_from', '<', $effectiveFrom->toDateString())
                 ->update([
@@ -592,10 +597,10 @@ class ExecuteScheduledRoomTransfers extends Command
             RoomServicePrice::query()->updateOrCreate(
                 [
                     'room_service_id' => $targetRoomService->id,
+                    'contract_id' => $newContract->id,
                     'effective_from' => $effectiveFrom->toDateString(),
                 ],
                 [
-                    'contract_id' => $newContract->id,
                     'price' => $sourcePrice->price,
                     'effective_to' => $newContract->end_date?->toDateString(),
                     'created_by' => $admin->id,

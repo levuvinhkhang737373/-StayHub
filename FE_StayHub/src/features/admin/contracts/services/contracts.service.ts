@@ -4,6 +4,7 @@ import type {
   AdminContractFilters,
   AdminContractPayload,
   AdminContractResource,
+  AdminContractRoomResource,
   AdminContractStatusPayload,
   AdminContractTenantOptionResource,
   AdminContractTerminatePayload,
@@ -104,7 +105,7 @@ export async function fetchContractAvailableTenants(contractId: number, params: 
 }
 
 export async function fetchAvailableRooms(params: { building_id: number; ignore_contract_id?: number }) {
-  return apiRequest<Array<{ id: number; building_id: number; room_number?: string | null; status?: number | null; base_price?: string | number | null; max_occupants?: number | null; current_occupants?: number | null }>>({
+  return apiRequest<AdminContractRoomResource[]>({
     url: `admin/contracts/available-rooms${buildQuery(params)}`,
     method: 'GET',
   })
@@ -203,4 +204,3 @@ export async function createAdminVehicle(payload: {
     data: payload,
   })
 }
-

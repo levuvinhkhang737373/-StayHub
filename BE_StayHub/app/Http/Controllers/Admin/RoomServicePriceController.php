@@ -124,15 +124,24 @@ class RoomServicePriceController extends Controller
                 }
 
                 $updatedPrices = collect();
-                $contract = $this->activeContractForRoom($roomModel);
-                if ($contract && $this->contractEndsBeforePeriod($contract, $targetDate)) {
+                $activeContract = $this->activeContractForRoom($roomModel);
+                if ($activeContract && $this->contractEndsBeforePeriod($activeContract, $targetDate)) {
                     return ApiResponse::responseJson(false, 'Kỳ áp dụng giá vượt quá ngày kết thúc hợp đồng hiện tại của phòng.', 422, null, 422);
                 }
 
                 foreach ($validated['prices'] as $item) {
                     $roomService = $roomServices->get((int) $item['room_service_id']);
+                    $contract = $this->contractForPriceItem($item, $roomModel, $activeContract);
+                    if ($contract === false) {
+                        return ApiResponse::responseJson(false, 'Hợp đồng áp dụng giá không thuộc phòng đang chọn.', 422, null, 422);
+                    }
+
+                    if ($contract && $this->contractEndsBeforePeriod($contract, $targetDate)) {
+                        return ApiResponse::responseJson(false, 'Kỳ áp dụng giá vượt quá ngày kết thúc hợp đồng đang chọn.', 422, null, 422);
+                    }
+
                     $price = DecimalMoney::normalize($item['price']);
-                    $updatedPrices->push($this->schedulePrice($roomService, $targetDate, $price, $admin));
+                    $updatedPrices->push($this->schedulePrice($roomService, $targetDate, $price, $admin, $contract));
                 }
 
                 $this->notifyTenants($roomModel, $updatedPrices, $targetDate, $admin);
@@ -177,19 +186,38 @@ class RoomServicePriceController extends Controller
 
     private function roomRelations(Carbon $targetDate): array
     {
+        $periodEnd = $targetDate->copy()->endOfMonth();
+
         return [
             'building:id,name',
+            'contracts:id,contract_code,room_id,status,start_date,end_date,actual_end_date',
             'roomServices' => fn ($query) => $this->nonUtilityServiceScope($query)
                 ->select(['id', 'room_id', 'service_id'])
                 ->with([
                     'service:id,name,slug,charge_method,unit_name,is_active',
                     'prices' => fn ($priceQuery) => $priceQuery
-                        ->with('creator:id,full_name')
-                        ->whereNull('contract_id')
-                        ->whereDate('effective_from', '<=', $targetDate->toDateString())
-                        ->where(function (Builder $query) use ($targetDate): void {
-                            $query->whereNull('effective_to')
-                                ->orWhereDate('effective_to', '>=', $targetDate->toDateString());
+                        ->with([
+                            'creator:id,full_name',
+                            'contract:id,room_id,contract_code,status,start_date,end_date,actual_end_date',
+                        ])
+                        ->where(function (Builder $periodQuery) use ($targetDate, $periodEnd): void {
+                            $today = now()->startOfDay()->toDateString();
+                            $target = $targetDate->toDateString();
+                            $targetEnd = $periodEnd->toDateString();
+
+                            $periodQuery->where(function (Builder $query) use ($target, $targetEnd): void {
+                                $query->whereDate('effective_from', '<=', $targetEnd)
+                                    ->where(function (Builder $scope) use ($target): void {
+                                        $scope->whereNull('effective_to')
+                                            ->orWhereDate('effective_to', '>=', $target);
+                                    });
+                            })->orWhere(function (Builder $query) use ($today): void {
+                                $query->whereDate('effective_from', '<=', $today)
+                                    ->where(function (Builder $scope) use ($today): void {
+                                        $scope->whereNull('effective_to')
+                                            ->orWhereDate('effective_to', '>=', $today);
+                                    });
+                            });
                         })
                         ->orderByDesc('effective_from')
                         ->orderByDesc('id'),
@@ -206,22 +234,23 @@ class RoomServicePriceController extends Controller
             ->whereNotIn('slug', Service::UTILITY_SLUGS));
     }
 
-    private function schedulePrice(RoomService $roomService, Carbon $targetDate, string $price, Admin $admin): RoomServicePrice
+    private function schedulePrice(RoomService $roomService, Carbon $targetDate, string $price, Admin $admin, ?Contract $contract = null): RoomServicePrice
     {
         $effectiveFrom = $targetDate->toDateString();
         $previousEnd = $targetDate->copy()->subDay()->toDateString();
-        $effectiveTo = null;
+        $contractId = $contract?->id;
+        $effectiveTo = $this->contractEffectiveTo($contract);
 
         $existing = RoomServicePrice::query()
             ->where('room_service_id', $roomService->id)
-            ->whereNull('contract_id')
+            ->when($contractId, fn (Builder $query): Builder => $query->where('contract_id', $contractId), fn (Builder $query): Builder => $query->whereNull('contract_id'))
             ->whereDate('effective_from', $effectiveFrom)
             ->lockForUpdate()
             ->first();
 
         RoomServicePrice::query()
             ->where('room_service_id', $roomService->id)
-            ->whereNull('contract_id')
+            ->when($contractId, fn (Builder $query): Builder => $query->where('contract_id', $contractId), fn (Builder $query): Builder => $query->whereNull('contract_id'))
             ->whereDate('effective_from', '<', $effectiveFrom)
             ->where(function (Builder $query) use ($effectiveFrom): void {
                 $query->whereNull('effective_to')
@@ -244,12 +273,30 @@ class RoomServicePriceController extends Controller
 
         return RoomServicePrice::query()->create([
             'room_service_id' => $roomService->id,
-            'contract_id' => null,
+            'contract_id' => $contractId,
             'price' => $price,
             'effective_from' => $effectiveFrom,
             'effective_to' => $effectiveTo,
             'created_by' => $admin->id,
         ])->load('roomService.service');
+    }
+
+    private function contractForPriceItem(array $item, Room $room, ?Contract $activeContract): Contract|false|null
+    {
+        if (! array_key_exists('contract_id', $item) || $item['contract_id'] === null || $item['contract_id'] === '') {
+            return null;
+        }
+
+        $contractId = (int) $item['contract_id'];
+        if ($activeContract && (int) $activeContract->id === $contractId) {
+            return $activeContract;
+        }
+
+        return Contract::query()
+            ->select(['id', 'room_id', 'status', 'start_date', 'end_date', 'actual_end_date'])
+            ->whereKey($contractId)
+            ->where('room_id', $room->id)
+            ->first() ?: false;
     }
 
     private function activeContractForRoom(Room $room): ?Contract

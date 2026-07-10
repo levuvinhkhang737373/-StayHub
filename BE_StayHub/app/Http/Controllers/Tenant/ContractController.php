@@ -36,20 +36,17 @@ class ContractController extends Controller
                 ->with([
                     'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                     'room.building:id,name,slug,manager_admin_id,status,address',
-                    'room.services',
+                    'room.building.servicePrices' => fn ($query) => $query->select(['id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'])->orderByDesc('effective_from')->orderByDesc('id'),
+                    'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+                    'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
+                    'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->orderByDesc('effective_from')->orderByDesc('id'),
                     'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
                     'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
                     'contractVehicles.vehicle',
                 ])
-                ->orderByRaw("FIELD(status, ?, ?, ?, ?, ?) ASC", [
-                    Contract::STATUS_ACTIVE,
-                    Contract::STATUS_PENDING_SIGN,
-                    Contract::STATUS_EXPIRED,
-                    Contract::STATUS_LIQUIDATED,
-                    Contract::STATUS_CANCELLED
-                ])
+                ->orderByRaw($this->statusPrioritySql(), $this->statusPriorityBindings())
                 ->orderByDesc('start_date')
                 ->get();
 
@@ -76,20 +73,17 @@ class ContractController extends Controller
                 ->with([
                     'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                     'room.building:id,name,slug,manager_admin_id,status,address',
-                    'room.services',
+                    'room.building.servicePrices' => fn ($query) => $query->select(['id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'])->orderByDesc('effective_from')->orderByDesc('id'),
+                    'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+                    'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
+                    'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->orderByDesc('effective_from')->orderByDesc('id'),
                     'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
                     'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
                     'contractVehicles.vehicle',
                 ])
-                ->orderByRaw("FIELD(status, ?, ?, ?, ?, ?) ASC", [
-                    Contract::STATUS_ACTIVE,
-                    Contract::STATUS_PENDING_SIGN,
-                    Contract::STATUS_EXPIRED,
-                    Contract::STATUS_LIQUIDATED,
-                    Contract::STATUS_CANCELLED
-                ])
+                ->orderByRaw($this->statusPrioritySql(), $this->statusPriorityBindings())
                 ->orderByDesc('start_date')
                 ->first();
 
@@ -200,7 +194,10 @@ class ContractController extends Controller
             $contract->load([
                 'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                 'room.building:id,name,slug,manager_admin_id,status,address',
-                'room.services',
+                'room.building.servicePrices' => fn ($query) => $query->select(['id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'])->orderByDesc('effective_from')->orderByDesc('id'),
+                'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+                'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
+                'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->orderByDesc('effective_from')->orderByDesc('id'),
                 'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
                 'representativeTenant:id,full_name,phone,email',
                 'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
@@ -215,6 +212,22 @@ class ContractController extends Controller
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
+    }
+
+    private function statusPrioritySql(): string
+    {
+        return 'CASE status WHEN ? THEN 0 WHEN ? THEN 1 WHEN ? THEN 2 WHEN ? THEN 3 WHEN ? THEN 4 ELSE 5 END ASC';
+    }
+
+    private function statusPriorityBindings(): array
+    {
+        return [
+            Contract::STATUS_ACTIVE,
+            Contract::STATUS_PENDING_SIGN,
+            Contract::STATUS_EXPIRED,
+            Contract::STATUS_LIQUIDATED,
+            Contract::STATUS_CANCELLED,
+        ];
     }
 
 

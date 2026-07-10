@@ -8,6 +8,7 @@ use App\Helpers\VietQRHelper;
 use App\Models\Contract;
 use App\Models\RoomServicePrice;
 use App\Models\RoomMovement;
+use App\Models\ServicePrice;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -43,9 +44,11 @@ class ContractResource extends JsonResource
             'deposit_due_amount' => $this->depositDueAmount(),
             'status' => $this->status,
             'status_label' => Contract::STATUS_LABELS[$this->status] ?? null,
-            'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('services')
-                ? $this->room->services->map(function ($service) {
-                    $price = $this->contractRoomServicePrice($service);
+            'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('roomServices')
+                ? $this->room->roomServices->filter(fn ($roomService) => $roomService->service)->map(function ($roomService) {
+                    $service = $roomService->service;
+                    $pricePayload = $this->roomServicePricePayload($roomService);
+                    $price = $pricePayload['price'];
 
                     // If it is a vehicle service, check if there is a matching contract vehicle to take the fee from
                     $slug = strtolower($service->slug ?? '');
@@ -80,10 +83,16 @@ class ContractResource extends JsonResource
 
                         if ($cv && $cv->monthly_fee !== null) {
                             $price = (string) $cv->monthly_fee;
+                            $pricePayload = [
+                                'price' => $price,
+                                'source' => 'contract_vehicle',
+                                'label' => 'Giá xe theo hợp đồng',
+                            ];
                         }
                     }
 
                     return [
+                        'room_service_id' => $roomService->id,
                         'id' => $service->id,
                         'name' => $service->name,
                         'slug' => $service->slug,
@@ -91,9 +100,11 @@ class ContractResource extends JsonResource
                         'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? '',
                         'unit_name' => $service->unit_name,
                         'price' => $price,
+                        'price_source' => $pricePayload['source'],
+                        'price_source_label' => $pricePayload['label'],
                         'is_required' => $service->is_required,
                     ];
-                })
+                })->values()
                 : null,
             'contract_vehicles' => $this->relationLoaded('contractVehicles')
                 ? $this->contractVehicles->map(function ($cv) {
@@ -181,18 +192,133 @@ class ContractResource extends JsonResource
         return null;
     }
 
-    private function contractRoomServicePrice($service): string
+    private function roomServicePricePayload($roomService): array
     {
-        if (! $this->relationLoaded('roomServicePrices')) {
-            return (string) $service->pivot->price;
+        $contractPrice = $this->contractRoomServicePrice($roomService);
+        if ($contractPrice) {
+            return [
+                'price' => (string) $contractPrice->price,
+                'source' => 'contract',
+                'label' => 'Giá theo hợp đồng',
+            ];
         }
 
-        $roomServicePrice = $this->roomServicePrices
-            ->filter(fn (RoomServicePrice $price): bool => (int) $price->roomService?->service_id === (int) $service->id)
+        $defaultPrice = $this->defaultRoomServicePrice($roomService);
+        if ($defaultPrice) {
+            return [
+                'price' => (string) $defaultPrice->price,
+                'source' => 'room',
+                'label' => 'Giá mặc định của phòng',
+            ];
+        }
+
+        $buildingPrice = $this->buildingServicePrice((int) $roomService->service_id);
+        if ($buildingPrice) {
+            return [
+                'price' => (string) $buildingPrice->price,
+                'source' => 'building',
+                'label' => $roomService->service?->isMeteredUtility() ? 'Giá điện/nước theo tòa nhà' : 'Giá theo tòa nhà',
+            ];
+        }
+
+        return [
+            'price' => '0.00',
+            'source' => 'missing',
+            'label' => 'Chưa cấu hình giá',
+        ];
+    }
+
+    private function contractRoomServicePrice($roomService): ?RoomServicePrice
+    {
+        if (! $this->relationLoaded('roomServicePrices')) {
+            return null;
+        }
+
+        [$periodStart, $periodEnd] = $this->contractPeriod();
+
+        return $this->roomServicePrices
+            ->filter(fn (RoomServicePrice $price): bool => (int) $price->room_service_id === (int) $roomService->id)
+            ->filter(fn (RoomServicePrice $price): bool => $this->priceOverlapsPeriod($price, $periodStart, $periodEnd))
             ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
             ->first();
+    }
 
-        return (string) ($roomServicePrice?->price ?? $service->pivot->price);
+    private function defaultRoomServicePrice($roomService): ?RoomServicePrice
+    {
+        [$periodStart, $periodEnd] = $this->contractPeriod();
+
+        if ($roomService->relationLoaded('prices')) {
+            return $roomService->prices
+                ->filter(fn (RoomServicePrice $price): bool => $price->contract_id === null)
+                ->filter(fn (RoomServicePrice $price): bool => $this->priceOverlapsPeriod($price, $periodStart, $periodEnd))
+                ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
+                ->first();
+        }
+
+        return RoomServicePrice::query()
+            ->where('room_service_id', $roomService->id)
+            ->whereNull('contract_id')
+            ->whereDate('effective_from', '<=', $periodEnd)
+            ->where(function ($query) use ($periodStart): void {
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>=', $periodStart);
+            })
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    private function buildingServicePrice(int $serviceId): ?ServicePrice
+    {
+        $building = $this->relationLoaded('room') && $this->room?->relationLoaded('building') ? $this->room?->building : null;
+        $buildingId = $building?->id ?? $this->room?->building_id;
+        if (! $buildingId) {
+            return null;
+        }
+
+        [$periodStart, $periodEnd] = $this->contractPeriod();
+
+        if ($building && $building->relationLoaded('servicePrices')) {
+            return $building->servicePrices
+                ->filter(fn (ServicePrice $price): bool => (int) $price->service_id === $serviceId)
+                ->filter(fn (ServicePrice $price): bool => $this->servicePriceOverlapsPeriod($price, $periodStart, $periodEnd))
+                ->sortByDesc(fn (ServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
+                ->first();
+        }
+
+        return ServicePrice::query()
+            ->where('building_id', $buildingId)
+            ->where('service_id', $serviceId)
+            ->whereIn('status', [ServicePrice::STATUS_ACTIVE, ServicePrice::STATUS_EXPIRED])
+            ->whereDate('effective_from', '<=', $periodEnd)
+            ->where(function ($query) use ($periodStart): void {
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>=', $periodStart);
+            })
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    private function contractPeriod(): array
+    {
+        $periodStart = ($this->start_date ?: now())->copy()->startOfDay()->toDateString();
+        $periodEnd = ($this->actual_end_date ?: $this->end_date ?: $this->start_date ?: now())->copy()->endOfDay()->toDateString();
+
+        return [$periodStart, $periodEnd];
+    }
+
+    private function priceOverlapsPeriod(RoomServicePrice $price, string $periodStart, string $periodEnd): bool
+    {
+        return $price->effective_from->toDateString() <= $periodEnd
+            && ($price->effective_to === null || $price->effective_to->toDateString() >= $periodStart);
+    }
+
+    private function servicePriceOverlapsPeriod(ServicePrice $price, string $periodStart, string $periodEnd): bool
+    {
+        return in_array((int) $price->status, [ServicePrice::STATUS_ACTIVE, ServicePrice::STATUS_EXPIRED], true)
+            && $price->effective_from->toDateString() <= $periodEnd
+            && ($price->effective_to === null || $price->effective_to->toDateString() >= $periodStart);
     }
 
     private function depositDueAmount(): string

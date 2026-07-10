@@ -296,6 +296,193 @@ class RoomServicePriceTest extends TestCase
             ->count());
     }
 
+    public function test_index_returns_one_room_contract_code_for_contract_scoped_service_prices(): void
+    {
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => $this->contract->id,
+            'price' => '120000.00',
+            'effective_from' => '2026-08-01',
+            'effective_to' => '2026-12-31',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->trashRoomService->id,
+            'contract_id' => $this->contract->id,
+            'price' => '30000.00',
+            'effective_from' => '2026-08-01',
+            'effective_to' => '2026-12-31',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/room-service-prices?billing_month=8&billing_year=2026');
+
+        $response->assertStatus(200);
+
+        $room = collect($response->json('result.data'))->firstWhere('id', $this->room->id);
+
+        $this->assertSame($this->contract->id, $room['active_contract_id']);
+        $this->assertSame('HD-RSP-001', $room['active_contract_code']);
+        $this->assertFalse($room['contract_is_ended']);
+        $this->assertSame(
+            ['HD-RSP-001'],
+            collect($room['services'])->pluck('active_contract_code')->filter()->unique()->values()->all()
+        );
+    }
+
+    public function test_index_returns_contract_code_when_contract_ends_inside_selected_month(): void
+    {
+        $this->contract->forceFill([
+            'status' => Contract::STATUS_LIQUIDATED,
+            'actual_end_date' => '2026-08-10',
+        ])->save();
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => $this->contract->id,
+            'price' => '120000.00',
+            'effective_from' => '2026-08-01',
+            'effective_to' => '2026-08-10',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/room-service-prices?billing_month=8&billing_year=2026');
+
+        $response->assertStatus(200);
+
+        $room = collect($response->json('result.data'))->firstWhere('id', $this->room->id);
+        $internet = collect($room['services'])->firstWhere('service_id', $this->internetService->id);
+
+        $this->assertSame('HD-RSP-001', $room['active_contract_code']);
+        $this->assertTrue($room['contract_is_ended']);
+        $this->assertSame('HD-RSP-001', $internet['active_contract_code']);
+        $this->assertTrue($internet['contract_is_ended']);
+        $this->assertSame('120000.00', $internet['display_price']);
+    }
+
+    public function test_index_marks_all_services_in_ended_contract_context_as_ended(): void
+    {
+        $this->contract->forceFill([
+            'status' => Contract::STATUS_LIQUIDATED,
+            'actual_end_date' => '2026-08-10',
+        ])->save();
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => $this->contract->id,
+            'price' => '120000.00',
+            'effective_from' => '2026-08-01',
+            'effective_to' => '2026-08-10',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->trashRoomService->id,
+            'contract_id' => null,
+            'price' => '30000.00',
+            'effective_from' => '2026-01-01',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/room-service-prices?billing_month=8&billing_year=2026');
+
+        $response->assertStatus(200);
+
+        $room = collect($response->json('result.data'))->firstWhere('id', $this->room->id);
+        $trash = collect($room['services'])->firstWhere('service_id', $this->trashService->id);
+
+        $this->assertSame('HD-RSP-001', $trash['active_contract_code']);
+        $this->assertTrue($trash['contract_is_ended']);
+        $this->assertSame('Hết hiệu lực', $trash['status_label']);
+        $this->assertSame('30000.00', $trash['display_price']);
+        $this->assertSame('room', $trash['display_price_source']);
+    }
+
+    public function test_index_does_not_leak_ended_contract_service_price_into_new_contract_context(): void
+    {
+        $this->contract->forceFill([
+            'status' => Contract::STATUS_LIQUIDATED,
+            'actual_end_date' => '2026-08-10',
+        ])->save();
+
+        $newTenant = Tenant::create([
+            'username' => 'tenant-new-contract-context',
+            'full_name' => 'Tenant New Contract Context',
+            'email' => 'tenant-new-contract-context@stayhub.local',
+            'phone' => '0911000009',
+            'password' => bcrypt('password'),
+            'role' => 1,
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '123456789209',
+            'date_of_birth' => '2000-01-01',
+            'created_by' => $this->superAdmin->id,
+            'building_id' => $this->building->id,
+        ]);
+
+        $newContract = Contract::create([
+            'contract_code' => 'HD-RSP-NEW',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $newTenant->id,
+            'start_date' => '2026-08-11',
+            'end_date' => '2026-12-31',
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->trashRoomService->id,
+            'contract_id' => $this->contract->id,
+            'price' => '45000.00',
+            'effective_from' => '2026-08-01',
+            'effective_to' => '2026-08-10',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->trashRoomService->id,
+            'contract_id' => null,
+            'price' => '30000.00',
+            'effective_from' => '2026-01-01',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => $newContract->id,
+            'price' => '90000.00',
+            'effective_from' => '2026-08-11',
+            'effective_to' => '2026-12-31',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/room-service-prices?billing_month=8&billing_year=2026');
+
+        $response->assertStatus(200);
+
+        $room = collect($response->json('result.data'))->firstWhere('id', $this->room->id);
+        $internet = collect($room['services'])->firstWhere('service_id', $this->internetService->id);
+        $trash = collect($room['services'])->firstWhere('service_id', $this->trashService->id);
+
+        $this->assertSame('HD-RSP-NEW', $room['active_contract_code']);
+        $this->assertFalse($room['contract_is_ended']);
+        $this->assertSame('HD-RSP-NEW', $internet['active_contract_code']);
+        $this->assertSame('90000.00', $internet['display_price']);
+        $this->assertSame('HD-RSP-NEW', $trash['active_contract_code']);
+        $this->assertFalse($trash['contract_is_ended']);
+        $this->assertNull($trash['contract_price']);
+        $this->assertSame('30000.00', $trash['display_price']);
+        $this->assertSame('room', $trash['display_price_source']);
+    }
+
     public function test_building_manager_cannot_update_room_outside_managed_building(): void
     {
         $roomService = RoomService::where('room_id', $this->otherRoom->id)->firstOrFail();
@@ -392,6 +579,88 @@ class RoomServicePriceTest extends TestCase
         });
     }
 
+    public function test_can_schedule_contract_scoped_room_service_price_for_selected_contract(): void
+    {
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", [
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'prices' => [
+                    [
+                        'room_service_id' => $this->internetRoomService->id,
+                        'contract_id' => $this->contract->id,
+                        'price' => 85000,
+                    ],
+                ],
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('result.active_contract_code', 'HD-RSP-001');
+
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => $this->contract->id,
+            'price' => '85000.00',
+            'effective_from' => '2026-08-01 00:00:00',
+            'effective_to' => '2026-12-31 00:00:00',
+        ]);
+
+        $this->assertDatabaseMissing('room_service_prices', [
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => null,
+            'price' => '85000.00',
+            'effective_from' => '2026-08-01 00:00:00',
+        ]);
+    }
+
+    public function test_cannot_schedule_contract_scoped_price_for_other_room_contract(): void
+    {
+        $otherTenant = Tenant::create([
+            'username' => 'tenant-other-room-contract-price',
+            'full_name' => 'Tenant Other Room Contract Price',
+            'email' => 'tenant-other-room-contract-price@stayhub.local',
+            'phone' => '0911000002',
+            'password' => bcrypt('password'),
+            'role' => 1,
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '123456789199',
+            'date_of_birth' => '2000-01-01',
+            'created_by' => $this->superAdmin->id,
+            'building_id' => $this->otherBuilding->id,
+        ]);
+
+        $otherContract = Contract::create([
+            'contract_code' => 'HD-RSP-OTHER',
+            'room_id' => $this->otherRoom->id,
+            'representative_tenant_id' => $otherTenant->id,
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-12-31',
+            'room_price' => '3200000.00',
+            'deposit_amount' => '3200000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", [
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'prices' => [
+                    [
+                        'room_service_id' => $this->internetRoomService->id,
+                        'contract_id' => $otherContract->id,
+                        'price' => 85000,
+                    ],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Hợp đồng áp dụng giá không thuộc phòng đang chọn.');
+    }
+
     public function test_rescheduling_same_month_updates_existing_price_without_duplicate(): void
     {
         $payload = [
@@ -465,6 +734,11 @@ class RoomServicePriceTest extends TestCase
 
     public function test_contract_deal_creates_contract_scoped_room_service_price_and_blocks_utilities(): void
     {
+        $trashRoomService = RoomService::query()->create([
+            'room_id' => $this->otherRoom->id,
+            'service_id' => $this->trashService->id,
+        ]);
+
         $tenant = Tenant::create([
             'username' => 'tenant-contract-deal',
             'full_name' => 'Tenant Contract Deal',
@@ -492,6 +766,7 @@ class RoomServicePriceTest extends TestCase
         $response = $this->actingAs($this->superAdmin, 'admin')
             ->postJson('/api/v1/admin/contracts', $this->contractPayload($this->otherRoom->id, $tenant->id, [
                 ['service_id' => $this->internetService->id, 'price' => '135000.00'],
+                ['service_id' => $this->trashService->id, 'price' => '30000.00'],
             ]));
 
         $response->assertStatus(201);
@@ -508,6 +783,19 @@ class RoomServicePriceTest extends TestCase
             'effective_from' => '2026-08-01 00:00:00',
             'effective_to' => '2026-12-31 00:00:00',
         ]);
+
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $trashRoomService->id,
+            'contract_id' => $contractId,
+            'price' => '30000.00',
+            'effective_from' => '2026-08-01 00:00:00',
+            'effective_to' => '2026-12-31 00:00:00',
+        ]);
+
+        $this->assertSame(2, RoomServicePrice::query()
+            ->where('contract_id', $contractId)
+            ->whereIn('room_service_id', [$roomService->id, $trashRoomService->id])
+            ->count());
     }
 
     public function test_terminating_contract_closes_contract_scoped_room_service_price(): void

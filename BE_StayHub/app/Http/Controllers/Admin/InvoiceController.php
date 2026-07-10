@@ -732,27 +732,23 @@ class InvoiceController extends Controller
             $isMetered = (int) $service->charge_method === Service::CHARGE_METHOD_BY_METER ||
                          in_array($service->slug, ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat'], true);
 
-            // Nếu không phải điện nước thì ưu tiên lấy giá dịch vụ đã thương lượng/cấu hình riêng của phòng
             if (! $isMetered) {
                 $roomService = RoomService::where('room_id', $contract->room_id)
                     ->where('service_id', $service->id)
-                    ->with(['prices' => fn ($priceQuery) => $priceQuery
-                        ->where(function (Builder $query) use ($contract): void {
-                            $query->whereNull('contract_id')
-                                ->orWhere('contract_id', $contract->id);
-                        })
-                        ->whereDate('effective_from', '<=', $periodEnd->toDateString())
-                        ->where(function (Builder $query) use ($periodEnd): void {
-                            $query->whereNull('effective_to')
-                                ->orWhereDate('effective_to', '>=', $periodEnd->toDateString());
-                        })
-                        ->orderByRaw('contract_id IS NULL')
-                        ->orderByDesc('effective_from')
-                        ->orderByDesc('id')])
                     ->first();
-                if ($roomService) {
-                    $priceAmount = $this->roomServicePriceForPeriod($roomService, $periodEnd, $contract);
+
+                if (! $roomService) {
+                    continue;
                 }
+
+                $resolvedAmount = $this->roomServicePriceForPeriod($roomService, $periodEnd, $contract);
+                if ($resolvedAmount === null) {
+                    $errors[] = "Phòng {$contract->room?->room_number} chưa có giá dịch vụ {$service->name} hiệu lực trong kỳ {$billingMonth}/{$billingYear}.";
+
+                    continue;
+                }
+
+                $priceAmount = $resolvedAmount;
             }
 
             $unitPrice = DecimalMoney::normalize($priceAmount);
@@ -1406,27 +1402,18 @@ class InvoiceController extends Controller
             ->values();
     }
 
-    private function roomServicePriceForPeriod(RoomService $roomService, Carbon $periodEnd, Contract $contract): string
+    private function roomServicePriceForPeriod(RoomService $roomService, Carbon $periodEnd, Contract $contract): ?string
     {
         $scheduledPrice = $roomService->relationLoaded('prices')
             ? $roomService->prices->first()
             : RoomServicePrice::query()
                 ->where('room_service_id', $roomService->id)
-                ->where(function (Builder $query) use ($contract): void {
-                    $query->whereNull('contract_id')
-                        ->orWhere('contract_id', $contract->id);
-                })
-                ->whereDate('effective_from', '<=', $periodEnd->toDateString())
-                ->where(function (Builder $query) use ($periodEnd): void {
-                    $query->whereNull('effective_to')
-                        ->orWhereDate('effective_to', '>=', $periodEnd->toDateString());
-                })
-                ->orderByRaw('contract_id IS NULL')
-                ->orderByDesc('effective_from')
-                ->orderByDesc('id')
+                ->forContractOrDefault($contract->id)
+                ->effectiveFor($periodEnd)
+                ->priorityForContract($contract->id)
                 ->first();
 
-        return DecimalMoney::normalize($scheduledPrice?->price ?? $roomService->price);
+        return $scheduledPrice ? DecimalMoney::normalize($scheduledPrice->price) : null;
     }
 
     private function previousDebtAmount(Contract $contract, int $billingYear, int $billingMonth): string

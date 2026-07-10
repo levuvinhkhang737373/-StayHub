@@ -14,6 +14,8 @@ use App\Models\Notification;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
+use App\Models\RoomService;
+use App\Models\RoomServicePrice;
 use App\Models\RoomType;
 use App\Models\Tenant;
 use App\Models\Vehicle;
@@ -1212,10 +1214,9 @@ class ContractControllerTest extends TestCase
             'created_by' => $this->superAdmin->id,
         ]);
 
-        \App\Models\RoomService::create([
+        RoomService::create([
             'room_id' => $this->room->id,
             'service_id' => $service->id,
-            'price' => '100000.00',
         ]);
 
         $payload = [
@@ -1251,7 +1252,19 @@ class ContractControllerTest extends TestCase
         $this->assertDatabaseHas('room_services', [
             'room_id' => $this->room->id,
             'service_id' => $service->id,
+        ]);
+
+        $roomService = RoomService::query()
+            ->where('room_id', $this->room->id)
+            ->where('service_id', $service->id)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $roomService->id,
+            'contract_id' => $response->json('result.id'),
             'price' => '80000.00',
+            'effective_from' => '2026-06-01 00:00:00',
+            'effective_to' => '2026-12-01 00:00:00',
         ]);
     }
 }

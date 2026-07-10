@@ -51,6 +51,9 @@ class UpdateRequest extends RegisterRequest
             'vehicles.*.monthly_fee' => ['nullable', 'regex:/^\d{1,13}(\.\d{1,2})?$/'],
             'vehicles.*.charge_policy' => ['required_with:vehicles', 'integer', Rule::in(array_keys(ContractVehicle::CHARGE_POLICY_LABELS))],
             'vehicles.*.is_active' => ['nullable', 'boolean'],
+            'services' => ['nullable', 'array'],
+            'services.*.service_id' => ['required_with:services', 'integer', 'distinct', Rule::exists('services', 'id')],
+            'services.*.price' => ['required_with:services', 'regex:/^\d{1,13}(\.\d{1,2})?$/', 'gte:0'],
         ];
     }
 

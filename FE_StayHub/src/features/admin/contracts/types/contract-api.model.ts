@@ -123,7 +123,7 @@ export interface AdminContractFileResource {
 
 export interface AdminContractRoomResource {
   id: number
-  building_id?: number | null
+  building_id: number
   building_name?: string | null
   room_type_id?: number | null
   room_type_name?: string | null
@@ -137,6 +137,21 @@ export interface AdminContractRoomResource {
   current_occupants?: number | null
   status?: number | null
   description?: string | null
+  services?: ContractRoomServiceOption[] | null
+}
+
+export interface ContractRoomServiceOption {
+  id: number
+  room_service_id?: number | null
+  name?: string | null
+  slug?: string | null
+  charge_method?: number | null
+  charge_method_label?: string | null
+  unit_name?: string | null
+  is_required?: boolean | null
+  price?: string | number | null
+  base_price?: string | number | null
+  effective_price?: string | number | null
 }
 
 export interface AdminContractTenantSummaryResource {
@@ -165,7 +180,7 @@ export interface AdminContractResource {
   deposit_due_amount?: string | null
   status: number
   status_label?: string | null
-  room_services?: Array<{ id: number; name: string; charge_method: number; charge_method_label: string; unit_name: string; price: string; is_required: boolean }> | null
+  room_services?: Array<{ room_service_id?: number; id: number; name: string; slug?: string | null; charge_method: number; charge_method_label: string; unit_name: string; price: string; is_required: boolean }> | null
   payment_status?: number
   payment_status_label?: string | null
   is_deposit_paid?: boolean
@@ -340,10 +355,12 @@ export interface ContractDepositFormRow {
 
 export interface ContractServiceFormRow {
   service_id: string
+  room_service_id?: string
   name: string
   slug?: string
   charge_method_label: string
   unit_name: string
+  default_price?: string
   price: string
 }
 

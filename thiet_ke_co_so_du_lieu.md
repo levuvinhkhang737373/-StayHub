@@ -235,13 +235,29 @@ Tài liệu này đặc tả chi tiết toàn bộ 38 bảng trong cơ sở dữ
  | id | BIGINT UNSIGNED | Khoá chính | PRIMARY KEY, AUTO_INCREMENT | 
  | room_id | BIGINT UNSIGNED | ID phòng liên kết | FOREIGN KEY -> rooms(id), CASCADE | 
  | service_id | BIGINT UNSIGNED | ID dịch vụ liên kết | FOREIGN KEY -> services(id), CASCADE | 
- | price | DECIMAL(15,2) | Đơn giá dịch vụ của phòng | DEFAULT: 0.00, NOT NULL | 
  | created_at | TIMESTAMP | Thời điểm tạo | NULLABLE | 
  | updated_at | TIMESTAMP | Thời điểm cập nhật | NULLABLE | 
 
+
 ---
 
-### **2.1.3.14. Bảng meter_devices**
+### **2.1.3.14. Bảng room_service_prices**
+
+| Tên trường | Kiểu dữ liệu | Mô tả | Ràng buộc |
+| :--- | :--- | :--- | :--- |
+ | id | BIGINT UNSIGNED | Khoá chính | PRIMARY KEY, AUTO_INCREMENT |
+ | room_service_id | BIGINT UNSIGNED | ID dịch vụ của phòng | FOREIGN KEY -> room_services(id), CASCADE |
+ | contract_id | BIGINT UNSIGNED | ID hợp đồng nếu là giá deal riêng | NULLABLE, FOREIGN KEY -> contracts(id), SET NULL |
+ | price | DECIMAL(15,2) | Đơn giá áp dụng | NOT NULL |
+ | effective_from | DATE | Ngày bắt đầu áp dụng | NOT NULL |
+ | effective_to | DATE | Ngày kết thúc áp dụng | NULLABLE |
+ | created_by | BIGINT UNSIGNED | ID Admin tạo | NULLABLE, FOREIGN KEY -> admins(id), SET NULL |
+ | created_at | TIMESTAMP | Thời điểm tạo | NULLABLE |
+ | updated_at | TIMESTAMP | Thời điểm cập nhật | NULLABLE |
+
+---
+
+### **2.1.3.15. Bảng meter_devices**
 
 | Tên trường | Kiểu dữ liệu | Mô tả | Ràng buộc |
 | :--- | :--- | :--- | :--- |

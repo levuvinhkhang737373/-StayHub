@@ -1528,7 +1528,6 @@ export function MeterReadingsScreen() {
             <div className="bg-[#24170d] p-5 text-[#fff4df]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Pricing Settings</p>
                   <h2 id="price-dialog-title" className="mt-1.5 text-2xl font-black tracking-tight">Thay đổi đơn giá</h2>
                   <p className="mt-1 text-xs font-bold text-[#f8e8c8]/70">Áp dụng cho tòa nhà hiện tại</p>
                 </div>

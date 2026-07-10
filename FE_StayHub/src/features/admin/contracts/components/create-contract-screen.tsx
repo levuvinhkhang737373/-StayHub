@@ -20,6 +20,7 @@ import {
   renewContract,
 } from '../services/contracts.service'
 import type {
+  AdminContractRoomResource,
   AdminContractResource,
   AdminVehicleOptionResource,
   ContractFormErrors,
@@ -48,6 +49,15 @@ import { DepositQRModal } from './modals/DepositQRModal'
 import { CreateVehicleModal } from './modals/CreateVehicleModal'
 import { ManageServicesModal } from './modals/ManageServicesModal'
 import { fetchAdminServices } from '../../services/services/services.service'
+
+const moneyNumber = (value: string | number | null | undefined) => {
+  const normalized = typeof value === 'string' ? value.replace(/\./g, '').replace(/,/g, '') : value
+  const amount = Number(normalized ?? 0)
+
+  return Number.isFinite(amount) ? amount : 0
+}
+
+const displayPrice = (value: string | number | null | undefined) => formatMoneyInput(String(Math.round(moneyNumber(value)))) || '0'
 
 const isFixedService = (name: string, slug?: string) => {
   const s = (slug || '').toLowerCase()
@@ -133,12 +143,13 @@ export function CreateContractScreen() {
 
   const buildingOptions = useMemo(() => buildings.map((building) => ({ value: building.id, label: building.name, tone: 'default' as const })), [buildings])
   const selectedBuilding = useMemo(() => buildings.find((building) => String(building.id) === form.building_id) || null, [buildings, form.building_id])
+  const selectedRoom = useMemo(() => rooms.find((room) => String(room.id) === form.room_id) || null, [rooms, form.room_id])
   const roomOptions = useMemo(
     () =>
       rooms.map((room) => ({
         value: room.id,
         label: `Phòng ${room.room_number || room.id}`,
-        description: `Đang ở ${room.current_occupants ?? 0}/${room.max_occupants ?? '—'} người`,
+        description: `Đang ở ${room.current_occupants ?? 0}/${room.max_occupants ?? '—'} người · ${formatMoneyInput(String(Math.round(Number(room.base_price || 0)))) || 0}đ`,
         tone: room.status === 1 ? ('success' as const) : ('warning' as const),
       })),
     [rooms]
@@ -396,7 +407,25 @@ export function CreateContractScreen() {
 
     const loadBuildingServices = async () => {
       try {
-        // 1. Tải tất cả dịch vụ hoạt động trong hệ thống
+        const selectedRoomServices = selectedRoom?.services
+
+        if (selectedRoomServices?.length) {
+          setBuildingServices(selectedRoomServices.map((service) => ({
+            id: service.id,
+            room_service_id: service.room_service_id,
+            name: service.name || '',
+            slug: service.slug || '',
+            charge_method: service.charge_method,
+            charge_method_label: service.charge_method_label || (service.charge_method === 1 ? 'Theo chỉ số' : (service.charge_method === 2 ? 'Cố định' : 'Miễn phí')),
+            unit_name: service.unit_name || '',
+            price: displayPrice(service.price || service.base_price || service.effective_price || 0),
+            base_price: service.base_price,
+            effective_price: service.effective_price,
+          })))
+          return
+        }
+
+        // 1. Tải tất cả dịch vụ hoạt động trong hệ thống nếu chưa chọn phòng
         const systemServicesRes = await fetchAdminServices({ is_active: true, per_page: 100 })
         const systemServices = getResourceList(systemServicesRes.result)
 
@@ -428,7 +457,7 @@ export function CreateContractScreen() {
     }
 
     void loadBuildingServices()
-  }, [form.building_id])
+  }, [form.building_id, selectedRoom])
 
   useEffect(() => {
     const tenantIds = form.tenants
@@ -456,15 +485,21 @@ export function CreateContractScreen() {
         } else {
           next.room_price = ''
         }
-        if (selectedRoom && (selectedRoom as any).services) {
-          next.services = ((selectedRoom as any).services || []).map((service: any) => ({
-            service_id: String(service.id),
-            name: service.name || '',
-            slug: service.slug || '',
-            charge_method_label: service.charge_method === 1 ? 'Theo chỉ số' : (service.charge_method === 2 ? 'Cố định' : 'Miễn phí'),
-            unit_name: service.unit_name || '',
-            price: formatMoneyInput(String(Math.round(Number(service.pivot?.price || 0)))),
-          }))
+        if (selectedRoom && selectedRoom.services) {
+          next.services = (selectedRoom.services || []).map((service) => {
+            const defaultPrice = displayPrice(service.price ?? service.base_price ?? service.effective_price ?? 0)
+
+            return {
+              service_id: String(service.id),
+              room_service_id: service.room_service_id ? String(service.room_service_id) : '',
+              name: service.name || '',
+              slug: service.slug || '',
+              charge_method_label: service.charge_method === 1 ? 'Theo chỉ số' : (service.charge_method === 2 ? 'Cố định' : 'Miễn phí'),
+              unit_name: service.unit_name || '',
+              default_price: defaultPrice,
+              price: defaultPrice,
+            }
+          })
         } else {
           next.services = []
         }
@@ -846,12 +881,16 @@ export function CreateContractScreen() {
               )
             }
           >
+            <div className="mb-4 rounded-2xl border border-[#d8912b]/20 bg-[#fff8eb] px-4 py-3 text-xs font-bold leading-relaxed text-[#6f6254]">
+              Giá mặc định lấy theo phòng từ <span className="font-black text-[#24170d]">room_service_prices</span>. Có thể nhập giá deal riêng cho hợp đồng; điện/nước không deal ở đây và vẫn tính theo chỉ số trong <span className="font-black text-[#24170d]">service_prices</span>.
+            </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {form.services.map((service, index) => (
                 <div
                   key={index}
-                  className="relative rounded-2xl border border-[#3d2a18]/10 bg-white/40 p-4 shadow-sm"
+                  className="relative overflow-hidden rounded-2xl border border-[#3d2a18]/10 bg-white/70 p-4 shadow-sm"
                 >
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#24170d] via-[#d8912b] to-[#f3c56b]" />
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-black text-[#24170d]">{service.name}</h4>
@@ -872,8 +911,19 @@ export function CreateContractScreen() {
                       </button>
                     )}
                   </div>
+                  <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/65">Giá mặc định phòng</p>
+                      <p className="mt-1 text-sm font-black tabular-nums text-[#6f6254]">{displayPrice(service.default_price || service.price)} đ</p>
+                    </div>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#24170d] text-[#f3c56b]">→</div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/65">Giá hợp đồng</p>
+                      <p className="mt-1 text-sm font-black tabular-nums text-[#24170d]">{service.price || '0'} đ</p>
+                    </div>
+                  </div>
                   <div className="mt-3">
-                    <Field label="Đơn giá (VND)" required error={errors[`services.${index}`]}>
+                    <Field label="Giá deal lưu theo hợp đồng (VND)" required error={errors[`services.${index}`]}>
                       <input
                         className={cn(inputClass, errors[`services.${index}`] && inputErrorClass)}
                         value={service.price}
@@ -887,7 +937,12 @@ export function CreateContractScreen() {
                       />
                       {isFixedService(service.name, service.slug) && (
                         <p className="text-[10px] font-semibold text-[#8b5e34]/70 mt-1">
-                          * Đơn giá điện/nước cố định theo tòa nhà.
+                          * Điện/nước không lưu trong room_service_prices, giá lấy theo service_prices khi chốt chỉ số.
+                        </p>
+                      )}
+                      {!isFixedService(service.name, service.slug) && service.default_price && service.price !== service.default_price && (
+                        <p className="text-[10px] font-black text-emerald-700 mt-1">
+                          Đang deal lệch {displayPrice(Math.abs(moneyNumber(service.price) - moneyNumber(service.default_price)))} đ so với giá mặc định.
                         </p>
                       )}
                     </Field>
@@ -1092,15 +1147,7 @@ export function CreateContractScreen() {
   )
 }
 
-type ContractRoomOption = {
-  id: number
-  building_id: number
-  room_number?: string | null
-  status?: number | null
-  base_price?: string | number | null
-  max_occupants?: number | null
-  current_occupants?: number | null
-}
+type ContractRoomOption = AdminContractRoomResource
 
 function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
   return (

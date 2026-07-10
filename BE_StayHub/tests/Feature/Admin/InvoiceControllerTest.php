@@ -16,6 +16,8 @@ use App\Models\Payment;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
+use App\Models\RoomService;
+use App\Models\RoomServicePrice;
 use App\Models\RoomType;
 use App\Models\Service;
 use App\Models\ServicePrice;
@@ -389,6 +391,7 @@ class InvoiceControllerTest extends TestCase
             'effective_from' => '2026-01-01',
             'status' => ServicePrice::STATUS_ACTIVE,
         ]);
+        $this->createRoomServicePrice($garbageService, '20000.00');
 
         ServicePrice::create([
             'service_id' => $wifiService->id,
@@ -397,6 +400,7 @@ class InvoiceControllerTest extends TestCase
             'effective_from' => '2026-01-01',
             'status' => ServicePrice::STATUS_ACTIVE,
         ]);
+        $this->createRoomServicePrice($wifiService, '50000.00');
 
         // Register a vehicle for the contract
         $vehicle = Vehicle::create([
@@ -689,6 +693,7 @@ class InvoiceControllerTest extends TestCase
             'effective_from' => '2026-01-01',
             'status' => ServicePrice::STATUS_ACTIVE,
         ]);
+        $this->createRoomServicePrice($internetService, '50000.00', $contract);
 
         $parkingService = Service::create([
             'name' => 'Gửi xe',
@@ -1260,6 +1265,7 @@ class InvoiceControllerTest extends TestCase
             'effective_from' => '2026-01-01',
             'status' => ServicePrice::STATUS_ACTIVE,
         ]);
+        $this->createRoomServicePrice($internetService, '60000.00', $remainingContract);
 
         $parkingService = Service::create([
             'name' => 'Gửi xe',
@@ -2276,5 +2282,27 @@ class InvoiceControllerTest extends TestCase
         $this->assertSame($newDueDate, $invoice->due_date->toDateString());
         $this->assertSame(Invoice::STATUS_UNPAID, (int) $invoice->status);
         $this->assertSame(2, (int) $invoice->revision);
+    }
+
+    private function createRoomServicePrice(Service $service, string $price, ?Contract $contract = null, ?Room $room = null, string $effectiveFrom = '2026-01-01', ?string $effectiveTo = null): RoomServicePrice
+    {
+        $roomModel = $room ?: $this->room;
+        $roomService = RoomService::query()->firstOrCreate([
+            'room_id' => $roomModel->id,
+            'service_id' => $service->id,
+        ]);
+
+        return RoomServicePrice::query()->updateOrCreate(
+            [
+                'room_service_id' => $roomService->id,
+                'contract_id' => $contract?->id,
+                'effective_from' => $effectiveFrom,
+            ],
+            [
+                'price' => $price,
+                'effective_to' => $effectiveTo,
+                'created_by' => $this->superAdmin->id,
+            ]
+        );
     }
 }

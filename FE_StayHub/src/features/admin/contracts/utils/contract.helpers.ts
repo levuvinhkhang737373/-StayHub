@@ -162,10 +162,12 @@ export function contractToForm(contract: AdminContractResource, isRenew = false)
     deposit_transactions: [],
     services: (contract.room_services || []).map((service) => ({
       service_id: String(service.id),
+      room_service_id: service.room_service_id ? String(service.room_service_id) : '',
       name: service.name || '',
       slug: (service as any).slug || '',
       charge_method_label: service.charge_method_label || '',
       unit_name: service.unit_name || '',
+      default_price: formatMoneyInput(service.price || '0'),
       price: formatMoneyInput(service.price || '0'),
     })),
     is_deposit_paid: contract.is_deposit_paid !== false,

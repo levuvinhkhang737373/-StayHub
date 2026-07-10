@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, Plus, Check } from 'lucide-react'
+import { ArrowRight, X, Plus, Check } from 'lucide-react'
 import { cn } from '../../../../../shared/lib/utils/cn'
 import { formatMoneyInput } from '../../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../../shared/components/AdminSelect'
@@ -24,6 +24,15 @@ const isFixedService = (name: string, slug?: string) => {
     n.includes('nước')
   )
 }
+
+const moneyNumber = (value: string | number | null | undefined) => {
+  const normalized = typeof value === 'string' ? value.replace(/\./g, '').replace(/,/g, '') : value
+  const amount = Number(normalized ?? 0)
+
+  return Number.isFinite(amount) ? amount : 0
+}
+
+const displayPrice = (value: string | number | null | undefined) => formatMoneyInput(String(Math.round(moneyNumber(value)))) || '0'
 
 export function ManageServicesModal({
   isOpen,
@@ -57,11 +66,13 @@ export function ManageServicesModal({
       // Add
       const newRow: ContractServiceFormRow = {
         service_id: serviceIdStr,
+        room_service_id: service.room_service_id ? String(service.room_service_id) : '',
         name: service.name || '',
         slug: service.slug || '',
         charge_method_label: service.charge_method_label || '',
         unit_name: service.unit_name || '',
-        price: String(service.price || '0'),
+        default_price: displayPrice(service.price || service.base_price || service.effective_price || 0),
+        price: displayPrice(service.price || service.base_price || service.effective_price || 0),
       }
       onUpdateServices([...selectedServices, newRow])
     }
@@ -114,11 +125,13 @@ export function ManageServicesModal({
         // 2. Tự động tick chọn dịch vụ này vào hợp đồng
         const newFormRow: ContractServiceFormRow = {
           service_id: String(newService.id),
+          room_service_id: '',
           name: newService.name || '',
           slug: newService.slug || '',
           charge_method_label: newServiceRow.charge_method_label,
           unit_name: newService.unit_name || '',
-          price: formattedPrice,
+          default_price: displayPrice(formattedPrice),
+          price: displayPrice(formattedPrice),
         }
         onUpdateServices([...selectedServices, newFormRow])
 
@@ -144,8 +157,8 @@ export function ManageServicesModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#3d2a18]/10 bg-[#fff8eb] p-5">
           <div>
-            <h3 className="text-lg font-black text-[#24170d]">Quản lý dịch vụ</h3>
-            <p className="text-xs text-[#8b5e34]/70 mt-0.5">Chọn các dịch vụ áp dụng cho phòng trọ trong hợp đồng này</p>
+            <h3 className="text-lg font-black text-[#24170d]">Dịch vụ phòng & giá deal</h3>
+            <p className="text-xs text-[#8b5e34]/70 mt-0.5">Giá mặc định lấy từ room_service_prices, giá nhập ở hợp đồng sẽ lưu theo contract.</p>
           </div>
           <button
             type="button"
@@ -245,12 +258,15 @@ export function ManageServicesModal({
           {/* Services Checklist */}
           <div className="space-y-2">
             <label className="block px-1 text-[10px] font-black uppercase tracking-widest text-[#8b5e34]/65">
-              Danh sách dịch vụ tòa nhà
+              Danh sách dịch vụ theo phòng
             </label>
             <div className="divide-y divide-[#3d2a18]/8 border border-[#3d2a18]/10 rounded-2xl overflow-hidden bg-white/60">
               {buildingServices.map((service) => {
                 const checked = isChecked(service.id)
                 const fixed = isFixedService(service.name, service.slug)
+                const selected = selectedServices.find((item) => String(item.service_id) === String(service.id))
+                const defaultPrice = displayPrice(service.price || service.base_price || service.effective_price || 0)
+                const contractPrice = selected?.price || defaultPrice
 
                 return (
                   <button
@@ -259,21 +275,33 @@ export function ManageServicesModal({
                     onClick={() => handleToggleService(service)}
                     disabled={fixed}
                     className={cn(
-                      'flex w-full items-center justify-between p-4 text-left transition',
-                      fixed ? 'cursor-not-allowed bg-stone-50/50' : 'hover:bg-[#f3c56b]/8'
+                      'flex w-full items-center justify-between gap-4 p-4 text-left transition',
+                      checked ? 'bg-[#fff4df]' : 'bg-white/40',
+                      fixed ? 'cursor-not-allowed opacity-70' : 'hover:bg-[#f3c56b]/10'
                     )}
                   >
-                    <div>
+                    <div className="min-w-0">
                       <h4 className="text-sm font-black text-[#24170d]">{service.name}</h4>
                       <p className="text-xs text-[#8b5e34]/70 mt-0.5">
                         Hình thức: {service.charge_method_label} · Đơn vị: {service.unit_name}
                       </p>
+                      {fixed && (
+                        <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-[#a65f16]">Điện/nước tính theo service_prices khi chốt chỉ số</p>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-black text-[#24170d]">
-                        {parseFloat(service.price) > 0 ? `${Number(service.price).toLocaleString('vi-VN')} đ` : 'Miễn phí'}
-                      </span>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <div className="hidden items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-white/75 px-3 py-2 sm:flex">
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/60">Mặc định</p>
+                          <p className="text-xs font-black tabular-nums text-[#6f6254]">{defaultPrice} đ</p>
+                        </div>
+                        <ArrowRight className="h-3.5 w-3.5 text-[#b7894f]" />
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/60">Hợp đồng</p>
+                          <p className="text-xs font-black tabular-nums text-[#24170d]">{contractPrice} đ</p>
+                        </div>
+                      </div>
                       <div
                         className={cn(
                           'flex h-5 w-5 items-center justify-center rounded-md border transition',

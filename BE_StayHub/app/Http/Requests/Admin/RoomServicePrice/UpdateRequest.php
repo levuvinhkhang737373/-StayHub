@@ -21,6 +21,7 @@ class UpdateRequest extends FormRequest
             'billing_year' => ['required', 'integer', 'min:2020', 'max:2100'],
             'prices' => ['required', 'array', 'min:1', 'max:100'],
             'prices.*.room_service_id' => ['required', 'integer', 'distinct', 'exists:room_services,id'],
+            'prices.*.contract_id' => ['nullable', 'integer', 'exists:contracts,id'],
             'prices.*.price' => ['required', 'regex:/^\d+(\.\d{1,2})?$/'],
         ];
     }
@@ -38,6 +39,8 @@ class UpdateRequest extends FormRequest
             'prices.*.room_service_id.integer' => 'Dịch vụ phòng không hợp lệ.',
             'prices.*.room_service_id.distinct' => 'Danh sách dịch vụ phòng không được trùng lặp.',
             'prices.*.room_service_id.exists' => 'Dịch vụ phòng không tồn tại.',
+            'prices.*.contract_id.integer' => 'Hợp đồng áp dụng giá không hợp lệ.',
+            'prices.*.contract_id.exists' => 'Hợp đồng áp dụng giá không tồn tại.',
             'prices.*.price.required' => 'Giá dịch vụ là bắt buộc.',
             'prices.*.price.regex' => 'Giá dịch vụ phải là số tiền hợp lệ và tối đa 2 số thập phân.',
         ];

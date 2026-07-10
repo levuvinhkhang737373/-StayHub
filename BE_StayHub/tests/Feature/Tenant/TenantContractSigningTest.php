@@ -10,6 +10,9 @@ use App\Models\Invoice;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
+use App\Models\RoomService;
+use App\Models\Service;
+use App\Models\ServicePrice;
 use App\Models\RoomType;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -177,6 +180,39 @@ class TenantContractSigningTest extends TestCase
             'room_id' => $this->room->id,
             'tenant_id' => $this->tenant->id,
         ]);
+    }
+
+    public function test_tenant_contract_services_fallback_to_building_price_when_room_price_missing(): void
+    {
+        $internetService = Service::create([
+            'name' => 'Internet tốc độ cao khu A',
+            'slug' => 'internet-toc-do-cao-khu-a',
+            'charge_method' => Service::CHARGE_METHOD_BY_ROOM,
+            'unit_name' => 'phòng',
+            'is_active' => true,
+        ]);
+
+        RoomService::create([
+            'room_id' => $this->room->id,
+            'service_id' => $internetService->id,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $internetService->id,
+            'building_id' => $this->building->id,
+            'price' => '150000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($this->tenant, 'tenant')
+            ->getJson('/api/v1/tenant/contracts');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('result.0.room_services.0.price', '150000.00')
+            ->assertJsonPath('result.0.room_services.0.price_source', 'building')
+            ->assertJsonPath('result.0.room_services.0.price_source_label', 'Giá theo tòa nhà');
     }
 
     public function test_tenant_signing_transfer_contract_does_not_issue_separate_new_room_invoice(): void

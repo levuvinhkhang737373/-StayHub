@@ -119,6 +119,66 @@ class TransferSettlement {
   }
 }
 
+class ContractRoomService {
+  final int roomServiceId;
+  final int id;
+  final String name;
+  final String? slug;
+  final int? chargeMethod;
+  final String? chargeMethodLabel;
+  final String? unitName;
+  final double price;
+  final String? priceSource;
+  final String? priceSourceLabel;
+  final bool isRequired;
+
+  const ContractRoomService({
+    required this.roomServiceId,
+    required this.id,
+    required this.name,
+    this.slug,
+    this.chargeMethod,
+    this.chargeMethodLabel,
+    this.unitName,
+    required this.price,
+    this.priceSource,
+    this.priceSourceLabel,
+    this.isRequired = false,
+  });
+
+  factory ContractRoomService.fromJson(Map<String, dynamic> json) {
+    return ContractRoomService(
+      roomServiceId: _toNullableInt(json['room_service_id']) ?? 0,
+      id: _toNullableInt(json['id']) ?? 0,
+      name: json['name']?.toString() ?? '',
+      slug: json['slug']?.toString(),
+      chargeMethod: _toNullableInt(json['charge_method']),
+      chargeMethodLabel: json['charge_method_label']?.toString(),
+      unitName: json['unit_name']?.toString(),
+      price: _toDouble(json['price']),
+      priceSource: json['price_source']?.toString(),
+      priceSourceLabel: json['price_source_label']?.toString(),
+      isRequired: json['is_required'] == true || json['is_required'] == 1,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'room_service_id': roomServiceId,
+      'id': id,
+      'name': name,
+      'slug': slug,
+      'charge_method': chargeMethod,
+      'charge_method_label': chargeMethodLabel,
+      'unit_name': unitName,
+      'price': price,
+      'price_source': priceSource,
+      'price_source_label': priceSourceLabel,
+      'is_required': isRequired,
+    };
+  }
+}
+
 class Contract {
   // Status constants matching backend:
   static const int STATUS_DRAFT = 0;
@@ -151,7 +211,7 @@ class Contract {
   final String? tenantSignedAt;
   final String? tenantSignatureUrl;
 
-  final List<dynamic>? roomServices;
+  final List<ContractRoomService>? roomServices;
   final List<dynamic>? contractVehicles;
 
   // Payment fields
@@ -244,7 +304,9 @@ class Contract {
       id: json['id'] as int,
       contractCode: json['contract_code'] as String? ?? '',
       roomId: json['room_id'] as int? ?? 0,
-      roomNumber: json['room_number'] as String? ?? (json['room']?['room_number'] as String? ?? ''),
+      roomNumber:
+          json['room_number'] as String? ??
+          (json['room']?['room_number'] as String? ?? ''),
       representativeTenantId:
           json['representative_tenant_id'] as int? ??
           json['tenant_id'] as int? ??
@@ -279,7 +341,12 @@ class Contract {
       tenantSignedAt: json['tenant_signed_at'] as String?,
       tenantSignatureUrl: json['tenant_signature_url'] as String?,
 
-      roomServices: json['room_services'] as List<dynamic>?,
+      roomServices: json['room_services'] is List
+          ? (json['room_services'] as List)
+                .whereType<Map<String, dynamic>>()
+                .map(ContractRoomService.fromJson)
+                .toList()
+          : null,
       contractVehicles: json['contract_vehicles'] as List<dynamic>?,
       isDepositPaid: isDepositPaidValue,
       paymentStatus: json['payment_status'] as int?,
@@ -322,6 +389,9 @@ class Contract {
       'deposit_qr_url': depositQrUrl,
       'transfer_settlement': transferSettlement?.toJson(),
       'is_staying': isStaying,
+      'room_services': roomServices
+          ?.map((service) => service.toJson())
+          .toList(),
       'contract_vehicles': contractVehicles,
     };
   }

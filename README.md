@@ -83,7 +83,8 @@ Cơ sở dữ liệu của StayHub bao gồm 38 bảng được chuẩn hóa, ch
 * `room_assets`: Chi tiết số lượng và hiện trạng tài sản được trang bị trong từng phòng cụ thể.
 * `services`: Danh mục các dịch vụ tiện ích cung cấp (điện, nước, internet, gửi xe, dọn vệ sinh...).
 * `service_prices`: Đơn giá dịch vụ áp dụng cho từng tòa nhà theo khoảng thời gian hiệu lực.
-* `room_services`: Danh sách các dịch vụ và đơn giá đang được cấu hình áp dụng cho từng phòng cụ thể.
+* `room_services`: Bảng nối phòng và dịch vụ đang áp dụng cho từng phòng; không lưu giá.
+* `room_service_prices`: Đơn giá dịch vụ phòng theo thời gian, gồm giá mặc định của phòng và giá deal theo hợp đồng.
 
 ### 2.4. Phân hệ Công Tơ & Đo Lường
 * `meter_devices`: Các thiết bị công tơ lắp đặt tại phòng (công tơ điện, đồng hồ nước).
