@@ -245,6 +245,57 @@ class RoomServicePriceTest extends TestCase
         $this->assertFalse(Schema::hasColumn('room_service_prices', 'status'));
     }
 
+    public function test_room_services_table_does_not_store_price_column(): void
+    {
+        $this->assertFalse(Schema::hasColumn('room_services', 'price'));
+    }
+
+    public function test_index_uses_room_service_prices_as_default_price_source(): void
+    {
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => null,
+            'price' => '125000.00',
+            'effective_from' => '2026-07-01',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/room-service-prices?billing_month=8&billing_year=2026');
+
+        $response->assertStatus(200);
+
+        $room = collect($response->json('result.data'))->firstWhere('id', $this->room->id);
+        $internet = collect($room['services'])->firstWhere('service_id', $this->internetService->id);
+
+        $this->assertSame('125000.00', $internet['base_price']);
+        $this->assertSame('125000.00', $internet['effective_price']);
+    }
+
+    public function test_room_service_prices_allows_default_and_contract_price_on_same_date(): void
+    {
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => null,
+            'price' => '100000.00',
+            'effective_from' => '2026-08-01',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => $this->contract->id,
+            'price' => '80000.00',
+            'effective_from' => '2026-08-01',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->assertSame(2, RoomServicePrice::query()
+            ->where('room_service_id', $this->internetRoomService->id)
+            ->whereDate('effective_from', '2026-08-01')
+            ->count());
+    }
+
     public function test_building_manager_cannot_update_room_outside_managed_building(): void
     {
         $roomService = RoomService::where('room_id', $this->otherRoom->id)->firstOrFail();
@@ -316,7 +367,7 @@ class RoomServicePriceTest extends TestCase
             'room_service_id' => $this->internetRoomService->id,
             'price' => '150000.00',
             'effective_from' => '2026-08-01 00:00:00',
-            'effective_to' => '2026-12-31 00:00:00',
+            'effective_to' => null,
             'created_by' => $this->managerAdmin->id,
         ]);
 

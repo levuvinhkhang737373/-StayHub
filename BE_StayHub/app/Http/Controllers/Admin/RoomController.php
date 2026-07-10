@@ -25,8 +25,11 @@ use App\Models\Notification;
 use App\Models\Room;
 use App\Models\RoomAsset;
 use App\Models\RoomMovement;
+use App\Models\RoomService;
 use App\Models\RoomType;
+use App\Models\ServicePrice;
 use App\Models\Tenant;
+use App\Services\RoomServicePriceResolver;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
@@ -161,17 +164,17 @@ class RoomController extends Controller
                 }
             }
 
-            // Đồng bộ dịch vụ hoạt động của tòa nhà sang room_services cho phòng mới tạo
-            $activeBuildingServices = \App\Models\ServicePrice::query()
+            // Đồng bộ dịch vụ hoạt động của tòa nhà sang phòng, giá riêng lưu ở room_service_prices.
+            $priceResolver = app(RoomServicePriceResolver::class);
+            $activeBuildingServices = ServicePrice::query()
+                ->with('service:id,slug,charge_method')
                 ->where('building_id', $room->building_id)
-                ->where('status', \App\Models\ServicePrice::STATUS_ACTIVE)
+                ->where('status', ServicePrice::STATUS_ACTIVE)
+                ->whereNull('effective_to')
                 ->get();
             foreach ($activeBuildingServices as $buildingPrice) {
-                \App\Models\RoomService::create([
-                    'room_id' => $room->id,
-                    'service_id' => $buildingPrice->service_id,
-                    'price' => $buildingPrice->price,
-                ]);
+                $priceResolver->ensureRoomService($room, (int) $buildingPrice->service_id);
+                $priceResolver->ensureDefaultPriceFromServicePrice($room, $buildingPrice, $admin->id);
             }
 
             AdminActivityLogger::write($admin, 'Tạo phòng', Room::class, $room->id, null, $room->fresh()->toArray(), $request);

@@ -25,8 +25,8 @@ class RoomServicePriceResource extends JsonResource
             'charge_method' => $service?->charge_method,
             'charge_method_label' => $service ? (Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? null) : null,
             'unit_name' => $service?->unit_name,
-            'base_price' => (string) $this->price,
-            'effective_price' => $effectivePrice ? (string) $effectivePrice->price : (string) $this->price,
+            'base_price' => $effectivePrice ? (string) $effectivePrice->price : '0.00',
+            'effective_price' => $effectivePrice ? (string) $effectivePrice->price : '0.00',
             'scheduled_price' => $scheduledPrice ? (string) $scheduledPrice->price : null,
             'effective_from' => optional($effectivePrice?->effective_from)->toDateString(),
             'effective_to' => optional($effectivePrice?->effective_to)->toDateString(),
@@ -49,7 +49,7 @@ class RoomServicePriceResource extends JsonResource
     {
         return $this->relationLoaded('prices')
             ? $this->prices
-                ->filter(fn (RoomServicePrice $price): bool => $price->effective_from->toDateString() <= $targetDate && ($price->effective_to === null || $price->effective_to->toDateString() >= $targetDate))
+                ->filter(fn (RoomServicePrice $price): bool => $price->contract_id === null && $price->effective_from->toDateString() <= $targetDate && ($price->effective_to === null || $price->effective_to->toDateString() >= $targetDate))
                 ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from->toDateString())
                 ->first()
             : null;
@@ -58,7 +58,7 @@ class RoomServicePriceResource extends JsonResource
     private function scheduledPriceFor(string $targetDate): ?RoomServicePrice
     {
         return $this->relationLoaded('prices')
-            ? $this->prices->first(fn (RoomServicePrice $price): bool => $price->effective_from->toDateString() === $targetDate)
+            ? $this->prices->first(fn (RoomServicePrice $price): bool => $price->contract_id === null && $price->effective_from->toDateString() === $targetDate)
             : null;
     }
 

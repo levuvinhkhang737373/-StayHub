@@ -18,9 +18,10 @@ return new class extends Migration
             $table->foreignId('created_by')->nullable()->constrained('admins')->nullOnDelete();
             $table->timestamps();
 
-            $table->unique(['room_service_id', 'effective_from']);
+            $table->unique(['room_service_id', 'contract_id', 'effective_from'], 'room_service_prices_scope_unique');
             $table->index(['contract_id', 'effective_from', 'effective_to'], 'room_service_prices_contract_period_idx');
             $table->index(['room_service_id', 'effective_from', 'effective_to'], 'room_service_prices_lookup_idx');
+            $table->index(['room_service_id', 'contract_id', 'effective_from', 'effective_to'], 'room_service_prices_scope_lookup_idx');
         });
     }
 

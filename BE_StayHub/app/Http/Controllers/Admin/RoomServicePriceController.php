@@ -132,7 +132,7 @@ class RoomServicePriceController extends Controller
                 foreach ($validated['prices'] as $item) {
                     $roomService = $roomServices->get((int) $item['room_service_id']);
                     $price = DecimalMoney::normalize($item['price']);
-                    $updatedPrices->push($this->schedulePrice($roomService, $targetDate, $price, $admin, $contract));
+                    $updatedPrices->push($this->schedulePrice($roomService, $targetDate, $price, $admin));
                 }
 
                 $this->notifyTenants($roomModel, $updatedPrices, $targetDate, $admin);
@@ -180,11 +180,12 @@ class RoomServicePriceController extends Controller
         return [
             'building:id,name',
             'roomServices' => fn ($query) => $this->nonUtilityServiceScope($query)
-                ->select(['id', 'room_id', 'service_id', 'price'])
+                ->select(['id', 'room_id', 'service_id'])
                 ->with([
                     'service:id,name,slug,charge_method,unit_name,is_active',
                     'prices' => fn ($priceQuery) => $priceQuery
                         ->with('creator:id,full_name')
+                        ->whereNull('contract_id')
                         ->whereDate('effective_from', '<=', $targetDate->toDateString())
                         ->where(function (Builder $query) use ($targetDate): void {
                             $query->whereNull('effective_to')
@@ -205,22 +206,22 @@ class RoomServicePriceController extends Controller
             ->whereNotIn('slug', Service::UTILITY_SLUGS));
     }
 
-    private function schedulePrice(RoomService $roomService, Carbon $targetDate, string $price, Admin $admin, ?Contract $contract = null): RoomServicePrice
+    private function schedulePrice(RoomService $roomService, Carbon $targetDate, string $price, Admin $admin): RoomServicePrice
     {
         $effectiveFrom = $targetDate->toDateString();
         $previousEnd = $targetDate->copy()->subDay()->toDateString();
-        $effectiveTo = $this->contractEffectiveTo($contract);
+        $effectiveTo = null;
 
         $existing = RoomServicePrice::query()
             ->where('room_service_id', $roomService->id)
-            ->where('contract_id', $contract?->id)
+            ->whereNull('contract_id')
             ->whereDate('effective_from', $effectiveFrom)
             ->lockForUpdate()
             ->first();
 
         RoomServicePrice::query()
             ->where('room_service_id', $roomService->id)
-            ->where('contract_id', $contract?->id)
+            ->whereNull('contract_id')
             ->whereDate('effective_from', '<', $effectiveFrom)
             ->where(function (Builder $query) use ($effectiveFrom): void {
                 $query->whereNull('effective_to')
@@ -243,7 +244,7 @@ class RoomServicePriceController extends Controller
 
         return RoomServicePrice::query()->create([
             'room_service_id' => $roomService->id,
-            'contract_id' => $contract?->id,
+            'contract_id' => null,
             'price' => $price,
             'effective_from' => $effectiveFrom,
             'effective_to' => $effectiveTo,

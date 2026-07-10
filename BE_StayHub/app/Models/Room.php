@@ -105,7 +105,7 @@ class Room extends Model
 
     public function services(): BelongsToMany
     {
-        return $this->belongsToMany(Service::class, 'room_services')->withPivot('price')->withTimestamps();
+        return $this->belongsToMany(Service::class, 'room_services')->withTimestamps();
     }
 
     public function creator(): BelongsTo

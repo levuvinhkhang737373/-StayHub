@@ -11,14 +11,13 @@ class RoomService extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['room_id', 'service_id', 'price'];
+    protected $fillable = ['room_id', 'service_id'];
 
     protected function casts(): array
     {
         return [
             'room_id' => 'integer',
             'service_id' => 'integer',
-            'price' => 'decimal:2',
         ];
     }
 

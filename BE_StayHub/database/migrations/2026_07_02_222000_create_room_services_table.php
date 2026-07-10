@@ -13,7 +13,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('room_id')->constrained('rooms')->cascadeOnDelete();
             $table->foreignId('service_id')->constrained('services')->cascadeOnDelete();
-            $table->decimal('price', 15, 2);
             $table->timestamps();
 
             $table->unique(['room_id', 'service_id']);
@@ -30,7 +29,6 @@ return new class extends Migration
                 DB::table('room_services')->insertOrIgnore([
                     'room_id' => $room->id,
                     'service_id' => $price->service_id,
-                    'price' => $price->price,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
