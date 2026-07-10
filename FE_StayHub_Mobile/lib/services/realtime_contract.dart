@@ -3,6 +3,7 @@ class StayHubRealtimeContract {
   static const String presencePrefix = 'presence-';
 
   static const String adminMaintenanceChannel = 'admin-maintenance';
+  static const String adminPaymentsChannel = 'admin-payments';
   static const String adminBuildingChannelPrefix = 'admin-building.';
   static const String tenantChannelPrefix = 'tenant.';
   static const String chatAdminChannelPrefix = 'chat.admin.';
@@ -11,6 +12,7 @@ class StayHubRealtimeContract {
 
   static const List<String> backendPrivateChannelPatterns = [
     adminMaintenanceChannel,
+    adminPaymentsChannel,
     'admin-building.{buildingId}',
     'tenant.{id}',
     'chat.conversation.{conversationId}',

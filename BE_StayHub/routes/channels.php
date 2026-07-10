@@ -58,3 +58,7 @@ Broadcast::channel('chat.admin.{adminId}', function ($user, $adminId) {
 Broadcast::channel('chat.tenant.{tenantId}', function ($user, $tenantId) {
     return $user instanceof \App\Models\Tenant && (int) $user->id === (int) $tenantId;
 }, ['guards' => ['tenant']]);
+
+Broadcast::channel('admin-payments', function ($user) {
+    return $user instanceof \App\Models\Admin;
+}, ['guards' => ['admin']]);

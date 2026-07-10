@@ -36,7 +36,7 @@ export function PayDepositModal({
 
   useEffect(() => {
     if (!echo || method !== 2) return
-    const channel = echo.private('admin-maintenance')
+    const channel = echo.private('admin-payments')
     channel.listen('.ContractDepositPaid', (event: any) => {
       const updatedContract = event.contract
       if (updatedContract && Number(updatedContract.id) === Number(contract.id) && updatedContract.is_deposit_paid) {

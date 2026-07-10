@@ -34,7 +34,7 @@ class ContractDepositPaid implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         $channels = [
-            new PrivateChannel('admin-maintenance'),
+            new PrivateChannel('admin-payments'),
         ];
 
         foreach ($this->tenantIds as $tenantId) {
