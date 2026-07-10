@@ -1,0 +1,71 @@
+@startuml Usecase_Mobile_StayHub
+skinparam actorStyle awesome
+left to right direction
+
+skinparam package {
+    BackgroundColor #FFF8EC
+    BorderColor #EAB308
+    FontColor #1C1917
+}
+
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #1C1917
+    ArrowColor #1C1917
+    ActorBorderColor #1C1917
+    FontName "Inter"
+}
+
+actor "Quản trị viên (Admin/Manager)" as Admin
+actor "Khách thuê (Tenant/Resident)" as Tenant
+
+rectangle "Phân hệ Mobile StayHub" {
+    package "Xác thực & Tài khoản" {
+        usecase "Đăng nhập hệ thống" as UC_Login
+        usecase "Xem thông tin cá nhân & cài đặt" as UC_Profile
+    }
+
+    package "Phân hệ Quản trị viên (Admin Role)" {
+        usecase "Quản lý hợp đồng\n(Lập mới, gia hạn, thanh lý)" as UC_ManageContracts
+        usecase "Thêm người vào hợp đồng" as UC_AddTenantContract
+        usecase "Chuyển phòng cho cư dân" as UC_RoomTransfer
+        usecase "Quản lý thông tin khách thuê" as UC_ManageTenants
+        usecase "Ghi nhận chỉ số Điện / Nước" as UC_Meters
+        usecase "Quản lý Hóa đơn & Thu phí" as UC_Invoices
+        usecase "Tiếp nhận & duyệt yêu cầu bảo trì" as UC_ManageMaintenance
+        usecase "Gửi thông báo hàng loạt" as UC_Notifications
+        usecase "Nhắn tin hỗ trợ cư dân (Chat)" as UC_ChatAdmin
+    }
+
+    package "Phân hệ Khách thuê (Tenant Role)" {
+        usecase "Xem tổng quan Dashboard" as UC_TenantDashboard
+        usecase "Xem chi tiết & Ký hợp đồng điện tử" as UC_SignContract
+        usecase "Xem hóa đơn & Xác nhận thanh toán" as UC_TenantInvoices
+        usecase "Tạo yêu cầu sửa chữa/bảo trì" as UC_CreateMaintenance
+        usecase "Xem lịch sử tiêu thụ Điện/Nước" as UC_TenantUtilities
+        usecase "Trò chuyện với Ban quản lý (Chat)" as UC_ChatTenant
+    }
+}
+
+Admin --> UC_Login
+Admin --> UC_Profile
+Admin --> UC_ManageContracts
+Admin --> UC_AddTenantContract
+Admin --> UC_RoomTransfer
+Admin --> UC_ManageTenants
+Admin --> UC_Meters
+Admin --> UC_Invoices
+Admin --> UC_ManageMaintenance
+Admin --> UC_Notifications
+Admin --> UC_ChatAdmin
+
+Tenant --> UC_Login
+Tenant --> UC_Profile
+Tenant --> UC_TenantDashboard
+Tenant --> UC_SignContract
+Tenant --> UC_TenantInvoices
+Tenant --> UC_CreateMaintenance
+Tenant --> UC_TenantUtilities
+Tenant --> UC_ChatTenant
+
+@enduml

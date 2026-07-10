@@ -1,0 +1,48 @@
+@startuml Usecase_Mobile_Tenant
+skinparam actorStyle awesome
+left to right direction
+
+skinparam package {
+    BackgroundColor #FFF8EC
+    BorderColor #EAB308
+    FontColor #1C1917
+}
+
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #1C1917
+    ArrowColor #1C1917
+    ActorBorderColor #1C1917
+    FontName "Inter"
+}
+
+actor "Khách thuê (Tenant/Resident)" as Tenant
+
+rectangle "Phân hệ Mobile Tenant (StayHub)" {
+    package "Tài khoản & Cá nhân" {
+        usecase "Đăng nhập" as UC_Login
+        usecase "Xem thông tin cá nhân" as UC_Profile
+        usecase "Xem cài đặt & quy định tòa nhà" as UC_Settings
+    }
+
+    package "Tiện ích & Tương tác" {
+        usecase "Xem Dashboard tổng quan" as UC_TenantDashboard
+        usecase "Xem & Ký hợp đồng điện tử" as UC_SignContract
+        usecase "Xem hóa đơn & Xác nhận thanh toán" as UC_TenantInvoices
+        usecase "Gửi yêu cầu sửa chữa/bảo trì" as UC_CreateMaintenance
+        usecase "Xem lịch sử tiêu thụ Điện/Nước" as UC_TenantUtilities
+        usecase "Chat trò chuyện với Ban quản lý" as UC_ChatTenant
+    }
+}
+
+Tenant --> UC_Login
+Tenant --> UC_Profile
+Tenant --> UC_Settings
+Tenant --> UC_TenantDashboard
+Tenant --> UC_SignContract
+Tenant --> UC_TenantInvoices
+Tenant --> UC_CreateMaintenance
+Tenant --> UC_TenantUtilities
+Tenant --> UC_ChatTenant
+
+@enduml
