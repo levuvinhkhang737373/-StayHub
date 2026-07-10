@@ -33,7 +33,7 @@ class MaintenanceRequestController extends Controller
             // Tối ưu N+1: load room, building, assignee và feedbacks
             $requests = MaintenanceRequest::query()
                 ->where('tenant_id', $tenant->id)
-                ->with(['room.building', 'assignee', 'feedbacks'])
+                ->with(['room.building', 'feedbacks'])
                 ->orderByDesc('created_at')
                 ->paginate($request->integer('per_page', 20));
 
@@ -142,7 +142,7 @@ class MaintenanceRequestController extends Controller
             $notification = $result['notification'];
 
             // Load đầy đủ quan hệ để trả về resource
-            $maintenanceRequest->load(['room.building', 'assignee', 'feedbacks']);
+            $maintenanceRequest->load(['room.building', 'feedbacks']);
 
             // 4. Phát sự kiện Broadcast
             broadcast(new \App\Events\MaintenanceRequestCreated($maintenanceRequest));
@@ -168,7 +168,7 @@ class MaintenanceRequestController extends Controller
 
             $maintenance = MaintenanceRequest::query()
                 ->where('tenant_id', $tenant->id)
-                ->with(['room.building', 'assignee', 'feedbacks'])
+                ->with(['room.building', 'feedbacks'])
                 ->find($id);
 
             if (! $maintenance) {

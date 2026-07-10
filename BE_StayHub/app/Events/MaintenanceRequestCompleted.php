@@ -32,7 +32,7 @@ class MaintenanceRequestCompleted implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'request' => (new MaintenanceRequestResource($this->maintenanceRequest->load(['tenant', 'room.building', 'assignee'])))->resolve(),
+            'request' => (new MaintenanceRequestResource($this->maintenanceRequest->load(['tenant', 'room.building'])))->resolve(),
         ];
     }
 

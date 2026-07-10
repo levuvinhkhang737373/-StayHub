@@ -41,7 +41,7 @@ class MaintenanceRequestController extends Controller
             }
 
             $query = MaintenanceRequest::query()
-                ->with(['tenant', 'room.building', 'assignee', 'logs.creator', 'feedbacks']);
+                ->with(['tenant', 'room.building', 'logs.creator', 'feedbacks']);
 
             $query = AdminScope::applyMaintenanceRequestScope($query, $admin);
 
@@ -91,7 +91,7 @@ class MaintenanceRequestController extends Controller
             }
 
             $query = MaintenanceRequest::query()
-                ->with(['tenant', 'room.building', 'assignee', 'logs.creator', 'feedbacks']);
+                ->with(['tenant', 'room.building', 'logs.creator', 'feedbacks']);
 
             $query = AdminScope::applyMaintenanceRequestScope($query, $admin);
 
@@ -210,7 +210,7 @@ class MaintenanceRequestController extends Controller
             $maintenance = $result['maintenance'];
             $notification = $result['notification'];
 
-            $maintenance->load(['tenant', 'room.building', 'assignee', 'logs.creator', 'feedbacks']);
+            $maintenance->load(['tenant', 'room.building', 'logs.creator', 'feedbacks']);
 
             // Phát sự kiện Broadcast tùy theo trạng thái
             if ($newStatus === MaintenanceRequest::STATUS_PROCESSING) {
