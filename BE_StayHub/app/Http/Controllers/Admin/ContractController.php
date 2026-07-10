@@ -27,6 +27,9 @@ use App\Models\Expense;
 use App\Models\Notification;
 use App\Models\Room;
 use App\Models\RoomMovement;
+use App\Models\RoomService;
+use App\Models\RoomServicePrice;
+use App\Models\Service;
 use App\Models\Tenant;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -183,28 +186,7 @@ class ContractController extends Controller
                 $this->syncContractTenants($contract, $tenantPayloads, $admin, true);
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
 
-                // Cập nhật hoặc thêm dịch vụ và giá trị tùy chỉnh vào phòng
-                $servicesPayload = $validated['services'] ?? [];
-                $incomingServiceIds = collect($servicesPayload)->pluck('service_id')->all();
-
-                // Xóa những dịch vụ của phòng không nằm trong danh sách gửi lên (bị bỏ tích)
-                \App\Models\RoomService::where('room_id', $room->id)
-                    ->whereNotIn('service_id', $incomingServiceIds)
-                    ->delete();
-
-                if (!empty($servicesPayload)) {
-                    foreach ($servicesPayload as $item) {
-                        \App\Models\RoomService::updateOrCreate(
-                            [
-                                'room_id' => $room->id,
-                                'service_id' => $item['service_id'],
-                            ],
-                            [
-                                'price' => $item['price'],
-                            ]
-                        );
-                    }
-                }
+                $this->syncContractRoomServices($contract, $room, $validated['services'] ?? [], $admin);
 
                 $depositAmountCents = $this->decimalToCents($contract->deposit_amount);
                 $isDepositPaid = isset($validated['is_deposit_paid']) ? (bool) $validated['is_deposit_paid'] : false;
@@ -527,27 +509,8 @@ class ContractController extends Controller
                     $this->syncContractVehicles($contractModel, $vehiclePayloads, false);
                 }
 
-                // Cập nhật hoặc thêm dịch vụ và giá trị tùy chỉnh vào phòng khi sửa hợp đồng
-                $servicesPayload = $validated['services'] ?? [];
-                $incomingServiceIds = collect($servicesPayload)->pluck('service_id')->all();
-
-                // Xóa những dịch vụ của phòng không nằm trong danh sách gửi lên (bị bỏ tích)
-                \App\Models\RoomService::where('room_id', $room->id)
-                    ->whereNotIn('service_id', $incomingServiceIds)
-                    ->delete();
-
-                if (!empty($servicesPayload)) {
-                    foreach ($servicesPayload as $item) {
-                        \App\Models\RoomService::updateOrCreate(
-                            [
-                                'room_id' => $room->id,
-                                'service_id' => $item['service_id'],
-                            ],
-                            [
-                                'price' => $item['price'],
-                            ]
-                        );
-                    }
+                if (array_key_exists('services', $validated)) {
+                    $this->syncContractRoomServices($contractModel, $room, $validated['services'] ?? [], $admin);
                 }
 
                 $this->refreshRoomOccupants((int) $contractModel->room_id);
@@ -647,6 +610,7 @@ class ContractController extends Controller
 
                 if ($nextStatus === Contract::STATUS_CANCELLED) {
                     $this->deactivatePendingContractRows($contractModel);
+                    $this->closeContractRoomServicePrices($contractModel, now()->toDateString());
                 }
 
                 $this->refreshRoomOccupants((int) $contractModel->room_id);
@@ -732,6 +696,7 @@ class ContractController extends Controller
                 $this->createTerminationDepositTransactions($contractModel, $admin, $validated, $deductionCents, $refundCents, $actualEndDate->toDateString());
                 $this->createCheckoutMovements($contractModel, $activeTenantRows, $admin, $actualEndDate, $deductionCents, $refundCents, $note);
                 $this->closeActiveContractRows($contractModel, $actualEndDate->toDateString());
+                $this->closeContractRoomServicePrices($contractModel, $actualEndDate->toDateString());
                 $this->refreshRoomOccupants((int) $contractModel->room_id);
 
                 Contract::withoutEvents(fn (): int => Contract::query()
@@ -803,6 +768,7 @@ class ContractController extends Controller
 
                 $contractModel->contractTenants()->delete();
                 $contractModel->contractVehicles()->delete();
+                $contractModel->roomServicePrices()->delete();
                 $contractModel->delete();
 
                 $this->refreshRoomOccupants($roomId);
@@ -879,6 +845,7 @@ class ContractController extends Controller
                 ])->save();
 
                 $this->closeActiveContractRows($oldContract, $oldContractActualEndDate);
+                $this->closeContractRoomServicePrices($oldContract, $oldContractActualEndDate);
 
                 $contract = Contract::query()->create($this->payload($validated, $admin, $status));
                 $contractFiles = $this->storeContractFiles($request, $contract, $uploadedPaths);
@@ -889,6 +856,7 @@ class ContractController extends Controller
 
                 $this->syncContractTenants($contract, $tenantPayloads, $admin, true);
                 $this->syncContractVehicles($contract, $vehiclePayloads, true);
+                $this->syncContractRoomServices($contract, $room, $validated['services'] ?? [], $admin);
 
                 $oldBalanceCents = $this->depositBalanceCents($oldContract);
                 $newDepositAmountCents = $this->decimalToCents($contract->deposit_amount);
@@ -1673,6 +1641,116 @@ class ContractController extends Controller
             ])->save());
     }
 
+    private function syncContractRoomServices(Contract $contract, Room $room, array $servicesPayload, Admin $admin): void
+    {
+        $incomingServiceIds = collect($servicesPayload)->pluck('service_id')->map(fn ($id): int => (int) $id)->all();
+        $contractStart = $contract->start_date?->copy()->startOfDay() ?: Carbon::parse($contract->getAttribute('start_date'))->startOfDay();
+        $contractEnd = $this->contractServiceEndDate($contract);
+
+        RoomService::query()
+            ->where('room_id', $room->id)
+            ->whereNotIn('service_id', $incomingServiceIds)
+            ->get()
+            ->each(fn (RoomService $roomService) => $this->closeRoomServicePrice($roomService, $contractEnd?->toDateString() ?? $contractStart->copy()->subDay()->toDateString(), $contract));
+
+        foreach ($servicesPayload as $item) {
+            $service = Service::query()
+                ->select(['id', 'slug', 'charge_method'])
+                ->find((int) $item['service_id']);
+
+            if ($service?->isMeteredUtility()) {
+                continue;
+            }
+
+            $roomService = RoomService::query()->updateOrCreate(
+                [
+                    'room_id' => $room->id,
+                    'service_id' => (int) $item['service_id'],
+                ],
+                [
+                    'price' => $item['price'],
+                ]
+            );
+
+            $this->upsertContractRoomServicePrice($roomService, $contract, $contractStart, $contractEnd, (string) $item['price'], $admin);
+        }
+    }
+
+    private function upsertContractRoomServicePrice(RoomService $roomService, Contract $contract, Carbon $contractStart, ?Carbon $contractEnd, string $price, Admin $admin): void
+    {
+        $effectiveFrom = $contractStart->toDateString();
+        $effectiveTo = $contractEnd?->toDateString();
+
+        RoomServicePrice::query()
+            ->where('room_service_id', $roomService->id)
+            ->where(function (Builder $query) use ($contract, $effectiveFrom): void {
+                $query->where('contract_id', $contract->id)
+                    ->orWhere(function (Builder $baseQuery) use ($effectiveFrom): void {
+                        $baseQuery->whereNull('contract_id')->whereDate('effective_from', $effectiveFrom);
+                    });
+            })
+            ->lockForUpdate()
+            ->first()?->forceFill([
+                'contract_id' => $contract->id,
+                'price' => $price,
+                'effective_to' => $effectiveTo,
+                'created_by' => $admin->id,
+            ])->save();
+
+        if (RoomServicePrice::query()->where('room_service_id', $roomService->id)->whereDate('effective_from', $effectiveFrom)->exists()) {
+            return;
+        }
+
+        $this->closeRoomServicePrice($roomService, $contractStart->copy()->subDay()->toDateString(), $contract);
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $roomService->id,
+            'contract_id' => $contract->id,
+            'price' => $price,
+            'effective_from' => $effectiveFrom,
+            'effective_to' => $effectiveTo,
+            'created_by' => $admin->id,
+        ]);
+    }
+
+    private function closeContractRoomServicePrices(Contract $contract, string $endDate): void
+    {
+        RoomServicePrice::query()
+            ->where('contract_id', $contract->id)
+            ->where(function (Builder $query) use ($endDate): void {
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>', $endDate);
+            })
+            ->update([
+                'effective_to' => $endDate,
+                'updated_at' => now(),
+            ]);
+    }
+
+    private function closeRoomServicePrice(RoomService $roomService, string $endDate, ?Contract $exceptContract = null): void
+    {
+        RoomServicePrice::query()
+            ->where('room_service_id', $roomService->id)
+            ->when($exceptContract, fn (Builder $query): Builder => $query->where(function (Builder $scope) use ($exceptContract): void {
+                $scope->whereNull('contract_id')->orWhere('contract_id', '!=', $exceptContract->id);
+            }))
+            ->where(function (Builder $query) use ($endDate): void {
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>', $endDate);
+            })
+            ->update([
+                'effective_to' => $endDate,
+                'updated_at' => now(),
+            ]);
+    }
+
+    private function contractServiceEndDate(Contract $contract): ?Carbon
+    {
+        $endDate = $contract->actual_end_date ?: $contract->end_date;
+
+        return $endDate ? $endDate->copy()->startOfDay() : null;
+    }
+
     private function deactivatePendingContractRows(Contract $contract): void
     {
         $contract->contractTenants()
@@ -2070,6 +2148,7 @@ class ContractController extends Controller
             'room.services',
             'room.building:id,name,slug,manager_admin_id,status,address,gender_policy',
             'room.roomType:id,name,slug,status',
+            'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
             'creator:id,username,full_name,email,phone,role,status',
             'representativeTenant:id,full_name,phone,email',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying', 'created_by', 'created_at', 'updated_at'])->orderBy('join_date')->orderBy('id'),

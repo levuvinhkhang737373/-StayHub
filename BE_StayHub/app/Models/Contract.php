@@ -199,6 +199,11 @@ class Contract extends Model
         return $this->hasMany(ContractDepositTransaction::class);
     }
 
+    public function roomServicePrices(): HasMany
+    {
+        return $this->hasMany(RoomServicePrice::class);
+    }
+
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);

@@ -6,6 +6,7 @@ use App\Helpers\ApiResponse;
 use App\Models\Contract;
 use App\Models\ContractDepositTransaction;
 use App\Models\ContractVehicle;
+use App\Models\Service;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -205,5 +206,24 @@ class RegisterRequest extends FormRequest
             'services.*.price.regex' => 'Đơn giá dịch vụ phải là số tiền hợp lệ, không âm và tối đa 2 chữ số thập phân.',
             'services.*.price.gte' => 'Đơn giá dịch vụ không được âm.',
         ];
+    }
+
+    protected function passedValidation(): void
+    {
+        $services = collect($this->input('services', []));
+        if ($services->isEmpty()) {
+            return;
+        }
+
+        $utilityExists = Service::query()
+            ->whereIn('id', $services->pluck('service_id')->filter()->all())
+            ->get(['id', 'slug', 'charge_method'])
+            ->contains(fn (Service $service): bool => $service->isMeteredUtility());
+
+        if ($utilityExists) {
+            throw new HttpResponseException(
+                ApiResponse::responseJson(false, 'Điện/nước là giá cấp tòa nhà, không được deal trong dịch vụ phòng của hợp đồng.', 422, null, 422)
+            );
+        }
     }
 }

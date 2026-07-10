@@ -6,6 +6,7 @@ use App\Helpers\ImageHelper;
 use App\Helpers\VietQRHelper;
 use App\Helpers\DecimalMoney;
 use App\Models\Contract;
+use App\Models\RoomServicePrice;
 use App\Models\RoomMovement;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -34,10 +35,11 @@ class ContractDetailResource extends JsonResource
                 ? $this->room->services->map(fn ($service) => [
                     'id' => $service->id,
                     'name' => $service->name,
+                    'slug' => $service->slug,
                     'charge_method' => $service->charge_method,
                     'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? '',
                     'unit_name' => $service->unit_name,
-                    'price' => (string) $service->pivot->price,
+                    'price' => $this->contractRoomServicePrice($service),
                     'is_required' => $service->is_required,
                 ])
                 : null,
@@ -91,6 +93,20 @@ class ContractDetailResource extends JsonResource
             ])
             ->values()
             ->all();
+    }
+
+    private function contractRoomServicePrice($service): string
+    {
+        if (! $this->relationLoaded('roomServicePrices')) {
+            return (string) $service->pivot->price;
+        }
+
+        $roomServicePrice = $this->roomServicePrices
+            ->filter(fn (RoomServicePrice $price): bool => (int) $price->roomService?->service_id === (int) $service->id)
+            ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
+            ->first();
+
+        return (string) ($roomServicePrice?->price ?? $service->pivot->price);
     }
 
     private function depositDueAmount(): string

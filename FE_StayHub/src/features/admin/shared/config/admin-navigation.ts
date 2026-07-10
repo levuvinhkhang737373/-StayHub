@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRightLeft,
   BarChart3,
+  BadgeDollarSign,
   BedDouble,
   Boxes,
   Building2,
@@ -48,6 +49,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'contracts', label: 'Hợp đồng', icon: FileText, group: 'Khách thuê & Hợp đồng', href: '/admin/contracts', access: 'contract-manager' },
   { id: 'room_movements', label: 'Lịch sử phòng & cọc', icon: History, group: 'Khách thuê & Hợp đồng', href: '/admin/room-movements', access: 'all' },
   { id: 'services', label: 'Danh mục dịch vụ', icon: Settings, group: 'Dịch vụ & Điện nước', href: '/admin/services', access: 'superadmin' },
+  { id: 'room_service_prices', label: 'Giá dịch vụ phòng', icon: BadgeDollarSign, group: 'Dịch vụ & Điện nước', href: '/admin/room-service-prices', access: 'all' },
   { id: 'meters', label: 'Quản lý đồng hồ', icon: Gauge, group: 'Dịch vụ & Điện nước', href: '/admin/meters', access: 'all' },
   { id: 'meter_readings', label: 'Chốt điện nước', icon: Zap, group: 'Dịch vụ & Điện nước', href: '/admin/meter-readings', access: 'all' },
   { id: 'invoices', label: 'Hóa đơn', icon: Receipt, group: 'Tài chính & Báo cáo', href: '/admin/invoices', access: 'all' },

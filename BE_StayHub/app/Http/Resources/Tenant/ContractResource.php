@@ -6,6 +6,7 @@ use App\Helpers\ImageHelper;
 use App\Helpers\DecimalMoney;
 use App\Helpers\VietQRHelper;
 use App\Models\Contract;
+use App\Models\RoomServicePrice;
 use App\Models\RoomMovement;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -44,7 +45,7 @@ class ContractResource extends JsonResource
             'status_label' => Contract::STATUS_LABELS[$this->status] ?? null,
             'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('services')
                 ? $this->room->services->map(function ($service) {
-                    $price = (string) $service->pivot->price;
+                    $price = $this->contractRoomServicePrice($service);
 
                     // If it is a vehicle service, check if there is a matching contract vehicle to take the fee from
                     $slug = strtolower($service->slug ?? '');
@@ -85,6 +86,7 @@ class ContractResource extends JsonResource
                     return [
                         'id' => $service->id,
                         'name' => $service->name,
+                        'slug' => $service->slug,
                         'charge_method' => $service->charge_method,
                         'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$service->charge_method] ?? '',
                         'unit_name' => $service->unit_name,
@@ -177,6 +179,20 @@ class ContractResource extends JsonResource
         }
 
         return null;
+    }
+
+    private function contractRoomServicePrice($service): string
+    {
+        if (! $this->relationLoaded('roomServicePrices')) {
+            return (string) $service->pivot->price;
+        }
+
+        $roomServicePrice = $this->roomServicePrices
+            ->filter(fn (RoomServicePrice $price): bool => (int) $price->roomService?->service_id === (int) $service->id)
+            ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
+            ->first();
+
+        return (string) ($roomServicePrice?->price ?? $service->pivot->price);
     }
 
     private function depositDueAmount(): string

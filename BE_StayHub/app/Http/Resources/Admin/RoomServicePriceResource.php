@@ -30,8 +30,7 @@ class RoomServicePriceResource extends JsonResource
             'scheduled_price' => $scheduledPrice ? (string) $scheduledPrice->price : null,
             'effective_from' => optional($effectivePrice?->effective_from)->toDateString(),
             'effective_to' => optional($effectivePrice?->effective_to)->toDateString(),
-            'status' => $effectivePrice?->status,
-            'status_label' => $effectivePrice ? (RoomServicePrice::STATUS_LABELS[$effectivePrice->status] ?? null) : 'Giá mặc định',
+            'status_label' => $this->statusLabel($effectivePrice),
             'created_by' => $scheduledPrice?->created_by,
             'creator_name' => $scheduledPrice?->relationLoaded('creator') ? $scheduledPrice?->creator?->full_name : null,
             'created_at' => optional($scheduledPrice?->created_at)->toDateTimeString(),
@@ -61,5 +60,23 @@ class RoomServicePriceResource extends JsonResource
         return $this->relationLoaded('prices')
             ? $this->prices->first(fn (RoomServicePrice $price): bool => $price->effective_from->toDateString() === $targetDate)
             : null;
+    }
+
+    private function statusLabel(?RoomServicePrice $price): string
+    {
+        if (! $price) {
+            return 'Giá mặc định';
+        }
+
+        $today = now()->startOfDay();
+        if ($price->effective_from->copy()->startOfDay()->gt($today)) {
+            return 'Đã lên lịch';
+        }
+
+        if ($price->effective_to && $price->effective_to->copy()->startOfDay()->lt($today)) {
+            return 'Hết hiệu lực';
+        }
+
+        return 'Đang hiệu lực';
     }
 }

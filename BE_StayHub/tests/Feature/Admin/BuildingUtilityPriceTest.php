@@ -378,10 +378,10 @@ class BuildingUtilityPriceTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonPath('status', false);
-        $response->assertJsonPath('message', 'Không thể thay đổi đơn giá cho tháng cũ.');
+        $response->assertJsonPath('message', 'Chỉ được lên lịch giá điện/nước cho tháng sau hoặc tương lai.');
     }
 
-    public function test_can_update_current_month_utility_prices_within_first_three_days(): void
+    public function test_cannot_update_current_month_utility_prices_even_within_first_three_days(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-03 10:00:00'));
 
@@ -395,9 +395,10 @@ class BuildingUtilityPriceTest extends TestCase
         $response = $this->actingAs($this->superAdmin, 'admin')
             ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload);
 
-        $response->assertStatus(200);
+        $response->assertStatus(422);
+        $response->assertJsonPath('message', 'Chỉ được lên lịch giá điện/nước cho tháng sau hoặc tương lai.');
 
-        $this->assertDatabaseHas('service_prices', [
+        $this->assertDatabaseMissing('service_prices', [
             'building_id' => $this->building->id,
             'service_id' => $this->electricityService->id,
             'price' => '4500.00',
@@ -422,7 +423,7 @@ class BuildingUtilityPriceTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonPath('status', false);
-        $response->assertJsonPath('message', 'Chỉ được thay đổi đơn giá cho tháng hiện tại trong 3 ngày đầu tháng. Vui lòng chọn tháng sau để áp dụng giá mới.');
+        $response->assertJsonPath('message', 'Chỉ được lên lịch giá điện/nước cho tháng sau hoặc tương lai.');
 
         $this->assertDatabaseMissing('service_prices', [
             'building_id' => $this->building->id,
@@ -551,7 +552,7 @@ class BuildingUtilityPriceTest extends TestCase
         $payload = [
             'electric_price' => 4500,
             'water_price' => 20000,
-            'billing_month' => 7,
+            'billing_month' => 8,
             'billing_year' => 2026,
         ];
 

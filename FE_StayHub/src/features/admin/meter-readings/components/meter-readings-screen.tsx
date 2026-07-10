@@ -103,6 +103,29 @@ function buildMeterFormState(args: {
   }
 }
 
+function getNextBillingPeriod(date = new Date()) {
+  const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1)
+  return {
+    month: nextMonth.getMonth() + 1,
+    year: nextMonth.getFullYear(),
+  }
+}
+
+function buildFutureBillingPeriods(date = new Date()) {
+  const next = getNextBillingPeriod(date)
+  return Array.from({ length: 24 }, (_, index) => {
+    const periodDate = new Date(next.year, next.month - 1 + index, 1)
+    const month = periodDate.getMonth() + 1
+    const year = periodDate.getFullYear()
+    return {
+      value: `${year}-${String(month).padStart(2, '0')}`,
+      label: `Tháng ${month}/${year}`,
+      month,
+      year,
+    }
+  })
+}
+
 export function MeterReadingsScreen() {
   const { session } = useAdminSession()
   const navigate = useNavigate()
@@ -129,6 +152,8 @@ export function MeterReadingsScreen() {
   const today = useMemo(() => new Date(), [])
   const currentYear = useMemo(() => today.getFullYear(), [today])
   const currentMonth = useMemo(() => today.getMonth() + 1, [today])
+  const nextBillingPeriod = useMemo(() => getNextBillingPeriod(today), [today])
+  const pricePeriodOptions = useMemo(() => buildFutureBillingPeriods(today), [today])
 
   const initialMonth = useMemo(() => {
     const m = Number(initialParamsRef.current.billingMonth)
@@ -209,6 +234,8 @@ export function MeterReadingsScreen() {
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false)
   const [inputElectricPrice, setInputElectricPrice] = useState('')
   const [inputWaterPrice, setInputWaterPrice] = useState('')
+  const [priceBillingMonth, setPriceBillingMonth] = useState(nextBillingPeriod.month)
+  const [priceBillingYear, setPriceBillingYear] = useState(nextBillingPeriod.year)
   const [isSavingPrices, setIsSavingPrices] = useState(false)
   const [priceFormErrors, setPriceFormErrors] = useState<{ electric?: string; water?: string; general?: string }>({})
 
@@ -669,8 +696,17 @@ export function MeterReadingsScreen() {
   const handleOpenPriceModal = () => {
     setInputElectricPrice(formatMoneyInput(String(rates.electric)))
     setInputWaterPrice(formatMoneyInput(String(rates.water)))
+    setPriceBillingMonth(nextBillingPeriod.month)
+    setPriceBillingYear(nextBillingPeriod.year)
     setPriceFormErrors({})
     setIsPriceModalOpen(true)
+  }
+
+  const handlePricePeriodChange = (value: string | number) => {
+    const [year, month] = String(value).split('-').map(Number)
+    setPriceBillingYear(year)
+    setPriceBillingMonth(month)
+    setPriceFormErrors((current) => ({ ...current, general: undefined }))
   }
 
   const handleSavePrices = async () => {
@@ -696,10 +732,10 @@ export function MeterReadingsScreen() {
       await updateUtilityPrices(Number(selectedBuildingId), {
         electric_price: elecVal,
         water_price: waterVal,
-        billing_month: selectedMonth,
-        billing_year: selectedYear,
+        billing_month: priceBillingMonth,
+        billing_year: priceBillingYear,
       })
-      setSuccessMessage('Đã cập nhật đơn giá dịch vụ thành công.')
+      setSuccessMessage(`Đã lên lịch đơn giá điện/nước từ tháng ${priceBillingMonth}/${priceBillingYear}.`)
       setIsPriceModalOpen(false)
       navigate('/admin/meter-readings', { replace: true })
       await loadReadingsData()
@@ -1513,6 +1549,19 @@ export function MeterReadingsScreen() {
                   {priceFormErrors.general}
                 </div>
               )}
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-800">
+                Giá điện/nước áp dụng cho toàn bộ tòa nhà và chỉ được lên lịch từ tháng sau hoặc tương lai.
+              </div>
+
+              <div>
+                <label className={labelClass}>Tháng bắt đầu áp dụng</label>
+                <AdminSelect
+                  value={`${priceBillingYear}-${String(priceBillingMonth).padStart(2, '0')}`}
+                  options={pricePeriodOptions.map((period) => ({ value: period.value, label: period.label, tone: 'default' as const }))}
+                  onChange={handlePricePeriodChange}
+                />
+              </div>
 
               {/* Electric Price */}
               <div>

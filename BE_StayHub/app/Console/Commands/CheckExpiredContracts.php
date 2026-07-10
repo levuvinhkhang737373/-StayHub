@@ -8,6 +8,7 @@ use App\Models\ContractVehicle;
 use App\Models\Room;
 use App\Models\Notification;
 use App\Events\ContractExpired;
+use App\Models\RoomServicePrice;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Builder;
@@ -64,6 +65,17 @@ class CheckExpiredContracts extends Command
                         'billing_end_date' => $contractVehicle->billing_end_date ?: $endDateStr,
                         'is_active' => false,
                     ])->save());
+
+                RoomServicePrice::query()
+                    ->where('contract_id', $contract->id)
+                    ->where(function (Builder $query) use ($endDateStr): void {
+                        $query->whereNull('effective_to')
+                            ->orWhereDate('effective_to', '>', $endDateStr);
+                    })
+                    ->update([
+                        'effective_to' => $endDateStr,
+                        'updated_at' => now(),
+                    ]);
 
                 // 3. Cập nhật lại số người đang ở trong phòng
                 if ($contract->room_id) {

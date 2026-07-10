@@ -124,10 +124,15 @@ class RoomServicePriceController extends Controller
                 }
 
                 $updatedPrices = collect();
+                $contract = $this->activeContractForRoom($roomModel);
+                if ($contract && $this->contractEndsBeforePeriod($contract, $targetDate)) {
+                    return ApiResponse::responseJson(false, 'Kỳ áp dụng giá vượt quá ngày kết thúc hợp đồng hiện tại của phòng.', 422, null, 422);
+                }
+
                 foreach ($validated['prices'] as $item) {
                     $roomService = $roomServices->get((int) $item['room_service_id']);
                     $price = DecimalMoney::normalize($item['price']);
-                    $updatedPrices->push($this->schedulePrice($roomService, $targetDate, $price, $admin));
+                    $updatedPrices->push($this->schedulePrice($roomService, $targetDate, $price, $admin, $contract));
                 }
 
                 $this->notifyTenants($roomModel, $updatedPrices, $targetDate, $admin);
@@ -200,20 +205,22 @@ class RoomServicePriceController extends Controller
             ->whereNotIn('slug', Service::UTILITY_SLUGS));
     }
 
-    private function schedulePrice(RoomService $roomService, Carbon $targetDate, string $price, Admin $admin): RoomServicePrice
+    private function schedulePrice(RoomService $roomService, Carbon $targetDate, string $price, Admin $admin, ?Contract $contract = null): RoomServicePrice
     {
         $effectiveFrom = $targetDate->toDateString();
         $previousEnd = $targetDate->copy()->subDay()->toDateString();
+        $effectiveTo = $this->contractEffectiveTo($contract);
 
         $existing = RoomServicePrice::query()
             ->where('room_service_id', $roomService->id)
+            ->where('contract_id', $contract?->id)
             ->whereDate('effective_from', $effectiveFrom)
             ->lockForUpdate()
             ->first();
 
         RoomServicePrice::query()
             ->where('room_service_id', $roomService->id)
-            ->where('status', RoomServicePrice::STATUS_ACTIVE)
+            ->where('contract_id', $contract?->id)
             ->whereDate('effective_from', '<', $effectiveFrom)
             ->where(function (Builder $query) use ($effectiveFrom): void {
                 $query->whereNull('effective_to')
@@ -221,15 +228,13 @@ class RoomServicePriceController extends Controller
             })
             ->update([
                 'effective_to' => $previousEnd,
-                'status' => RoomServicePrice::STATUS_EXPIRED,
                 'updated_at' => now(),
             ]);
 
         if ($existing) {
             $existing->forceFill([
                 'price' => $price,
-                'effective_to' => null,
-                'status' => RoomServicePrice::STATUS_ACTIVE,
+                'effective_to' => $effectiveTo,
                 'created_by' => $admin->id,
             ])->save();
 
@@ -238,12 +243,37 @@ class RoomServicePriceController extends Controller
 
         return RoomServicePrice::query()->create([
             'room_service_id' => $roomService->id,
+            'contract_id' => $contract?->id,
             'price' => $price,
             'effective_from' => $effectiveFrom,
-            'effective_to' => null,
-            'status' => RoomServicePrice::STATUS_ACTIVE,
+            'effective_to' => $effectiveTo,
             'created_by' => $admin->id,
         ])->load('roomService.service');
+    }
+
+    private function activeContractForRoom(Room $room): ?Contract
+    {
+        return Contract::query()
+            ->select(['id', 'room_id', 'status', 'start_date', 'end_date', 'actual_end_date'])
+            ->where('room_id', $room->id)
+            ->whereIn('status', [Contract::STATUS_PENDING_SIGN, Contract::STATUS_ACTIVE])
+            ->orderByDesc('status')
+            ->orderByDesc('start_date')
+            ->first();
+    }
+
+    private function contractEndsBeforePeriod(Contract $contract, Carbon $targetDate): bool
+    {
+        $endDate = $contract->actual_end_date ?: $contract->end_date;
+
+        return $endDate !== null && $endDate->copy()->startOfDay()->lt($targetDate->copy()->startOfDay());
+    }
+
+    private function contractEffectiveTo(?Contract $contract): ?string
+    {
+        $endDate = $contract?->actual_end_date ?: $contract?->end_date;
+
+        return $endDate?->toDateString();
     }
 
     private function notifyTenants(Room $room, Collection $prices, Carbon $targetDate, Admin $admin): void

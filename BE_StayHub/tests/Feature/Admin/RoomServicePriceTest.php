@@ -12,6 +12,7 @@ use App\Models\Notification;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomService;
+use App\Models\RoomServicePrice;
 use App\Models\RoomType;
 use App\Models\Service;
 use App\Models\ServicePrice;
@@ -19,6 +20,7 @@ use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class RoomServicePriceTest extends TestCase
@@ -238,6 +240,11 @@ class RoomServicePriceTest extends TestCase
         );
     }
 
+    public function test_room_service_prices_table_does_not_store_status_column(): void
+    {
+        $this->assertFalse(Schema::hasColumn('room_service_prices', 'status'));
+    }
+
     public function test_building_manager_cannot_update_room_outside_managed_building(): void
     {
         $roomService = RoomService::where('room_id', $this->otherRoom->id)->firstOrFail();
@@ -309,8 +316,7 @@ class RoomServicePriceTest extends TestCase
             'room_service_id' => $this->internetRoomService->id,
             'price' => '150000.00',
             'effective_from' => '2026-08-01 00:00:00',
-            'effective_to' => null,
-            'status' => 1,
+            'effective_to' => '2026-12-31 00:00:00',
             'created_by' => $this->managerAdmin->id,
         ]);
 
@@ -318,7 +324,6 @@ class RoomServicePriceTest extends TestCase
             'room_service_id' => $this->trashRoomService->id,
             'price' => '45000.00',
             'effective_from' => '2026-08-01 00:00:00',
-            'status' => 1,
         ]);
 
         $this->assertDatabaseHas('notifications', [
@@ -374,19 +379,17 @@ class RoomServicePriceTest extends TestCase
 
     public function test_invoice_uses_scheduled_room_service_price_for_billing_period(): void
     {
-        \App\Models\RoomServicePrice::create([
+        RoomServicePrice::create([
             'room_service_id' => $this->internetRoomService->id,
             'price' => '150000.00',
             'effective_from' => '2026-08-01',
-            'status' => 1,
             'created_by' => $this->superAdmin->id,
         ]);
 
-        \App\Models\RoomServicePrice::create([
+        RoomServicePrice::create([
             'room_service_id' => $this->trashRoomService->id,
             'price' => '45000.00',
             'effective_from' => '2026-08-01',
-            'status' => 1,
             'created_by' => $this->superAdmin->id,
         ]);
 
@@ -407,6 +410,100 @@ class RoomServicePriceTest extends TestCase
         $this->assertEquals('150000.00', $internet['amount']);
         $this->assertEquals('45000.00', $trash['unit_price']);
         $this->assertEquals('45000.00', $trash['amount']);
+    }
+
+    public function test_contract_deal_creates_contract_scoped_room_service_price_and_blocks_utilities(): void
+    {
+        $tenant = Tenant::create([
+            'username' => 'tenant-contract-deal',
+            'full_name' => 'Tenant Contract Deal',
+            'email' => 'tenant-contract-deal@stayhub.local',
+            'phone' => '0911000001',
+            'password' => bcrypt('password'),
+            'role' => 1,
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '123456789198',
+            'date_of_birth' => '2000-01-01',
+            'created_by' => $this->superAdmin->id,
+            'building_id' => $this->otherBuilding->id,
+        ]);
+
+        $blocked = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/contracts', $this->contractPayload($this->otherRoom->id, $tenant->id, [
+                ['service_id' => $this->electricService->id, 'price' => '4000.00'],
+            ]));
+
+        $blocked->assertStatus(422)
+            ->assertJsonPath('message', 'Điện/nước là giá cấp tòa nhà, không được deal trong dịch vụ phòng của hợp đồng.');
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/contracts', $this->contractPayload($this->otherRoom->id, $tenant->id, [
+                ['service_id' => $this->internetService->id, 'price' => '135000.00'],
+            ]));
+
+        $response->assertStatus(201);
+        $contractId = (int) $response->json('result.id');
+        $roomService = RoomService::query()
+            ->where('room_id', $this->otherRoom->id)
+            ->where('service_id', $this->internetService->id)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $roomService->id,
+            'contract_id' => $contractId,
+            'price' => '135000.00',
+            'effective_from' => '2026-08-01 00:00:00',
+            'effective_to' => '2026-12-31 00:00:00',
+        ]);
+    }
+
+    public function test_terminating_contract_closes_contract_scoped_room_service_price(): void
+    {
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => $this->contract->id,
+            'price' => '150000.00',
+            'effective_from' => '2026-01-01',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson("/api/v1/admin/contracts/{$this->contract->id}/terminate", [
+                'actual_end_date' => '2026-07-10',
+                'deduction_amount' => '0.00',
+                'payment_method' => 1,
+                'note' => 'Thanh lý test giá dịch vụ',
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => $this->contract->id,
+            'effective_to' => '2026-07-10',
+        ]);
+    }
+
+    private function contractPayload(int $roomId, int $tenantId, array $services): array
+    {
+        return [
+            'room_id' => $roomId,
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-12-31',
+            'room_price' => '3200000.00',
+            'deposit_amount' => '3300000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'tenants' => [
+                [
+                    'tenant_id' => $tenantId,
+                    'join_date' => '2026-08-01',
+                    'billing_start_date' => '2026-08-01',
+                    'is_staying' => true,
+                ],
+            ],
+            'services' => $services,
+        ];
     }
 
     private function makeAdmin(string $username, int $role, string $phone): Admin

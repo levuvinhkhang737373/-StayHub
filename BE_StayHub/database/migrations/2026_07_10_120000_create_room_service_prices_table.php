@@ -11,15 +11,16 @@ return new class extends Migration
         Schema::create('room_service_prices', function (Blueprint $table) {
             $table->id();
             $table->foreignId('room_service_id')->constrained('room_services')->cascadeOnDelete();
+            $table->foreignId('contract_id')->nullable()->constrained('contracts')->nullOnDelete();
             $table->decimal('price', 15, 2);
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
-            $table->unsignedTinyInteger('status')->default(1);
             $table->foreignId('created_by')->nullable()->constrained('admins')->nullOnDelete();
             $table->timestamps();
 
             $table->unique(['room_service_id', 'effective_from']);
-            $table->index(['room_service_id', 'status', 'effective_from', 'effective_to'], 'room_service_prices_lookup_idx');
+            $table->index(['contract_id', 'effective_from', 'effective_to'], 'room_service_prices_contract_period_idx');
+            $table->index(['room_service_id', 'effective_from', 'effective_to'], 'room_service_prices_lookup_idx');
         });
     }
 

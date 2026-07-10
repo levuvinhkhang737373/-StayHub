@@ -736,9 +736,22 @@ class InvoiceController extends Controller
             if (! $isMetered) {
                 $roomService = RoomService::where('room_id', $contract->room_id)
                     ->where('service_id', $service->id)
+                    ->with(['prices' => fn ($priceQuery) => $priceQuery
+                        ->where(function (Builder $query) use ($contract): void {
+                            $query->whereNull('contract_id')
+                                ->orWhere('contract_id', $contract->id);
+                        })
+                        ->whereDate('effective_from', '<=', $periodEnd->toDateString())
+                        ->where(function (Builder $query) use ($periodEnd): void {
+                            $query->whereNull('effective_to')
+                                ->orWhereDate('effective_to', '>=', $periodEnd->toDateString());
+                        })
+                        ->orderByRaw('contract_id IS NULL')
+                        ->orderByDesc('effective_from')
+                        ->orderByDesc('id')])
                     ->first();
                 if ($roomService) {
-                    $priceAmount = $this->roomServicePriceForPeriod($roomService, $periodEnd);
+                    $priceAmount = $this->roomServicePriceForPeriod($roomService, $periodEnd, $contract);
                 }
             }
 
@@ -1393,19 +1406,25 @@ class InvoiceController extends Controller
             ->values();
     }
 
-    private function roomServicePriceForPeriod(RoomService $roomService, Carbon $periodEnd): string
+    private function roomServicePriceForPeriod(RoomService $roomService, Carbon $periodEnd, Contract $contract): string
     {
-        $scheduledPrice = RoomServicePrice::query()
-            ->where('room_service_id', $roomService->id)
-            ->whereIn('status', [RoomServicePrice::STATUS_ACTIVE, RoomServicePrice::STATUS_EXPIRED])
-            ->whereDate('effective_from', '<=', $periodEnd->toDateString())
-            ->where(function (Builder $query) use ($periodEnd): void {
-                $query->whereNull('effective_to')
-                    ->orWhereDate('effective_to', '>=', $periodEnd->toDateString());
-            })
-            ->orderByDesc('effective_from')
-            ->orderByDesc('id')
-            ->first();
+        $scheduledPrice = $roomService->relationLoaded('prices')
+            ? $roomService->prices->first()
+            : RoomServicePrice::query()
+                ->where('room_service_id', $roomService->id)
+                ->where(function (Builder $query) use ($contract): void {
+                    $query->whereNull('contract_id')
+                        ->orWhere('contract_id', $contract->id);
+                })
+                ->whereDate('effective_from', '<=', $periodEnd->toDateString())
+                ->where(function (Builder $query) use ($periodEnd): void {
+                    $query->whereNull('effective_to')
+                        ->orWhereDate('effective_to', '>=', $periodEnd->toDateString());
+                })
+                ->orderByRaw('contract_id IS NULL')
+                ->orderByDesc('effective_from')
+                ->orderByDesc('id')
+                ->first();
 
         return DecimalMoney::normalize($scheduledPrice?->price ?? $roomService->price);
     }

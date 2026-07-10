@@ -32,6 +32,7 @@ import { TenantTransferRoomScreen } from '../features/admin/tenants/components/T
 import { ActivityLogsScreen } from '../features/admin/activity-logs'
 import { RoomMovementsScreen } from '../features/admin/room-movements'
 import { AdminChatScreen } from '../features/admin/chat'
+import { RoomServicePricesScreen } from '../features/admin/room-service-prices'
 import { LegacyTenantTransferRoomRedirect } from './LegacyTenantTransferRoomRedirect'
 
 export const adminRoutes: RouteObject[] = [
@@ -127,6 +128,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: 'services',
         element: <AdminRouteGuard access="superadmin"><ServicesScreen /></AdminRouteGuard>,
+      },
+      {
+        path: 'room-service-prices',
+        element: <AdminRouteGuard access="all"><RoomServicePricesScreen /></AdminRouteGuard>,
       },
       {
         path: 'expense-categories',

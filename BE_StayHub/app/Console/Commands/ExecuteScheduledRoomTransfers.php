@@ -15,6 +15,8 @@ use App\Models\Invoice;
 use App\Models\Notification;
 use App\Models\Room;
 use App\Models\RoomMovement;
+use App\Models\RoomService;
+use App\Models\RoomServicePrice;
 use App\Models\Tenant;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -156,15 +158,20 @@ class ExecuteScheduledRoomTransfers extends Command
 
             $destinationContract = $destinationActiveContract ?: $this->createDestinationContract($sourceContract, $toRoom, $movingRows, $movementDate, $payload, $admin);
             $this->attachRowsToDestinationContract($destinationContract, $movingRows, $movementDate, $admin);
+            if (! $destinationActiveContract) {
+                $this->copyRoomServicePrices($sourceContract, $destinationContract, $toRoom, $movementDate, $admin);
+            }
             $this->moveVehicles($sourceContract, $destinationContract, $tenantIds, $movementDate, $oldBillingEndDate);
 
             if ($remainingContract) {
                 $this->moveRemainingVehicles($sourceContract, $remainingContract, $remainingRows->pluck('tenant_id')->map(fn ($id): int => (int) $id)->all(), $movementDate, $oldBillingEndDate);
+                $this->copyRoomServicePrices($sourceContract, $remainingContract, $sourceContract->room, $oldBillingEndDate->copy()->addDay(), $admin);
             }
 
             $settlement = $this->settlement($sourceContract, $destinationContract, $payload, $toRoom, $destinationActiveContract !== null, $usesOldDepositSettlement);
             $this->writeDepositSettlement($sourceContract, $destinationContract, $settlement, $movementDate, $admin);
             $this->closeSourceContractRows($sourceContract, $activeRows, $oldBillingEndDate);
+            $this->closeContractRoomServicePrices($sourceContract, $oldBillingEndDate);
 
             $sourceContract->refresh();
             $sourceContract->forceFill([
@@ -541,6 +548,74 @@ class ExecuteScheduledRoomTransfers extends Command
                 'billing_end_date' => $oldBillingEndDate->toDateString(),
                 'is_active' => false,
             ])->save());
+    }
+
+    private function copyRoomServicePrices(Contract $sourceContract, Contract $newContract, Room $room, Carbon $effectiveFrom, Admin $admin): void
+    {
+        $targetRoomServices = RoomService::query()
+            ->where('room_id', $room->id)
+            ->get()
+            ->keyBy('service_id');
+
+        $sourcePrices = RoomServicePrice::query()
+            ->whereHas('roomService', fn ($query) => $query->where('room_id', $sourceContract->room_id))
+            ->where(function ($query) use ($sourceContract): void {
+                $query->where('contract_id', $sourceContract->id)
+                    ->orWhereNull('contract_id');
+            })
+            ->whereDate('effective_from', '<=', $effectiveFrom->toDateString())
+            ->where(function ($query) use ($effectiveFrom): void {
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>=', $effectiveFrom->toDateString());
+            })
+            ->with('roomService:id,service_id')
+            ->orderByRaw('contract_id IS NULL')
+            ->orderByDesc('effective_from')
+            ->get()
+            ->unique(fn (RoomServicePrice $price): int => (int) $price->roomService?->service_id);
+
+        foreach ($sourcePrices as $sourcePrice) {
+            $targetRoomService = $targetRoomServices->get((int) $sourcePrice->roomService?->service_id);
+            if (! $targetRoomService) {
+                continue;
+            }
+
+            RoomServicePrice::query()
+                ->where('room_service_id', $targetRoomService->id)
+                ->whereNull('effective_to')
+                ->whereDate('effective_from', '<', $effectiveFrom->toDateString())
+                ->update([
+                    'effective_to' => $effectiveFrom->copy()->subDay()->toDateString(),
+                    'updated_at' => now(),
+                ]);
+
+            RoomServicePrice::query()->updateOrCreate(
+                [
+                    'room_service_id' => $targetRoomService->id,
+                    'effective_from' => $effectiveFrom->toDateString(),
+                ],
+                [
+                    'contract_id' => $newContract->id,
+                    'price' => $sourcePrice->price,
+                    'effective_to' => $newContract->end_date?->toDateString(),
+                    'created_by' => $admin->id,
+                ]
+            );
+        }
+    }
+
+    private function closeContractRoomServicePrices(Contract $contract, Carbon $effectiveTo): void
+    {
+        RoomServicePrice::query()
+            ->where('contract_id', $contract->id)
+            ->where(function ($query) use ($effectiveTo): void {
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>', $effectiveTo->toDateString());
+            })
+            ->update([
+                'effective_to' => $effectiveTo->toDateString(),
+                'updated_at' => now(),
+            ]);
     }
 
     private function blockTransfer(Collection $movements, string $reason): array
