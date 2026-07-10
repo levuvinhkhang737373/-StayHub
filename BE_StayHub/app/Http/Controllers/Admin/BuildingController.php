@@ -255,8 +255,9 @@ class BuildingController extends Controller
                 return ApiResponse::responseJson(false, 'Không tìm thấy tòa nhà', 404, null, 404);
             }
 
-            $currentYear = now()->year;
-            $currentMonth = now()->month;
+            $today = now();
+            $currentYear = $today->year;
+            $currentMonth = $today->month;
 
             $validated = $request->validate([
                 'electric_price' => 'required|numeric|min:0',
@@ -266,10 +267,18 @@ class BuildingController extends Controller
                     'integer',
                     'min:1',
                     'max:12',
-                    function ($attribute, $value, $fail) use ($request, $currentYear, $currentMonth) {
+                    function ($attribute, $value, $fail) use ($request, $today, $currentYear, $currentMonth) {
                         $year = (int) $request->input('billing_year');
-                        if ($year < $currentYear || ($year === $currentYear && (int) $value < $currentMonth)) {
+                        $month = (int) $value;
+
+                        if ($year < $currentYear || ($year === $currentYear && $month < $currentMonth)) {
                             $fail('Không thể thay đổi đơn giá cho tháng cũ.');
+
+                            return;
+                        }
+
+                        if ($year === $currentYear && $month === $currentMonth && $today->day > 3) {
+                            $fail('Chỉ được thay đổi đơn giá cho tháng hiện tại trong 3 ngày đầu tháng. Vui lòng thay đổi giá mới vào tháng sau.');
                         }
                     }
                 ],

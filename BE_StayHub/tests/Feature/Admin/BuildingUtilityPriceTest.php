@@ -14,6 +14,7 @@ use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\Notification;
 use App\Events\NotificationSent;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -213,6 +214,13 @@ class BuildingUtilityPriceTest extends TestCase
         ]);
     }
 
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
     public function test_superadmin_can_update_utility_prices(): void
     {
         Event::fake([
@@ -373,6 +381,83 @@ class BuildingUtilityPriceTest extends TestCase
         $response->assertJsonPath('message', 'Không thể thay đổi đơn giá cho tháng cũ.');
     }
 
+    public function test_can_update_current_month_utility_prices_within_first_three_days(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-03 10:00:00'));
+
+        $payload = [
+            'electric_price' => 4500,
+            'water_price' => 20000,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload);
+
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('service_prices', [
+            'building_id' => $this->building->id,
+            'service_id' => $this->electricityService->id,
+            'price' => '4500.00',
+            'effective_from' => '2026-07-01 00:00:00',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+    }
+
+    public function test_cannot_update_current_month_utility_prices_after_first_three_days(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-04 10:00:00'));
+
+        $payload = [
+            'electric_price' => 4500,
+            'water_price' => 20000,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('status', false);
+        $response->assertJsonPath('message', 'Chỉ được thay đổi đơn giá cho tháng hiện tại trong 3 ngày đầu tháng. Vui lòng chọn tháng sau để áp dụng giá mới.');
+
+        $this->assertDatabaseMissing('service_prices', [
+            'building_id' => $this->building->id,
+            'service_id' => $this->electricityService->id,
+            'price' => '4500.00',
+            'effective_from' => '2026-07-01 00:00:00',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+    }
+
+    public function test_can_schedule_future_month_utility_prices_after_first_three_days(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-04 10:00:00'));
+
+        $payload = [
+            'electric_price' => 4700,
+            'water_price' => 22000,
+            'billing_month' => 8,
+            'billing_year' => 2026,
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/buildings/{$this->building->id}/utility-prices", $payload);
+
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('service_prices', [
+            'building_id' => $this->building->id,
+            'service_id' => $this->electricityService->id,
+            'price' => '4700.00',
+            'effective_from' => '2026-08-01 00:00:00',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+    }
+
     public function test_updating_utility_price_multiple_times_creates_multiple_lines_and_expires_old_ones(): void
     {
         $targetYear = now()->year;
@@ -461,11 +546,13 @@ class BuildingUtilityPriceTest extends TestCase
 
     public function test_can_retrieve_utility_price_log_history(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-03 10:00:00'));
+
         $payload = [
             'electric_price' => 4500,
             'water_price' => 20000,
-            'billing_month' => now()->month,
-            'billing_year' => now()->year,
+            'billing_month' => 7,
+            'billing_year' => 2026,
         ];
 
         $this->actingAs($this->superAdmin, 'admin')

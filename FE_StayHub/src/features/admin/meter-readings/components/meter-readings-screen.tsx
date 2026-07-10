@@ -210,7 +210,7 @@ export function MeterReadingsScreen() {
   const [inputElectricPrice, setInputElectricPrice] = useState('')
   const [inputWaterPrice, setInputWaterPrice] = useState('')
   const [isSavingPrices, setIsSavingPrices] = useState(false)
-  const [priceFormErrors, setPriceFormErrors] = useState<{ electric?: string; water?: string }>({})
+  const [priceFormErrors, setPriceFormErrors] = useState<{ electric?: string; water?: string; general?: string }>({})
 
   // Price History Modal State
   const [isPriceHistoryModalOpen, setIsPriceHistoryModalOpen] = useState(false)
@@ -701,9 +701,10 @@ export function MeterReadingsScreen() {
       })
       setSuccessMessage('Đã cập nhật đơn giá dịch vụ thành công.')
       setIsPriceModalOpen(false)
+      navigate('/admin/meter-readings', { replace: true })
       await loadReadingsData()
     } catch (e) {
-      setErrorMessage(getVisibleErrorMessage(e, 'Không thể cập nhật đơn giá dịch vụ.'))
+      setPriceFormErrors({ general: getVisibleErrorMessage(e, 'Không thể cập nhật đơn giá dịch vụ.') })
     } finally {
       setIsSavingPrices(false)
     }
@@ -1507,6 +1508,12 @@ export function MeterReadingsScreen() {
 
             {/* Modal Body */}
             <div className="p-5 space-y-5">
+              {priceFormErrors.general && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold leading-relaxed text-rose-700">
+                  {priceFormErrors.general}
+                </div>
+              )}
+
               {/* Electric Price */}
               <div>
                 <label className={labelClass}>Đơn giá Điện (đ / {rates.electricUnit})</label>
