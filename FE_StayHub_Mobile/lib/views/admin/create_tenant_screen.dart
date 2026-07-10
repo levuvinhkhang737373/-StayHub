@@ -220,7 +220,7 @@ class _CreateTenantScreenState extends State<CreateTenantScreen> {
 
     final data = {
       'building_id': _selectedBuildingId,
-      'username': _usernameController.text.trim(),
+      if (!_isEditMode) 'username': _usernameController.text.trim(),
       'full_name': _fullNameController.text.trim(),
       'email': _emailController.text.trim(),
       'phone': _phoneController.text.trim(),

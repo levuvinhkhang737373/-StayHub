@@ -32,7 +32,7 @@ class MaintenanceRequestCreated implements ShouldBroadcast
     {
         // Trả về dữ liệu chi tiết định dạng qua Resource
         return [
-            'request' => (new MaintenanceRequestResource($this->maintenanceRequest->load(['tenant', 'room.building', 'assignee'])))->resolve(),
+            'request' => (new MaintenanceRequestResource($this->maintenanceRequest->load(['tenant', 'room.building'])))->resolve(),
         ];
     }
 

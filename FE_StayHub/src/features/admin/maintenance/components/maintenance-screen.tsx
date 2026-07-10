@@ -147,6 +147,28 @@ export function MaintenanceScreen() {
 
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
 
+  const { tenantImages, adminImages } = useMemo(() => {
+    if (!detailRequest || !detailRequest.images) {
+      return { tenantImages: [], adminImages: [] }
+    }
+    const images = detailRequest.images
+    const status = Number(detailRequest.status)
+
+    const tenantImages = images.filter((img, idx) => {
+      if (img.includes('/after/')) return false
+      if (status === 4 && idx > 0) return false
+      return true
+    })
+
+    const adminImages = images.filter((img, idx) => {
+      if (img.includes('/after/')) return true
+      if (status === 4 && idx > 0) return true
+      return false
+    })
+
+    return { tenantImages, adminImages }
+  }, [detailRequest])
+
   const buildingOptions = useMemo(() => buildings.map((b) => ({ value: b.id, label: b.name, tone: 'default' as const })), [buildings])
   const filterBuildingOptions = useMemo(
     () => isSuperAdmin
@@ -287,10 +309,6 @@ export function MaintenanceScreen() {
   const handleStatusSubmit = async () => {
     const req = updatingRequest
     if (!req) return
-    if (newStatus === 4 && !afterImageFile) {
-      setErrorMessage('Vui lòng tải lên ảnh minh chứng sau khi hoàn thành sửa chữa.')
-      return
-    }
 
     setIsUpdatingStatus(true)
     setErrorMessage(null)
@@ -485,15 +503,10 @@ export function MaintenanceScreen() {
                           <User className="h-3.5 w-3.5 text-[#8b5e34]" />
                           <span>Khách: {req.tenant_name || 'Không rõ'}</span>
                         </div>
-                        {req.assignee_name ? (
+                        {req.assignee_name && (
                           <div className="flex items-center gap-2 text-xs font-black text-[#0f766e]">
                             <CheckCircle2 className="h-3.5 w-3.5 text-[#0f766e]" />
                             <span>Giao cho: {req.assignee_name}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-xs font-black text-rose-600">
-                            <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
-                            <span>Chưa phân công nhân sự</span>
                           </div>
                         )}
                       </div>
@@ -597,7 +610,9 @@ export function MaintenanceScreen() {
                     <DetailTile label="Tòa nhà & Phòng" value={`Phòng ${detailRequest.room_number || 'N/A'} — ${detailRequest.building_name || 'Dùng chung'}`} />
                     <DetailTile label="Trạng thái" value={detailRequest.status_label || statusLabels[detailRequest.status]} />
                     <DetailTile label="Khách thuê" value={`${detailRequest.tenant_name || 'N/A'} (${detailRequest.tenant_phone || 'Không có số'})`} />
-                    <DetailTile label="Nhân sự xử lý" value={detailRequest.assignee_name || 'Chưa phân công'} />
+                    {detailRequest.assignee_name && (
+                      <DetailTile label="Nhân sự xử lý" value={detailRequest.assignee_name} />
+                    )}
                   </div>
 
                   {/* Description */}
@@ -606,22 +621,49 @@ export function MaintenanceScreen() {
                     <p className="text-sm font-semibold leading-relaxed text-[#3d2a18] whitespace-pre-wrap">{detailRequest.description}</p>
                   </section>
 
-                  {/* Image Grid Before/After */}
-                  {detailRequest.images && detailRequest.images.length > 0 && (
-                    <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
-                      <p className={labelClass}>Hình ảnh đính kèm (Ảnh trước / sau)</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
-                        {detailRequest.images.map((img, idx) => (
-                          <div key={idx} className="relative group cursor-zoom-in" onClick={() => setLightboxImage(img)}>
-                            <MaintenanceDetailImage
-                              src={img}
-                              alt={`evidence-${idx}`}
-                              label={idx === 0 ? 'Ảnh trước' : 'Ảnh sau'}
-                            />
+                  {/* Image Grid Split Before / After */}
+                  {((tenantImages.length > 0) || (adminImages.length > 0)) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Tenant Images Column */}
+                      <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                        <p className={labelClass}>Ảnh báo sự cố</p>
+                        {tenantImages.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            {tenantImages.map((img, idx) => (
+                              <div key={idx} className="relative group cursor-zoom-in" onClick={() => setLightboxImage(img)}>
+                                <MaintenanceDetailImage
+                                  src={img}
+                                  alt={`before-evidence-${idx}`}
+                                  label="Ảnh trước"
+                                />
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </section>
+                        ) : (
+                          <p className="text-xs text-stone-500 font-semibold mt-3">Không có ảnh đính kèm.</p>
+                        )}
+                      </section>
+
+                      {/* Admin Images Column */}
+                      <section className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/60 p-4">
+                        <p className={labelClass}>Ảnh sau khi sửa</p>
+                        {adminImages.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            {adminImages.map((img, idx) => (
+                              <div key={idx} className="relative group cursor-zoom-in" onClick={() => setLightboxImage(img)}>
+                                <MaintenanceDetailImage
+                                  src={img}
+                                  alt={`after-evidence-${idx}`}
+                                  label="Ảnh sau"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-stone-500 font-semibold mt-3">Chưa có ảnh nghiệm thu.</p>
+                        )}
+                      </section>
+                    </div>
                   )}
 
                   {/* Feedback Section */}
@@ -723,7 +765,7 @@ export function MaintenanceScreen() {
               {/* Upload after image if Completed (4) */}
               {newStatus === 4 && (
                 <div>
-                  <label className={labelClass}>Ảnh minh chứng sau khi hoàn thành sửa chữa</label>
+                  <label className={labelClass}>Ảnh minh chứng sau khi hoàn thành sửa chữa (Tùy chọn)</label>
                   <div className="relative flex min-h-12 w-full items-center justify-between rounded-2xl border border-dashed border-[#3d2a18]/20 bg-white px-4 py-2 text-stone-700">
                     <input
                       type="file"
@@ -764,7 +806,7 @@ export function MaintenanceScreen() {
                 </button>
                 <button
                   type="button"
-                  disabled={isUpdatingStatus || (newStatus === 4 && !afterImageFile)}
+                  disabled={isUpdatingStatus}
                   onClick={() => void handleStatusSubmit()}
                   className="flex-1 h-12 rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-lg transition hover:bg-[#3d2a18] disabled:opacity-60"
                 >

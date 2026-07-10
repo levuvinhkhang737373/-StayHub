@@ -144,11 +144,6 @@ class Admin extends Authenticatable
         return $this->hasMany(Payment::class, 'collected_by');
     }
 
-    public function assignedMaintenanceRequests(): HasMany
-    {
-        return $this->hasMany(MaintenanceRequest::class, 'assigned_to');
-    }
-
     public function maintenanceRequestLogs(): HasMany
     {
         return $this->hasMany(MaintenanceRequestLog::class, 'created_by');

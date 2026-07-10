@@ -82,7 +82,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                     
                     // After Photo capture (Required if resolved)
                     if (selectedStatus == 4) ...[
-                      const Text('ẢNH MINH CHỨNG HOÀN THÀNH', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                      const Text('ẢNH SAU KHI SỬA (TÙY CHỌN)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
                       const SizedBox(height: 8),
                       InkWell(
                         onTap: () => _selectAfterImage(setStateDialog),
@@ -134,13 +134,6 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                 ),
                 TextButton(
                   onPressed: () async {
-                    if (selectedStatus == 4 && _pickedAfterImage == null && request.afterImageUrl == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vui lòng chọn ảnh minh chứng hoàn thành!'), backgroundColor: Colors.redAccent),
-                      );
-                      return;
-                    }
-
                     final success = await context.read<MaintenanceController>().updateRequestStatus(
                       request.id,
                       selectedStatus,

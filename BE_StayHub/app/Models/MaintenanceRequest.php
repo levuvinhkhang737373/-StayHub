@@ -26,7 +26,7 @@ class MaintenanceRequest extends Model
         self::STATUS_CANCELLED => 'Đã hủy',
     ];
 
-    protected $fillable = ['request_code', 'tenant_id', 'room_id', 'title', 'description', 'status', 'images', 'assigned_to', 'received_at', 'completed_at'];
+    protected $fillable = ['request_code', 'tenant_id', 'room_id', 'title', 'description', 'status', 'images', 'received_at', 'completed_at'];
 
     protected function casts(): array
     {
@@ -46,11 +46,6 @@ class MaintenanceRequest extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
-    }
-
-    public function assignee(): BelongsTo
-    {
-        return $this->belongsTo(Admin::class, 'assigned_to');
     }
 
     public function feedbacks(): HasMany

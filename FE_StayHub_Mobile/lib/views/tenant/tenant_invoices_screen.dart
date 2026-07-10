@@ -905,19 +905,7 @@ class _PaymentBottomSheetContentState extends State<_PaymentBottomSheetContent> 
                   ),
                   const SizedBox(height: 24),
 
-                  // Close / Done Button
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1C1917),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      elevation: 0,
-                    ),
-                    child: const Text('ĐÃ HOÀN TẤT CHUYỂN KHOẢN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  ),
-                  const SizedBox(height: 20),
+
                 ],
               ),
             ),

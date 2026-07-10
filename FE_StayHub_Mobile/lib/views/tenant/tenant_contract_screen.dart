@@ -1352,49 +1352,6 @@ class _TenantContractDetailScreenState
                 ),
               ),
             ),
-          const SizedBox(height: 20),
-          // Action button
-          ElevatedButton.icon(
-            onPressed: controller.isLoading
-                ? null
-                : () async {
-                    await controller.fetchContracts('tenant');
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Đã cập nhật trạng thái hợp đồng mới nhất.',
-                          ),
-                          backgroundColor: Color(0xFF1C1917),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  },
-            icon: controller.isLoading
-                ? const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text(
-              'CẬP NHẬT TRẠNG THÁI',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF92400E),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 0,
-            ),
-          ),
         ],
       ),
     );

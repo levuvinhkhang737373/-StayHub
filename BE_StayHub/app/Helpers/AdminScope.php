@@ -114,7 +114,7 @@ class AdminScope
         }
 
         if (self::isTechnician($admin)) {
-            return $query->where('assigned_to', $admin->id);
+            return $query->whereRaw('1 = 0');
         }
 
         return $query->whereRaw('1 = 0');
@@ -136,6 +136,6 @@ class AdminScope
                 ->exists();
         }
 
-        return self::isTechnician($admin) && $maintenanceRequest->assigned_to === $admin->id;
+        return false;
     }
 }
