@@ -24,17 +24,34 @@ class NotificationController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
             }
 
-            $currentRoomRelation = $tenant->contractTenants()
-                ->where('is_staying', true)
-                ->whereNull('leave_date')
-                ->whereHas('contract', fn ($query) => $query->where('status', Contract::STATUS_ACTIVE))
-                ->with('contract.room')
+            // Tìm hợp đồng hoạt động của tenant (hoặc đại diện ký, hoặc cư trú cùng)
+            $activeContract = \App\Models\Contract::query()
+                ->where('status', \App\Models\Contract::STATUS_ACTIVE)
+                ->where(function ($q) use ($tenant) {
+                    $q->where('representative_tenant_id', $tenant->id)
+                      ->orWhereHas('tenants', function ($tq) use ($tenant) {
+                          $tq->where('tenants.id', $tenant->id)
+                             ->where('contract_tenants.is_staying', true)
+                             ->whereNull('contract_tenants.leave_date');
+                      });
+                })
+                ->with('room')
                 ->latest('id')
                 ->first();
-            $currentRoom = $currentRoomRelation?->contract?->room;
+
+            $currentRoom = $activeContract?->room;
             $buildingId = $currentRoom?->building_id ?? $tenant->building_id;
             $roomId = $currentRoom?->id ?? $tenant->room_id;
-            $joinDate = $currentRoomRelation?->join_date ? \Illuminate\Support\Carbon::parse($currentRoomRelation->join_date)->startOfDay() : null;
+
+            $pivotRelation = $tenant->contractTenants()
+                ->where('is_staying', true)
+                ->whereNull('leave_date')
+                ->whereHas('contract', fn ($query) => $query->where('status', \App\Models\Contract::STATUS_ACTIVE))
+                ->latest('id')
+                ->first();
+            $joinDate = $pivotRelation?->join_date ?? $activeContract?->start_date ?? null;
+            $joinDate = $joinDate ? \Illuminate\Support\Carbon::parse($joinDate)->startOfDay() : null;
+
             $tenantCreatedAt = \Illuminate\Support\Carbon::parse($tenant->created_at)->startOfDay();
             $dateLimit = $joinDate && $joinDate->greaterThan($tenantCreatedAt) ? $joinDate : $tenantCreatedAt;
 
@@ -137,17 +154,34 @@ class NotificationController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn chưa đăng nhập', 401, null, 401);
             }
 
-            $currentRoomRelation = $tenant->contractTenants()
-                ->where('is_staying', true)
-                ->whereNull('leave_date')
-                ->whereHas('contract', fn ($query) => $query->where('status', Contract::STATUS_ACTIVE))
-                ->with('contract.room')
+            // Tìm hợp đồng hoạt động của tenant (hoặc đại diện ký, hoặc cư trú cùng)
+            $activeContract = \App\Models\Contract::query()
+                ->where('status', \App\Models\Contract::STATUS_ACTIVE)
+                ->where(function ($q) use ($tenant) {
+                    $q->where('representative_tenant_id', $tenant->id)
+                      ->orWhereHas('tenants', function ($tq) use ($tenant) {
+                          $tq->where('tenants.id', $tenant->id)
+                             ->where('contract_tenants.is_staying', true)
+                             ->whereNull('contract_tenants.leave_date');
+                      });
+                })
+                ->with('room')
                 ->latest('id')
                 ->first();
-            $currentRoom = $currentRoomRelation?->contract?->room;
+
+            $currentRoom = $activeContract?->room;
             $buildingId = $currentRoom?->building_id ?? $tenant->building_id;
             $roomId = $currentRoom?->id ?? $tenant->room_id;
-            $joinDate = $currentRoomRelation?->join_date ? \Illuminate\Support\Carbon::parse($currentRoomRelation->join_date)->startOfDay() : null;
+
+            $pivotRelation = $tenant->contractTenants()
+                ->where('is_staying', true)
+                ->whereNull('leave_date')
+                ->whereHas('contract', fn ($query) => $query->where('status', \App\Models\Contract::STATUS_ACTIVE))
+                ->latest('id')
+                ->first();
+            $joinDate = $pivotRelation?->join_date ?? $activeContract?->start_date ?? null;
+            $joinDate = $joinDate ? \Illuminate\Support\Carbon::parse($joinDate)->startOfDay() : null;
+
             $tenantCreatedAt = \Illuminate\Support\Carbon::parse($tenant->created_at)->startOfDay();
             $dateLimit = $joinDate && $joinDate->greaterThan($tenantCreatedAt) ? $joinDate : $tenantCreatedAt;
 
