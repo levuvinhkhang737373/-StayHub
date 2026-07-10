@@ -65,24 +65,46 @@ class _CreateTenantScreenState extends State<CreateTenantScreen> {
       final auth = context.read<AuthController>();
       final facility = context.read<FacilityController>();
 
-      // Fetch buildings if SuperAdmin
-      if (auth.currentAdmin?.role == 2) {
-        facility.fetchBuildings().then((_) {
-          if (mounted && _selectedBuildingId == null && facility.buildings.isNotEmpty) {
+      // Fetch buildings for both SuperAdmin and Manager
+      facility.fetchBuildings().then((_) {
+        if (!mounted) return;
+        if (auth.currentAdmin?.role == 2) {
+          if (_selectedBuildingId == null && facility.buildings.isNotEmpty) {
             setState(() {
               _selectedBuildingId = facility.buildings.first.id;
+              _autoFillAddress();
+            });
+          } else if (_selectedBuildingId != null) {
+            setState(() {
+              _autoFillAddress();
             });
           }
-        });
-      } else {
-        // Manager defaults to their first managed building
-        if (_selectedBuildingId == null && auth.currentAdmin?.managedBuildingIds.isNotEmpty == true) {
-          setState(() {
-            _selectedBuildingId = auth.currentAdmin!.managedBuildingIds.first;
-          });
+        } else {
+          if (_selectedBuildingId == null && auth.currentAdmin?.managedBuildingIds.isNotEmpty == true) {
+            setState(() {
+              _selectedBuildingId = auth.currentAdmin!.managedBuildingIds.first;
+              _autoFillAddress();
+            });
+          } else if (_selectedBuildingId != null) {
+            setState(() {
+              _autoFillAddress();
+            });
+          }
         }
-      }
+      });
     });
+  }
+
+  void _autoFillAddress() {
+    if (_isEditMode) return;
+    final facility = context.read<FacilityController>();
+    final bList = facility.buildings.where((x) => x.id == _selectedBuildingId).toList();
+    if (bList.isNotEmpty) {
+      final address = bList.first.address;
+      if (address != null && address.isNotEmpty) {
+        _currentAddressController.text = address;
+      }
+    }
   }
 
   @override
@@ -392,6 +414,7 @@ class _CreateTenantScreenState extends State<CreateTenantScreen> {
                       onChanged: (val) {
                         setState(() {
                           _selectedBuildingId = val;
+                          _autoFillAddress();
                         });
                       },
                       validator: (val) => val == null ? 'Vui lòng chọn tòa nhà' : null,

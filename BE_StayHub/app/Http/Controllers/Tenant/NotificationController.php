@@ -84,6 +84,15 @@ class NotificationController extends Controller
                               ->where('tenant_id', $tenant->id);
                       });
                 })
+                ->when($dateLimit, function ($q) use ($dateLimit) {
+                    $q->where(function ($sub) use ($dateLimit) {
+                        $sub->where('published_at', '>=', $dateLimit)
+                            ->orWhere(function ($sub2) use ($dateLimit) {
+                                $sub2->whereNull('published_at')
+                                    ->where('created_at', '>=', $dateLimit);
+                            });
+                    });
+                })
                 ->with(['creator', 'reads' => function ($query) use ($tenant) {
                     $query->where('tenant_id', $tenant->id);
                 }])
@@ -201,6 +210,15 @@ class NotificationController extends Controller
                           $sub->where('target_type', Notification::TARGET_TYPE_TENANT)
                               ->where('tenant_id', $tenant->id);
                       });
+                })
+                ->when($dateLimit, function ($q) use ($dateLimit) {
+                    $q->where(function ($sub) use ($dateLimit) {
+                        $sub->where('published_at', '>=', $dateLimit)
+                            ->orWhere(function ($sub2) use ($dateLimit) {
+                                $sub2->whereNull('published_at')
+                                    ->where('created_at', '>=', $dateLimit);
+                            });
+                    });
                 })
                 ->whereDoesntHave('reads', function ($q) use ($tenant) {
                     $q->where('tenant_id', $tenant->id);

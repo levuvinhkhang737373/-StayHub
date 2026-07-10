@@ -115,18 +115,33 @@ export function CreateTenantScreen() {
   }, [buildings, defaultBuildingId, form.building_id, isSuperAdmin, session?.admin?.managed_buildings])
 
   useEffect(() => {
-    if (isSuperAdmin) {
-      fetchAdminBuildings().then((response) => {
-        const result = response.result as AdminBuildingResource[] | { data?: AdminBuildingResource[] } | null | undefined
-        const list = Array.isArray(result) ? result : result?.data || []
-        setBuildings(list)
-        setBuildingOptions([
-          { value: '', label: 'Chọn tòa nhà', tone: 'default' },
-          ...list.map(b => ({ value: b.id, label: b.name, tone: 'default' as const }))
-        ])
-      }).catch(console.error)
+    fetchAdminBuildings().then((response) => {
+      const result = response.result as AdminBuildingResource[] | { data?: AdminBuildingResource[] } | null | undefined
+      const list = Array.isArray(result) ? result : result?.data || []
+      setBuildings(list)
+      setBuildingOptions([
+        { value: '', label: 'Chọn tòa nhà', tone: 'default' },
+        ...list.map(b => ({ value: b.id, label: b.name, tone: 'default' as const }))
+      ])
+    }).catch(console.error)
+  }, [])
+
+  useEffect(() => {
+    if (isEditMode) return
+
+    const selectedBuildingId = Number(isSuperAdmin ? form.building_id : defaultBuildingId)
+    if (!selectedBuildingId) return
+
+    const building = buildings.find(b => b.id === selectedBuildingId) ||
+                     session?.admin?.managed_buildings?.find(b => b.id === selectedBuildingId)
+
+    if (building?.address) {
+      setForm(current => ({
+        ...current,
+        current_address: building.address || ''
+      }))
     }
-  }, [isSuperAdmin])
+  }, [form.building_id, buildings, isEditMode, isSuperAdmin, defaultBuildingId, session?.admin?.managed_buildings])
 
   useEffect(() => {
     if (isEditMode && tenantId) {
