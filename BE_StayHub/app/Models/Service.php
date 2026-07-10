@@ -43,6 +43,8 @@ class Service extends Model
         self::INACTIVE => 'Ngừng hoạt động',
     ];
 
+    public const UTILITY_SLUGS = ['electric', 'water', 'electricity', 'dien', 'nuoc', 'dien-sinh-hoat', 'nuoc-sinh-hoat'];
+
     protected $fillable = ['name', 'slug', 'charge_method', 'unit_name', 'is_required', 'is_active', 'created_by'];
 
     protected function casts(): array
@@ -68,5 +70,11 @@ class Service extends Model
     public function invoiceItems(): HasMany
     {
         return $this->hasMany(InvoiceItem::class);
+    }
+
+    public function isMeteredUtility(): bool
+    {
+        return (int) $this->charge_method === self::CHARGE_METHOD_BY_METER
+            || in_array((string) $this->slug, self::UTILITY_SLUGS, true);
     }
 }

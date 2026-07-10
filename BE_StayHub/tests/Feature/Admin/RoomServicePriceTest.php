@@ -1,0 +1,426 @@
+<?php
+
+namespace Tests\Feature\Admin;
+
+use App\Events\NotificationSent;
+use App\Models\Admin;
+use App\Models\Building;
+use App\Models\Contract;
+use App\Models\ContractTenant;
+use App\Models\InvoiceItem;
+use App\Models\Notification;
+use App\Models\Region;
+use App\Models\Room;
+use App\Models\RoomService;
+use App\Models\RoomType;
+use App\Models\Service;
+use App\Models\ServicePrice;
+use App\Models\Tenant;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Event;
+use Tests\TestCase;
+
+class RoomServicePriceTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Admin $superAdmin;
+    private Admin $managerAdmin;
+    private Admin $otherManager;
+    private Building $building;
+    private Building $otherBuilding;
+    private Room $room;
+    private Room $otherRoom;
+    private Service $internetService;
+    private Service $trashService;
+    private Service $electricService;
+    private RoomService $internetRoomService;
+    private RoomService $trashRoomService;
+    private RoomService $electricRoomService;
+    private Tenant $tenant;
+    private Contract $contract;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-10 09:00:00'));
+
+        $this->superAdmin = $this->makeAdmin('super-room-service', Admin::ROLE_SUPER_ADMIN, '0901000001');
+        $this->managerAdmin = $this->makeAdmin('manager-room-service', Admin::ROLE_BUILDING_MANAGER, '0901000002');
+        $this->otherManager = $this->makeAdmin('other-room-service', Admin::ROLE_BUILDING_MANAGER, '0901000003');
+
+        $region = Region::create([
+            'name' => 'Khu Test',
+            'code' => 'ROOM_SERVICE_REGION',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->building = Building::create([
+            'name' => 'Tòa A',
+            'slug' => 'toa-a',
+            'address' => '123 Test',
+            'region_id' => $region->id,
+            'manager_admin_id' => $this->managerAdmin->id,
+            'created_by' => $this->superAdmin->id,
+            'status' => Building::STATUS_ACTIVE,
+        ]);
+
+        $this->otherBuilding = Building::create([
+            'name' => 'Tòa B',
+            'slug' => 'toa-b',
+            'address' => '456 Test',
+            'region_id' => $region->id,
+            'manager_admin_id' => $this->otherManager->id,
+            'created_by' => $this->superAdmin->id,
+            'status' => Building::STATUS_ACTIVE,
+        ]);
+
+        $roomType = RoomType::create([
+            'name' => 'Standard',
+            'slug' => 'standard-room-service',
+            'status' => RoomType::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->room = Room::create([
+            'building_id' => $this->building->id,
+            'room_type_id' => $roomType->id,
+            'room_number' => '101',
+            'slug' => '101',
+            'floor' => 1,
+            'base_price' => '3000000.00',
+            'max_occupants' => 4,
+            'current_occupants' => 1,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->otherRoom = Room::create([
+            'building_id' => $this->otherBuilding->id,
+            'room_type_id' => $roomType->id,
+            'room_number' => '201',
+            'slug' => '201',
+            'floor' => 2,
+            'base_price' => '3200000.00',
+            'max_occupants' => 4,
+            'current_occupants' => 0,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->internetService = Service::create([
+            'name' => 'Internet',
+            'slug' => 'internet',
+            'charge_method' => Service::CHARGE_METHOD_BY_ROOM,
+            'unit_name' => 'phòng',
+            'is_active' => true,
+        ]);
+
+        $this->trashService = Service::create([
+            'name' => 'Rác',
+            'slug' => 'rac',
+            'charge_method' => Service::CHARGE_METHOD_BY_PERSON,
+            'unit_name' => 'người',
+            'is_active' => true,
+        ]);
+
+        $this->electricService = Service::create([
+            'name' => 'Điện sinh hoạt',
+            'slug' => 'dien-sinh-hoat',
+            'charge_method' => Service::CHARGE_METHOD_BY_METER,
+            'unit_name' => 'kWh',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $this->internetService->id,
+            'building_id' => $this->building->id,
+            'price' => '100000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $this->trashService->id,
+            'building_id' => $this->building->id,
+            'price' => '30000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $this->internetRoomService = RoomService::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->internetService->id,
+            'price' => '100000.00',
+        ]);
+
+        $this->trashRoomService = RoomService::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->trashService->id,
+            'price' => '30000.00',
+        ]);
+
+        $this->electricRoomService = RoomService::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricService->id,
+            'price' => '4000.00',
+        ]);
+
+        RoomService::create([
+            'room_id' => $this->otherRoom->id,
+            'service_id' => $this->internetService->id,
+            'price' => '120000.00',
+        ]);
+
+        $this->tenant = Tenant::create([
+            'username' => 'tenant-room-service',
+            'full_name' => 'Tenant Room Service',
+            'email' => 'tenant-room-service@stayhub.local',
+            'phone' => '0911000000',
+            'password' => bcrypt('password'),
+            'role' => 1,
+            'status' => Tenant::STATUS_RENTING,
+            'gender' => Tenant::GENDER_MALE,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '123456789099',
+            'date_of_birth' => '2000-01-01',
+            'created_by' => $this->superAdmin->id,
+            'building_id' => $this->building->id,
+        ]);
+
+        $this->contract = Contract::create([
+            'contract_code' => 'HD-RSP-001',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $this->tenant->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'room_price' => '3000000.00',
+            'deposit_amount' => '3000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $this->contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_index_returns_only_non_meter_room_services_for_accessible_rooms(): void
+    {
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/room-service-prices?billing_month=8&billing_year=2026');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true)
+            ->assertJsonMissing(['service_id' => $this->electricService->id]);
+
+        $rooms = collect($response->json('result.data'));
+        $room = $rooms->firstWhere('id', $this->room->id);
+
+        $this->assertNotNull($room);
+        $this->assertCount(2, $room['services']);
+        $this->assertEqualsCanonicalizing(
+            [$this->internetService->id, $this->trashService->id],
+            collect($room['services'])->pluck('service_id')->all()
+        );
+    }
+
+    public function test_building_manager_cannot_update_room_outside_managed_building(): void
+    {
+        $roomService = RoomService::where('room_id', $this->otherRoom->id)->firstOrFail();
+
+        $response = $this->actingAs($this->managerAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->otherRoom->id}/service-prices", [
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'prices' => [
+                    ['room_service_id' => $roomService->id, 'price' => 150000],
+                ],
+            ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_cannot_schedule_room_service_price_for_current_or_past_month(): void
+    {
+        $payload = [
+            'billing_month' => 7,
+            'billing_year' => 2026,
+            'prices' => [
+                ['room_service_id' => $this->internetRoomService->id, 'price' => 150000],
+            ],
+        ];
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", $payload);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('status', false)
+            ->assertJsonPath('message', 'Chỉ được lên lịch giá dịch vụ phòng cho tháng sau hoặc tương lai.');
+    }
+
+    public function test_cannot_schedule_metered_service_room_price(): void
+    {
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", [
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'prices' => [
+                    ['room_service_id' => $this->electricRoomService->id, 'price' => 5000],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('status', false)
+            ->assertJsonPath('message', 'Không thể lên lịch giá điện/nước theo từng phòng.');
+    }
+
+    public function test_can_schedule_next_month_price_and_notify_current_tenants(): void
+    {
+        Event::fake([NotificationSent::class]);
+
+        $response = $this->actingAs($this->managerAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", [
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'prices' => [
+                    ['room_service_id' => $this->internetRoomService->id, 'price' => 150000],
+                    ['room_service_id' => $this->trashRoomService->id, 'price' => 45000],
+                ],
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $this->internetRoomService->id,
+            'price' => '150000.00',
+            'effective_from' => '2026-08-01 00:00:00',
+            'effective_to' => null,
+            'status' => 1,
+            'created_by' => $this->managerAdmin->id,
+        ]);
+
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $this->trashRoomService->id,
+            'price' => '45000.00',
+            'effective_from' => '2026-08-01 00:00:00',
+            'status' => 1,
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'tenant_id' => $this->tenant->id,
+            'room_id' => $this->room->id,
+            'building_id' => $this->building->id,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'title' => 'Lên lịch thay đổi giá dịch vụ phòng',
+        ]);
+
+        Event::assertDispatched(NotificationSent::class, function (NotificationSent $event): bool {
+            return (int) $event->notification->tenant_id === (int) $this->tenant->id
+                && $event->notification->title === 'Lên lịch thay đổi giá dịch vụ phòng';
+        });
+    }
+
+    public function test_rescheduling_same_month_updates_existing_price_without_duplicate(): void
+    {
+        $payload = [
+            'billing_month' => 8,
+            'billing_year' => 2026,
+            'prices' => [
+                ['room_service_id' => $this->internetRoomService->id, 'price' => 150000],
+            ],
+        ];
+
+        $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", $payload)
+            ->assertStatus(200);
+
+        $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", [
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'prices' => [
+                    ['room_service_id' => $this->internetRoomService->id, 'price' => 175000],
+                ],
+            ])
+            ->assertStatus(200);
+
+        $this->assertSame(1, \App\Models\RoomServicePrice::query()
+            ->where('room_service_id', $this->internetRoomService->id)
+            ->whereDate('effective_from', '2026-08-01')
+            ->count());
+
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $this->internetRoomService->id,
+            'price' => '175000.00',
+            'effective_from' => '2026-08-01 00:00:00',
+        ]);
+    }
+
+    public function test_invoice_uses_scheduled_room_service_price_for_billing_period(): void
+    {
+        \App\Models\RoomServicePrice::create([
+            'room_service_id' => $this->internetRoomService->id,
+            'price' => '150000.00',
+            'effective_from' => '2026-08-01',
+            'status' => 1,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        \App\Models\RoomServicePrice::create([
+            'room_service_id' => $this->trashRoomService->id,
+            'price' => '45000.00',
+            'effective_from' => '2026-08-01',
+            'status' => 1,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/invoices/preview', [
+                'contract_id' => $this->contract->id,
+                'billing_month' => 8,
+                'billing_year' => 2026,
+            ]);
+
+        $response->assertStatus(200);
+        $items = collect($response->json('result.items'));
+
+        $internet = $items->firstWhere('service_id', $this->internetService->id);
+        $trash = $items->firstWhere('service_id', $this->trashService->id);
+
+        $this->assertEquals('150000.00', $internet['unit_price']);
+        $this->assertEquals('150000.00', $internet['amount']);
+        $this->assertEquals('45000.00', $trash['unit_price']);
+        $this->assertEquals('45000.00', $trash['amount']);
+    }
+
+    private function makeAdmin(string $username, int $role, string $phone): Admin
+    {
+        return Admin::create([
+            'username' => $username,
+            'full_name' => $username,
+            'email' => $username.'@stayhub.local',
+            'phone' => $phone,
+            'password' => bcrypt('password'),
+            'role' => $role,
+            'status' => Admin::STATUS_ACTIVE,
+            'gender' => Admin::GENDER_MALE,
+            'address' => 'Test Address',
+        ]);
+    }
+}

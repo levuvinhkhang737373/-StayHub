@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\PaymentHistoryController;
 use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\RoomMovementController;
+use App\Http\Controllers\Admin\RoomServicePriceController;
 use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SettingController;
@@ -157,6 +158,9 @@ Route::prefix('admin')->group(function (): void {
         Route::get('debts', [DebtController::class, 'index']);
 
         // ==========================Rooms===================================
+        Route::get('room-service-prices', [RoomServicePriceController::class, 'index']);
+        Route::get('rooms/{room}/service-prices', [RoomServicePriceController::class, 'show']);
+        Route::put('rooms/{room}/service-prices', [RoomServicePriceController::class, 'update']);
         Route::apiResource('rooms', RoomController::class);
         Route::patch('rooms/{id}/status', [RoomController::class, 'updateStatus']);
         Route::get('room-movements', [RoomMovementController::class, 'index']);

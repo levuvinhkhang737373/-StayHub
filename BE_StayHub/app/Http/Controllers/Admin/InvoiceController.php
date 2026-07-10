@@ -32,6 +32,8 @@ use App\Models\MeterReading;
 use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\RoomMovement;
+use App\Models\RoomService;
+use App\Models\RoomServicePrice;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Services\Invoice\InvoiceDebtRolloverService;
@@ -732,11 +734,11 @@ class InvoiceController extends Controller
 
             // Nếu không phải điện nước thì ưu tiên lấy giá dịch vụ đã thương lượng/cấu hình riêng của phòng
             if (! $isMetered) {
-                $roomService = \App\Models\RoomService::where('room_id', $contract->room_id)
+                $roomService = RoomService::where('room_id', $contract->room_id)
                     ->where('service_id', $service->id)
                     ->first();
                 if ($roomService) {
-                    $priceAmount = $roomService->price;
+                    $priceAmount = $this->roomServicePriceForPeriod($roomService, $periodEnd);
                 }
             }
 
@@ -1389,6 +1391,23 @@ class InvoiceController extends Controller
             ->get()
             ->unique('service_id')
             ->values();
+    }
+
+    private function roomServicePriceForPeriod(RoomService $roomService, Carbon $periodEnd): string
+    {
+        $scheduledPrice = RoomServicePrice::query()
+            ->where('room_service_id', $roomService->id)
+            ->whereIn('status', [RoomServicePrice::STATUS_ACTIVE, RoomServicePrice::STATUS_EXPIRED])
+            ->whereDate('effective_from', '<=', $periodEnd->toDateString())
+            ->where(function (Builder $query) use ($periodEnd): void {
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>=', $periodEnd->toDateString());
+            })
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
+            ->first();
+
+        return DecimalMoney::normalize($scheduledPrice?->price ?? $roomService->price);
     }
 
     private function previousDebtAmount(Contract $contract, int $billingYear, int $billingMonth): string
