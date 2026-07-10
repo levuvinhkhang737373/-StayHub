@@ -38,6 +38,15 @@ class NotificationController extends Controller
             $tenantCreatedAt = \Illuminate\Support\Carbon::parse($tenant->created_at)->startOfDay();
             $dateLimit = $joinDate && $joinDate->greaterThan($tenantCreatedAt) ? $joinDate : $tenantCreatedAt;
 
+            \Illuminate\Support\Facades\Log::info('DEBUG NOTIFICATIONS', [
+                'tenant_id' => $tenant->id,
+                'tenant_username' => $tenant->username,
+                'resolved_building_id' => $buildingId,
+                'resolved_room_id' => $roomId,
+                'date_limit' => $dateLimit?->toDateTimeString(),
+                'tenant_building_id_in_db' => $tenant->building_id,
+            ]);
+
             // Truy vấn các thông báo phù hợp với phạm vi của khách thuê
             $notifications = Notification::query()
                 ->where('status', Notification::STATUS_SENT)
