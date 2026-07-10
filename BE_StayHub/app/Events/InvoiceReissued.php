@@ -65,7 +65,7 @@ class InvoiceReissued implements ShouldBroadcast
             ->values();
 
         if ($this->broadcastToAdmin) {
-            $channels->push(new PrivateChannel('admin-maintenance'));
+            $channels->push(new PrivateChannel('admin-payments'));
         }
 
         return $channels->all();

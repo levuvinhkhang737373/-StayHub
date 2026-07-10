@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
+  BadgeCheck,
   Banknote,
   Building2,
   CalendarDays,
@@ -16,6 +17,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react'
+import { useAdminSocket } from '../../../../shared/lib/socket/socket-context'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDate, formatDateTime, formatMoneyInput, parseMoneyInput } from '../../../../shared/lib/utils/format'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
@@ -628,21 +630,36 @@ export function InvoicesScreen() {
         }
       }} />}
 
-      {isPaymentOpen && paymentInvoice && <PaymentModal invoice={paymentInvoice} isSaving={isSaving} onClose={() => { setIsPaymentOpen(false); setPaymentInvoice(null) }} onSubmit={async (payload) => {
-        try {
-          setIsSaving(true)
-          const response = await recordAdminInvoicePayment(paymentInvoice.id, payload)
-          setIsPaymentOpen(false)
-          setPaymentInvoice(null)
-          setDetailInvoice(response.result)
-          setSuccessMessage('Ghi nhận thanh toán thành công.')
-          await loadInvoices()
-        } catch (error) {
-          setErrorMessage(getVisibleErrorMessage(error, 'Không thể ghi nhận thanh toán.'))
-        } finally {
-          setIsSaving(false)
-        }
-      }} />}
+      {isPaymentOpen && paymentInvoice && (
+        <PaymentModal
+          invoice={paymentInvoice}
+          isSaving={isSaving}
+          onClose={() => {
+            setIsPaymentOpen(false)
+            setPaymentInvoice(null)
+          }}
+          onSuccess={async () => {
+            setIsPaymentOpen(false)
+            setPaymentInvoice(null)
+            await loadInvoices()
+          }}
+          onSubmit={async (payload) => {
+            try {
+              setIsSaving(true)
+              const response = await recordAdminInvoicePayment(paymentInvoice.id, payload)
+              setIsPaymentOpen(false)
+              setPaymentInvoice(null)
+              setDetailInvoice(response.result)
+              setSuccessMessage('Ghi nhận thanh toán thành công.')
+              await loadInvoices()
+            } catch (error) {
+              setErrorMessage(getVisibleErrorMessage(error, 'Không thể ghi nhận thanh toán.'))
+            } finally {
+              setIsSaving(false)
+            }
+          }}
+        />
+      )}
     </section>
   )
 }
@@ -691,64 +708,171 @@ function GenerateInvoiceModal({ contracts, isSaving, onClose, onSubmit }: { cont
   )
 }
 
-function PaymentModal({ invoice, isSaving, onClose, onSubmit }: { invoice: AdminInvoiceResource; isSaving: boolean; onClose: () => void; onSubmit: (payload: { amount: string; payment_method: number; payment_date?: string | null; transaction_reference?: string | null; note?: string | null }) => Promise<void> }) {
+function PaymentModal({ invoice, isSaving, onClose, onSuccess, onSubmit }: { invoice: AdminInvoiceResource; isSaving: boolean; onClose: () => void; onSuccess?: () => void; onSubmit: (payload: { amount: string; payment_method: number; payment_date?: string | null; transaction_reference?: string | null; note?: string | null }) => Promise<void> }) {
   const payableAmount = invoice.collectible_remaining_amount || invoice.remaining_amount
   const [amount, setAmount] = useState(formatMoneyInput(String(payableAmount || '')))
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHOD_CASH)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
+  
+  const { echo } = useAdminSocket()
+  const [isPaidSuccess, setIsPaidSuccess] = useState(false)
+
+  useEffect(() => {
+    if (!echo) return
+    const channel = echo.private('admin-payments')
+    channel.listen('.InvoicePaid', (event: any) => {
+      const updatedInvoice = event.invoice
+      if (updatedInvoice && Number(updatedInvoice.id) === Number(invoice.id) && Number(updatedInvoice.status) === INVOICE_STATUS_PAID) {
+        setIsPaidSuccess(true)
+        setTimeout(() => {
+          onSuccess?.()
+        }, 2000)
+      }
+    })
+    return () => {
+      channel.stopListening('.InvoicePaid')
+    }
+  }, [echo, invoice.id, onSuccess])
 
   return (
     <ModalFrame title={`Ghi nhận thanh toán ${invoice.invoice_code}`} onClose={onClose}>
-      <div className="space-y-3">
-        <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/70 p-3 text-xs font-bold text-[#6f6254]">
-          <p>Tổng: <span className="font-black text-[#24170d]">{formatCurrency(invoice.total_amount)}</span></p>
-          <p>Còn lại: <span className="font-black text-rose-600">{formatCurrency(invoice.remaining_amount)}</span></p>
-          <p>Có thể thu: <span className="font-black text-emerald-700">{formatCurrency(payableAmount)}</span></p>
-          <p className="mt-1 text-[11px] text-[#8b5e34]">
-            {paymentMethod === PAYMENT_METHOD_BANK_TRANSFER
-              ? 'Số tiền chuyển khoản mặc định là toàn bộ số tiền cần thanh toán.'
-              : 'Có thể nhập số tiền thu tiền mặt một phần. Hệ thống ưu tiên trừ nợ cũ trước.'}
-          </p>
-        </div>
-        <input
-          className={`${inputClass} disabled:bg-[#fcf8f2] disabled:text-[#8b5e34]/60 disabled:cursor-not-allowed`}
-          value={amount}
-          onChange={(event) => setAmount(formatMoneyInput(event.target.value))}
-          placeholder="Số tiền"
-          disabled={paymentMethod === PAYMENT_METHOD_BANK_TRANSFER}
-        />
-        <AdminSelect
-          value={paymentMethod}
-          options={[
-            { value: PAYMENT_METHOD_CASH, label: 'Tiền mặt', tone: 'success' as const },
-            { value: PAYMENT_METHOD_BANK_TRANSFER, label: 'Chuyển khoản', tone: 'default' as const }
-          ]}
-          onChange={(nextValue) => {
-            const nextMethod = Number(nextValue)
-            setPaymentMethod(nextMethod)
-            if (nextMethod === PAYMENT_METHOD_BANK_TRANSFER) {
-              setAmount(formatMoneyInput(String(payableAmount || '')))
-            }
-          }}
-        />
-        <input className={inputClass} type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
-        <input className={inputClass} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Mã tham chiếu giao dịch (nếu có)" />
-        <textarea className={textAreaClass} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ghi chú" />
-
-        {paymentMethod === PAYMENT_METHOD_BANK_TRANSFER && invoice.payment_qr_url && (
-          <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white border border-[#3d2a18]/10 space-y-2 mt-2">
-            <p className="text-[11px] text-[#8b5e34] font-black uppercase tracking-wider">Quét mã QR để chuyển khoản</p>
-            <img src={invoice.payment_qr_url} alt="VietQR Payment Code" className="w-48 h-48 rounded-lg shadow-sm" />
-            <p className="text-[11px] text-[#6f6254] font-bold text-center">Nội dung CK: <span className="font-black text-[#24170d]">{invoice.invoice_code}</span></p>
-            <p className="text-[10px] text-stone-500 text-center italic mt-1">Hệ thống sẽ tự động cập nhật trạng thái hóa đơn ngay sau khi khách chuyển khoản thành công qua SePay.</p>
+      <div className="space-y-4">
+        {isPaidSuccess ? (
+          <div className="flex flex-col items-center justify-center text-center p-8 bg-emerald-50 rounded-3xl border border-emerald-200 space-y-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 animate-bounce">
+              <BadgeCheck className="h-10 w-10" />
+            </div>
+            <p className="text-base font-black text-emerald-800">Thanh toán thành công!</p>
+            <p className="text-xs text-emerald-600/90 font-bold leading-relaxed px-2">
+              Hệ thống đã tự động ghi nhận giao dịch chuyển khoản thành công từ ngân hàng và cập nhật hóa đơn.
+            </p>
           </div>
-        )}
+        ) : (
+          <>
+            {/* Payment Method Selector Tab */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 bg-[#3d2a18]/5 rounded-2xl border border-[#3d2a18]/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod(PAYMENT_METHOD_CASH)
+                }}
+                className={`h-11 text-xs font-black rounded-xl transition-all ${paymentMethod === PAYMENT_METHOD_CASH
+                  ? 'bg-[#24170d] text-[#fff4df] shadow-md'
+                  : 'text-[#6f6254] hover:bg-[#3d2a18]/5'
+                  }`}
+              >
+                💵 Tiền mặt
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod(PAYMENT_METHOD_BANK_TRANSFER)
+                  setAmount(formatMoneyInput(String(payableAmount || '')))
+                }}
+                className={`h-11 text-xs font-black rounded-xl transition-all ${paymentMethod === PAYMENT_METHOD_BANK_TRANSFER
+                  ? 'bg-[#24170d] text-[#fff4df] shadow-md'
+                  : 'text-[#6f6254] hover:bg-[#3d2a18]/5'
+                  }`}
+              >
+                💳 Chuyển khoản (QR)
+              </button>
+            </div>
 
-        <button type="button" disabled={isSaving || !amount} onClick={() => onSubmit({ amount: parseMoneyInput(amount), payment_method: paymentMethod, payment_date: paymentDate, transaction_reference: reference.trim() || null, note: note.trim() || null })} className="h-12 w-full rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60">
-          {isSaving ? 'Đang ghi nhận...' : 'Xác nhận thanh toán'}
-        </button>
+            {paymentMethod === PAYMENT_METHOD_CASH ? (
+              /* CASH LAYOUT */
+              <div className="space-y-3.5">
+                <div className="rounded-2xl border border-[#3d2a18]/10 bg-white/70 p-3.5 text-xs font-bold text-[#6f6254]">
+                  <p>Tổng: <span className="font-black text-[#24170d]">{formatCurrency(invoice.total_amount)}</span></p>
+                  <p>Còn lại: <span className="font-black text-rose-600">{formatCurrency(invoice.remaining_amount)}</span></p>
+                  <p>Có thể thu: <span className="font-black text-emerald-700">{formatCurrency(payableAmount)}</span></p>
+                  <p className="mt-1.5 text-[11px] text-[#8b5e34]/80">Có thể nhập số tiền mặt thu thực tế. Hệ thống ưu tiên trừ nợ cũ trước.</p>
+                </div>
+                
+                <div>
+                  <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Số tiền thu *</label>
+                  <input
+                    className={inputClass}
+                    value={amount}
+                    onChange={(event) => setAmount(formatMoneyInput(event.target.value))}
+                    placeholder="Số tiền"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Ngày thanh toán</label>
+                  <input className={inputClass} type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Mã tham chiếu (nếu có)</label>
+                  <input className={inputClass} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Mã giao dịch..." />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Ghi chú</label>
+                  <textarea className={textAreaClass} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ghi chú thêm..." />
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSaving || !amount}
+                  onClick={() => onSubmit({ amount: parseMoneyInput(amount), payment_method: paymentMethod, payment_date: paymentDate, transaction_reference: reference.trim() || null, note: note.trim() || null })}
+                  className="h-12 w-full rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60"
+                >
+                  {isSaving ? 'Đang ghi nhận...' : 'Xác nhận thanh toán'}
+                </button>
+              </div>
+            ) : (
+              /* BANK TRANSFER (QR) LAYOUT */
+              <div className="space-y-4">
+                <div className="text-center space-y-0.5">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Số tiền cần chuyển khoản</p>
+                  <p className="text-2xl font-black text-[#0f766e]">{formatCurrency(payableAmount)}</p>
+                </div>
+
+                {invoice.payment_qr_url ? (
+                  <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white border border-[#3d2a18]/10 space-y-3 shadow-inner">
+                    <p className="text-[10px] text-[#8b5e34]/85 font-black uppercase tracking-wider">Quét mã VietQR qua ứng dụng Ngân hàng</p>
+                    <img src={invoice.payment_qr_url} alt="VietQR Payment Code" className="w-48 h-48 rounded-lg shadow-sm border border-stone-100" />
+
+                    <div className="w-full bg-[#fffaf1] rounded-xl p-3 border border-[#3d2a18]/5 space-y-1.5 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#6f6254] font-bold">Nội dung CK:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-[#24170d] bg-[#3d2a18]/5 px-2 py-0.5 rounded text-[11px] select-all">{invoice.invoice_code}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(invoice.invoice_code || '');
+                              alert('Đã sao chép nội dung chuyển khoản!');
+                            }}
+                            className="text-[10px] font-black text-[#0f766e] hover:underline"
+                          >
+                            Sao chép
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-xs font-bold text-rose-500 p-4">
+                    Không thể tạo mã QR cho hóa đơn này.
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="h-12 w-full rounded-xl border border-[#3d2a18]/25 text-xs font-black text-[#24170d] transition hover:bg-[#3d2a18]/5 mt-2"
+                >
+                  Đóng
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </ModalFrame>
   )

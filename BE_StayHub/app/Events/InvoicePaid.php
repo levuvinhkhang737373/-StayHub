@@ -48,7 +48,7 @@ class InvoicePaid implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        $channels = [new PrivateChannel('admin-maintenance')];
+        $channels = [new PrivateChannel('admin-payments')];
 
         foreach ($this->tenantIds as $tenantId) {
             $channels[] = new PrivateChannel('tenant.' . $tenantId);
