@@ -805,15 +805,19 @@ class ContractController extends ChangeNotifier {
   }
 
   /// Lấy danh sách khách thuê có sẵn để thêm vào hợp đồng
-  Future<List<dynamic>> fetchAvailableTenants(int contractId) async {
+  Future<List<dynamic>> fetchAvailableTenants(int contractId, {String? keyword}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       await _apiService.init();
+      String url = '/admin/contracts/$contractId/available-tenants';
+      if (keyword != null && keyword.trim().isNotEmpty) {
+        url += '?keyword=${Uri.encodeComponent(keyword.trim())}';
+      }
       final response = await _apiService.get<List<dynamic>>(
-        '/admin/contracts/$contractId/available-tenants',
+        url,
         fromJsonT: (json) {
           final data = json['data'] as List<dynamic>?;
           return data ?? [];

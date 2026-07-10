@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -380,6 +381,7 @@ class _ContractsScreenState extends State<ContractsScreen> {
       itemCount: filteredContracts.length,
       itemBuilder: (context, index) {
         final contract = filteredContracts[index];
+        debugPrint('CONTRACT_DEBUG: ${contract.contractCode} | room=${contract.room} | occupants=${contract.room?.currentOccupants}/${contract.room?.maxOccupants}');
         return Card(
           color: Colors.white,
           margin: const EdgeInsets.only(bottom: 16),
@@ -564,9 +566,13 @@ class _AddTenantToContractDialogState extends State<AddTenantToContractDialog> {
   String? _error;
   
   int? _selectedTenantId;
+  Map<String, dynamic>? _selectedTenant;
+  
+  final TextEditingController _searchController = TextEditingController();
   final TextEditingController _joinDateController = TextEditingController();
   final TextEditingController _billingStartDateController = TextEditingController();
   
+  Timer? _debounceTimer;
   bool _isSaving = false;
 
   @override
@@ -577,22 +583,14 @@ class _AddTenantToContractDialogState extends State<AddTenantToContractDialog> {
     _joinDateController.text = todayStr;
     _billingStartDateController.text = todayStr;
 
+    _searchController.addListener(_onSearchChanged);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ContractController>().fetchAvailableTenants(widget.contract.id).then((list) {
-        if (mounted) {
+      _loadTenants().then((_) {
+        if (mounted && _tenants.isNotEmpty) {
           setState(() {
-            _tenants = list;
-            _isLoading = false;
-            if (list.isNotEmpty) {
-              _selectedTenantId = list.first['id'] as int?;
-            }
-          });
-        }
-      }).catchError((e) {
-        if (mounted) {
-          setState(() {
-            _error = e.toString();
-            _isLoading = false;
+            _selectedTenantId = _tenants.first['id'] as int?;
+            _selectedTenant = _tenants.first;
           });
         }
       });
@@ -601,17 +599,80 @@ class _AddTenantToContractDialogState extends State<AddTenantToContractDialog> {
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
     _joinDateController.dispose();
     _billingStartDateController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _selectDate(TextEditingController controller) async {
+  void _onSearchChanged() {
+    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _loadTenants();
+      }
+    });
+  }
+
+  Future<void> _loadTenants() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final list = await context.read<ContractController>().fetchAvailableTenants(
+        widget.contract.id,
+        keyword: _searchController.text,
+      );
+      if (mounted) {
+        setState(() {
+          _tenants = list;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  DateTime? _parseDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return null;
+    try {
+      return DateTime.parse(dateStr);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _selectJoinDate() async {
+    final contractStart = _parseDate(widget.contract.startDate) ?? DateTime(2020);
+    final contractEnd = _parseDate(widget.contract.actualEndDate ?? widget.contract.endDate) ?? DateTime(2035);
+    
+    DateTime initial = DateTime.now();
+    if (initial.isBefore(contractStart)) {
+      initial = contractStart;
+    } else if (initial.isAfter(contractEnd)) {
+      initial = contractEnd;
+    }
+    
+    DateTime? current = _parseDate(_joinDateController.text);
+    if (current != null && !current.isBefore(contractStart) && !current.isAfter(contractEnd)) {
+      initial = current;
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2035),
+      initialDate: initial,
+      firstDate: contractStart,
+      lastDate: contractEnd,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -627,7 +688,54 @@ class _AddTenantToContractDialogState extends State<AddTenantToContractDialog> {
     );
     if (picked != null) {
       setState(() {
-        controller.text =
+        final formattedDate = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+        _joinDateController.text = formattedDate;
+        
+        final billingDate = _parseDate(_billingStartDateController.text);
+        if (billingDate == null || billingDate.isBefore(picked)) {
+          _billingStartDateController.text = formattedDate;
+        }
+      });
+    }
+  }
+
+  Future<void> _selectBillingStartDate() async {
+    final joinDate = _parseDate(_joinDateController.text) ?? _parseDate(widget.contract.startDate) ?? DateTime(2020);
+    final contractEnd = _parseDate(widget.contract.actualEndDate ?? widget.contract.endDate) ?? DateTime(2035);
+
+    DateTime initial = DateTime.now();
+    if (initial.isBefore(joinDate)) {
+      initial = joinDate;
+    } else if (initial.isAfter(contractEnd)) {
+      initial = contractEnd;
+    }
+
+    DateTime? current = _parseDate(_billingStartDateController.text);
+    if (current != null && !current.isBefore(joinDate) && !current.isAfter(contractEnd)) {
+      initial = current;
+    }
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: joinDate,
+      lastDate: contractEnd,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1C1917),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF1C1917),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _billingStartDateController.text =
             "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
     }
@@ -706,7 +814,10 @@ class _AddTenantToContractDialogState extends State<AddTenantToContractDialog> {
         left: 24,
         right: 24,
       ),
-      child: SingleChildScrollView(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
         child: Form(
           key: _formKey,
           child: Column(
@@ -723,98 +834,240 @@ class _AddTenantToContractDialogState extends State<AddTenantToContractDialog> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               Text(
                 'Thêm người vào phòng ${widget.contract.roomNumber}',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1C1917)),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
-                'Chọn khách thuê và điền thời gian tham gia tính phí.',
+                'Tìm cư dân, chọn người muốn thêm và cấu hình ngày tính tiền.',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
-              const Divider(height: 32, color: Color(0xFFE4E2D7)),
+              const Divider(height: 24, color: Color(0xFFE4E2D7)),
               
-              if (_isLoading)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: CircularProgressIndicator(color: Color(0xFF1C1917)),
-                  ),
-                )
-              else if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Text('Lỗi: $_error', style: const TextStyle(color: Colors.redAccent)),
-                )
-              else if (_tenants.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    'Không có khách thuê nào khả dụng (chưa có hợp đồng hoạt động) trong tòa nhà này.',
-                    style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                )
-              else ...[
-                DropdownButtonFormField<int>(
-                  value: _selectedTenantId,
-                  decoration: _inputDecoration('Chọn cư dân *'),
-                  items: _tenants.map<DropdownMenuItem<int>>((item) {
-                    final name = item['full_name'] ?? item['username'] ?? 'Không tên';
-                    final phone = item['phone'] ?? '';
-                    return DropdownMenuItem<int>(
-                      value: item['id'] as int,
-                      child: Text('$name ($phone)'),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedTenantId = val;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _joinDateController,
-                  readOnly: true,
-                  onTap: () => _selectDate(_joinDateController),
-                  decoration: _inputDecoration('Ngày tham gia phòng *').copyWith(
-                    suffixIcon: const Icon(Icons.calendar_today_rounded, color: Color(0xFF1C1917)),
-                  ),
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng chọn ngày tham gia' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _billingStartDateController,
-                  readOnly: true,
-                  onTap: () => _selectDate(_billingStartDateController),
-                  decoration: _inputDecoration('Ngày bắt đầu tính hóa đơn *').copyWith(
-                    suffixIcon: const Icon(Icons.calendar_today_rounded, color: Color(0xFF1C1917)),
-                  ),
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng chọn ngày tính tiền' : null,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _isSaving ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1C1917),
-                    foregroundColor: const Color(0xFFEAB308),
-                    disabledBackgroundColor: Colors.grey.shade400,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(color: Color(0xFFEAB308), strokeWidth: 3),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        controller: _searchController,
+                        decoration: _inputDecoration('Tìm cư dân theo tên, SĐT, email...').copyWith(
+                          prefixIcon: const Icon(Icons.search, color: Color(0xFF78716C)),
+                          hintText: 'Nhập từ khóa tìm kiếm...',
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      const Text(
+                        'DANH SÁCH CƯ DÂN KHẢ DỤNG',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.8, color: Color(0xFF78716C)),
+                      ),
+                      const SizedBox(height: 8),
+
+                      if (_isLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 36),
+                            child: CircularProgressIndicator(color: Color(0xFF1C1917)),
+                          ),
                         )
-                      : const Text('LƯU THÔNG TIN', style: TextStyle(fontWeight: FontWeight.bold)),
+                      else if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Text('Lỗi: $_error', style: const TextStyle(color: Colors.redAccent)),
+                        )
+                      else if (_tenants.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 36),
+                          child: Text(
+                            'Không tìm thấy khách thuê phù hợp.',
+                            style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _tenants.length,
+                          itemBuilder: (context, index) {
+                            final item = _tenants[index];
+                            final isSelected = _selectedTenantId == item['id'];
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedTenantId = item['id'] as int?;
+                                  _selectedTenant = item;
+                                });
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? const Color(0xFFFFFBEB) : Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isSelected ? const Color(0xFFEAB308) : const Color(0xFFE4E2D7),
+                                    width: isSelected ? 2.0 : 1.5,
+                                  ),
+                                  boxShadow: isSelected ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFEAB308).withOpacity(0.1),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 3),
+                                    )
+                                  ] : null,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item['full_name'] ?? item['username'] ?? 'Không tên',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1C1917)),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            [item['phone'], item['email']].where((e) => e != null && e.toString().isNotEmpty).join(' · '),
+                                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                          ),
+                                          if (item['identity_number'] != null && item['identity_number'].toString().isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'CCCD: ${item['identity_number']}',
+                                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                            ),
+                                          ],
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              if (item['gender_label'] != null) ...[
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFE4E2D7).withOpacity(0.5),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Text(
+                                                    item['gender_label'],
+                                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF78716C)),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                              ],
+                                              if (item['status_label'] != null) ...[
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFEAB308).withOpacity(0.12),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Text(
+                                                    item['status_label'],
+                                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFCA8A04)),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
+                                      color: isSelected ? const Color(0xFFEAB308) : Colors.grey.shade400,
+                                      size: 24,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      const SizedBox(height: 16),
+
+                      if (_selectedTenant != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFEAB308).withOpacity(0.4), width: 1.5),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'CƯ DÂN ĐÃ CHỌN',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.8, color: Color(0xFF78716C)),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _selectedTenant!['full_name'] ?? _selectedTenant!['username'] ?? 'Không tên',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                [_selectedTenant!['phone'], _selectedTenant!['email']].where((e) => e != null && e.toString().isNotEmpty).join(' · ') ?? 'Không có liên hệ',
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      TextFormField(
+                        controller: _joinDateController,
+                        readOnly: true,
+                        onTap: _selectJoinDate,
+                        decoration: _inputDecoration('Ngày tham gia phòng *').copyWith(
+                          suffixIcon: const Icon(Icons.calendar_today_rounded, color: Color(0xFF1C1917)),
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng chọn ngày tham gia' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _billingStartDateController,
+                        readOnly: true,
+                        onTap: _selectBillingStartDate,
+                        decoration: _inputDecoration('Ngày bắt đầu tính hóa đơn *').copyWith(
+                          suffixIcon: const Icon(Icons.calendar_today_rounded, color: Color(0xFF1C1917)),
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1C1917)),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng chọn ngày tính tiền' : null,
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
+              
+              const Divider(height: 24, color: Color(0xFFE4E2D7)),
+              
+              ElevatedButton(
+                onPressed: _isSaving ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1C1917),
+                  foregroundColor: const Color(0xFFEAB308),
+                  disabledBackgroundColor: Colors.grey.shade400,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(color: Color(0xFFEAB308), strokeWidth: 3),
+                      )
+                    : const Text('LƯU THÔNG TIN', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
               const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: () => Navigator.pop(context),

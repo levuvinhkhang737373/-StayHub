@@ -634,26 +634,36 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
     }
   }
 
-  InputDecoration _inputDecoration({required String labelText, IconData? prefixIcon}) {
+  InputDecoration _inputDecoration({required String labelText, String? hintText, IconData? prefixIcon}) {
     return InputDecoration(
       labelText: labelText,
+      hintText: hintText,
       prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 18, color: const Color(0xFF1C1917)) : null,
+      labelStyle: const TextStyle(color: Color(0xFF78716C), fontWeight: FontWeight.bold, fontSize: 13),
+      hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
       filled: true,
-      fillColor: const Color(0xFFFDFDFD),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFFE4E2D7), width: 1.5),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFFE4E2D7), width: 1.5),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(color: Color(0xFF1C1917), width: 1.5),
       ),
-      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2.0),
+      ),
     );
   }
 
