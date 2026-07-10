@@ -706,13 +706,46 @@ function PaymentModal({ invoice, isSaving, onClose, onSubmit }: { invoice: Admin
           <p>Tổng: <span className="font-black text-[#24170d]">{formatCurrency(invoice.total_amount)}</span></p>
           <p>Còn lại: <span className="font-black text-rose-600">{formatCurrency(invoice.remaining_amount)}</span></p>
           <p>Có thể thu: <span className="font-black text-emerald-700">{formatCurrency(payableAmount)}</span></p>
-          <p className="mt-1 text-[11px] text-[#8b5e34]">Có thể nhập số tiền thu tiền mặt/chuyển khoản một phần. Hệ thống ưu tiên trừ nợ cũ trước.</p>
+          <p className="mt-1 text-[11px] text-[#8b5e34]">
+            {paymentMethod === PAYMENT_METHOD_BANK_TRANSFER
+              ? 'Số tiền chuyển khoản mặc định là toàn bộ số tiền cần thanh toán.'
+              : 'Có thể nhập số tiền thu tiền mặt một phần. Hệ thống ưu tiên trừ nợ cũ trước.'}
+          </p>
         </div>
-        <input className={inputClass} value={amount} onChange={(event) => setAmount(formatMoneyInput(event.target.value))} placeholder="Số tiền" />
-        <AdminSelect value={paymentMethod} options={[{ value: PAYMENT_METHOD_CASH, label: 'Tiền mặt', tone: 'success' as const }, { value: PAYMENT_METHOD_BANK_TRANSFER, label: 'Chuyển khoản', tone: 'default' as const }]} onChange={(nextValue) => setPaymentMethod(Number(nextValue))} />
+        <input
+          className={`${inputClass} disabled:bg-[#fcf8f2] disabled:text-[#8b5e34]/60 disabled:cursor-not-allowed`}
+          value={amount}
+          onChange={(event) => setAmount(formatMoneyInput(event.target.value))}
+          placeholder="Số tiền"
+          disabled={paymentMethod === PAYMENT_METHOD_BANK_TRANSFER}
+        />
+        <AdminSelect
+          value={paymentMethod}
+          options={[
+            { value: PAYMENT_METHOD_CASH, label: 'Tiền mặt', tone: 'success' as const },
+            { value: PAYMENT_METHOD_BANK_TRANSFER, label: 'Chuyển khoản', tone: 'default' as const }
+          ]}
+          onChange={(nextValue) => {
+            const nextMethod = Number(nextValue)
+            setPaymentMethod(nextMethod)
+            if (nextMethod === PAYMENT_METHOD_BANK_TRANSFER) {
+              setAmount(formatMoneyInput(String(payableAmount || '')))
+            }
+          }}
+        />
         <input className={inputClass} type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
         <input className={inputClass} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Mã tham chiếu giao dịch (nếu có)" />
         <textarea className={textAreaClass} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ghi chú" />
+
+        {paymentMethod === PAYMENT_METHOD_BANK_TRANSFER && invoice.payment_qr_url && (
+          <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white border border-[#3d2a18]/10 space-y-2 mt-2">
+            <p className="text-[11px] text-[#8b5e34] font-black uppercase tracking-wider">Quét mã QR để chuyển khoản</p>
+            <img src={invoice.payment_qr_url} alt="VietQR Payment Code" className="w-48 h-48 rounded-lg shadow-sm" />
+            <p className="text-[11px] text-[#6f6254] font-bold text-center">Nội dung CK: <span className="font-black text-[#24170d]">{invoice.invoice_code}</span></p>
+            <p className="text-[10px] text-stone-500 text-center italic mt-1">Hệ thống sẽ tự động cập nhật trạng thái hóa đơn ngay sau khi khách chuyển khoản thành công qua SePay.</p>
+          </div>
+        )}
+
         <button type="button" disabled={isSaving || !amount} onClick={() => onSubmit({ amount: parseMoneyInput(amount), payment_method: paymentMethod, payment_date: paymentDate, transaction_reference: reference.trim() || null, note: note.trim() || null })} className="h-12 w-full rounded-xl bg-[#24170d] text-sm font-black text-[#fff4df] shadow-md transition hover:bg-[#3d2a18] disabled:opacity-60">
           {isSaving ? 'Đang ghi nhận...' : 'Xác nhận thanh toán'}
         </button>
