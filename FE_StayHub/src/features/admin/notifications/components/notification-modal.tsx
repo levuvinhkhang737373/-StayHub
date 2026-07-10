@@ -42,8 +42,8 @@ const typeOptions = [
 ]
 
 const statusOptions = [
-  { value: 1, label: 'Bản nháp' },
   { value: 2, label: 'Gửi ngay' },
+  { value: 1, label: 'Bản nháp' },
 ]
 
 const inputClass = 'w-full rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] px-4 py-3 text-sm font-bold text-[#3d2a18] outline-none transition placeholder:text-[#8b5e34]/55 focus:border-[#f3c56b] focus:ring-4 focus:ring-[#f3c56b]/20'

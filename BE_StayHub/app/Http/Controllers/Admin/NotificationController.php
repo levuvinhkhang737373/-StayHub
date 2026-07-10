@@ -368,6 +368,7 @@ class NotificationController extends Controller
                                     ->from('buildings')
                                     ->where('manager_admin_id', $admin->id);
                             })
+                            ->orWhere('target_type', Notification::TARGET_TYPE_ALL)
                             ->orWhere('target_admin_id', $admin->id)
                             ->orWhere('created_by', $admin->id);
                         });
