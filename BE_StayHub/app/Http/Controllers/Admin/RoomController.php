@@ -11,6 +11,7 @@ use App\Helpers\DecimalMoney;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Room\RoomRequest;
+use App\Http\Requests\Admin\Room\StatusRequest;
 use App\Http\Requests\Admin\Room\TranferSingleTenantRequest;
 use App\Http\Resources\Admin\RoomTransferResultResource;
 use App\Models\Admin;
@@ -357,20 +358,47 @@ class RoomController extends Controller
         }
     }
 
-    public function updateStatus(Request $request, string $id)
+    public function updateStatus(StatusRequest $request, string $id)
     {
         try {
+            $validated = $request->validated();
             $admin = $request->user();
+            
+            if (!AdminScope::isSuperAdmin($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật trạng thái phòng', 403, null, 403);
+            }
+
             $room = Room::find($id);
             if (!$room) {
                 return ApiResponse::responseJson(false, 'Không thể tìm thấy phòng', 404, null, 404);
             }
+
+            $newStatus = (int) $validated['status'];
+
+            // Nếu muốn đổi sang ngưng hoạt động (STATUS_INACTIVE = 3)
+            if ($newStatus === Room::STATUS_INACTIVE) {
+                // Kiểm tra có người đang ở hay không
+                if ($room->current_occupants > 0) {
+                    return ApiResponse::responseJson(false, 'Không thể ngưng hoạt động phòng khi đang có khách ở.', 400, null, 400);
+                }
+                
+                // Kiểm tra có hợp đồng đang có hiệu lực hay không
+                $hasActiveContract = Contract::where('room_id', $room->id)
+                    ->where('status', Contract::STATUS_ACTIVE)
+                    ->exists();
+                if ($hasActiveContract) {
+                    return ApiResponse::responseJson(false, 'Không thể ngưng hoạt động phòng khi đang có hợp đồng hiệu lực.', 400, null, 400);
+                }
+            }
+
             $oldData = $room->fresh()->toArray();
-            $update_status_for_room = $room->update([
-                'status' => $room->status == 1 ? 3 : 1
+            $room->update([
+                'status' => $newStatus
             ]);
+            
             AdminActivityLogger::write($admin, 'Cập nhật trạng thái phòng', Room::class, $room->id, $oldData, $room->fresh()->toArray(), $request);
-            return ApiResponse::responseJson(true, "Cập nhật trạng thái phòng thành công", 200, null, 200);
+            
+            return ApiResponse::responseJson(true, "Cập nhật trạng thái phòng thành công", 200, $room->fresh(), 200);
         } catch (\Exception $e) {
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
         }
