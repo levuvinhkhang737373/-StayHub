@@ -591,6 +591,8 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
 
     final representativeTenantId = _selectedTenants.first['tenant_id'];
 
+    final isQr = _isDepositPaid && _depositPaymentMethod == 2;
+
     // Build payload
     final payload = {
       if (_codeController.text.isNotEmpty) 'contract_code': _codeController.text.trim(),
@@ -599,8 +601,8 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       'end_date': _endDateController.text,
       'room_price': roomPriceVal,
       'deposit_amount': depositVal,
-      'is_deposit_paid': _isDepositPaid,
-      'deposit_payment_method': _depositPaymentMethod,
+      'is_deposit_paid': isQr ? false : _isDepositPaid,
+      'deposit_payment_method': isQr ? null : _depositPaymentMethod,
       'note': _noteController.text.trim(),
       'representative_tenant_id': representativeTenantId,
       'tenants': _selectedTenants.map((t) => {
@@ -620,7 +622,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       }).toList(),
       'services': _selectedServices.where((s) => (s['is_checked'] == true || _isUtilityService(s)) && !_isUtilityService(s)).map((s) => {
         'service_id': s['service_id'],
-        'price': double.tryParse(s['price'].toString()) ?? 0.0,
+        'price': parseMoney(s['price'].toString()),
       }).toList(),
     };
 
@@ -871,7 +873,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                           for (var rs in rServices) {
                                             final idx = _selectedServices.indexWhere((s) => s['service_id'] == rs['id']);
                                             if (idx != -1) {
-                                              _selectedServices[idx]['price'] = double.parse((rs['pivot']?['price'] ?? 0).toString()).round().toString();
+                                              _selectedServices[idx]['price'] = double.parse((rs['price'] ?? 0).toString()).round().toString();
                                               _selectedServices[idx]['is_checked'] = true;
                                             }
                                           }
@@ -1359,7 +1361,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                           SizedBox(
                                             width: 110,
                                             child: TextFormField(
-                                              initialValue: s['price'].toString(),
+                                              initialValue: formatMoneyInput(s['price'].toString()),
                                               keyboardType: TextInputType.number,
                                               inputFormatters: [CurrencyInputFormatter()],
                                               enabled: isChecked && !isUtility,

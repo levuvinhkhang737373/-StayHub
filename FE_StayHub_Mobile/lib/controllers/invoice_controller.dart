@@ -253,7 +253,7 @@ class InvoiceController extends ChangeNotifier {
         data: {
           'title': 'Nhắc nhở thanh toán hóa đơn',
           'content': 'StayHub nhắc nhở thanh toán hóa đơn ${invoice.invoiceCode}. Số tiền cần đóng: ${invoice.remainingAmount.toStringAsFixed(0)} VNĐ. Hạn chót: ${invoice.dueDate}.',
-          'notification_type': 1, // 1: Invoice Notification
+          'notification_type': 2, // 2: Invoice Notification
           'target_type': 3, // 3: Single Tenant
           'room_id': invoice.roomId,
           'status': 2, // SENT

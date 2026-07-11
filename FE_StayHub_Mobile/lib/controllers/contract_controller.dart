@@ -370,7 +370,7 @@ class ContractController extends ChangeNotifier {
   }
 
   /// Fetch available rooms for a building (rooms with STATUS_ACTIVE and no active contracts)
-  Future<List<dynamic>> fetchAvailableRooms(int buildingId, {int? ignoreContractId}) async {
+  Future<List<dynamic>> fetchAvailableRooms(int buildingId, {int? ignoreContractId, bool forTransfer = false}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -378,10 +378,11 @@ class ContractController extends ChangeNotifier {
     try {
       await _apiService.init();
       final response = await _apiService.get<List<dynamic>>(
-        '/admin/contracts/available-rooms',
+        forTransfer ? '/admin/rooms' : '/admin/contracts/available-rooms',
         queryParameters: {
           'building_id': buildingId,
-          if (ignoreContractId != null) 'ignore_contract_id': ignoreContractId,
+          if (forTransfer) 'status': 1,
+          if (!forTransfer && ignoreContractId != null) 'ignore_contract_id': ignoreContractId,
         },
         fromJsonT: (json) => json as List<dynamic>,
       );
