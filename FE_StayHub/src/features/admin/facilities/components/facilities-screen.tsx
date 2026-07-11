@@ -614,7 +614,7 @@ export function FacilitiesScreen() {
                         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/88 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
                             <div className="border-b border-[#3d2a18]/10 bg-[#fff7e8]/72 p-4 sm:p-5">
                                 <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                                    <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-2xl bg-[#efe2cf]/55 p-1.5">
+                                    <div className="flex min-w-0 flex-nowrap items-center gap-2 rounded-2xl bg-[#efe2cf]/55 p-1.5 overflow-x-auto scrollbar-none">
                                         {([
                                             ["all", "Tất cả"],
                                             ["active", "Hoạt động"],
@@ -625,7 +625,7 @@ export function FacilitiesScreen() {
                                                 type="button"
                                                 onClick={() => setSelectedStatus(value)}
                                                 className={cn(
-                                                    "rounded-xl px-3.5 py-2 text-sm font-black transition-all",
+                                                    "rounded-xl px-3.5 py-2 text-sm font-black transition-all shrink-0 whitespace-nowrap",
                                                     selectedStatus === value ? "bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" : "text-[#6f6254] hover:bg-[#fffaf1] hover:text-[#24170d]",
                                                 )}
                                             >
