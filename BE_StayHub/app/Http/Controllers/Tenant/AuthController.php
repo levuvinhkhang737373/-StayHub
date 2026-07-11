@@ -66,6 +66,7 @@ class AuthController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -88,6 +89,7 @@ class AuthController extends Controller
             return ApiResponse::responseJson(true, 'Lấy thông tin khách thuê thành công', 200, new TenantAuthResource($tenant), 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -138,6 +140,7 @@ class AuthController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::responseJson(false, $e->validator->errors()->first(), 422, $e->validator->errors(), 422);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -155,6 +158,7 @@ class AuthController extends Controller
             return ApiResponse::responseJson(true, 'Đăng xuất thành công', 200, null, 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -207,6 +211,7 @@ class AuthController extends Controller
 
             return ApiResponse::responseJson(true, 'Lịch sử thay đổi đơn giá điện nước', 200, $data, 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -257,6 +262,7 @@ class AuthController extends Controller
 
             return ApiResponse::responseJson(true, 'Lịch sử chỉ số điện nước của phòng', 200, $data, 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -300,6 +306,7 @@ class AuthController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách cài đặt tòa nhà', 200, $data, 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -345,6 +352,7 @@ class AuthController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::responseJson(false, $e->validator->errors()->first(), 422, $e->validator->errors(), 422);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }

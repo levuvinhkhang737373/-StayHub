@@ -25,6 +25,7 @@ class AdminLogController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách nhật ký thao tác admin', 200, $this->paginatedResource($logs), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -37,6 +38,7 @@ class AdminLogController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết nhật ký thao tác admin', 200, new AdminLogResource($adminLog), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

@@ -73,6 +73,7 @@ class SettingController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -98,6 +99,7 @@ class SettingController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết cài đặt', 200, new SettingDetailResource($settingModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -141,6 +143,7 @@ class SettingController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -215,6 +218,7 @@ class SettingController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

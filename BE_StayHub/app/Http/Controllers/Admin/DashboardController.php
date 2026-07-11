@@ -140,6 +140,7 @@ class DashboardController extends Controller
 
             return ApiResponse::responseJson(true, 'Tổng quan dashboard admin', 200, new DashboardOverviewResource($data), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -186,6 +187,7 @@ class DashboardController extends Controller
                 200
             );
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

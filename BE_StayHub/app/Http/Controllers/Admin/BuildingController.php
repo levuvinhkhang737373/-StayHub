@@ -55,6 +55,7 @@ class BuildingController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách tòa nhà', 200, BuildingResource::collection($buildings), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -92,6 +93,7 @@ class BuildingController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -118,6 +120,7 @@ class BuildingController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết tòa nhà', 200, new BuildingDetailResource($buildingModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -168,6 +171,7 @@ class BuildingController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -201,6 +205,7 @@ class BuildingController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -240,6 +245,7 @@ class BuildingController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -367,6 +373,7 @@ class BuildingController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::responseJson(false, $e->validator->errors()->first(), 422, $e->validator->errors(), 422);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -421,6 +428,7 @@ class BuildingController extends Controller
 
             return ApiResponse::responseJson(true, 'Lịch sử thay đổi đơn giá điện nước', 200, $data, 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

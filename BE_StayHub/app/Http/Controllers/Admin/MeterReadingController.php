@@ -95,6 +95,7 @@ class MeterReadingController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -352,6 +353,7 @@ class MeterReadingController extends Controller
             );
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -483,6 +485,7 @@ class MeterReadingController extends Controller
             return ApiResponse::responseJson(true, 'Chốt số đồng hồ thành công', 200, $reading, 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }

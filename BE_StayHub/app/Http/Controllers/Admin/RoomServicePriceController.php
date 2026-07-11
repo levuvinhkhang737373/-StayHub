@@ -55,6 +55,7 @@ class RoomServicePriceController extends Controller
                 'total' => $rooms->total(),
             ], 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -79,6 +80,7 @@ class RoomServicePriceController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết giá dịch vụ phòng', 200, new RoomServicePriceRoomResource($roomModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -167,6 +169,7 @@ class RoomServicePriceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

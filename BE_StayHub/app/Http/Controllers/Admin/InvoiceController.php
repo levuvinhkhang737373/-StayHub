@@ -92,6 +92,7 @@ class InvoiceController extends Controller
                 'stats' => $stats,
             ], 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -158,6 +159,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết hóa đơn', 200, new InvoiceDetailResource($invoiceModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -177,6 +179,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(true, 'Xem trước hóa đơn thành công', 200, new InvoicePreviewResource($draft), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -240,6 +243,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -464,6 +468,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(false, $e->getMessage(), $status, null, $status);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -549,6 +554,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -618,6 +624,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -690,6 +697,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(false, $e->getMessage(), $status, null, $status);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

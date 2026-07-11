@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
@@ -77,20 +78,21 @@ class AuthController extends Controller
             $match     = $this->searchFaceEmbedding($embedding);
 
             if (! $match || ! isset($match['payload']['admin_id'])) {
-                return ApiResponse::responseJson(false, 'Không nhận diện được khuôn mặt', 401, null, 401);
+                return ApiResponse::responseJson(false, 'Không nhận diện được khuôn mặt. Vui lòng thử lại hoặc đăng nhập bằng mật khẩu.', 401, null, 401);
             }
 
+            $loginFaceMessage = 'Không nhận diện được khuôn mặt. Vui lòng thử lại hoặc đăng nhập bằng mật khẩu.';
             $admin = Admin::query()->find($match['payload']['admin_id']);
 
             if (! $admin) {
-                return ApiResponse::responseJson(false, 'Không tìm thấy tài khoản admin tương ứng', 404, null, 404);
+                return ApiResponse::responseJson(false, $loginFaceMessage, 401, null, 401);
             }
 
             if (! filled($admin->image_path_faceid)) {
                 $this->deleteFaceEmbedding($admin);
                 Storage::disk('s3')->delete("face-credentials/admin/admin-{$admin->id}.jpg");
 
-                return ApiResponse::responseJson(false, 'FaceID chưa được đăng ký hoặc đã bị xóa', 401, null, 401);
+                return ApiResponse::responseJson(false, $loginFaceMessage, 401, null, 401);
             }
 
             if ($admin->status !== Admin::STATUS_ACTIVE) {
@@ -119,7 +121,7 @@ class AuthController extends Controller
                 'admin' => new AdminAuthResource($this->authProfile($admin->refresh())),
             ], 200);
         } catch (\Exception $e) {
-            return $this->faceExceptionResponse($e, 'Không thể xử lý FaceID');
+            return $this->faceExceptionResponse($e, 'Không nhận diện được khuôn mặt. Vui lòng thử lại hoặc đăng nhập bằng mật khẩu.');
         }
     }
 
@@ -195,11 +197,11 @@ class AuthController extends Controller
                 $request
             );
 
-            return ApiResponse::responseJson(true, 'Đăng ký nhận diện khuôn mặt thành công', 200, [
+            return ApiResponse::responseJson(true, 'Đăng ký FaceID thành công.', 200, [
                 'admin' => new AdminAuthResource($this->authProfile($admin->fresh())),
             ], 200);
         } catch (\Exception $e) {
-            return $this->faceExceptionResponse($e, 'Không thể đăng ký FaceID');
+            return $this->faceExceptionResponse($e, 'Chưa thể đăng ký FaceID. Vui lòng thử lại.');
         }
     }
 
@@ -388,6 +390,7 @@ class AuthController extends Controller
 
             return ApiResponse::responseJson(true, 'Đăng xuất admin thành công', 200, null, 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -433,8 +436,38 @@ class AuthController extends Controller
     private function faceExceptionResponse(\Exception $e, string $message): JsonResponse
     {
         $errorCode = (int) ($e->getCode() ?: 500);
+        $safeMessage = $this->safeFaceMessage($e, $message, $errorCode);
 
-        return ApiResponse::responseJson(false, $e->getMessage() ?: $message, $errorCode, null, $errorCode);
+        return ApiResponse::responseJson(false, $safeMessage, $errorCode, null, $errorCode);
+    }
+
+    // Chuẩn hóa lỗi FaceID để không lộ thông tin kỹ thuật ra giao diện.
+    private function safeFaceMessage(\Exception $e, string $fallbackMessage, int $errorCode): string
+    {
+        $message = trim($e->getMessage());
+
+        if ($errorCode >= 500) {
+            Log::warning('FaceID technical error', [
+                'message' => $message,
+                'code' => $errorCode,
+            ]);
+
+            return $fallbackMessage;
+        }
+
+        if ($message === '') {
+            return $fallbackMessage;
+        }
+
+        $technicalKeywords = ['AI service', 'Qdrant', 'MinIO', 'Server Error', 'vector', 'embedding'];
+
+        foreach ($technicalKeywords as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return $fallbackMessage;
+            }
+        }
+
+        return $message;
     }
 
     // Trích xuất vector đặc trưng khuôn mặt từ ảnh FaceID
@@ -468,14 +501,14 @@ class AuthController extends Controller
         }
 
         if (! $response->successful()) {
-            $message = $response->json('detail') ?? 'AI service không thể trích xuất khuôn mặt';
-            throw new \RuntimeException(is_string($message) ? $message : 'AI service không thể trích xuất khuôn mặt', 422);
+            $message = $response->json('detail') ?? 'Chưa thể xử lý khuôn mặt. Vui lòng thử lại.';
+            throw new \RuntimeException(is_string($message) ? $message : 'Chưa thể xử lý khuôn mặt. Vui lòng thử lại.', 422);
         }
 
         $embedding = $response->json('embedding');
 
         if (! is_array($embedding) || $embedding === []) {
-            throw new \RuntimeException('AI service không trả về embedding hợp lệ', 422);
+            throw new \RuntimeException('Chưa thể xử lý khuôn mặt. Vui lòng thử lại.', 422);
         }
 
         return array_map('floatval', $embedding);

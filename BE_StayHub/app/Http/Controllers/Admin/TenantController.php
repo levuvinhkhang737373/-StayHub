@@ -51,6 +51,7 @@ class TenantController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách khách thuê', 200, $this->paginatedResource($tenants), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -142,6 +143,7 @@ class TenantController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết khách thuê', 200, new TenantDetailResource($tenantModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -239,6 +241,7 @@ class TenantController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -286,6 +289,7 @@ class TenantController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

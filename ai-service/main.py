@@ -28,6 +28,27 @@ MIN_ANTISPOOF_SCORE = 0.55
 MAX_EMBEDDING_DISTANCE = 0.5
 MIN_LIVENESS_MOVEMENT = 0.006
 MIN_LIVENESS_SCALE_CHANGE = 0.015
+
+
+FACE_ERROR_MESSAGES = {
+    "invalid_image": "Ảnh không hợp lệ. Vui lòng thử lại.",
+    "face_not_found": "Không tìm thấy khuôn mặt rõ ràng. Vui lòng đưa mặt vào giữa khung hình.",
+    "face_not_clear": "Khuôn mặt chưa đủ rõ. Vui lòng tăng ánh sáng, lau camera và đưa mặt lại gần hơn.",
+    "multiple_faces": "Phát hiện nhiều khuôn mặt. Vui lòng chỉ để một người trong khung hình.",
+    "not_real_face": "Không vượt qua kiểm tra khuôn mặt thật. Vui lòng dùng khuôn mặt trực tiếp trước camera.",
+    "need_motion": "Chưa nhận đủ chuyển động. Vui lòng xoay nhẹ mặt hoặc đưa mặt gần/xa camera một chút rồi quét lại.",
+    "different_faces": "Các khung hình không cùng một khuôn mặt. Vui lòng chỉ để một người đăng ký FaceID.",
+    "need_two_frames": "Cần ít nhất 2 khung hình để kiểm tra khuôn mặt thật.",
+    "camera_required": "Bật camera để nhận diện khuôn mặt.",
+}
+
+
+class FaceValidationError(ValueError):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(FACE_ERROR_MESSAGES[code])
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
@@ -41,7 +62,7 @@ def load_image_from_upload(upload_file: UploadFile):
     nparr = np.frombuffer(contents, np.uint8)
     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if image is None:
-        raise ValueError("Ảnh không hợp lệ.")
+        raise FaceValidationError("invalid_image")
 
     return image
 
@@ -52,11 +73,11 @@ def validate_image_quality(image):
     blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
     if brightness < MIN_BRIGHTNESS:
-        raise ValueError("Ảnh quá tối, vui lòng tăng ánh sáng trước mặt.")
+        raise FaceValidationError("face_not_clear")
     if brightness > MAX_BRIGHTNESS:
-        raise ValueError("Ảnh quá sáng hoặc bị ngược sáng, vui lòng đổi góc camera.")
+        raise FaceValidationError("face_not_clear")
     if blur_score < MIN_BLUR_SCORE:
-        raise ValueError("Ảnh bị mờ, vui lòng lau camera và giữ mặt ổn định.")
+        raise FaceValidationError("face_not_clear")
 
     return round(brightness, 2), round(blur_score, 2)
 
@@ -79,7 +100,7 @@ def extract_real_face(image):
 
     detections = [detection for detection in detections if detection_area(detection) > 0]
     if len(detections) == 0:
-        raise ValueError("Không tìm thấy khuôn mặt trong ảnh.")
+        raise FaceValidationError("face_not_found")
 
     detections = sorted(detections, key=detection_area, reverse=True)
     detection = detections[0]
@@ -88,7 +109,7 @@ def extract_real_face(image):
     height = int(facial_area.get("h") or 0)
 
     if width < MIN_FACE_SIZE or height < MIN_FACE_SIZE:
-        raise ValueError("Khuôn mặt quá nhỏ, vui lòng đưa camera lại gần hơn.")
+        raise FaceValidationError("face_not_clear")
 
     main_area = width * height
     secondary_faces = [
@@ -100,14 +121,14 @@ def extract_real_face(image):
     ]
 
     if len(secondary_faces) > 0:
-        raise ValueError("Phát hiện nhiều hơn một khuôn mặt rõ trong khung hình, vui lòng chỉ để một người trước camera.")
+        raise FaceValidationError("multiple_faces")
 
     if detection.get("is_real") is False:
-        raise ValueError("Phát hiện ảnh tĩnh, màn hình hoặc khuôn mặt giả mạo.")
+        raise FaceValidationError("not_real_face")
 
     antispoof_score = detection.get("antispoof_score")
     if antispoof_score is not None and float(antispoof_score) < MIN_ANTISPOOF_SCORE:
-        raise ValueError("Điểm chống giả mạo không đạt, vui lòng dùng khuôn mặt thật trong môi trường đủ sáng.")
+        raise FaceValidationError("not_real_face")
 
     return facial_area, round(float(antispoof_score or 1), 4)
 
@@ -121,7 +142,7 @@ def extract_embedding(image):
     )
 
     if not result or not isinstance(result, list) or not result[0].get("embedding"):
-        raise ValueError("Không thể trích xuất khuôn mặt.")
+        raise FaceValidationError("face_not_found")
 
     return np.array(result[0]["embedding"], dtype=np.float32)
 
@@ -160,7 +181,7 @@ def validate_liveness(motions):
     movement = max(movements)
 
     if movement < MIN_LIVENESS_MOVEMENT:
-        raise ValueError("Chưa nhận đủ chuyển động, vui lòng xoay nhẹ mặt hoặc đưa mặt gần/xa camera một chút rồi quét lại.")
+        raise FaceValidationError("need_motion")
 
     return round(float(movement), 4)
 
@@ -169,22 +190,22 @@ def translate_face_error(message):
     lower_message = message.lower()
 
     if "face could not be detected" in lower_message or "face could not" in lower_message:
-        return "Không tìm thấy khuôn mặt rõ ràng, vui lòng đưa mặt vào giữa khung và thử lại."
+        return FACE_ERROR_MESSAGES["face_not_found"]
     if "numpy array" in lower_message:
-        return "Không thể xử lý ảnh từ camera, vui lòng thử lại với ánh sáng rõ hơn."
+        return FACE_ERROR_MESSAGES["face_not_clear"]
     if "anti spoof" in lower_message or "spoof" in lower_message:
-        return "Không vượt qua kiểm tra chống giả mạo, vui lòng dùng khuôn mặt thật trong môi trường đủ sáng."
+        return FACE_ERROR_MESSAGES["not_real_face"]
     if "please confirm" in lower_message or "enforce_detection" in lower_message:
-        return "Không tìm thấy khuôn mặt rõ ràng, vui lòng đưa mặt vào giữa khung và thử lại."
+        return FACE_ERROR_MESSAGES["face_not_found"]
 
     return message
 
 
 def process_images(images, require_liveness=False):
     if len(images) < 1:
-        raise ValueError("Bật camera để nhận diện khuôn mặt.")
+        raise FaceValidationError("camera_required")
     if require_liveness and len(images) < 2:
-        raise ValueError("Bật camera để kiểm tra chống fake.")
+        raise FaceValidationError("need_two_frames")
 
     embeddings = []
     motions = []
@@ -206,7 +227,7 @@ def process_images(images, require_liveness=False):
     distances = [cosine_distance(embeddings[0], embedding) for embedding in embeddings[1:]]
     max_distance = max(distances) if distances else 0
     if max_distance > MAX_EMBEDDING_DISTANCE:
-        raise ValueError("Các khung hình không cùng một khuôn mặt, vui lòng thử lại.")
+        raise FaceValidationError("different_faces")
 
     movement = validate_liveness(motions) if require_liveness else 0
     average_embedding = np.mean(np.stack(embeddings), axis=0)

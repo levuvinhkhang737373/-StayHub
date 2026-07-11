@@ -53,6 +53,7 @@ class ContractController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách hợp đồng', 200, ContractResource::collection($contracts), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -95,6 +96,7 @@ class ContractController extends Controller
 
             return ApiResponse::responseJson(true, 'Thông tin hợp đồng', 200, new ContractResource($contract), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -213,6 +215,7 @@ class ContractController extends Controller
             $firstError = collect($e->errors())->flatten()->first() ?? $e->getMessage();
             return ApiResponse::responseJson(false, $firstError, 422, $e->errors(), 422);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
