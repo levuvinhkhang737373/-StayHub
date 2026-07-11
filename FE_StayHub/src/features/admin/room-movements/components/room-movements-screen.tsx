@@ -400,7 +400,7 @@ export function RoomMovementsScreen() {
                 </h1>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4">
                 <MetricCard label="Tổng ghi nhận" value={totalMovements} icon={<ReceiptText className="h-4 w-4" />} />
                 <MetricCard label="Chuyển phòng" value={transferCount} icon={<ArrowRightLeft className="h-4 w-4" />} />
                 <MetricCard label="Chờ xử lý" value={pendingCount} icon={<Clock3 className="h-4 w-4" />} />
@@ -411,7 +411,7 @@ export function RoomMovementsScreen() {
         </section>
 
         <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 p-4 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur lg:p-5">
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:grid-cols-[1.25fr_0.82fr_0.82fr_0.9fr_0.9fr_0.8fr_0.8fr_auto]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[1.25fr_0.82fr_0.82fr_0.9fr_0.9fr_0.8fr_0.8fr_auto]">
             <label className="relative block">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b5e34]/60" />
               <input value={keyword} onChange={(event) => updateFilter(setKeyword, event.target.value)} placeholder="Tìm khách, phòng, hợp đồng, transfer code..." className={cn(inputClass, 'pl-11')} />
@@ -440,8 +440,8 @@ export function RoomMovementsScreen() {
           {errorMessage && <div className="m-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left">
-              <thead className="bg-[#24170d] text-[9.5px] font-black uppercase tracking-[0.12em] text-[#f8e8c8]">
+            <table className="w-full min-w-[1080px] text-left">
+              <thead className="bg-[#24170d] text-[9.5px] font-black uppercase tracking-[0.12em] text-[#f8e8c8] whitespace-nowrap">
                 <tr>
                   <th scope="col" className={cn(tableHeadCellClass, 'pl-4')}>Thời điểm</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Mã lịch</th>
@@ -607,7 +607,10 @@ export function RoomMovementsScreen() {
 function MetricCard({ label, value, icon }: { label: string; value: number; icon: ReactNode }) {
   return (
     <div className="rounded-3xl border border-[#f8e8c8]/12 bg-[#f8e8c8]/10 px-4 py-3 text-[#fff4df] backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10">
-      <div className="flex items-center justify-between gap-3 text-[#f3c56b]">{icon}<span className="text-[10px] font-black uppercase tracking-[0.18em] opacity-75">{label}</span></div>
+      <div className="flex items-center gap-2 text-[#f3c56b]">
+        <div className="shrink-0">{icon}</div>
+        <span className="text-[10px] font-black uppercase tracking-[0.12em] opacity-75 whitespace-nowrap">{label}</span>
+      </div>
       <p className="mt-2 text-3xl font-black tracking-tight tabular-nums">{value}</p>
     </div>
   )
