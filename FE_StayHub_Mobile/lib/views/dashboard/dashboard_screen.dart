@@ -594,20 +594,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ? null
           : AppBar(
               actions: [
-                notificationCount > 0
-                    ? Badge(
-                        label: Text('$notificationCount'),
-                        backgroundColor: Colors.redAccent,
-                        textColor: Colors.white,
-                        child: IconButton(
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: notificationCount > 0
+                      ? Badge(
+                          label: Text('$notificationCount'),
+                          backgroundColor: Colors.redAccent,
+                          textColor: Colors.white,
+                          child: IconButton(
+                            icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
+                            onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
+                          ),
+                        )
+                      : IconButton(
                           icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
                           onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
                         ),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
-                        onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
-                      ),
+                ),
               ],
               title: Row(
                 children: [
