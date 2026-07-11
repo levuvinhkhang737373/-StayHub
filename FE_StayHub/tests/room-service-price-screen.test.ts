@@ -35,3 +35,13 @@ test('room service price modal keeps new price inputs empty for manual entry', (
   assert.doesNotMatch(source, /setPriceInputs\(Object\.fromEntries\(room\.services\.map\(\(service\) => \[service\.id, formatMoneyInput/)
   assert.match(source, /\.filter\(\(service\) => \(priceInputs\[service\.id\] \?\? ''\)\.trim\(\) !== ''\)/)
 })
+
+test('room service price screen blocks scheduling inactive room services in UI', () => {
+  const source = readFileSync(screenUrl, 'utf8')
+
+  assert.match(source, /can_schedule_price/)
+  assert.match(source, /schedule_block_reason/)
+  assert.match(source, /function isServiceSchedulable/)
+  assert.match(source, /disabled=\{!canEdit\}/)
+  assert.match(source, /Ngừng hoạt động/)
+})

@@ -626,6 +626,76 @@ class InvoiceControllerTest extends TestCase
         ]);
     }
 
+    public function test_invoice_does_not_charge_inactive_room_service_after_contract_room_service_window_ends(): void
+    {
+        $this->electricityService->update(['is_active' => false]);
+        $this->waterService->update(['is_active' => false]);
+
+        $internetService = Service::create([
+            'name' => 'Internet đã ngừng',
+            'slug' => 'internet-da-ngung',
+            'charge_method' => Service::CHARGE_METHOD_FIXED,
+            'unit_name' => 'Phòng',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $internetService->id,
+            'building_id' => $this->building->id,
+            'price' => '100000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-INACTIVE-SERVICE-INVOICE',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $roomService = RoomService::query()->create([
+            'room_id' => $this->room->id,
+            'service_id' => $internetService->id,
+            'is_active' => false,
+            'ended_at' => '2026-07-14',
+        ]);
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $roomService->id,
+            'contract_id' => $contract->id,
+            'price' => '150000.00',
+            'effective_from' => '2026-01-01',
+            'effective_to' => '2026-07-14',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/preview', [
+            'contract_id' => $contract->id,
+            'billing_month' => 8,
+            'billing_year' => 2026,
+        ]);
+
+        $response->assertStatus(200);
+
+        $items = collect($response->json('result.items'));
+        $this->assertNull($items->firstWhere('service_id', $internetService->id));
+        $this->assertSame('3000000.00', $items->firstWhere('item_type', InvoiceItem::ITEM_TYPE_ROOM)['amount']);
+    }
+
     public function test_invoice_preview_uses_pending_transfer_cutoff_for_source_contract_before_execution(): void
     {
         Carbon::setTestNow('2026-07-28 09:00:00');

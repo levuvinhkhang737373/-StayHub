@@ -2,6 +2,10 @@ export interface RoomServicePriceServiceResource {
   id: number
   room_id: number
   service_id: number
+  is_active: boolean
+  ended_at: string | null
+  can_schedule_price: boolean
+  schedule_block_reason: string | null
   service_name: string | null
   service_slug: string | null
   charge_method: number | null

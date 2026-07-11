@@ -24,7 +24,7 @@ MIN_SECONDARY_FACE_SIZE = 120
 MIN_BRIGHTNESS = 38
 MAX_BRIGHTNESS = 220
 MIN_BLUR_SCORE = 28
-MIN_ANTISPOOF_SCORE = 0.55
+MIN_ANTISPOOF_SCORE = 0.40
 MAX_EMBEDDING_DISTANCE = 0.5
 MIN_LIVENESS_MOVEMENT = 0.006
 MIN_LIVENESS_SCALE_CHANGE = 0.015
@@ -90,12 +90,11 @@ def detection_area(detection):
     return width * height
 
 
-def extract_real_face(image):
+def extract_real_face(image, anti_spoofing=True):
     detections = DeepFace.extract_faces(
         img_path=image,
         detector_backend=DETECTOR_BACKEND,
         enforce_detection=True,
-        anti_spoofing=True,
     )
 
     detections = [detection for detection in detections if detection_area(detection) > 0]
@@ -123,13 +122,17 @@ def extract_real_face(image):
     if len(secondary_faces) > 0:
         raise FaceValidationError("multiple_faces")
 
-    if detection.get("is_real") is False:
-        raise FaceValidationError("not_real_face")
+    if anti_spoofing:
+        is_real = detection.get("is_real")
+        antispoof_score = detection.get("antispoof_score")
+        print(f"DEBUG: is_real={is_real}, antispoof_score={antispoof_score}, MIN_ANTISPOOF_SCORE={MIN_ANTISPOOF_SCORE}", flush=True)
+        if is_real is False:
+            raise FaceValidationError("not_real_face")
+
+        if antispoof_score is not None and float(antispoof_score) < MIN_ANTISPOOF_SCORE:
+            raise FaceValidationError("not_real_face")
 
     antispoof_score = detection.get("antispoof_score")
-    if antispoof_score is not None and float(antispoof_score) < MIN_ANTISPOOF_SCORE:
-        raise FaceValidationError("not_real_face")
-
     return facial_area, round(float(antispoof_score or 1), 4)
 
 
@@ -211,9 +214,11 @@ def process_images(images, require_liveness=False):
     motions = []
     frames = []
 
-    for image in images:
+    for index, image in enumerate(images):
         brightness, blur_score = validate_image_quality(image)
-        facial_area, antispoof_score = extract_real_face(image)
+        # Run anti-spoofing on the first frame only during liveness registration checks.
+        anti_spoofing = True if not require_liveness else (index == 0)
+        facial_area, antispoof_score = extract_real_face(image, anti_spoofing=anti_spoofing)
         embedding = extract_embedding(image)
         embeddings.append(embedding)
         motions.append(face_motion(facial_area, image))
@@ -265,8 +270,12 @@ def extract_face(
             "model": FACE_MODEL,
         }
     except ValueError as error:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=422, detail=translate_face_error(str(error)))
     except Exception as error:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=422, detail=translate_face_error(str(error)))
 
 

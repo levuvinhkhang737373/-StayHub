@@ -20,6 +20,7 @@ use App\Models\Room;
 use App\Models\RoomService;
 use App\Models\RoomServicePrice;
 use App\Models\Service;
+use App\Services\RoomServiceLifecycleService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -141,8 +142,9 @@ class RoomServicePriceController extends Controller
                         return ApiResponse::responseJson(false, 'Hợp đồng áp dụng giá không thuộc phòng đang chọn.', 422, null, 422);
                     }
 
-                    if ($contract && $this->contractEndsBeforePeriod($contract, $targetDate)) {
-                        return ApiResponse::responseJson(false, 'Kỳ áp dụng giá vượt quá ngày kết thúc hợp đồng đang chọn.', 422, null, 422);
+                    $scheduleError = app(RoomServiceLifecycleService::class)->assertSchedulable($roomService, $contract, $targetDate);
+                    if ($scheduleError !== null) {
+                        return ApiResponse::responseJson(false, $scheduleError, 422, null, 422);
                     }
 
                     $price = DecimalMoney::normalize($item['price']);
@@ -200,7 +202,7 @@ class RoomServicePriceController extends Controller
             'building:id,name',
             'contracts:id,contract_code,room_id,status,start_date,end_date,actual_end_date',
             'roomServices' => fn ($query) => $this->nonUtilityServiceScope($query)
-                ->select(['id', 'room_id', 'service_id'])
+                ->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])
                 ->with([
                     'service:id,name,slug,charge_method,unit_name,is_active',
                     'prices' => fn ($priceQuery) => $priceQuery

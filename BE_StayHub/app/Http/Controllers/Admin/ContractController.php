@@ -78,7 +78,8 @@ class ContractController extends Controller
             $rooms = Room::query()
                 ->with([
                     'roomServices' => function ($query) use ($targetDate): void {
-                        $query->select(['id', 'room_id', 'service_id'])
+                        $query->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])
+                            ->active()
                             ->with([
                                 'service:id,name,slug,charge_method,unit_name,is_required,is_active',
                                 'prices' => fn ($priceQuery) => $priceQuery
@@ -126,7 +127,7 @@ class ContractController extends Controller
                     'max_occupants' => $room->max_occupants,
                     'current_occupants' => $room->current_occupants,
                     'services' => $room->roomServices
-                        ->filter(fn (RoomService $roomService): bool => (bool) $roomService->service?->is_active)
+                        ->filter(fn (RoomService $roomService): bool => (bool) $roomService->is_active && (bool) $roomService->service?->is_active)
                         ->map(function (RoomService $roomService) use ($buildingServicePrices): array {
                             $roomPrice = $roomService->prices->first()?->price;
                             // Fallback to building-level service_prices for meter-based services
@@ -1768,10 +1769,16 @@ class ContractController extends Controller
                 continue;
             }
 
-            $roomService = RoomService::query()->firstOrCreate([
-                'room_id' => $room->id,
-                'service_id' => (int) $item['service_id'],
-            ]);
+            $roomService = RoomService::query()->updateOrCreate(
+                [
+                    'room_id' => $room->id,
+                    'service_id' => (int) $item['service_id'],
+                ],
+                [
+                    'is_active' => true,
+                    'ended_at' => null,
+                ]
+            );
 
             $this->upsertContractRoomServicePrice($roomService, $contract, $contractStart, $contractEnd, (string) $item['price'], $admin);
         }
@@ -2279,12 +2286,12 @@ class ContractController extends Controller
     {
         return [
             'room:id,building_id,room_type_id,room_number,slug,floor,area_m2,base_price,max_occupants,current_occupants,status,description,created_by,created_at,updated_at',
-            'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+            'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])->active()->orderBy('id'),
             'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
             'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->whereNull('contract_id')->orderByDesc('effective_from')->orderByDesc('id'),
             'room.building:id,name,slug,manager_admin_id,status,address,gender_policy',
             'room.roomType:id,name,slug,status',
-            'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
+            'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id,is_active,ended_at'),
             'creator:id,username,full_name,email,phone,role,status',
             'representativeTenant:id,full_name,phone,email',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying', 'created_by', 'created_at', 'updated_at'])->orderBy('join_date')->orderBy('id'),

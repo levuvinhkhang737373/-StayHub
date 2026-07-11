@@ -250,6 +250,12 @@ class RoomServicePriceTest extends TestCase
         $this->assertFalse(Schema::hasColumn('room_services', 'price'));
     }
 
+    public function test_room_services_table_tracks_lifecycle_state(): void
+    {
+        $this->assertTrue(Schema::hasColumn('room_services', 'is_active'));
+        $this->assertTrue(Schema::hasColumn('room_services', 'ended_at'));
+    }
+
     public function test_index_uses_room_service_prices_as_default_price_source(): void
     {
         RoomServicePrice::query()->create([
@@ -531,6 +537,57 @@ class RoomServicePriceTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonPath('status', false)
             ->assertJsonPath('message', 'Không thể lên lịch giá điện/nước theo từng phòng.');
+    }
+
+    public function test_cannot_schedule_inactive_room_service_price(): void
+    {
+        $this->internetRoomService->forceFill([
+            'is_active' => false,
+            'ended_at' => '2026-07-10',
+        ])->save();
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", [
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'prices' => [
+                    ['room_service_id' => $this->internetRoomService->id, 'price' => 150000],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('status', false)
+            ->assertJsonPath('message', 'Dịch vụ phòng đã ngừng hoạt động, không thể lên lịch thay đổi giá.');
+    }
+
+    public function test_index_marks_inactive_room_services_and_hides_future_schedules(): void
+    {
+        $this->internetRoomService->forceFill([
+            'is_active' => false,
+            'ended_at' => '2026-07-10',
+        ])->save();
+
+        RoomServicePrice::query()->create([
+            'room_service_id' => $this->internetRoomService->id,
+            'contract_id' => null,
+            'price' => '150000.00',
+            'effective_from' => '2026-08-01',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/room-service-prices?billing_month=8&billing_year=2026');
+
+        $response->assertStatus(200);
+        $room = collect($response->json('result.data'))->firstWhere('id', $this->room->id);
+        $internet = collect($room['services'])->firstWhere('service_id', $this->internetService->id);
+
+        $this->assertFalse($internet['is_active']);
+        $this->assertFalse($internet['can_schedule_price']);
+        $this->assertSame('Ngừng hoạt động', $internet['status_label']);
+        $this->assertNull($internet['scheduled_price']);
+        $this->assertNull($internet['new_price']);
+        $this->assertSame('Dịch vụ phòng đã ngừng hoạt động.', $internet['schedule_block_reason']);
     }
 
     public function test_can_schedule_next_month_price_and_notify_current_tenants(): void

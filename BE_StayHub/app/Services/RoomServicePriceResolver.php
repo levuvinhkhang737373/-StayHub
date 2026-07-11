@@ -52,10 +52,16 @@ class RoomServicePriceResolver
     {
         $serviceId = $service instanceof Service ? $service->id : $service;
 
-        return RoomService::query()->firstOrCreate([
-            'room_id' => $room->id,
-            'service_id' => (int) $serviceId,
-        ]);
+        return RoomService::query()->updateOrCreate(
+            [
+                'room_id' => $room->id,
+                'service_id' => (int) $serviceId,
+            ],
+            [
+                'is_active' => true,
+                'ended_at' => null,
+            ]
+        );
     }
 
     // Lấy giá mặc định từ bảng giá dịch vụ
@@ -91,6 +97,7 @@ class RoomServicePriceResolver
         return RoomService::query()
             ->with(['service:id,name,slug,charge_method,unit_name,is_active'])
             ->where('room_id', $room->id)
+            ->usableForPeriod($targetDate, $targetDate)
             ->whereHas('service', fn (Builder $query): Builder => $query->where('is_active', true))
             ->get()
             ->map(function (RoomService $roomService) use ($contract, $targetDate): array {

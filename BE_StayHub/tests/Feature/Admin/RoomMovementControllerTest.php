@@ -15,7 +15,11 @@ use App\Models\Notification;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomMovement;
+use App\Models\RoomService;
+use App\Models\RoomServicePrice;
 use App\Models\RoomType;
+use App\Models\Service;
+use App\Models\ServicePrice;
 use App\Models\Tenant;
 use App\Models\Vehicle;
 use Carbon\Carbon;
@@ -508,6 +512,173 @@ class RoomMovementControllerTest extends TestCase
         $this->assertSame('2026-07-15', $newContractVehicle->billing_start_date?->toDateString());
         $this->assertSame('100000.00', (string) $newContractVehicle->monthly_fee);
         $this->assertTrue((bool) $newContractVehicle->is_active);
+    }
+
+    public function test_executed_full_room_transfer_deactivates_old_room_services_and_cancels_future_room_price_schedules(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00', 'Asia/Ho_Chi_Minh'));
+
+        $admin = $this->createAdmin('super_room_service_move', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa dịch vụ chuyển phòng', 'toa-dich-vu-chuyen-phong');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'S101', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'S102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_service_move');
+        $oldContract = $this->createContract($fromRoom, $admin, 'HD-SERVICE-MOVE');
+
+        ContractTenant::create([
+            'contract_id' => $oldContract->id,
+            'tenant_id' => $tenant->id,
+            'join_date' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        $internet = Service::create([
+            'name' => 'Internet chuyển phòng',
+            'slug' => 'internet-chuyen-phong',
+            'charge_method' => Service::CHARGE_METHOD_BY_ROOM,
+            'unit_name' => 'phòng',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $internet->id,
+            'building_id' => $building->id,
+            'price' => '100000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $oldRoomService = RoomService::create([
+            'room_id' => $fromRoom->id,
+            'service_id' => $internet->id,
+        ]);
+
+        RoomServicePrice::create([
+            'room_service_id' => $oldRoomService->id,
+            'contract_id' => null,
+            'price' => '120000.00',
+            'effective_from' => '2026-01-01',
+            'created_by' => $admin->id,
+        ]);
+
+        RoomServicePrice::create([
+            'room_service_id' => $oldRoomService->id,
+            'contract_id' => null,
+            'price' => '150000.00',
+            'effective_from' => '2026-08-01',
+            'created_by' => $admin->id,
+        ]);
+
+        $movementDate = '2026-07-15';
+
+        $response = $this->actingAs($admin, 'admin')->postJson('/api/v1/admin/room-transfers/tenant', [
+            'tenant_id' => $tenant->id,
+            'to_room_id' => $toRoom->id,
+            'movement_date' => $movementDate,
+        ]);
+
+        $response->assertStatus(201);
+        $transferCode = (string) $response->json('result.transfer_code');
+
+        $this->createPaidFinalInvoice($oldContract, $fromRoom, $admin, Carbon::parse($movementDate)->subDay()->toDateString(), 'INV-FINAL-SERVICE-MOVE');
+
+        $this->artisan('room-transfers:execute-scheduled', ['--date' => $movementDate, '--code' => $transferCode])
+            ->assertExitCode(0);
+
+        $oldRoomService->refresh();
+        $this->assertFalse((bool) $oldRoomService->is_active);
+        $this->assertSame('2026-07-14', $oldRoomService->ended_at?->toDateString());
+
+        $this->assertDatabaseHas('room_service_prices', [
+            'room_service_id' => $oldRoomService->id,
+            'contract_id' => null,
+            'price' => '120000.00',
+            'effective_to' => '2026-07-14 00:00:00',
+        ]);
+
+        $this->assertDatabaseMissing('room_service_prices', [
+            'room_service_id' => $oldRoomService->id,
+            'contract_id' => null,
+            'price' => '150000.00',
+            'effective_from' => '2026-08-01 00:00:00',
+        ]);
+    }
+
+    public function test_executed_partial_room_transfer_keeps_old_room_services_active_for_remaining_tenants(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00', 'Asia/Ho_Chi_Minh'));
+
+        $admin = $this->createAdmin('super_partial_service_move', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa chuyển một phần', 'toa-chuyen-mot-phan');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'P101', 2);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'P102', 0);
+        $movingTenant = $this->createTenant($admin, $building, 'tenant_partial_move');
+        $remainingTenant = $this->createTenant($admin, $building, 'tenant_partial_stay');
+        $oldContract = $this->createContract($fromRoom, $admin, 'HD-PARTIAL-SERVICE-MOVE');
+
+        foreach ([$movingTenant, $remainingTenant] as $tenant) {
+            ContractTenant::create([
+                'contract_id' => $oldContract->id,
+                'tenant_id' => $tenant->id,
+                'join_date' => '2026-01-01',
+                'billing_start_date' => '2026-01-01',
+                'is_staying' => true,
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $internet = Service::create([
+            'name' => 'Internet còn người ở',
+            'slug' => 'internet-con-nguoi-o',
+            'charge_method' => Service::CHARGE_METHOD_BY_ROOM,
+            'unit_name' => 'phòng',
+            'is_active' => true,
+        ]);
+
+        ServicePrice::create([
+            'service_id' => $internet->id,
+            'building_id' => $building->id,
+            'price' => '100000.00',
+            'effective_from' => '2026-01-01',
+            'status' => ServicePrice::STATUS_ACTIVE,
+        ]);
+
+        $oldRoomService = RoomService::create([
+            'room_id' => $fromRoom->id,
+            'service_id' => $internet->id,
+        ]);
+
+        RoomServicePrice::create([
+            'room_service_id' => $oldRoomService->id,
+            'contract_id' => null,
+            'price' => '120000.00',
+            'effective_from' => '2026-01-01',
+            'created_by' => $admin->id,
+        ]);
+
+        $movementDate = '2026-07-15';
+
+        $response = $this->actingAs($admin, 'admin')->postJson('/api/v1/admin/room-transfers/tenant', [
+            'tenant_id' => $movingTenant->id,
+            'to_room_id' => $toRoom->id,
+            'movement_date' => $movementDate,
+        ]);
+
+        $response->assertStatus(201);
+        $transferCode = (string) $response->json('result.transfer_code');
+
+        $this->createPaidFinalInvoice($oldContract, $fromRoom, $admin, Carbon::parse($movementDate)->subDay()->toDateString(), 'INV-FINAL-PARTIAL-SERVICE');
+
+        $this->artisan('room-transfers:execute-scheduled', ['--date' => $movementDate, '--code' => $transferCode])
+            ->assertExitCode(0);
+
+        $oldRoomService->refresh();
+        $this->assertTrue((bool) $oldRoomService->is_active);
+        $this->assertNull($oldRoomService->ended_at);
     }
 
     public function test_update_transfer_date_updates_group_and_broadcasts_notifications(): void

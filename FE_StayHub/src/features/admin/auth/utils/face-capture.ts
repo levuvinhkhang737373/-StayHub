@@ -1,5 +1,5 @@
-export const FACE_CAPTURE_MAX_SIZE = 640
-export const FACE_CAPTURE_QUALITY = 0.86
+export const FACE_CAPTURE_MAX_SIZE = 800
+export const FACE_CAPTURE_QUALITY = 0.92
 export const FACE_CAPTURE_FRAME_DELAY_MS = 650
 
 export const FACE_REGISTRATION_STEPS = [

@@ -134,6 +134,10 @@ function formatContractCode(code?: string | null, id?: number | null) {
 }
 
 function serviceStatusText(service: RoomServicePriceServiceResource, isContractEnded = false) {
+  if (!service.is_active) {
+    return service.schedule_block_reason || 'Ngừng hoạt động'
+  }
+
   if (isContractEnded || service.contract_is_ended) {
     return 'Hết hiệu lực'
   }
@@ -147,6 +151,14 @@ function serviceStatusText(service: RoomServicePriceServiceResource, isContractE
   }
 
   return service.status_label || 'Giá phòng đang áp dụng'
+}
+
+function isServiceSchedulable(service: RoomServicePriceServiceResource) {
+  return service.is_active !== false && service.can_schedule_price !== false
+}
+
+function roomCanSchedulePrice(room: RoomServicePriceRoomResource) {
+  return room.services.some(isServiceSchedulable)
 }
 
 function priceDeltaTone(oldPrice: number, newPrice: number) {
@@ -296,7 +308,7 @@ export function RoomServicePricesScreen() {
     setEditingRoom(room)
     setModalError(null)
     setFieldErrors({})
-    setPriceInputs(Object.fromEntries(room.services.map((service) => [service.id, ''])))
+    setPriceInputs(Object.fromEntries(room.services.filter(isServiceSchedulable).map((service) => [service.id, ''])))
   }
 
   const closeEditModal = () => {
@@ -317,7 +329,7 @@ export function RoomServicePricesScreen() {
     if (!editingRoom) return
 
     const nextFieldErrors: Record<number, string> = {}
-    const servicesWithInput = editingRoom.services.filter((service) => (priceInputs[service.id] ?? '').trim() !== '')
+    const servicesWithInput = editingRoom.services.filter((service) => isServiceSchedulable(service) && (priceInputs[service.id] ?? '').trim() !== '')
     const prices = servicesWithInput.map((service) => {
       const inputValue = priceInputs[service.id] ?? ''
       const price = moneyToNumber(inputValue)
@@ -373,6 +385,7 @@ export function RoomServicePricesScreen() {
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <span className="text-xs font-black uppercase tracking-[0.2em] text-[#f3c56b]">Dịch vụ & Điện nước</span>
+            <p className="mt-2 text-xs font-bold leading-5 text-[#f8e8c8]/70">Bảng này không bao gồm điện/nước và tự khóa dịch vụ phòng đã ngừng hoạt động.</p>
             <h1 className="mt-3 flex flex-col gap-3 text-3xl font-black tracking-[-0.04em] sm:flex-row sm:items-center sm:text-4xl">
               <BadgeDollarSign className="h-9 w-9 shrink-0 text-[#f3c56b]" /> Giá dịch vụ phòng
             </h1>
@@ -390,6 +403,8 @@ export function RoomServicePricesScreen() {
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
             <input
+              type="search"
+              autoComplete="off"
               value={keyword}
               onChange={(event) => { setKeyword(event.target.value); setPage(1) }}
               className={`${inputClass} pl-11`}
@@ -501,14 +516,17 @@ export function RoomServicePricesScreen() {
                   {modalError}
                 </div>
               )}
-              {editingRoom.services.map((service) => (
+              {editingRoom.services.map((service) => {
+                const canScheduleService = isServiceSchedulable(service)
+
+                return (
                 <div key={service.id} className="rounded-2xl border border-[#3d2a18]/10 bg-white/80 p-4">
                   <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-black text-[#24170d]">{service.service_name}</p>
                     </div>
-                    <span className={cn('w-fit rounded-full px-3 py-1 text-[11px] font-black', service.scheduled_price ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-600')}>
-                      {service.scheduled_price ? 'Đã lên lịch' : 'Chưa có giá mới'}
+                    <span className={cn('w-fit rounded-full px-3 py-1 text-[11px] font-black', !service.is_active ? 'bg-rose-50 text-rose-700' : service.scheduled_price ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-600')}>
+                      {!service.is_active ? 'Ngừng hoạt động' : service.scheduled_price ? 'Đã lên lịch' : 'Chưa có giá mới'}
                     </span>
                   </div>
                   <PriceTransition service={service} />
@@ -522,11 +540,14 @@ export function RoomServicePricesScreen() {
                       }}
                       className={cn(inputClass, fieldErrors[service.id] && inputErrorClass)}
                       placeholder="Nhập giá mới"
+                      disabled={!canScheduleService}
                     />
                   </div>
+                  {!canScheduleService && <p className="mt-2 text-xs font-bold text-rose-600">{service.schedule_block_reason || 'Dịch vụ phòng đã ngừng hoạt động.'}</p>}
                   {fieldErrors[service.id] && <p className="mt-2 text-xs font-bold text-rose-600">{fieldErrors[service.id]}</p>}
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             <div className="shrink-0 border-t border-[#3d2a18]/10 bg-[#fff7e8]/80 p-4">
@@ -595,6 +616,7 @@ function ServicesStatusStack({ room, compact = false }: { room: RoomServicePrice
 
 function RoomRow({ room, onEdit }: { room: RoomServicePriceRoomResource; onEdit: () => void }) {
   const contract = getRoomContractSummary(room)
+  const canEdit = roomCanSchedulePrice(room)
 
   return (
     <tr className="bg-[#fffaf1] align-top transition hover:bg-[#fff4df]">
@@ -628,8 +650,8 @@ function RoomRow({ room, onEdit }: { room: RoomServicePriceRoomResource; onEdit:
       </td>
       <td className="px-5 py-4">
         <div className="flex justify-center">
-          <button type="button" onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-[#fff4df] shadow-md shadow-[#24170d]/10 transition hover:bg-[#3d2a18]">
-            <ShieldCheck className="h-4 w-4 text-[#f3c56b]" /> Sửa giá
+          <button type="button" onClick={onEdit} disabled={!canEdit} title={canEdit ? 'Sửa giá' : 'Không còn dịch vụ phòng được lên lịch'} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-[#fff4df] shadow-md shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500 disabled:shadow-none">
+            <ShieldCheck className={cn('h-4 w-4', canEdit ? 'text-[#f3c56b]' : 'text-stone-400')} /> {canEdit ? 'Sửa giá' : 'Đã ngừng'}
           </button>
         </div>
       </td>
@@ -639,13 +661,14 @@ function RoomRow({ room, onEdit }: { room: RoomServicePriceRoomResource; onEdit:
 
 function RoomServicePriceCard({ room, onEdit }: { room: RoomServicePriceRoomResource; onEdit: () => void }) {
   const contract = getRoomContractSummary(room)
+  const canEdit = roomCanSchedulePrice(room)
 
   return (
     <article className="rounded-[1.5rem] border border-[#3d2a18]/10 bg-white/75 p-3 shadow-sm shadow-[#6b3f1d]/5 sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <RoomIdentity room={room} compact />
-        <button type="button" onClick={onEdit} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-[#fff4df] shadow-md shadow-[#24170d]/10 transition hover:bg-[#3d2a18] sm:w-auto">
-          <ShieldCheck className="h-4 w-4 text-[#f3c56b]" /> Sửa giá
+        <button type="button" onClick={onEdit} disabled={!canEdit} title={canEdit ? 'Sửa giá' : 'Không còn dịch vụ phòng được lên lịch'} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#24170d] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-[#fff4df] shadow-md shadow-[#24170d]/10 transition hover:bg-[#3d2a18] disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500 disabled:shadow-none sm:w-auto">
+          <ShieldCheck className={cn('h-4 w-4', canEdit ? 'text-[#f3c56b]' : 'text-stone-400')} /> {canEdit ? 'Sửa giá' : 'Đã ngừng'}
         </button>
       </div>
       <div className="mt-3 grid gap-3 lg:grid-cols-[0.95fr_1.55fr]">
@@ -733,11 +756,14 @@ function ServiceStatusPill({ service, isContractEnded = false }: { service: Room
   const hasSchedule = Boolean(service.scheduled_price || service.new_price)
   const isContractPrice = hasContractScopedPrice(service)
   const isEnded = isContractEnded || service.contract_is_ended
+  const isInactive = service.is_active === false
 
   return (
     <div className={cn(
       'rounded-xl px-3 py-2 text-xs font-black leading-relaxed',
-      isEnded
+      isInactive
+        ? 'bg-rose-50 text-rose-700'
+        : isEnded
         ? 'bg-rose-50 text-rose-700'
         : hasSchedule
           ? 'bg-emerald-50 text-emerald-700'
@@ -745,7 +771,7 @@ function ServiceStatusPill({ service, isContractEnded = false }: { service: Room
             ? 'bg-[#fff4df] text-[#8b5e34]'
             : 'bg-stone-100 text-stone-600',
     )}>
-      <span className={cn(isEnded ? 'text-rose-900' : 'text-[#24170d]')}>{service.service_name}:</span> {serviceStatusText(service, isEnded)}
+      <span className={cn(isInactive || isEnded ? 'text-rose-900' : 'text-[#24170d]')}>{service.service_name}:</span> {serviceStatusText(service, isEnded)}
       {isContractPrice && serviceContractLabel(service) && (
         <span className="mt-1 block text-[10px] uppercase tracking-wider opacity-75">{serviceContractLabel(service)}</span>
       )}
@@ -757,7 +783,7 @@ function PriceTransition({ service, compact = false }: { service: RoomServicePri
   const oldPrice = serviceCurrentPrice(service)
   const newPrice = serviceTargetPrice(service)
   const tone = priceDeltaTone(oldPrice, newPrice)
-  const hasSchedule = service.scheduled_price !== null || service.new_price !== null
+  const hasSchedule = service.is_active !== false && (service.scheduled_price !== null || service.new_price !== null)
 
   return (
     <div className={cn('rounded-2xl border bg-white/75', compact ? 'p-2.5' : 'p-3.5', hasSchedule ? 'border-[#d8912b]/35' : 'border-[#3d2a18]/10')}>
