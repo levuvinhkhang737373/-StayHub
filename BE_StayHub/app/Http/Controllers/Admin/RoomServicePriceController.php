@@ -131,9 +131,6 @@ class RoomServicePriceController extends Controller
 
                 $updatedPrices = collect();
                 $activeContract = $this->activeContractForRoom($roomModel);
-                if ($activeContract && $this->contractEndsBeforePeriod($activeContract, $targetDate)) {
-                    return ApiResponse::responseJson(false, 'Kỳ áp dụng giá vượt quá ngày kết thúc hợp đồng hiện tại của phòng.', 422, null, 422);
-                }
 
                 foreach ($validated['prices'] as $item) {
                     $roomService = $roomServices->get((int) $item['room_service_id']);
@@ -142,7 +139,7 @@ class RoomServicePriceController extends Controller
                         return ApiResponse::responseJson(false, 'Hợp đồng áp dụng giá không thuộc phòng đang chọn.', 422, null, 422);
                     }
 
-                    $scheduleError = app(RoomServiceLifecycleService::class)->assertSchedulable($roomService, $contract, $targetDate);
+                    $scheduleError = app(RoomServiceLifecycleService::class)->assertSchedulable($roomService, $contract, $targetDate, $contract !== null);
                     if ($scheduleError !== null) {
                         return ApiResponse::responseJson(false, $scheduleError, 422, null, 422);
                     }

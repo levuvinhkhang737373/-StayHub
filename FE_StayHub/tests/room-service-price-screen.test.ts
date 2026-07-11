@@ -31,9 +31,9 @@ test('room service price modal keeps new price inputs empty for manual entry', (
 
   assert.match(source, /import \{ formatCurrency, formatMoneyInput, parseMoneyInput \}/)
   assert.doesNotMatch(source, /function formatMoneyInput\(value: string\)/)
-  assert.match(source, /setPriceInputs\(Object\.fromEntries\(room\.services\.map\(\(service\) => \[service\.id, ''\]\)\)\)/)
+  assert.match(source, /setPriceInputs\(Object\.fromEntries\(room\.services\.filter\(isServiceSchedulable\)\.map\(\(service\) => \[service\.id, ''\]\)\)\)/)
   assert.doesNotMatch(source, /setPriceInputs\(Object\.fromEntries\(room\.services\.map\(\(service\) => \[service\.id, formatMoneyInput/)
-  assert.match(source, /\.filter\(\(service\) => \(priceInputs\[service\.id\] \?\? ''\)\.trim\(\) !== ''\)/)
+  assert.match(source, /\.filter\(\(service\) => isServiceSchedulable\(service\) && \(priceInputs\[service\.id\] \?\? ''\)\.trim\(\) !== ''\)/)
 })
 
 test('room service price screen blocks scheduling inactive room services in UI', () => {

@@ -596,7 +596,7 @@ class RoomMovementControllerTest extends TestCase
             'room_service_id' => $oldRoomService->id,
             'contract_id' => null,
             'price' => '120000.00',
-            'effective_to' => '2026-07-14 00:00:00',
+            'effective_to' => '2026-07-14',
         ]);
 
         $this->assertDatabaseMissing('room_service_prices', [

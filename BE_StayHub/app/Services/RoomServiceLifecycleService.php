@@ -7,6 +7,7 @@ use App\Models\Room;
 use App\Models\RoomService;
 use App\Models\RoomServicePrice;
 use App\Models\Service;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -77,14 +78,14 @@ class RoomServiceLifecycleService
             });
     }
 
-    public function schedulability(RoomService $roomService, ?Contract $contract = null, ?Carbon $targetDate = null): array
+    public function schedulability(RoomService $roomService, ?Contract $contract = null, ?CarbonInterface $targetDate = null, bool $requiresContract = false): array
     {
         if (! $roomService->is_active) {
             return [false, self::INACTIVE_REASON];
         }
 
         if (! $contract) {
-            return [false, self::NO_CONTRACT_REASON];
+            return $requiresContract ? [false, self::NO_CONTRACT_REASON] : [true, null];
         }
 
         if (! in_array((int) $contract->status, Contract::RESERVED_STATUSES, true)) {
@@ -98,9 +99,9 @@ class RoomServiceLifecycleService
         return [true, null];
     }
 
-    public function assertSchedulable(RoomService $roomService, ?Contract $contract = null, ?Carbon $targetDate = null): ?string
+    public function assertSchedulable(RoomService $roomService, ?Contract $contract = null, ?CarbonInterface $targetDate = null, bool $requiresContract = false): ?string
     {
-        [$canSchedule, $reason] = $this->schedulability($roomService, $contract, $targetDate);
+        [$canSchedule, $reason] = $this->schedulability($roomService, $contract, $targetDate, $requiresContract);
 
         if ($canSchedule) {
             return null;
@@ -109,7 +110,7 @@ class RoomServiceLifecycleService
         return $reason === self::INACTIVE_REASON ? self::INACTIVE_SCHEDULE_MESSAGE : $reason;
     }
 
-    public function shouldChargeInPeriod(RoomService $roomService, Carbon $periodStart, Carbon $periodEnd): bool
+    public function shouldChargeInPeriod(RoomService $roomService, CarbonInterface $periodStart, CarbonInterface $periodEnd): bool
     {
         if ((bool) $roomService->is_active) {
             return true;
@@ -129,7 +130,7 @@ class RoomServiceLifecycleService
                 ->whereNotIn('slug', Service::UTILITY_SLUGS));
     }
 
-    private function contractEndsBefore(Contract $contract, Carbon $targetDate): bool
+    private function contractEndsBefore(Contract $contract, CarbonInterface $targetDate): bool
     {
         $endDate = $contract->actual_end_date ?: $contract->end_date;
 
