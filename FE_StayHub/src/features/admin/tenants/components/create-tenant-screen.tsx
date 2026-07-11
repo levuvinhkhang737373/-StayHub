@@ -213,7 +213,7 @@ export function CreateTenantScreen() {
 
       const payload: AdminTenantPayload = {
         building_id: isSuperAdmin ? (form.building_id ? Number(form.building_id) : undefined) : defaultBuildingId,
-        username: form.username.trim(),
+        username: isEditMode ? undefined : form.username.trim(),
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),

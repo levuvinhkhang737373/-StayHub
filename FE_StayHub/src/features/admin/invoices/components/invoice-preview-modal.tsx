@@ -86,7 +86,6 @@ export function InvoicePreviewModal({ invoice, isIssuing, onClose, onConfirm }: 
                 <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#0f766e]" />
                 <div>
                   <p className="font-black">Đã áp dụng lịch chuyển phòng đang chờ xử lý.</p>
-                  <p className="mt-1 text-xs leading-5 text-[#0f3f3b]/75">Tiền phòng/dịch vụ đi theo hợp đồng phòng: chỉ cắt khi hợp đồng cũ kết thúc hoặc hợp đồng mới bắt đầu; chuyển ghép phòng active chỉ cộng/cắt tiền xe theo ngày chuyển.</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {transferCutoffs.map((cutoff) => (
                       <div key={`${cutoff.direction || 'outgoing'}-${cutoff.transfer_code}`} className="rounded-2xl border border-[#0f766e]/15 bg-white/70 p-3">

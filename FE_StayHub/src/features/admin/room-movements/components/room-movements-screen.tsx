@@ -795,7 +795,7 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                     <div className="mt-3 space-y-2">
                       <SettlementLine label="Cọc mới còn thiếu" value={movement.deposit_due_amount} tone="danger" />
                       <SettlementLine label="Phí/khấu trừ thu thêm" value={movement.extra_charge_amount} tone="danger" />
-                      <SettlementLine label="Khấu trừ admin nhập" value={settlementBreakdown.deductionInputAmount} tone="muted" />
+                      <SettlementLine label="Khấu trừ" value={settlementBreakdown.deductionInputAmount} tone="muted" />
                       <SettlementLine label="Phí chuyển phòng admin nhập" value={movement.transfer_fee} tone="muted" />
                     </div>
                   </div>
