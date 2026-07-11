@@ -10,6 +10,7 @@ use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
 use App\Models\Expense;
+use App\Models\Invoice;
 use App\Models\Notification;
 use App\Models\Region;
 use App\Models\Room;
@@ -750,6 +751,79 @@ class ContractControllerTest extends TestCase
         $this->assertDatabaseHas('notifications', [
             'tenant_id' => $this->tenant1->id,
             'title' => 'Hợp đồng đã thanh lý',
+        ]);
+    }
+
+    public function test_terminate_contract_allows_custom_deduction_without_final_invoice()
+    {
+        $actualEndDate = now()->toDateString();
+        $startDate = now()->subDays(2)->toDateString();
+        $endDate = now()->addMonths(6)->toDateString();
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-NO-FINAL-INVOICE',
+            'room_id' => $this->room->id,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant1->id,
+            'join_date' => $startDate,
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $contract->depositTransactions()->create([
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => '4000000.00',
+            'transaction_date' => $startDate,
+            'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+            'note' => 'Thu cọc ban đầu',
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->assertFalse(Invoice::query()
+            ->where('contract_id', $contract->id)
+            ->where('billing_month', now()->month)
+            ->where('billing_year', now()->year)
+            ->exists());
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson("/api/v1/admin/contracts/{$contract->id}/terminate", [
+                'actual_end_date' => $actualEndDate,
+                'deduction_amount' => '1234567.00',
+                'payment_method' => ContractDepositTransaction::PAYMENT_METHOD_BANK_TRANSFER,
+                'note' => 'Khấu trừ đền bù theo thỏa thuận',
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('result.settlement.deposit_balance_before', '4000000.00')
+            ->assertJsonPath('result.settlement.deduction_amount', '1234567.00')
+            ->assertJsonPath('result.settlement.refund_amount', '2765433.00')
+            ->assertJsonPath('result.settlement.has_final_period_invoice', false);
+
+        $this->assertDatabaseHas('contract_deposit_transactions', [
+            'contract_id' => $contract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_DEDUCT,
+            'amount' => '1234567.00',
+        ]);
+
+        $this->assertDatabaseHas('contract_deposit_transactions', [
+            'contract_id' => $contract->id,
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_REFUND,
+            'amount' => '2765433.00',
+        ]);
+
+        $this->assertDatabaseHas('rooms', [
+            'id' => $this->room->id,
+            'current_occupants' => 0,
+            'status' => Room::STATUS_MAINTENANCE,
         ]);
     }
 

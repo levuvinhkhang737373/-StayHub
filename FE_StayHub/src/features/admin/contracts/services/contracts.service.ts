@@ -83,6 +83,15 @@ export async function fetchAdminContracts(params: AdminContractFilters = {}) {
   })
 }
 
+export async function hasAdminContractInvoiceForPeriod(contractId: number, billingMonth: number, billingYear: number) {
+  const response = await apiRequest<AdminPaginator<{ id: number }>>({
+    url: `admin/invoices${buildQuery({ contract_id: contractId, billing_month: billingMonth, billing_year: billingYear, per_page: 1 })}`,
+    method: 'GET',
+  })
+
+  return Boolean(response.result?.data?.length)
+}
+
 export async function fetchAdminContractDetail(contractId: number) {
   return apiRequest<AdminContractResource>({
     url: `admin/contracts/${contractId}`,

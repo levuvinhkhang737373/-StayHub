@@ -36,6 +36,7 @@ import {
   fetchAdminContracts,
   fetchAvailableRooms,
   fetchContractAvailableTenants,
+  hasAdminContractInvoiceForPeriod,
   terminateAdminContract,
   updateAdminContractStatus,
 } from '../services/contracts.service'
@@ -98,6 +99,22 @@ function createDefaultAddTenantFormForContract(contract: AdminContractResource) 
     join_date: defaultDate,
     billing_start_date: defaultDate,
   }
+}
+
+function finalInvoiceWarningMessage(actualEndDate: string) {
+  const [, month, year] = formatDate(actualEndDate).split('/')
+  const billingPeriod = month && year ? `Tháng ${month}/${year}` : 'tháng thanh lý'
+
+  return `Hợp đồng này chưa được lập hóa đơn cho tháng thanh lý (${billingPeriod}). Bạn nên chốt điện nước và lập hóa đơn kỳ cuối trước. Nếu đây là trường hợp hủy ngang/đền bù trọn gói không cần hóa đơn, bạn vẫn có thể bấm “Tiếp tục thanh lý”.`
+}
+
+function billingPeriodFromDate(value: string) {
+  if (!value) return null
+
+  const [year, month] = value.split('-').map(Number)
+  if (!year || !month) return null
+
+  return { billing_month: month, billing_year: year }
 }
 
 export function ContractsScreen() {
@@ -188,6 +205,8 @@ export function ContractsScreen() {
   const [payingDepositContract, setPayingDepositContract] = useState<AdminContractResource | null>(null)
   const [terminatingContract, setTerminatingContract] = useState<AdminContractResource | null>(null)
   const [isTerminating, setIsTerminating] = useState(false)
+  const [finalInvoiceWarning, setFinalInvoiceWarning] = useState<string | null>(null)
+  const [isCheckingFinalInvoice, setIsCheckingFinalInvoice] = useState(false)
   const [addingTenantContract, setAddingTenantContract] = useState<AdminContractResource | null>(null)
   const [availableTenants, setAvailableTenants] = useState<AdminContractTenantOptionResource[]>([])
   const [addTenantForm, setAddTenantForm] = useState(createDefaultAddContractTenantForm)
@@ -489,6 +508,7 @@ export function ContractsScreen() {
 
   const openTerminateModal = (contract: AdminContractResource) => {
     setTerminatingContract(contract)
+    setFinalInvoiceWarning(null)
     setTerminateForm({
       actual_end_date: contract.actual_end_date || todayStr,
       deduction_amount: '0',
@@ -496,6 +516,43 @@ export function ContractsScreen() {
       note: '',
     })
   }
+
+  useEffect(() => {
+    if (!terminatingContract || !terminateForm.actual_end_date) {
+      setFinalInvoiceWarning(null)
+      setIsCheckingFinalInvoice(false)
+      return
+    }
+
+    const period = billingPeriodFromDate(terminateForm.actual_end_date)
+    if (!period) {
+      setFinalInvoiceWarning(null)
+      setIsCheckingFinalInvoice(false)
+      return
+    }
+
+    let isStale = false
+    setIsCheckingFinalInvoice(true)
+    setFinalInvoiceWarning(null)
+
+    hasAdminContractInvoiceForPeriod(terminatingContract.id, period.billing_month, period.billing_year)
+      .then((hasInvoice) => {
+        if (isStale) return
+        setFinalInvoiceWarning(hasInvoice ? null : finalInvoiceWarningMessage(terminateForm.actual_end_date))
+      })
+      .catch(() => {
+        if (isStale) return
+        setFinalInvoiceWarning(null)
+      })
+      .finally(() => {
+        if (isStale) return
+        setIsCheckingFinalInvoice(false)
+      })
+
+    return () => {
+      isStale = true
+    }
+  }, [terminatingContract, terminateForm.actual_end_date])
 
   const submitTerminate = async () => {
     if (!terminatingContract || isTerminating) return
@@ -537,6 +594,7 @@ export function ContractsScreen() {
           : 'Thanh lý hợp đồng thành công.'
       )
       setTerminatingContract(null)
+      setFinalInvoiceWarning(null)
 
       if (detailContract?.id === terminatingContract.id && response.result?.contract) {
         setDetailContract(response.result.contract)
@@ -1003,9 +1061,14 @@ export function ContractsScreen() {
         <TerminateContractModal
           contract={terminatingContract}
           form={terminateForm}
+          finalInvoiceWarning={finalInvoiceWarning}
+          isCheckingFinalInvoice={isCheckingFinalInvoice}
           isSaving={isTerminating}
           onChange={setTerminateForm}
-          onClose={() => setTerminatingContract(null)}
+          onClose={() => {
+            setTerminatingContract(null)
+            setFinalInvoiceWarning(null)
+          }}
           onSubmit={() => void submitTerminate()}
         />
       )}

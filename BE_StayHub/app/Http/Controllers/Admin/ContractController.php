@@ -24,6 +24,7 @@ use App\Models\ContractDepositTransaction;
 use App\Models\ContractTenant;
 use App\Models\ContractVehicle;
 use App\Models\Expense;
+use App\Models\Invoice;
 use App\Models\Notification;
 use App\Models\Room;
 use App\Models\RoomMovement;
@@ -780,14 +781,19 @@ class ContractController extends Controller
                 $this->createCheckoutMovements($contractModel, $activeTenantRows, $admin, $actualEndDate, $deductionCents, $refundCents, $note);
                 $this->closeActiveContractRows($contractModel, $actualEndDate->toDateString());
                 $this->closeContractRoomServicePrices($contractModel, $actualEndDate->toDateString());
-                $this->refreshRoomOccupants((int) $contractModel->room_id);
+                $this->markRoomMaintenanceAfterTermination((int) $contractModel->room_id);
 
                 Contract::withoutEvents(fn (): int => Contract::query()
                     ->whereKey($contractModel->id)
                     ->update(['payment_status' => Contract::PAYMENT_STATUS_SUCCESS]));
                 $contractModel->forceFill(['payment_status' => Contract::PAYMENT_STATUS_SUCCESS]);
 
-                $settlement = $this->terminationSettlementPayload($depositBalanceBeforeCents, $deductionCents, $refundCents);
+                $settlement = $this->terminationSettlementPayload(
+                    $depositBalanceBeforeCents,
+                    $deductionCents,
+                    $refundCents,
+                    $this->hasFinalPeriodInvoice($contractModel, $actualEndDate)
+                );
 
                 $contractModel->unsetRelations();
                 $this->loadDetailRelations($contractModel);
@@ -1950,14 +1956,25 @@ class ContractController extends Controller
     }
 
     // Tạo dữ liệu quyết toán chấm dứt hợp đồng
-    private function terminationSettlementPayload(int $depositBalanceBeforeCents, int $deductionCents, int $refundCents): array
+    private function terminationSettlementPayload(int $depositBalanceBeforeCents, int $deductionCents, int $refundCents, bool $hasFinalPeriodInvoice): array
     {
         return [
             'deposit_balance_before' => $this->centsToDecimal($depositBalanceBeforeCents),
             'deduction_amount' => $this->centsToDecimal($deductionCents),
             'refund_amount' => $this->centsToDecimal($refundCents),
             'deposit_balance_after' => '0.00',
+            'has_final_period_invoice' => $hasFinalPeriodInvoice,
         ];
+    }
+
+    // Kiểm tra kỳ thanh lý đã có hóa đơn chưa nhưng không chặn thanh lý
+    private function hasFinalPeriodInvoice(Contract $contract, Carbon $actualEndDate): bool
+    {
+        return Invoice::query()
+            ->where('contract_id', $contract->id)
+            ->where('billing_month', $actualEndDate->month)
+            ->where('billing_year', $actualEndDate->year)
+            ->exists();
     }
 
     // Tạo thông báo chấm dứt hợp đồng
@@ -2020,6 +2037,17 @@ class ContractController extends Controller
             ->count('tenant_id');
 
         Room::query()->whereKey($roomId)->update(['current_occupants' => $occupants]);
+    }
+
+    // Sau khi thanh lý, phòng chuyển sang bảo trì để dọn dẹp theo quy trình vận hành
+    private function markRoomMaintenanceAfterTermination(int $roomId): void
+    {
+        $this->refreshRoomOccupants($roomId);
+
+        Room::query()
+            ->whereKey($roomId)
+            ->where('current_occupants', 0)
+            ->update(['status' => Room::STATUS_MAINTENANCE]);
     }
 
     // Kiểm tra khách thuê có bị trùng lịch ở hợp đồng khác không

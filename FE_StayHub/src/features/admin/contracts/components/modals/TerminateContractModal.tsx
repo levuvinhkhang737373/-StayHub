@@ -40,6 +40,8 @@ function moneyString(value: number) {
 export function TerminateContractModal({
   contract,
   form,
+  finalInvoiceWarning,
+  isCheckingFinalInvoice = false,
   isSaving,
   onChange,
   onClose,
@@ -47,6 +49,8 @@ export function TerminateContractModal({
 }: {
   contract: AdminContractResource
   form: TerminateContractForm
+  finalInvoiceWarning?: string | null
+  isCheckingFinalInvoice?: boolean
   isSaving: boolean
   onChange: (value: TerminateContractForm) => void
   onClose: () => void
@@ -88,6 +92,22 @@ export function TerminateContractModal({
 
         <div className="grid gap-5 p-5 lg:grid-cols-[1fr_0.9fr]">
           <div className="space-y-4">
+            {(isCheckingFinalInvoice || finalInvoiceWarning) && (
+              <div className="rounded-[1.5rem] border border-amber-300/70 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm shadow-amber-900/5">
+                <div className="flex gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="text-sm font-black">Cảnh báo hóa đơn kỳ chốt</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-amber-900/80">
+                      {isCheckingFinalInvoice
+                        ? 'Đang kiểm tra hóa đơn tháng thanh lý...'
+                        : finalInvoiceWarning}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className={labelClass}>Ngày thanh lý</label>
               <AdminDateInput className={inputClass} value={form.actual_end_date} minDate={minDate} maxDate={maxDate} onChange={(value) => onChange({ ...form, actual_end_date: value })} />
@@ -151,7 +171,7 @@ export function TerminateContractModal({
             onClick={onSubmit}
             className="h-12 rounded-2xl bg-[#24170d] px-6 text-sm font-black text-[#fff4df] shadow-xl shadow-[#24170d]/20 transition hover:-translate-y-0.5 hover:bg-[#3a2616] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0"
           >
-            {isSaving ? 'Đang thanh lý...' : 'Xác nhận thanh lý'}
+            {isSaving ? 'Đang thanh lý...' : finalInvoiceWarning ? 'Tiếp tục thanh lý' : 'Xác nhận thanh lý'}
           </button>
         </div>
       </div>

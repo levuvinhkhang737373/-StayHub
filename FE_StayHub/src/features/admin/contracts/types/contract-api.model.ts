@@ -318,6 +318,7 @@ export interface AdminContractTerminationSettlement {
   deduction_amount: string
   refund_amount: string
   deposit_balance_after: string
+  has_final_period_invoice?: boolean
 }
 
 export interface AdminContractTerminationResult {
