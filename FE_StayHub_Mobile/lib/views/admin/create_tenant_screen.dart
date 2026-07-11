@@ -236,6 +236,30 @@ class _CreateTenantScreenState extends State<CreateTenantScreen> {
       return;
     }
 
+    final facility = context.read<FacilityController>();
+    final bList = facility.buildings.where((x) => x.id == _selectedBuildingId).toList();
+    if (bList.isNotEmpty) {
+      final building = bList.first;
+      final policy = building.genderPolicy;
+      if (policy == 2 && _gender != 1) { // Male only
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tòa nhà này chỉ nhận khách thuê Nam!'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      } else if (policy == 3 && _gender != 2) { // Female only
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tòa nhà này chỉ nhận khách thuê Nữ!'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() {
       _isSaving = true;
     });

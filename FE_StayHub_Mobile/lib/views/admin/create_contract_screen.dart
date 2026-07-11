@@ -348,7 +348,19 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                   (t.phone?.contains(query) ?? false) ||
                   (t.identityNumber.contains(query));
               final hasActiveContract = t.roomNumber != null && t.roomNumber!.isNotEmpty;
-              return matchesQuery && !hasActiveContract && t.status == 1;
+              
+              // Validate building gender policy
+              bool allowsGender = true;
+              if (_selectedBuilding != null) {
+                final policy = _selectedBuilding!.genderPolicy;
+                if (policy == 2) { // Only male
+                  allowsGender = t.gender == 1;
+                } else if (policy == 3) { // Only female
+                  allowsGender = t.gender == 2;
+                }
+              }
+
+              return matchesQuery && !hasActiveContract && t.status == 1 && allowsGender;
             }).toList();
 
             return AlertDialog(

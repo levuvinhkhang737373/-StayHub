@@ -67,31 +67,47 @@ class NotificationController extends Controller
             // Truy vấn các thông báo phù hợp với phạm vi của khách thuê
             $notifications = Notification::query()
                 ->where('status', Notification::STATUS_SENT)
-                ->where(function ($q) use ($tenant, $buildingId, $roomId) {
-                    $q->where(function ($sub) {
-                          $sub->where('target_type', Notification::TARGET_TYPE_ALL);
+                ->where(function ($q) use ($tenant, $buildingId, $roomId, $dateLimit, $tenantCreatedAt) {
+                    $q->where(function ($sub) use ($tenantCreatedAt) {
+                          $sub->where('target_type', Notification::TARGET_TYPE_ALL)
+                              ->where(function ($subDate) use ($tenantCreatedAt) {
+                                  $subDate->where('published_at', '>=', $tenantCreatedAt)
+                                          ->orWhere(function ($subDate2) use ($tenantCreatedAt) {
+                                              $subDate2->whereNull('published_at')
+                                                      ->where('created_at', '>=', $tenantCreatedAt);
+                                          });
+                              });
                       })
-                      ->orWhere(function ($sub) use ($buildingId) {
+                      ->orWhere(function ($sub) use ($buildingId, $dateLimit) {
                           $sub->where('target_type', Notification::TARGET_TYPE_BUILDING)
-                              ->where('building_id', $buildingId);
+                              ->where('building_id', $buildingId)
+                              ->when($dateLimit, function ($subQ) use ($dateLimit) {
+                                  $subQ->where(function ($subDate) use ($dateLimit) {
+                                      $subDate->where('published_at', '>=', $dateLimit)
+                                              ->orWhere(function ($subDate2) use ($dateLimit) {
+                                                  $subDate2->whereNull('published_at')
+                                                          ->where('created_at', '>=', $dateLimit);
+                                              });
+                                  });
+                              });
                       })
-                      ->orWhere(function ($sub) use ($roomId) {
+                      ->orWhere(function ($sub) use ($roomId, $dateLimit) {
                           $sub->where('target_type', Notification::TARGET_TYPE_ROOM)
-                              ->where('room_id', $roomId);
+                              ->where('room_id', $roomId)
+                              ->when($dateLimit, function ($subQ) use ($dateLimit) {
+                                  $subQ->where(function ($subDate) use ($dateLimit) {
+                                      $subDate->where('published_at', '>=', $dateLimit)
+                                              ->orWhere(function ($subDate2) use ($dateLimit) {
+                                                  $subDate2->whereNull('published_at')
+                                                          ->where('created_at', '>=', $dateLimit);
+                                              });
+                                  });
+                              });
                       })
                       ->orWhere(function ($sub) use ($tenant) {
                           $sub->where('target_type', Notification::TARGET_TYPE_TENANT)
                               ->where('tenant_id', $tenant->id);
                       });
-                })
-                ->when($dateLimit, function ($q) use ($dateLimit) {
-                    $q->where(function ($sub) use ($dateLimit) {
-                        $sub->where('published_at', '>=', $dateLimit)
-                            ->orWhere(function ($sub2) use ($dateLimit) {
-                                $sub2->whereNull('published_at')
-                                    ->where('created_at', '>=', $dateLimit);
-                            });
-                    });
                 })
                 ->with(['creator', 'reads' => function ($query) use ($tenant) {
                     $query->where('tenant_id', $tenant->id);
@@ -196,31 +212,47 @@ class NotificationController extends Controller
             // Tìm toàn bộ danh sách thông báo chưa đọc của tenant
             $notificationIds = Notification::query()
                 ->where('status', Notification::STATUS_SENT)
-                ->where(function ($q) use ($tenant, $buildingId, $roomId) {
-                    $q->where(function ($sub) {
-                          $sub->where('target_type', Notification::TARGET_TYPE_ALL);
+                ->where(function ($q) use ($tenant, $buildingId, $roomId, $dateLimit, $tenantCreatedAt) {
+                    $q->where(function ($sub) use ($tenantCreatedAt) {
+                          $sub->where('target_type', Notification::TARGET_TYPE_ALL)
+                              ->where(function ($subDate) use ($tenantCreatedAt) {
+                                  $subDate->where('published_at', '>=', $tenantCreatedAt)
+                                          ->orWhere(function ($subDate2) use ($tenantCreatedAt) {
+                                              $subDate2->whereNull('published_at')
+                                                      ->where('created_at', '>=', $tenantCreatedAt);
+                                          });
+                              });
                       })
-                      ->orWhere(function ($sub) use ($buildingId) {
+                      ->orWhere(function ($sub) use ($buildingId, $dateLimit) {
                           $sub->where('target_type', Notification::TARGET_TYPE_BUILDING)
-                              ->where('building_id', $buildingId);
+                              ->where('building_id', $buildingId)
+                              ->when($dateLimit, function ($subQ) use ($dateLimit) {
+                                  $subQ->where(function ($subDate) use ($dateLimit) {
+                                      $subDate->where('published_at', '>=', $dateLimit)
+                                              ->orWhere(function ($subDate2) use ($dateLimit) {
+                                                  $subDate2->whereNull('published_at')
+                                                          ->where('created_at', '>=', $dateLimit);
+                                              });
+                                  });
+                              });
                       })
-                      ->orWhere(function ($sub) use ($roomId) {
+                      ->orWhere(function ($sub) use ($roomId, $dateLimit) {
                           $sub->where('target_type', Notification::TARGET_TYPE_ROOM)
-                              ->where('room_id', $roomId);
+                              ->where('room_id', $roomId)
+                              ->when($dateLimit, function ($subQ) use ($dateLimit) {
+                                  $subQ->where(function ($subDate) use ($dateLimit) {
+                                      $subDate->where('published_at', '>=', $dateLimit)
+                                              ->orWhere(function ($subDate2) use ($dateLimit) {
+                                                  $subDate2->whereNull('published_at')
+                                                          ->where('created_at', '>=', $dateLimit);
+                                              });
+                                  });
+                              });
                       })
                       ->orWhere(function ($sub) use ($tenant) {
                           $sub->where('target_type', Notification::TARGET_TYPE_TENANT)
                               ->where('tenant_id', $tenant->id);
                       });
-                })
-                ->when($dateLimit, function ($q) use ($dateLimit) {
-                    $q->where(function ($sub) use ($dateLimit) {
-                        $sub->where('published_at', '>=', $dateLimit)
-                            ->orWhere(function ($sub2) use ($dateLimit) {
-                                $sub2->whereNull('published_at')
-                                    ->where('created_at', '>=', $dateLimit);
-                            });
-                    });
                 })
                 ->whereDoesntHave('reads', function ($q) use ($tenant) {
                     $q->where('tenant_id', $tenant->id);

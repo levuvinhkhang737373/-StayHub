@@ -379,11 +379,12 @@ class RoomController extends Controller
 
             $newStatus = (int) $validated['status'];
 
-            // Nếu muốn đổi sang ngưng hoạt động (STATUS_INACTIVE = 3)
-            if ($newStatus === Room::STATUS_INACTIVE) {
+            // Nếu muốn đổi sang ngưng hoạt động (STATUS_INACTIVE = 3) hoặc đang bảo trì (STATUS_MAINTENANCE = 2)
+            if ($newStatus === Room::STATUS_INACTIVE || $newStatus === Room::STATUS_MAINTENANCE) {
                 // Kiểm tra có người đang ở hay không
                 if ($room->current_occupants > 0) {
-                    return ApiResponse::responseJson(false, 'Không thể ngưng hoạt động phòng khi đang có khách ở.', 400, null, 400);
+                    $statusLabel = $newStatus === Room::STATUS_INACTIVE ? 'ngưng hoạt động' : 'bảo trì';
+                    return ApiResponse::responseJson(false, "Không thể chuyển phòng sang trạng thái {$statusLabel} khi đang có khách ở.", 400, null, 400);
                 }
                 
                 // Kiểm tra có hợp đồng đang có hiệu lực hay không
@@ -391,7 +392,8 @@ class RoomController extends Controller
                     ->where('status', Contract::STATUS_ACTIVE)
                     ->exists();
                 if ($hasActiveContract) {
-                    return ApiResponse::responseJson(false, 'Không thể ngưng hoạt động phòng khi đang có hợp đồng hiệu lực.', 400, null, 400);
+                    $statusLabel = $newStatus === Room::STATUS_INACTIVE ? 'ngưng hoạt động' : 'bảo trì';
+                    return ApiResponse::responseJson(false, "Không thể chuyển phòng sang trạng thái {$statusLabel} khi đang có hợp đồng hiệu lực.", 400, null, 400);
                 }
             }
 
