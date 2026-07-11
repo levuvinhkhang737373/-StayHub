@@ -386,7 +386,7 @@ export function RoomMovementsScreen() {
             setSelectedMovement(freshMovement)
           }
 
-          setSuccessMessage(`Đã hủy lịch chuyển phòng ${transferCode}. Tenant đã được gửi realtime notification.`)
+          setSuccessMessage(`Đã hủy lịch chuyển phòng ${transferCode}`)
           await loadMovements()
         } catch (error) {
           setErrorMessage(getVisibleErrorMessage(error, 'Không thể hủy lịch chuyển phòng.'))
@@ -481,7 +481,7 @@ export function RoomMovementsScreen() {
           {errorMessage && <div className="m-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[1080px] text-left">
+            <table className="w-full min-w-[1160px] text-left">
               <thead className="bg-[#24170d] text-[9.5px] font-black uppercase tracking-[0.12em] text-[#f8e8c8] whitespace-nowrap">
                 <tr>
                   <th scope="col" className={cn(tableHeadCellClass, 'pl-4')}>Thời điểm</th>
@@ -493,7 +493,8 @@ export function RoomMovementsScreen() {
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Quyết toán</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Hợp đồng</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Người xử lý</th>
-                  <th scope="col" className={cn(tableHeadCellClass, 'pr-4 text-right')}>Chi tiết</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Hủy lịch</th>
+                  <th scope="col" className={cn(tableHeadCellClass, 'pr-4 text-right')}>Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -548,16 +549,20 @@ export function RoomMovementsScreen() {
                         {movement.creator_name || '—'}
                       </p>
                     </td>
+                    <td className={cn(tableBodyCellClass, 'text-center')}>
+                      {canCancelTransferSchedule(movement) ? (
+                        <button type="button" onClick={() => openCancelTransferSchedule(movement)} className="group/cancel inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Hủy lịch chuyển" aria-label="Hủy lịch chuyển phòng">
+                          <Trash2 className="h-4.5 w-4.5 transition group-hover/cancel:-rotate-6" />
+                        </button>
+                      ) : (
+                        <span className="inline-flex h-9 items-center justify-center rounded-xl border border-[#3d2a18]/8 bg-[#fffaf1] px-3 text-[11px] font-black text-[#8b5e34]/55">—</span>
+                      )}
+                    </td>
                     <td className={cn(tableBodyCellClass, 'pr-4 text-right')}>
                       <div className="flex items-center justify-end gap-2">
                         {canUpdateTransferDate(movement) && (
-                          <button type="button" onClick={() => openTransferDateEditor(movement)} className="group/date inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#f3c56b]/35 bg-[#f3c56b]/15 text-[#9a5b13] shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3c56b]/60 hover:bg-[#f3c56b]/25 hover:text-[#6f3b08] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-95" title="Đổi ngày chuyển" aria-label="Đổi ngày chuyển phòng">
-                            <CalendarPlus2 className="h-4.5 w-4.5 transition group-hover/date:rotate-6" />
-                          </button>
-                        )}
-                        {canCancelTransferSchedule(movement) && (
-                          <button type="button" onClick={() => openCancelTransferSchedule(movement)} className="group/cancel inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Hủy lịch chuyển" aria-label="Hủy lịch chuyển phòng">
-                            <Trash2 className="h-4.5 w-4.5 transition group-hover/cancel:-rotate-6" />
+                          <button type="button" onClick={() => openTransferDateEditor(movement)} className="group/date inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-[#f3c56b]/35 bg-[#f3c56b]/15 px-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#9a5b13] shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3c56b]/60 hover:bg-[#f3c56b]/25 hover:text-[#6f3b08] focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 active:scale-95" title="Đổi ngày chuyển" aria-label="Đổi ngày chuyển phòng">
+                            <CalendarPlus2 className="h-4 w-4 transition group-hover/date:rotate-6" /> Đổi
                           </button>
                         )}
                         <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
@@ -718,11 +723,12 @@ function RoomFlow({ movement }: { movement: AdminRoomMovementResource }) {
   )
 }
 
-function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose, onOpenCashPayment, onOpenTransferDate }: { movement: AdminRoomMovementResource; currentAdmin: AdminProfile | null; isLoading: boolean; errorMessage: string | null; onClose: () => void; onOpenCashPayment: (movement: AdminRoomMovementResource) => void; onOpenTransferDate: (movement: AdminRoomMovementResource) => void }) {
+function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose, onOpenCashPayment, onOpenTransferDate, onOpenCancelTransfer }: { movement: AdminRoomMovementResource; currentAdmin: AdminProfile | null; isLoading: boolean; errorMessage: string | null; onClose: () => void; onOpenCashPayment: (movement: AdminRoomMovementResource) => void; onOpenTransferDate: (movement: AdminRoomMovementResource) => void; onOpenCancelTransfer: (movement: AdminRoomMovementResource) => void }) {
   const hasMeterReadings = Boolean(movement.final_electric_reading || movement.final_water_reading)
   const settlementBreakdown = useMemo(() => makeSettlementBreakdown(movement), [movement])
   const canCollectCash = canRecordCashSettlementPayment(movement, currentAdmin)
   const canReschedule = canUpdateTransferDate(movement)
+  const canCancel = canCancelTransferSchedule(movement)
   const remainingAmount = Number(movement.settlement_remaining_amount ?? 0)
   const isPaid = Number(movement.settlement_payment_status) === 2 || remainingAmount <= 0
 
@@ -744,6 +750,11 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
               {canReschedule && (
                 <button type="button" onClick={() => onOpenTransferDate(movement)} className="hidden min-h-10 items-center justify-center gap-2 rounded-xl border border-[#f3c56b]/30 bg-[#f3c56b]/14 px-4 text-xs font-black uppercase tracking-[0.14em] text-[#f3c56b] transition hover:bg-[#f3c56b]/22 focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/15 sm:inline-flex">
                   <CalendarPlus2 className="h-4 w-4" /> Đổi ngày
+                </button>
+              )}
+              {canCancel && (
+                <button type="button" onClick={() => onOpenCancelTransfer(movement)} className="hidden min-h-10 items-center justify-center gap-2 rounded-xl border border-rose-300/35 bg-rose-500/12 px-4 text-xs font-black uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/20 focus:outline-none focus:ring-4 focus:ring-rose-400/20 sm:inline-flex">
+                  <Trash2 className="h-4 w-4" /> Hủy lịch
                 </button>
               )}
               <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20" aria-label="Đóng chi tiết lịch sử">
@@ -797,6 +808,12 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                     <DetailTile label="Phòng mới" value={roomLabel(movement.to_room, 'Trả phòng')} />
                     <DetailTile label="Hợp đồng đích" value={movement.destination_contract?.contract_code || (movement.destination_contract_id ? `#${movement.destination_contract_id}` : '—')} />
                   </div>
+
+                  {canCancel && (
+                    <button type="button" onClick={() => onOpenCancelTransfer(movement)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-black text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-[0.99] sm:hidden">
+                      <Trash2 className="h-4 w-4" /> Hủy lịch chuyển phòng
+                    </button>
+                  )}
                 </div>
               </div>
 

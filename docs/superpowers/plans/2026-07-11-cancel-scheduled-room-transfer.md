@@ -635,7 +635,7 @@ Add this function after `submitTransferDate()` and before `submitCashPayment()`:
             setSelectedMovement(freshMovement)
           }
 
-          setSuccessMessage(`Đã hủy lịch chuyển phòng ${transferCode}. Tenant đã được gửi realtime notification.`)
+          setSuccessMessage(`Đã hủy lịch chuyển phòng ${transferCode}`)
           await loadMovements()
         } catch (error) {
           setErrorMessage(getVisibleErrorMessage(error, 'Không thể hủy lịch chuyển phòng.'))
