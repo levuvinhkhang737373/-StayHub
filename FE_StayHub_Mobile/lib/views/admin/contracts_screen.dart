@@ -399,10 +399,14 @@ class _ContractsScreenState extends State<ContractsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      contract.contractCode,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
+                    Expanded(
+                      child: Text(
+                        contract.contractCode,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1C1917)),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     _buildStatusBadge(contract),
                   ],
                 ),
