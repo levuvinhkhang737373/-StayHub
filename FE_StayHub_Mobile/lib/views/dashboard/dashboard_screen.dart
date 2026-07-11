@@ -9,6 +9,7 @@ import '../../controllers/contract_controller.dart';
 import '../../controllers/maintenance_controller.dart';
 import '../../controllers/notification_controller.dart';
 import '../../controllers/chat_controller.dart';
+import '../../controllers/facility_controller.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import '../settings/settings_screen.dart';
@@ -101,6 +102,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               : null;
 
           if (contract != null && mounted) {
+            // Check building access
+            final authCtrl = context.read<AuthController>();
+            final admin = authCtrl.currentAdmin;
+            if (admin != null) {
+              final isSuperAdmin = admin.role == 2;
+              final buildingId = contract['building_id'];
+              if (!isSuperAdmin && buildingId != null) {
+                final facilityCtrl = context.read<FacilityController>();
+                final isManaged = facilityCtrl.buildings.any((b) => b.id == buildingId);
+                if (!isManaged) return; // Not managing this building, ignore the event
+              }
+            }
             // Làm mới các chỉ số vận hành và hợp đồng của admin
             context.read<DashboardController>().fetchDashboardStats();
             context.read<ContractController>().fetchContracts('admin');
@@ -585,8 +598,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
 
     final chatController = context.watch<ChatController>();
-    final int unreadChatCount = chatController.tenantConversations.fold(0, (sum, item) => sum + item.adminUnreadCount) +
-        chatController.directConversations.fold(0, (sum, item) => sum + item.adminUnreadCount);
+    final int unreadChatCount = chatController.tenantConversations.fold(0, (sum, item) => sum + item.unreadCountForAdmin(admin?.id)) +
+        chatController.directConversations.fold(0, (sum, item) => sum + item.unreadCountForAdmin(admin?.id));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
@@ -594,20 +607,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ? null
           : AppBar(
               actions: [
-                notificationCount > 0
-                    ? Badge(
-                        label: Text('$notificationCount'),
-                        backgroundColor: Colors.redAccent,
-                        textColor: Colors.white,
-                        child: IconButton(
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: notificationCount > 0
+                      ? Badge(
+                          label: Text('$notificationCount'),
+                          backgroundColor: Colors.redAccent,
+                          textColor: Colors.white,
+                          child: IconButton(
+                            icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
+                            onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
+                          ),
+                        )
+                      : IconButton(
                           icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
                           onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
                         ),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
-                        onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
-                      ),
+                ),
               ],
               title: Row(
                 children: [

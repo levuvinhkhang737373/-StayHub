@@ -98,7 +98,7 @@ class RoomController extends ChangeNotifier {
   String _errorMessage = '';
   String _searchQuery = '';
 
-  List<Room> get rooms => _filteredRooms.isEmpty && _searchQuery.isEmpty ? (_rooms.isEmpty ? _mockRooms : _rooms) : _filteredRooms;
+  List<Room> get rooms => _filteredRooms;
   bool get isLoading => _isLoading;
   String get errorMessage => _errorMessage;
 
@@ -151,7 +151,7 @@ class RoomController extends ChangeNotifier {
       _filteredRooms = List.from(sourceList);
     } else {
       _filteredRooms = sourceList.where((r) {
-        return r.roomNumber.contains(_searchQuery) ||
+        return r.roomNumber.toLowerCase().contains(_searchQuery) ||
             (r.buildingName != null && r.buildingName!.toLowerCase().contains(_searchQuery)) ||
             (r.building?.name != null && r.building!.name.toLowerCase().contains(_searchQuery));
       }).toList();

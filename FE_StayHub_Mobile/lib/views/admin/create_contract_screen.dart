@@ -147,6 +147,9 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
               'tenant_id': tId,
               'tenantName': t?['full_name'] ?? 'Khách thuê',
               'join_date': isRenewMode ? _startDateController.text : (ct['join_date'] ?? _startDateController.text),
+              'leave_date': isRenewMode ? null : ct['leave_date'],
+              'billing_start_date': isRenewMode ? _startDateController.text : (ct['billing_start_date'] ?? ct['join_date'] ?? _startDateController.text),
+              'billing_end_date': isRenewMode ? null : ct['billing_end_date'],
               'isRepresentative': tId == repId,
             };
           }).toList();
@@ -194,6 +197,8 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
             return {
               'service_id': cs['service_id'] ?? s?['id'],
               'name': s?['name'] ?? 'Dịch vụ',
+              'slug': s?['slug'],
+              'charge_method': s?['charge_method'],
               'price': double.parse((cs['price'] ?? 0).toString()).round().toString(),
               'charge_method_label': s?['charge_method'] == 1 ? 'Theo chỉ số' : (s?['charge_method'] == 2 ? 'Cố định' : 'Miễn phí'),
               'unit_name': s?['unit_name'] ?? '',
@@ -247,6 +252,8 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         return {
           'service_id': service.id,
           'name': service.name,
+          'slug': service.slug,
+          'charge_method': service.chargeMethod,
           'price': initialPrice,
           'charge_method_label': service.chargeMethod == 1 ? 'Theo chỉ số' : (service.chargeMethod == 2 ? 'Cố định' : 'Miễn phí'),
           'unit_name': service.unitName ?? '',
@@ -274,6 +281,9 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         'tenant_id': tenant.id,
         'tenantName': tenant.fullName,
         'join_date': _startDateController.text,
+        'leave_date': null,
+        'billing_start_date': _startDateController.text,
+        'billing_end_date': null,
       });
     });
 
@@ -584,7 +594,10 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       'tenants': _selectedTenants.map((t) => {
         'tenant_id': t['tenant_id'],
         'join_date': t['join_date'],
-        'is_staying': true,
+        'leave_date': t['leave_date'],
+        'billing_start_date': t['billing_start_date'] ?? t['join_date'],
+        'billing_end_date': t['billing_end_date'] ?? t['leave_date'],
+        'is_staying': t['leave_date'] == null,
       }).toList(),
       'vehicles': _selectedVehicles.map((v) => {
         if (v['vehicle_id'] != null) 'vehicle_id': v['vehicle_id'],
@@ -593,7 +606,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         'monthly_fee': v['monthly_fee'],
         'charge_policy': v['charge_policy'],
       }).toList(),
-      'services': _selectedServices.where((s) => s['is_checked'] == true).map((s) => {
+      'services': _selectedServices.where((s) => (s['is_checked'] == true || _isUtilityService(s)) && !_isUtilityService(s)).map((s) => {
         'service_id': s['service_id'],
         'price': double.tryParse(s['price'].toString()) ?? 0.0,
       }).toList(),
@@ -667,6 +680,14 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
     );
   }
 
+  bool _isUtilityService(Map<String, dynamic> s) {
+    final slug = (s['slug'] ?? '').toString().toLowerCase();
+    final name = (s['name'] ?? '').toString().toLowerCase();
+    return ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat', 'dien', 'nuoc'].contains(slug) ||
+        name.contains('điện') ||
+        name.contains('nước');
+  }
+
   Widget _buildSectionHeader(String title, IconData icon) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -696,6 +717,52 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         controller.text = picked.toString().split(' ')[0];
       });
     }
+  }
+
+  Future<void> _selectTenantDate(BuildContext context, Map<String, dynamic> tenantMap, String key, {String? defaultDate}) async {
+    final currentVal = tenantMap[key] ?? defaultDate ?? '';
+    final initialDate = DateTime.tryParse(currentVal) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2040),
+    );
+    if (picked != null) {
+      setState(() {
+        tenantMap[key] = picked.toString().split(' ')[0];
+      });
+    }
+  }
+
+  Widget _buildDateBadge(String label, {required VoidCallback onTap, VoidCallback? onClear, Color? color}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: (color ?? const Color(0xFF1C1917)).withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: (color ?? const Color(0xFF1C1917)).withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color ?? const Color(0xFF1C1917)),
+            ),
+            if (onClear != null) ...[
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: onClear,
+                child: Icon(Icons.close, size: 10, color: color ?? const Color(0xFF1C1917)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -948,30 +1015,45 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                                             overflow: TextOverflow.ellipsis,
                                                           ),
                                                         ),
-                                                        if (isRep) ...[
-                                                          const SizedBox(width: 8),
-                                                          Container(
-                                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                                            decoration: BoxDecoration(
-                                                              color: const Color(0xFFEAB308).withValues(alpha: 0.12),
-                                                              borderRadius: BorderRadius.circular(4),
-                                                              border: Border.all(color: const Color(0xFFEAB308).withValues(alpha: 0.3)),
-                                                            ),
-                                                            child: const Text(
-                                                              'ĐẠI DIỆN',
-                                                              style: TextStyle(color: Color(0xFF8B5E34), fontSize: 8, fontWeight: FontWeight.bold),
-                                                            ),
-                                                          ),
-                                                        ],
                                                       ],
                                                     ),
                                                   ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'Ngày vào ở: ${st['join_date']}',
-                                                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                              const SizedBox(height: 6),
+                                              Wrap(
+                                                spacing: 6,
+                                                runSpacing: 6,
+                                                children: [
+                                                  _buildDateBadge(
+                                                    'Vào ở: ${st['join_date']}',
+                                                    onTap: () => _selectTenantDate(context, st, 'join_date'),
+                                                  ),
+                                                  _buildDateBadge(
+                                                    st['leave_date'] == null ? 'Dời đi: --' : 'Rời đi: ${st['leave_date']}',
+                                                    color: Colors.redAccent,
+                                                    onTap: () => _selectTenantDate(context, st, 'leave_date'),
+                                                    onClear: st['leave_date'] != null ? () {
+                                                      setState(() {
+                                                        st['leave_date'] = null;
+                                                      });
+                                                    } : null,
+                                                  ),
+                                                  _buildDateBadge(
+                                                    'Tính tiền từ: ${st['billing_start_date'] ?? st['join_date']}',
+                                                    onTap: () => _selectTenantDate(context, st, 'billing_start_date', defaultDate: st['join_date']),
+                                                  ),
+                                                  _buildDateBadge(
+                                                    st['billing_end_date'] == null ? 'Tính tiền đến: --' : 'Tính tiền đến: ${st['billing_end_date']}',
+                                                    color: Colors.blueAccent,
+                                                    onTap: () => _selectTenantDate(context, st, 'billing_end_date'),
+                                                    onClear: st['billing_end_date'] != null ? () {
+                                                      setState(() {
+                                                        st['billing_end_date'] = null;
+                                                      });
+                                                    } : null,
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
@@ -1217,7 +1299,8 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                                 itemBuilder: (context, idx) {
                                   final s = _selectedServices[idx];
-                                  final isChecked = s['is_checked'] == true;
+                                  final isUtility = _isUtilityService(s);
+                                  final isChecked = isUtility ? true : (s['is_checked'] == true);
                                   return Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
@@ -1233,11 +1316,13 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                         Checkbox(
                                           value: isChecked,
                                           activeColor: const Color(0xFF1C1917),
-                                          onChanged: (val) {
-                                            setState(() {
-                                              s['is_checked'] = val;
-                                            });
-                                          },
+                                          onChanged: isUtility
+                                              ? null
+                                              : (val) {
+                                                  setState(() {
+                                                    s['is_checked'] = val;
+                                                  });
+                                                },
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
@@ -1264,13 +1349,13 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                             initialValue: s['price'].toString(),
                                             keyboardType: TextInputType.number,
                                             inputFormatters: [CurrencyInputFormatter()],
-                                            enabled: isChecked,
+                                            enabled: isChecked && !isUtility,
                                             decoration: InputDecoration(
                                               labelText: 'Giá mới (${s['unit_name']})',
                                               labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
                                               isDense: true,
                                               filled: true,
-                                              fillColor: isChecked ? Colors.white : Colors.grey[100],
+                                              fillColor: (isChecked && !isUtility) ? Colors.white : Colors.grey[100],
                                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                                               border: OutlineInputBorder(
                                                 borderRadius: BorderRadius.circular(8),

@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/currency_formatter.dart';
 import '../../controllers/invoice_controller.dart';
+import '../../controllers/auth_controller.dart';
+import '../../controllers/facility_controller.dart';
 import '../../models/invoice.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
@@ -29,6 +31,19 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         if (type == 'admin_invoice_paid' || type == 'admin_invoice_reissued') {
           final data = event['data'];
           if (data is Map<String, dynamic>) {
+            // Check building access
+            final authCtrl = context.read<AuthController>();
+            final admin = authCtrl.currentAdmin;
+            if (admin != null) {
+              final isSuperAdmin = admin.role == 2;
+              final buildingId = data['building_id'];
+              if (!isSuperAdmin && buildingId != null) {
+                final facilityCtrl = context.read<FacilityController>();
+                final isManaged = facilityCtrl.buildings.any((b) => b.id == buildingId);
+                if (!isManaged) return; // Not managing this building, ignore the event
+              }
+            }
+
             context.read<InvoiceController>().updateInvoiceRealtime(data);
           }
           context.read<InvoiceController>().fetchInvoices(isAdmin: true);

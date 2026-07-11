@@ -126,7 +126,7 @@ class TenantController extends ChangeNotifier {
       _filteredTenants = sourceList.where((t) {
         return t.fullName.toLowerCase().contains(_searchQuery) ||
             t.phone.contains(_searchQuery) ||
-            (t.roomNumber != null && t.roomNumber!.contains(_searchQuery));
+            (t.roomNumber != null && t.roomNumber!.toLowerCase().contains(_searchQuery));
       }).toList();
     }
     notifyListeners();
