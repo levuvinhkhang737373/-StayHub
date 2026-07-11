@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/currency_formatter.dart';
 import '../../controllers/invoice_controller.dart';
+import '../../controllers/auth_controller.dart';
+import '../../controllers/facility_controller.dart';
 import '../../models/invoice.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter

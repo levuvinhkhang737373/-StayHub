@@ -9,6 +9,7 @@ import '../../controllers/contract_controller.dart';
 import '../../controllers/maintenance_controller.dart';
 import '../../controllers/notification_controller.dart';
 import '../../controllers/chat_controller.dart';
+import '../../controllers/facility_controller.dart';
 import '../../services/websocket_service.dart';
 import '../auth/login_screen.dart'; // import GridPainter
 import '../settings/settings_screen.dart';
