@@ -164,7 +164,9 @@ class AdminActivityLogControllerTest extends TestCase
             ->assertOk();
 
         $this->actingAs($this->superAdmin, 'admin')
-            ->patchJson("/api/v1/admin/rooms/{$roomId}/status")
+            ->patchJson("/api/v1/admin/rooms/{$roomId}/status", [
+                'status' => Room::STATUS_MAINTENANCE,
+            ])
             ->assertOk();
 
         $this->actingAs($this->superAdmin, 'admin')

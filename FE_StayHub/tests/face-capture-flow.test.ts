@@ -17,9 +17,9 @@ test('face registration keeps three guided capture steps without changing the UI
 test('face capture helper resizes large camera frames for fast upload', () => {
   const size = getFaceCaptureSize(1280, 720)
 
-  assert.equal(FACE_CAPTURE_MAX_SIZE, 640)
-  assert.equal(FACE_CAPTURE_QUALITY, 0.86)
-  assert.deepEqual(size, { width: 640, height: 360 })
+  assert.equal(FACE_CAPTURE_MAX_SIZE, 800)
+  assert.equal(FACE_CAPTURE_QUALITY, 0.92)
+  assert.deepEqual(size, { width: 800, height: 450 })
 })
 
 test('face capture helper keeps small camera frames unchanged', () => {
