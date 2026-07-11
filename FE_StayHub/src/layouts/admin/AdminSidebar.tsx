@@ -162,7 +162,7 @@ export function AdminSidebar() {
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm">
               {session?.admin.avatar_url ? (
-                <img src={resolveAssetUrl(session.admin.avatar_url)} alt="Avatar" className="h-full w-full object-cover" />
+                <img src={resolveAssetUrl(session.admin.avatar_url)} alt="Ảnh đại diện" className="h-full w-full object-cover" />
               ) : (
                 <User className="h-5 w-5" />
               )}

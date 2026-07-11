@@ -691,7 +691,7 @@ export function VehiclesScreen() {
             <div className="bg-[#24170d] p-5 text-[#fff4df]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Vehicle Details</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Chi tiết phương tiện</p>
                   <h2 id="vehicle-detail-title" className="mt-2 text-2xl font-black tracking-tight">{detailVehicle?.license_plate || 'Đang tải chi tiết...'}</h2>
                   <p className="mt-1 text-xs font-black uppercase tracking-[0.18em] text-[#f8e8c8]/72">
                     Hãng: {detailVehicle?.brand || 'Chưa cập nhật'} • Loại: {detailVehicle?.vehicle_type_label}

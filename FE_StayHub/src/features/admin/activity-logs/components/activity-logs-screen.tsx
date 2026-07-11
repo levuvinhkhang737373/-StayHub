@@ -428,7 +428,7 @@ function DetailDrawer({ log, isLoading, errorMessage, onClose }: { log: AdminAct
             <ReadableDataBlock title="Dữ liệu sau" fields={newFields} tone="new" />
           </div>
           <div className="mt-4 rounded-3xl border border-[#3d2a18]/10 bg-[#fff8eb] p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">User agent</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8b5e34]/60">Thiết bị & Trình duyệt</p>
             <p className="mt-2 break-words text-sm font-bold text-[#3d2a18]">{log.user_agent || '—'}</p>
           </div>
         </div>

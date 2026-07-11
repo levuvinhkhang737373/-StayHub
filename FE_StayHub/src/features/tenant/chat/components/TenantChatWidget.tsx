@@ -443,7 +443,7 @@ export function TenantChatWidget() {
                 onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); }}
                 className="ml-2 pl-2 border-l border-white/20 hover:text-[#0f766e] transition text-[10px] font-bold text-white"
               >
-                Reset
+                Đặt lại
               </button>
             </div>
 
@@ -490,7 +490,7 @@ export function TenantChatWidget() {
           >
             <img
               src={activeImageUrls[activeImageIndex]}
-              alt="Enlarged view"
+              alt="Ảnh phóng to"
               onClick={(e) => e.stopPropagation()}
               style={{
                 transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,

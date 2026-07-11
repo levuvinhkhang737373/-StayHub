@@ -981,7 +981,7 @@ function ImageLightbox({
           <button type="button" onClick={() => setScale((prev) => Math.max(0.5, prev - 0.2))} className="p-1 transition hover:text-[#8b5e34]"><ZoomOut className="h-4 w-4 text-white" /></button>
           <span className="w-12 text-center text-white">{Math.round(scale * 100)}%</span>
           <button type="button" onClick={() => setScale((prev) => Math.min(5, prev + 0.2))} className="p-1 transition hover:text-[#8b5e34]"><ZoomIn className="h-4 w-4 text-white" /></button>
-          <button type="button" onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }) }} className="ml-2 border-l border-white/20 pl-2 text-[10px] font-bold text-white transition hover:text-[#8b5e34]">Reset</button>
+          <button type="button" onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }) }} className="ml-2 border-l border-white/20 pl-2 text-[10px] font-bold text-white transition hover:text-[#8b5e34]">Đặt lại</button>
         </div>
         <button type="button" onClick={() => setActiveImageUrls(null)} className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"><X className="h-5 w-5" /></button>
       </div>
@@ -996,7 +996,7 @@ function ImageLightbox({
       <div className="flex h-full w-full items-center justify-center overflow-hidden" onClick={() => setActiveImageUrls(null)}>
         <img
           src={activeImageUrls[activeImageIndex]}
-          alt="Enlarged view"
+          alt="Ảnh phóng to"
           onClick={(event) => event.stopPropagation()}
           style={{
             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,

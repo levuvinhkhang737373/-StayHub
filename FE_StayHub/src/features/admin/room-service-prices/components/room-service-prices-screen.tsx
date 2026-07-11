@@ -404,7 +404,7 @@ export function RoomServicePricesScreen() {
           </div>
           <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[480px]">
             <Metric label="Phòng" value={total.toLocaleString('vi-VN')} />
-            <Metric label="Service" value={statusStats.serviceCount.toLocaleString('vi-VN')} />
+            <Metric label="Dịch vụ" value={statusStats.serviceCount.toLocaleString('vi-VN')} />
             <Metric label="Đã lên lịch" value={statusStats.scheduledCount.toLocaleString('vi-VN')} />
           </div>
         </div>
@@ -456,7 +456,7 @@ export function RoomServicePricesScreen() {
               {!isLoading && priceRooms.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-5 py-14 text-center text-sm font-bold text-[#6f6254]">
-                    Không có phòng nào có service phù hợp bộ lọc.
+                    Không có phòng nào có dịch vụ phù hợp bộ lọc.
                   </td>
                 </tr>
               )}
@@ -468,7 +468,7 @@ export function RoomServicePricesScreen() {
           {isLoading && Array.from({ length: 4 }).map((_, index) => <RoomServicePriceCardSkeleton key={index} />)}
           {!isLoading && priceRooms.length === 0 && (
             <div className="rounded-[1.5rem] border border-dashed border-[#3d2a18]/15 bg-white/60 px-4 py-12 text-center text-sm font-bold text-[#6f6254]">
-              Không có phòng nào có service phù hợp bộ lọc.
+              Không có phòng nào có dịch vụ phù hợp bộ lọc.
             </div>
           )}
           {!isLoading && priceRooms.map((room) => <RoomServicePriceCard key={room.id} room={room} onEdit={() => openEditModal(room)} />)}

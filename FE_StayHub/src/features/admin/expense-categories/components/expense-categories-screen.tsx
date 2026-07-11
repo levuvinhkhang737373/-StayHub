@@ -441,7 +441,7 @@ export function ExpenseCategoriesScreen() {
             <div className="bg-[#24170d] p-5 text-[#fff4df]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Expense category detail</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Chi tiết danh mục chi phí</p>
                   <h2 id="expense-category-detail-title" className="mt-2 text-2xl font-black tracking-tight">{detailExpenseCategory?.name || 'Đang tải chi tiết...'}</h2>
                   <p className="mt-1 text-xs font-black uppercase tracking-[0.18em] text-[#f8e8c8]/72">{detailExpenseCategory?.status_label || (detailExpenseCategory?.is_active ? 'Đang sử dụng' : 'Hết sử dụng')}</p>
                 </div>

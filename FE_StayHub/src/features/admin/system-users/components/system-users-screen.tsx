@@ -512,7 +512,7 @@ export function SystemUsersScreen() {
             <div className="bg-[#24170d] p-5 text-[#fff4df]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Admin account detail</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Chi tiết tài khoản quản trị</p>
                   <h2 id="admin-account-detail-title" className="mt-2 text-2xl font-black tracking-tight">{detailAccount?.full_name || detailAccount?.username || 'Đang tải chi tiết...'}</h2>
                   <p className="mt-1 text-xs font-black uppercase tracking-[0.18em] text-[#f8e8c8]/72">{getAccountRoleLabel(detailAccount)} · {getAccountStatusLabel(detailAccount)}</p>
                 </div>

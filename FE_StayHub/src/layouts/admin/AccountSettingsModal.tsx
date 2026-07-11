@@ -382,11 +382,11 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
                     <div className="mb-6 flex items-center gap-6">
                       <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-[#fffaf1] bg-[#efe2cf]/70 shadow-lg shadow-[#6b3f1d]/12">
                         {avatarPreview ? (
-                          <img src={avatarPreview} alt="Avatar Preview" className="h-full w-full object-cover" />
+                          <img src={avatarPreview} alt="Xem trước ảnh đại diện" className="h-full w-full object-cover" />
                         ) : (admin?.avatar_url && !isImageError) ? (
                           <img
                             src={resolveAssetUrl(admin.avatar_url)}
-                            alt="Avatar"
+                            alt="Ảnh đại diện"
                             className="h-full w-full object-cover"
                             onError={() => setIsImageError(true)}
                           />

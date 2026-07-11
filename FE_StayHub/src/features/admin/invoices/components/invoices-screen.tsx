@@ -835,7 +835,7 @@ function PaymentModal({ invoice, isSaving, onClose, onSuccess, onSubmit }: { inv
                 {invoice.payment_qr_url ? (
                   <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white border border-[#3d2a18]/10 space-y-3 shadow-inner">
                     <p className="text-[10px] text-[#8b5e34]/85 font-black uppercase tracking-wider">Quét mã VietQR qua ứng dụng Ngân hàng</p>
-                    <img src={invoice.payment_qr_url} alt="VietQR Payment Code" className="w-48 h-48 rounded-lg shadow-sm border border-stone-100" />
+                    <img src={invoice.payment_qr_url} alt="Mã thanh toán VietQR" className="w-48 h-48 rounded-lg shadow-sm border border-stone-100" />
 
                     <div className="w-full bg-[#fffaf1] rounded-xl p-3 border border-[#3d2a18]/5 space-y-1.5 text-xs">
                       <div className="flex justify-between items-center">

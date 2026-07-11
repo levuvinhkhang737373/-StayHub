@@ -452,7 +452,7 @@ export function RoomTypesScreen() {
               <div className="bg-[#24170d] p-5 text-[#fff4df]">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Room type detail</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#f3c56b]">Chi tiết loại phòng</p>
                     <h2 className="mt-2 text-2xl font-black tracking-tight">{detailRoomType?.name || 'Đang tải chi tiết...'}</h2>
                   </div>
                   <button type="button" onClick={closeRoomTypeDetail} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20">
@@ -491,7 +491,7 @@ export function RoomTypesScreen() {
           </div>
         )}
       </>
-    <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }
