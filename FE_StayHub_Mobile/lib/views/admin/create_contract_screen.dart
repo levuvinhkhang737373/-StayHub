@@ -1354,31 +1354,33 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                             ],
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        SizedBox(
-                                          width: 110,
-                                          child: TextFormField(
-                                            initialValue: s['price'].toString(),
-                                            keyboardType: TextInputType.number,
-                                            inputFormatters: [CurrencyInputFormatter()],
-                                            enabled: isChecked && !isUtility,
-                                            decoration: InputDecoration(
-                                              labelText: 'Giá mới (${s['unit_name']})',
-                                              labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
-                                              isDense: true,
-                                              filled: true,
-                                              fillColor: (isChecked && !isUtility) ? Colors.white : Colors.grey[100],
-                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                              border: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                        if (!isUtility) ...[
+                                          const SizedBox(width: 12),
+                                          SizedBox(
+                                            width: 110,
+                                            child: TextFormField(
+                                              initialValue: s['price'].toString(),
+                                              keyboardType: TextInputType.number,
+                                              inputFormatters: [CurrencyInputFormatter()],
+                                              enabled: isChecked && !isUtility,
+                                              decoration: InputDecoration(
+                                                labelText: 'Giá mới (${s['unit_name']})',
+                                                labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
+                                                isDense: true,
+                                                filled: true,
+                                                fillColor: (isChecked && !isUtility) ? Colors.white : Colors.grey[100],
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                                border: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  borderSide: const BorderSide(color: Color(0xFFE4E2D7)),
+                                                ),
                                               ),
+                                              onChanged: (val) {
+                                                s['price'] = parseMoney(val).round().toString();
+                                              },
                                             ),
-                                            onChanged: (val) {
-                                              s['price'] = parseMoney(val).round().toString();
-                                            },
                                           ),
-                                        ),
+                                        ],
                                       ],
                                     ),
                                   );

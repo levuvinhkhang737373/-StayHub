@@ -916,38 +916,47 @@ export function CreateContractScreen() {
                       </button>
                     )}
                   </div>
-                  <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
-                    <div>
+                  {isFixedService(service.name, service.slug) ? (
+                    <div className="mt-4 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
                       <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/65">Giá mặc định phòng</p>
-                      <p className="mt-1 text-sm font-black tabular-nums text-[#6f6254]">{displayPrice(service.default_price || service.price)} đ</p>
+                      <p className="mt-1 text-sm font-black tabular-nums text-[#24170d]">{displayPrice(service.default_price || service.price)} đ</p>
                     </div>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#24170d] text-[#f3c56b]">→</div>
-                    <div>
-                      <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/65">Giá hợp đồng</p>
-                      <p className="mt-1 text-sm font-black tabular-nums text-[#24170d]">{service.price || '0'} đ</p>
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <Field label="Giá deal lưu theo hợp đồng (VND)" required error={errors[`services.${index}`]}>
-                      <input
-                        className={cn(inputClass, errors[`services.${index}`] && inputErrorClass)}
-                        value={service.price}
-                        disabled={isFixedService(service.name, service.slug)}
-                        onChange={(e) => {
-                          const updated = [...form.services]
-                          updated[index] = { ...service, price: formatMoneyInput(e.target.value) }
-                          updateForm('services', updated)
-                        }}
-                        placeholder="100.000"
-                      />
+                  ) : (
+                    <>
+                      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#fffaf1] p-3">
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/65">Giá mặc định phòng</p>
+                          <p className="mt-1 text-sm font-black tabular-nums text-[#6f6254]">{displayPrice(service.default_price || service.price)} đ</p>
+                        </div>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#24170d] text-[#f3c56b]">→</div>
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/65">Giá hợp đồng</p>
+                          <p className="mt-1 text-sm font-black tabular-nums text-[#24170d]">{service.price || '0'} đ</p>
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <Field label="Giá deal lưu theo hợp đồng (VND)" required error={errors[`services.${index}`]}>
+                          <input
+                            className={cn(inputClass, errors[`services.${index}`] && inputErrorClass)}
+                            value={service.price}
+                            disabled={isFixedService(service.name, service.slug)}
+                            onChange={(e) => {
+                              const updated = [...form.services]
+                              updated[index] = { ...service, price: formatMoneyInput(e.target.value) }
+                              updateForm('services', updated)
+                            }}
+                            placeholder="100.000"
+                          />
 
-                      {!isFixedService(service.name, service.slug) && service.default_price && service.price !== service.default_price && (
-                        <p className="text-[10px] font-black text-emerald-700 mt-1">
-                          Đang deal lệch {displayPrice(Math.abs(moneyNumber(service.price) - moneyNumber(service.default_price)))} đ so với giá mặc định.
-                        </p>
-                      )}
-                    </Field>
-                  </div>
+                          {!isFixedService(service.name, service.slug) && service.default_price && service.price !== service.default_price && (
+                            <p className="text-[10px] font-black text-emerald-700 mt-1">
+                              Đang deal lệch {displayPrice(Math.abs(moneyNumber(service.price) - moneyNumber(service.default_price)))} đ so với giá mặc định.
+                            </p>
+                          )}
+                        </Field>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
               {form.services.length === 0 && (
