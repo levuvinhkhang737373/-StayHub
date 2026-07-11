@@ -212,10 +212,19 @@ export function buildPayload(form: ContractFormValues, includeStatus: boolean, i
       payment_method: Number(transaction.payment_method),
       note: transaction.note.trim() || null,
     })),
-    services: form.services.map((service) => ({
-      service_id: Number(service.service_id),
-      price: parseMoneyInput(service.price.trim()),
-    })),
+    services: form.services
+      .filter((service) => {
+        const s = (service.slug || '').toLowerCase()
+        const n = (service.name || '').toLowerCase()
+        const isUtility = ['electric', 'water', 'electricity', 'dien-sinh-hoat', 'nuoc-sinh-hoat', 'dien', 'nuoc'].includes(s) ||
+          n.includes('điện') ||
+          n.includes('nước')
+        return !isUtility
+      })
+      .map((service) => ({
+        service_id: Number(service.service_id),
+        price: parseMoneyInput(service.price.trim()),
+      })),
     is_deposit_paid: isQr ? false : form.is_deposit_paid,
     deposit_payment_method: isQr ? null : (form.is_deposit_paid ? Number(form.deposit_payment_method) : null),
   }

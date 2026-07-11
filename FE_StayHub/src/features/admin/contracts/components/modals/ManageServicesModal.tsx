@@ -26,10 +26,17 @@ const isFixedService = (name: string, slug?: string) => {
 }
 
 const moneyNumber = (value: string | number | null | undefined) => {
-  const normalized = typeof value === 'string' ? value.replace(/\./g, '').replace(/,/g, '') : value
-  const amount = Number(normalized ?? 0)
+  if (value === null || value === undefined) return 0
+  if (typeof value === 'number') return value
 
-  return Number.isFinite(amount) ? amount : 0
+  const valStr = String(value).trim()
+  // Handle decimal prices from API (e.g. "1000.00")
+  if (/^\d+\.\d{1,2}$/.test(valStr)) {
+    return Math.max(Math.round(Number(valStr)), 0)
+  }
+
+  const parsed = Number(valStr.replace(/\./g, '').replace(/,/g, '').trim() || '0')
+  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0
 }
 
 const displayPrice = (value: string | number | null | undefined) => formatMoneyInput(String(Math.round(moneyNumber(value)))) || '0'
@@ -285,9 +292,7 @@ export function ManageServicesModal({
                       <p className="text-xs text-[#8b5e34]/70 mt-0.5">
                         Hình thức: {service.charge_method_label} · Đơn vị: {service.unit_name}
                       </p>
-                      {fixed && (
-                        <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-[#a65f16]">Điện/nước tính theo service_prices khi chốt chỉ số</p>
-                      )}
+
                     </div>
 
                     <div className="flex shrink-0 items-center gap-3">

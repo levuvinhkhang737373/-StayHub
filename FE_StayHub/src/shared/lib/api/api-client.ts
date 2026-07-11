@@ -64,7 +64,7 @@ apiClient.interceptors.request.use((config) => {
 
 function getSafeErrorMessage(payload: Partial<ApiEnvelope<unknown>> | undefined, statusCode: number) {
   if (!statusCode || statusCode >= 500) {
-    return 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.'
+    return payload?.message ?? 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.'
   }
 
   return payload?.message ?? 'Không thể kết nối tới hệ thống StayHub.'

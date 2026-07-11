@@ -100,8 +100,23 @@ class ContractController extends Controller
                         ->when($ignoreContractId > 0, fn (Builder $contractQuery): Builder => $contractQuery->whereKeyNot($ignoreContractId));
                 })
                 ->orderBy('room_number')
+                ->get();
+
+            // Pre-load active building-level service_prices as fallback for meter-based services (electricity/water)
+            $buildingServicePrices = \App\Models\ServicePrice::query()
+                ->where('building_id', $buildingId)
+                ->where('status', \App\Models\ServicePrice::STATUS_ACTIVE)
+                ->whereDate('effective_from', '<=', $targetDate->toDateString())
+                ->where(function (Builder $scope) use ($targetDate): void {
+                    $scope->whereNull('effective_to')
+                        ->orWhereDate('effective_to', '>=', $targetDate->toDateString());
+                })
+                ->orderByDesc('effective_from')
+                ->orderByDesc('id')
                 ->get()
-                ->map(fn (Room $room): array => [
+                ->keyBy('service_id');
+
+            $rooms = $rooms->map(fn (Room $room): array => [
                     'id' => $room->id,
                     'building_id' => $room->building_id,
                     'room_number' => $room->room_number,
@@ -111,16 +126,23 @@ class ContractController extends Controller
                     'current_occupants' => $room->current_occupants,
                     'services' => $room->roomServices
                         ->filter(fn (RoomService $roomService): bool => (bool) $roomService->service?->is_active)
-                        ->map(fn (RoomService $roomService): array => [
-                            'id' => $roomService->service?->id,
-                            'name' => $roomService->service?->name,
-                            'slug' => $roomService->service?->slug,
-                            'charge_method' => $roomService->service?->charge_method,
-                            'unit_name' => $roomService->service?->unit_name,
-                            'is_required' => $roomService->service?->is_required,
-                            'room_service_id' => $roomService->id,
-                            'price' => (string) ($roomService->prices->first()?->price ?? '0.00'),
-                        ])
+                        ->map(function (RoomService $roomService) use ($buildingServicePrices): array {
+                            $roomPrice = $roomService->prices->first()?->price;
+                            // Fallback to building-level service_prices for meter-based services
+                            $fallbackPrice = $buildingServicePrices->get($roomService->service_id)?->price;
+                            $displayPrice = $roomPrice ?? $fallbackPrice ?? '0.00';
+
+                            return [
+                                'id' => $roomService->service?->id,
+                                'name' => $roomService->service?->name,
+                                'slug' => $roomService->service?->slug,
+                                'charge_method' => $roomService->service?->charge_method,
+                                'unit_name' => $roomService->service?->unit_name,
+                                'is_required' => $roomService->service?->is_required,
+                                'room_service_id' => $roomService->id,
+                                'price' => (string) $displayPrice,
+                            ];
+                        })
                         ->values()
                         ->all(),
                 ]);

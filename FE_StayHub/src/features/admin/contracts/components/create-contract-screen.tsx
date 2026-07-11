@@ -51,10 +51,17 @@ import { ManageServicesModal } from './modals/ManageServicesModal'
 import { fetchAdminServices } from '../../services/services/services.service'
 
 const moneyNumber = (value: string | number | null | undefined) => {
-  const normalized = typeof value === 'string' ? value.replace(/\./g, '').replace(/,/g, '') : value
-  const amount = Number(normalized ?? 0)
+  if (value === null || value === undefined) return 0
+  if (typeof value === 'number') return value
 
-  return Number.isFinite(amount) ? amount : 0
+  const valStr = String(value).trim()
+  // Handle decimal prices from API (e.g. "1000.00")
+  if (/^\d+\.\d{1,2}$/.test(valStr)) {
+    return Math.max(Math.round(Number(valStr)), 0)
+  }
+
+  const parsed = Number(valStr.replace(/\./g, '').replace(/,/g, '').trim() || '0')
+  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0
 }
 
 const displayPrice = (value: string | number | null | undefined) => formatMoneyInput(String(Math.round(moneyNumber(value)))) || '0'
@@ -881,9 +888,7 @@ export function CreateContractScreen() {
               )
             }
           >
-            <div className="mb-4 rounded-2xl border border-[#d8912b]/20 bg-[#fff8eb] px-4 py-3 text-xs font-bold leading-relaxed text-[#6f6254]">
-              Giá mặc định lấy theo phòng từ <span className="font-black text-[#24170d]">room_service_prices</span>. Có thể nhập giá deal riêng cho hợp đồng; điện/nước không deal ở đây và vẫn tính theo chỉ số trong <span className="font-black text-[#24170d]">service_prices</span>.
-            </div>
+
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {form.services.map((service, index) => (
                 <div
@@ -935,11 +940,7 @@ export function CreateContractScreen() {
                         }}
                         placeholder="100.000"
                       />
-                      {isFixedService(service.name, service.slug) && (
-                        <p className="text-[10px] font-semibold text-[#8b5e34]/70 mt-1">
-                          * Điện/nước không lưu trong room_service_prices, giá lấy theo service_prices khi chốt chỉ số.
-                        </p>
-                      )}
+
                       {!isFixedService(service.name, service.slug) && service.default_price && service.price !== service.default_price && (
                         <p className="text-[10px] font-black text-emerald-700 mt-1">
                           Đang deal lệch {displayPrice(Math.abs(moneyNumber(service.price) - moneyNumber(service.default_price)))} đ so với giá mặc định.
