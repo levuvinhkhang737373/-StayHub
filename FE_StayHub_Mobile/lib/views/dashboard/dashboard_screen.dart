@@ -585,8 +585,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
 
     final chatController = context.watch<ChatController>();
-    final int unreadChatCount = chatController.tenantConversations.fold(0, (sum, item) => sum + item.adminUnreadCount) +
-        chatController.directConversations.fold(0, (sum, item) => sum + item.adminUnreadCount);
+    final int unreadChatCount = chatController.tenantConversations.fold(0, (sum, item) => sum + item.unreadCountForAdmin(admin?.id)) +
+        chatController.directConversations.fold(0, (sum, item) => sum + item.unreadCountForAdmin(admin?.id));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
