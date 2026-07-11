@@ -660,14 +660,14 @@ export function FacilitiesScreen() {
 
                             <div className="overflow-x-auto">
                                 <table className="min-w-[980px] w-full text-left">
-                                    <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+                                    <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8] whitespace-nowrap">
                                         <tr>
                                             <th className="px-4 py-4">Tòa nhà</th>
                                             <th className="px-4 py-4">Khu vực</th>
                                             <th className="px-4 py-4">Quản lý</th>
                                             <th className="px-4 py-4 text-center">Phòng</th>
                                             <th className="px-4 py-4 text-center">Trạng thái</th>
-                                            <th className="px-4 py-4 w-[162px]"><div className="flex justify-end"><div className="w-[162px] text-center">Thao tác</div></div></th>
+                                            <th className="px-4 py-4 min-w-[180px]"><div className="flex justify-end"><div className="w-[180px] text-center">Thao tác</div></div></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[#3d2a18]/8">

@@ -1033,7 +1033,7 @@ export function MeterReadingsScreen() {
             <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_18%_14%,rgba(243,197,107,0.28),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(15,118,110,0.26),transparent_34%),linear-gradient(135deg,#24170d_0%,#3d2a18_52%,#0f3f3b_100%)]" />
             <div className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-[#f3c56b]/40 to-transparent" />
 
-            <div className="relative flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="relative flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
                 <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#f3c56b]/80">DỊCH VỤ & ĐIỆN NƯỚC</span>
                 <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-[#fff4df] sm:text-4xl lg:text-[2.65rem] flex items-center gap-3">
@@ -1044,7 +1044,7 @@ export function MeterReadingsScreen() {
 
               {/* Filters / Cycle Selection */}
               <div className="relative flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                <div className="w-full sm:w-72">
+                <div className="w-full sm:w-48">
                   <AdminSelect
                     value={selectedBuildingId}
                     options={buildings.map((b) => ({ value: b.id, label: b.name }))}
@@ -1053,14 +1053,14 @@ export function MeterReadingsScreen() {
                     disabled={isManager && buildings.length === 1}
                   />
                 </div>
-                <div className="w-[calc(50%-0.75rem)] sm:w-36 flex-1">
+                <div className="w-[calc(50%-0.75rem)] sm:w-32">
                   <AdminSelect
                     value={selectedMonth}
                     options={months}
                     onChange={(val) => setSelectedMonth(Number(val))}
                   />
                 </div>
-                <div className="w-[calc(50%-0.75rem)] sm:w-36 flex-1">
+                <div className="w-[calc(50%-0.75rem)] sm:w-36">
                   <AdminSelect
                     value={selectedYear}
                     options={years}
@@ -1093,10 +1093,10 @@ export function MeterReadingsScreen() {
 
         {/* Pricing Info Alerts */}
         {selectedBuildingId && servicePrices.length > 0 && (
-          <div className="rounded-[1.75rem] border border-[#3d2a18]/8 bg-[#fffaf1]/80 p-4 sm:p-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="rounded-[1.75rem] border border-[#3d2a18]/8 bg-[#fffaf1]/80 p-4 sm:p-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <span className="text-xs font-black uppercase tracking-wider text-[#8b5e34]/80 shrink-0">Đơn giá dịch vụ:</span>
-              <div className="flex flex-wrap gap-2.5">
+              <div className="flex flex-wrap items-center gap-2.5">
                 {/* Electric Price Badge */}
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-[#f3c56b]/35 bg-[#f3c56b]/8 px-3.5 py-2 text-sm font-black text-[#8a4f18]">
                   <Zap className="h-4 w-4 text-[#a65f16] fill-[#f3c56b]/35" />
@@ -1107,31 +1107,34 @@ export function MeterReadingsScreen() {
                   <Droplet className="h-4 w-4 text-cyan-600 fill-cyan-500/10" />
                   <span>Nước: <span className="text-cyan-950 text-base">{formatCurrency(rates.water)}</span> / {rates.waterUnit}</span>
                 </div>
-                {/* Edit Prices Button */}
-                {!isPastMonth && (
-                  <button
-                    type="button"
-                    onClick={handleOpenPriceModal}
-                    className="inline-flex items-center gap-1.5 rounded-2xl border border-[#3d2a18]/10 bg-white px-3.5 py-2 text-sm font-black text-[#8b5e34] hover:bg-[#f3c56b]/15 active:scale-95 transition-all shadow-sm shrink-0"
-                  >
-                    <Edit3 className="h-3.5 w-3.5" />
-                    Thay đổi đơn giá
-                  </button>
-                )}
-                {/* Price History Button */}
-                <button
-                  type="button"
-                  onClick={handleOpenPriceHistoryModal}
-                  className="inline-flex items-center gap-1.5 rounded-2xl border border-[#3d2a18]/10 bg-white px-3.5 py-2 text-sm font-black text-[#8b5e34] hover:bg-[#f3c56b]/15 active:scale-95 transition-all shadow-sm shrink-0"
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  Lịch sử đơn giá
-                </button>
+                {/* Billing Cycle Badge */}
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-[#3d2a18]/10 bg-[#24170d]/5 px-3.5 py-2 text-sm font-black text-[#8b5e34]">
+                  <Calendar className="h-4 w-4 text-[#8b5e34]" />
+                  <span>Kỳ thanh toán: <span className="text-[#24170d] text-base font-bold">{selectedMonth}/{selectedYear}</span></span>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 rounded-xl bg-[#24170d]/5 px-3 py-1.5 self-start lg:self-auto">
-              <Calendar className="h-3.5 w-3.5 text-[#8b5e34]" />
-              <span className="text-xs font-black text-[#8b5e34]">Kỳ thanh toán: {selectedMonth}/{selectedYear}</span>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-2.5 self-start xl:self-auto">
+              {!isPastMonth && (
+                <button
+                  type="button"
+                  onClick={handleOpenPriceModal}
+                  className="inline-flex items-center gap-1.5 rounded-2xl border border-[#3d2a18]/10 bg-white px-3.5 py-2 text-sm font-black text-[#8b5e34] hover:bg-[#f3c56b]/15 active:scale-95 transition-all shadow-sm shrink-0"
+                >
+                  <Edit3 className="h-3.5 w-3.5 text-[#f3c56b]" />
+                  Thay đổi đơn giá
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleOpenPriceHistoryModal}
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-[#3d2a18]/10 bg-white px-3.5 py-2 text-sm font-black text-[#8b5e34] hover:bg-[#f3c56b]/15 active:scale-95 transition-all shadow-sm shrink-0"
+              >
+                <Calendar className="h-3.5 w-3.5 text-[#f3c56b]" />
+                Lịch sử đơn giá
+              </button>
             </div>
           </div>
         )}
@@ -1185,15 +1188,15 @@ export function MeterReadingsScreen() {
 
         {/* Room Readings Sheets */}
         <section className="min-w-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
-              <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[860px] text-left">
+              <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8] whitespace-nowrap">
                 <tr>
                   <th className="px-5 py-4">Phòng</th>
                   <th className="px-5 py-4">Chỉ số Điện (kWh)</th>
                   <th className="px-5 py-4">Chỉ số Nước (m³)</th>
-                  <th className="px-5 py-4"><div className="flex justify-center"><div className="w-[180px] text-center">Tổng thành tiền</div></div></th>
-                  <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[210px] text-center">Thao tác</div></div></th>
+                  <th className="px-5 py-4"><div className="flex justify-center"><div className="min-w-[120px] text-center">Tổng thành tiền</div></div></th>
+                  <th className="px-5 py-4"><div className="flex justify-end"><div className="min-w-[190px] text-center">Thao tác</div></div></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -1301,7 +1304,7 @@ export function MeterReadingsScreen() {
                       {/* Cost Summary Column */}
                       <td className="px-5 py-4">
                         <div className="flex justify-center">
-                          <div className="w-[180px] text-center">
+                          <div className="min-w-[120px] text-center">
                             {isChotElec || isChotWater ? (
                               <span className="text-sm font-black text-[#24170d] tabular-nums">
                                 {formatCurrency(totalUtilityCost)}
@@ -1316,7 +1319,7 @@ export function MeterReadingsScreen() {
                       {/* Actions Column */}
                       <td className="px-5 py-4">
                         <div className="flex justify-end">
-                          <div className="w-[210px] flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                          <div className="min-w-[190px] flex flex-col sm:flex-row items-center justify-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => openReadingModal(room)}

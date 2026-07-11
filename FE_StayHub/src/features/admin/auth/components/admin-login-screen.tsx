@@ -24,8 +24,8 @@ export function AdminLoginScreen() {
       <div className="pointer-events-none absolute -left-20 top-1/4 h-[34rem] w-[34rem] rounded-full border border-[#8b5e34]/15" />
       <div className="pointer-events-none absolute -right-28 bottom-10 h-[26rem] w-[26rem] rotate-12 border border-[#0f766e]/15" />
 
-      <div className="relative mx-auto grid min-h-dvh w-full max-w-[92vw] grid-cols-1 items-center px-2 py-5 sm:px-3 lg:grid-cols-10 lg:gap-3 lg:px-2 lg:py-6">
-        <section className="relative col-span-6 hidden h-[min(790px,calc(100dvh-3rem))] overflow-hidden rounded-[2.5rem] border border-[#3d2a18]/10 bg-[#fffaf1]/70 shadow-2xl shadow-[#6b3f1d]/10 lg:block">
+      <div className="relative mx-auto grid min-h-dvh w-full max-w-[92vw] grid-cols-1 items-center px-2 py-5 sm:px-3 xl:grid-cols-10 xl:gap-3 xl:px-4 xl:py-6">
+        <section className="relative col-span-6 hidden h-[min(790px,calc(100dvh-3rem))] overflow-hidden rounded-[2.5rem] border border-[#3d2a18]/10 bg-[#fffaf1]/70 shadow-2xl shadow-[#6b3f1d]/10 xl:block">
           <div className="absolute left-8 top-8 z-10 inline-flex items-center gap-3 rounded-full border border-[#3d2a18]/10 bg-white/70 px-4 py-3 shadow-lg shadow-[#6b3f1d]/8 backdrop-blur-md">
             <img src="/images/stayhub.png" alt="StayHub" className="h-7 w-7 rounded-full object-cover ring-1 ring-[#3d2a18]/10" />
             <span className="text-sm font-black uppercase tracking-[0.28em] text-[#24170d]">StayHub</span>
@@ -49,10 +49,10 @@ export function AdminLoginScreen() {
           </div>
         </section>
 
-        <section className="col-span-4 flex items-center justify-center py-8 lg:h-[min(790px,calc(100dvh-3rem))] lg:py-0">
+        <section className="col-span-1 xl:col-span-4 flex items-center justify-center py-8 xl:h-[min(790px,calc(100dvh-3rem))] xl:py-0">
           <div className="flex h-full w-full max-w-[630px] flex-col">
-            <div className="mb-8 text-center lg:hidden">
-              <p className="text-xs font-black uppercase tracking-[0.42em] text-[#8a4f18]">StayHub Admin</p>
+            <div className="mb-8 flex justify-center xl:hidden">
+              <img src="/images/stayhub.png" alt="StayHub" className="h-48 w-auto object-contain" />
             </div>
             <AdminLoginForm onLoginSuccess={handleLoginSuccess} />
           </div>

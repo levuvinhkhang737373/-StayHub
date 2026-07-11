@@ -367,9 +367,9 @@ export function SystemUsersScreen() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full min-w-[1180px] text-left">
-                <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+                <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8] whitespace-nowrap">
                   <tr>
                     <th className="px-5 py-4">Tài khoản</th>
                     <th className="px-5 py-4">Liên hệ</th>
@@ -378,7 +378,7 @@ export function SystemUsersScreen() {
                     <th className="px-5 py-4 text-center">FaceID</th>
                     <th className="px-5 py-4 text-center">Tòa nhà</th>
                     <th className="px-5 py-4 text-center">Cập nhật</th>
-                    <th className="px-5 py-4 w-[180px]"><div className="flex justify-end"><div className="w-[180px] text-center">Thao tác</div></div></th>
+                    <th className="px-5 py-4 min-w-[180px]"><div className="flex justify-end"><div className="w-[180px] text-center">Thao tác</div></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">
@@ -422,7 +422,7 @@ export function SystemUsersScreen() {
                           </span>
                         </td>
                         <td className="px-5 py-4 text-center">
-                          <span className={cn('inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-black shadow-sm', account.has_faceid ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
+                          <span className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black shadow-sm', account.has_faceid ? 'border-[#0f766e]/20 bg-[#0f766e]/10 text-[#0f5f59]' : 'border-[#3d2a18]/10 bg-[#efe2cf]/65 text-[#6f6254]')}>
                             {account.has_faceid ? 'Đã đăng ký' : 'Chưa có'}
                           </span>
                         </td>
@@ -434,7 +434,7 @@ export function SystemUsersScreen() {
                         <td className="px-5 py-4 text-center">
                           <span className="text-xs font-bold text-[#8b5e34]/75">{formatDateTime(account.updated_at)}</span>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-4 min-w-[180px]">
                           <div className="flex items-center justify-end gap-2">
                             <button type="button" onClick={() => void viewAccount(account)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label={`Xem chi tiết tài khoản ${account.username}`}><Eye className="h-5 w-5" /></button>
                             {isSuperAdmin && (
