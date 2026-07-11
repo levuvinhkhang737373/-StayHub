@@ -29,6 +29,19 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         if (type == 'admin_invoice_paid' || type == 'admin_invoice_reissued') {
           final data = event['data'];
           if (data is Map<String, dynamic>) {
+            // Check building access
+            final authCtrl = context.read<AuthController>();
+            final admin = authCtrl.currentAdmin;
+            if (admin != null) {
+              final isSuperAdmin = admin.role == 2;
+              final buildingId = data['building_id'];
+              if (!isSuperAdmin && buildingId != null) {
+                final facilityCtrl = context.read<FacilityController>();
+                final isManaged = facilityCtrl.buildings.any((b) => b.id == buildingId);
+                if (!isManaged) return; // Not managing this building, ignore the event
+              }
+            }
+
             context.read<InvoiceController>().updateInvoiceRealtime(data);
           }
           context.read<InvoiceController>().fetchInvoices(isAdmin: true);

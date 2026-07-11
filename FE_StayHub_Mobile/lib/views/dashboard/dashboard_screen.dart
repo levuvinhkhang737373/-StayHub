@@ -101,6 +101,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               : null;
 
           if (contract != null && mounted) {
+            // Check building access
+            final authCtrl = context.read<AuthController>();
+            final admin = authCtrl.currentAdmin;
+            if (admin != null) {
+              final isSuperAdmin = admin.role == 2;
+              final buildingId = contract['building_id'];
+              if (!isSuperAdmin && buildingId != null) {
+                final facilityCtrl = context.read<FacilityController>();
+                final isManaged = facilityCtrl.buildings.any((b) => b.id == buildingId);
+                if (!isManaged) return; // Not managing this building, ignore the event
+              }
+            }
             // Làm mới các chỉ số vận hành và hợp đồng của admin
             context.read<DashboardController>().fetchDashboardStats();
             context.read<ContractController>().fetchContracts('admin');
