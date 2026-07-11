@@ -434,6 +434,70 @@ class OperationalStateGuardTest extends TestCase
             ->assertJsonPath('status', false);
     }
 
+    public function test_room_service_price_update_allows_inactive_building_when_reserved_contract_covers_period(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-11 10:00:00'));
+
+        $internet = Service::query()->create([
+            'name' => 'Internet Running Contract',
+            'slug' => 'internet-running-contract',
+            'charge_method' => Service::CHARGE_METHOD_BY_ROOM,
+            'unit_name' => 'phòng',
+            'is_active' => true,
+            'created_by' => $this->admin->id,
+        ]);
+
+        $roomService = RoomService::query()->create([
+            'room_id' => $this->room->id,
+            'service_id' => $internet->id,
+            'price' => '100000.00',
+            'is_active' => true,
+        ]);
+
+        $this->createContract(Contract::STATUS_ACTIVE)->update(['end_date' => '2026-08-31']);
+        $this->building->update(['status' => Building::STATUS_INACTIVE]);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->putJson("/api/v1/admin/rooms/{$this->room->id}/service-prices", [
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'prices' => [
+                    ['room_service_id' => $roomService->id, 'price' => '120000.00'],
+                ],
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_contract_update_rejects_active_room_inside_inactive_building(): void
+    {
+        $contract = $this->createContract(Contract::STATUS_ACTIVE);
+        ContractTenant::query()->create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $this->admin->id,
+        ]);
+        $this->building->update(['status' => Building::STATUS_INACTIVE]);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->putJson("/api/v1/admin/contracts/{$contract->id}", [
+                'room_id' => $this->room->id,
+                'start_date' => '2026-01-01',
+                'end_date' => '2026-12-31',
+                'room_price' => '3200000.00',
+                'deposit_amount' => '3500000.00',
+                'status' => Contract::STATUS_ACTIVE,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('status', false);
+    }
+
     private function buildingPayload(array $overrides = []): array
     {
         return [
