@@ -13,6 +13,7 @@ use App\Models\RoomMovement;
 use App\Models\Service;
 use App\Models\Tenant;
 use App\Models\Vehicle;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 
 class OperationalStateGuard
@@ -204,8 +205,12 @@ class OperationalStateGuard
         return null;
     }
 
-    public static function roomServicePriceBlockReason(Room $room): ?string
+    public static function roomServicePriceBlockReason(Room $room, ?CarbonInterface $targetDate = null): ?string
     {
+        if ($targetDate && self::roomHasReservedContractCoveringPeriod($room, $targetDate)) {
+            return null;
+        }
+
         $reason = self::roomRentableBlockReason($room);
 
         if ($reason === null) {
@@ -217,6 +222,32 @@ class OperationalStateGuard
         }
 
         return 'Không thể cập nhật giá dịch vụ vì tòa nhà đã ngừng hoạt động hoặc đang bảo trì.';
+    }
+
+    public static function invoiceIssuanceBlockReason(Contract $contract, CarbonInterface $periodStart): ?string
+    {
+        if (! $contract->relationLoaded('room.building')) {
+            $contract->load('room.building');
+        }
+
+        $room = $contract->room;
+        if (! $room) {
+            return 'Không tìm thấy phòng của hợp đồng.';
+        }
+
+        $roomInactive = (int) $room->status !== Room::STATUS_ACTIVE;
+        $buildingInactive = ! $room->building || (int) $room->building->status !== Building::STATUS_ACTIVE;
+
+        if (! $roomInactive && ! $buildingInactive) {
+            return null;
+        }
+
+        $contractEndDate = $contract->actual_end_date ?: $contract->end_date;
+        if ($contractEndDate && $periodStart->copy()->startOfDay()->greaterThan($contractEndDate->copy()->endOfMonth()->startOfDay())) {
+            return 'Không thể lập hóa đơn kỳ tương lai cho phòng hoặc tòa nhà đang ngừng hoạt động/bảo trì sau khi hợp đồng đã kết thúc.';
+        }
+
+        return null;
     }
 
     public static function activeStayBuilding(Tenant $tenant): ?Building
@@ -239,6 +270,32 @@ class OperationalStateGuard
             ->where('is_staying', true)
             ->whereNull('leave_date')
             ->whereHas('contract', fn (Builder $query): Builder => $query->whereIn('status', Contract::RESERVED_STATUSES))
+            ->exists();
+    }
+
+    private static function roomHasReservedContractCoveringPeriod(Room $room, CarbonInterface $targetDate): bool
+    {
+        $periodEnd = $targetDate->copy()->endOfMonth()->startOfDay()->toDateString();
+
+        return Contract::query()
+            ->where('room_id', $room->id)
+            ->whereIn('status', Contract::RESERVED_STATUSES)
+            ->where(function (Builder $query) use ($periodEnd): void {
+                $query->whereNull('start_date')
+                    ->orWhereDate('start_date', '<=', $periodEnd);
+            })
+            ->where(function (Builder $query) use ($targetDate): void {
+                $query->where(function (Builder $actualEndQuery) use ($targetDate): void {
+                    $actualEndQuery->whereNotNull('actual_end_date')
+                        ->whereDate('actual_end_date', '>=', $targetDate->copy()->startOfDay()->toDateString());
+                })->orWhere(function (Builder $endDateQuery) use ($targetDate): void {
+                    $endDateQuery->whereNull('actual_end_date')
+                        ->where(function (Builder $query) use ($targetDate): void {
+                            $query->whereNull('end_date')
+                                ->orWhereDate('end_date', '>=', $targetDate->copy()->startOfDay()->toDateString());
+                        });
+                });
+            })
             ->exists();
     }
 

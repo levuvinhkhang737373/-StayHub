@@ -3,10 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\Admin;
-use App\Models\Building;
 use App\Models\Contract;
 use App\Models\Invoice;
-use App\Models\Room;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -45,14 +44,10 @@ class BulkGenerateInvoicesJob implements ShouldQueue
         $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
 
         $contracts = Contract::query()
-            ->whereHas('room', function ($q) use ($periodStart) {
+            ->whereHas('room', function ($q) {
                 $q->where('building_id', $this->buildingId);
-
-                if ($periodStart->greaterThanOrEqualTo(now()->startOfMonth())) {
-                    $q->where('status', Room::STATUS_ACTIVE)
-                        ->whereHas('building', fn ($buildingQuery) => $buildingQuery->where('status', Building::STATUS_ACTIVE));
-                }
             })
+            ->with('room.building')
             ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED])
             ->where(function ($query) use ($periodStart, $periodEnd): void {
                 $query->whereNull('start_date')
@@ -84,6 +79,12 @@ class BulkGenerateInvoicesJob implements ShouldQueue
 
         foreach ($contracts as $contract) {
             try {
+                $stateError = OperationalStateGuard::invoiceIssuanceBlockReason($contract, $periodStart);
+                if ($stateError !== null) {
+                    Log::info('Bulk invoice skipped for contract ' . $contract->id . ': ' . $stateError);
+                    continue;
+                }
+
                 $request = GenerateRequest::create('/api/v1/admin/invoices/generate', 'POST', [
                     'contract_id' => $contract->id,
                     'billing_month' => $this->billingMonth,

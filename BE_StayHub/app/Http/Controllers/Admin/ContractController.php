@@ -354,8 +354,9 @@ class ContractController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền thao tác hợp đồng của tòa nhà này.', 403, null, 403);
             }
 
-            if ((int) $room->status !== Room::STATUS_ACTIVE) {
-                return ApiResponse::responseJson(false, 'Chỉ có thể thêm khách thuê vào phòng đang hoạt động.', 422, null, 422);
+            $stateError = OperationalStateGuard::roomRentableBlockReason($room);
+            if ($stateError !== null) {
+                return ApiResponse::responseJson(false, $stateError, 422, null, 422);
             }
 
             $keyword = trim((string) $request->query('keyword', ''));
@@ -412,8 +413,9 @@ class ContractController extends Controller
                     $this->throwResponse('Bạn không có quyền thao tác hợp đồng của tòa nhà này.', 403);
                 }
 
-                if ((int) $room->status !== Room::STATUS_ACTIVE) {
-                    $this->throwResponse('Chỉ có thể thêm khách thuê vào phòng đang hoạt động.', 422);
+                $stateError = OperationalStateGuard::roomRentableBlockReason($room);
+                if ($stateError !== null) {
+                    $this->throwResponse($stateError, 422);
                 }
 
                 if ($contractModel->contractTenants()->where('tenant_id', (int) $validated['tenant_id'])->exists()) {
@@ -511,8 +513,12 @@ class ContractController extends Controller
                     $this->throwResponse('Bạn không có quyền thao tác hợp đồng của tòa nhà này.', 403);
                 }
 
-                if ($this->hasStructuralUpdate($validated) && (int) $room->status !== Room::STATUS_ACTIVE) {
-                    $this->throwResponse('Chỉ có thể cập nhật dữ liệu nghiệp vụ cho phòng đang hoạt động.', 422);
+                if ($this->hasStructuralUpdate($validated)) {
+                    $stateError = OperationalStateGuard::roomRentableBlockReason($room);
+
+                    if ($stateError !== null) {
+                        $this->throwResponse($stateError, 422);
+                    }
                 }
 
                 if ($roomId !== $oldRoomId) {

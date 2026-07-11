@@ -23,7 +23,6 @@ use App\Http\Requests\Admin\Invoice\RecordPaymentRequest;
 use App\Http\Requests\Admin\Invoice\ConfirmPaymentRequest;
 use App\Http\Requests\Admin\Invoice\CancelRequest;
 use App\Models\Admin;
-use App\Models\Building;
 use App\Models\Contract;
 use App\Models\ContractVehicle;
 use App\Models\Invoice;
@@ -32,7 +31,6 @@ use App\Models\MeterDevice;
 use App\Models\MeterReading;
 use App\Models\Notification;
 use App\Models\Payment;
-use App\Models\Room;
 use App\Models\RoomMovement;
 use App\Models\RoomService;
 use App\Models\RoomServicePrice;
@@ -40,6 +38,7 @@ use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Services\RoomServiceLifecycleService;
 use App\Services\Invoice\InvoiceDebtRolloverService;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -276,13 +275,9 @@ class InvoiceController extends Controller
         }
 
         $periodStart = Carbon::create((int) $validated['billing_year'], (int) $validated['billing_month'], 1)->startOfDay();
-        $currentMonth = now()->startOfMonth();
-        if (
-            $periodStart->greaterThanOrEqualTo($currentMonth)
-            && ((int) $contract->room->status !== Room::STATUS_ACTIVE
-                || (int) $contract->room->building?->status !== Building::STATUS_ACTIVE)
-        ) {
-            return ApiResponse::responseJson(false, 'Không thể lập hóa đơn kỳ mới cho phòng hoặc tòa nhà đang ngừng hoạt động/bảo trì.', 422, null, 422);
+        $invoiceStateError = OperationalStateGuard::invoiceIssuanceBlockReason($contract, $periodStart);
+        if ($invoiceStateError !== null) {
+            return ApiResponse::responseJson(false, $invoiceStateError, 422, null, 422);
         }
         $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
         $dueDate = isset($validated['due_date'])

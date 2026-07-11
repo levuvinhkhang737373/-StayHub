@@ -446,7 +446,7 @@ class MeterReadingController extends Controller
 
             $previousReading = $previousReadingRecord
                 ? (float)$previousReadingRecord->current_reading
-                : (float)$meter->initial_reading;
+                : (float)($existingReading?->previous_reading ?? $meter->initial_reading);
 
             if ($currentReading < $previousReading) {
                 return ApiResponse::responseJson(
@@ -460,7 +460,18 @@ class MeterReadingController extends Controller
 
             $consumption = $currentReading - $previousReading;
 
-            $reading = DB::transaction(function () use ($validated, $previousReading, $consumption, $admin, $request, $meter) {
+            $hasNewerReading = MeterReading::query()
+                ->where('meter_device_id', $meter->id)
+                ->where(function (Builder $query) use ($year, $month): void {
+                    $query->where('billing_year', '>', $year)
+                        ->orWhere(function (Builder $query) use ($year, $month): void {
+                            $query->where('billing_year', $year)
+                                ->where('billing_month', '>', $month);
+                        });
+                })
+                ->exists();
+
+            $reading = DB::transaction(function () use ($validated, $previousReading, $consumption, $admin, $request, $meter, $hasNewerReading) {
                 $readingData = [
                     'previous_reading' => $previousReading,
                     'current_reading' => $validated['current_reading'],
@@ -484,9 +495,11 @@ class MeterReadingController extends Controller
                     $readingData
                 );
 
-                $meter->update([
-                    'initial_reading' => $validated['current_reading']
-                ]);
+                if (! $hasNewerReading) {
+                    $meter->update([
+                        'initial_reading' => $validated['current_reading'],
+                    ]);
+                }
 
                 AdminActivityLogger::write($admin, 'Lưu chỉ số điện nước', MeterReading::class, $record->id, null, $record->toArray(), $request);
 

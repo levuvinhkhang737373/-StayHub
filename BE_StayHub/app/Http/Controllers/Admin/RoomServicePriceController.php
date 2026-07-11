@@ -115,7 +115,7 @@ class RoomServicePriceController extends Controller
             $response = DB::transaction(function () use ($validated, $targetDate, $roomModel, $admin, $request): JsonResponse {
                 $roomModel->refresh();
                 $roomModel->load('building:id,name,status');
-                $stateError = OperationalStateGuard::roomServicePriceBlockReason($roomModel);
+                $stateError = OperationalStateGuard::roomServicePriceBlockReason($roomModel, $targetDate);
 
                 if ($stateError !== null) {
                     return ApiResponse::responseJson(false, $stateError, 422, null, 422);
@@ -190,8 +190,12 @@ class RoomServicePriceController extends Controller
         return AdminScope::applyBuildingScope(Room::query(), $admin)
             ->select(['id', 'building_id', 'room_type_id', 'room_number', 'floor', 'status'])
             ->with($this->roomRelations($targetDate))
-            ->where('status', Room::STATUS_ACTIVE)
-            ->whereHas('building', fn (Builder $query): Builder => $query->where('status', \App\Models\Building::STATUS_ACTIVE))
+            ->where(function (Builder $query) use ($targetDate): void {
+                $query->where(function (Builder $activeQuery): void {
+                    $activeQuery->where('status', Room::STATUS_ACTIVE)
+                        ->whereHas('building', fn (Builder $buildingQuery): Builder => $buildingQuery->where('status', \App\Models\Building::STATUS_ACTIVE));
+                })->orWhereHas('contracts', fn (Builder $contractQuery): Builder => $this->reservedContractCoveringPeriodScope($contractQuery, $targetDate));
+            })
             ->whereHas('roomServices', fn (Builder $query): Builder => $this->nonUtilityServiceScope($query))
             ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', (int) $validated['building_id']))
             ->when(isset($validated['room_id']), fn (Builder $query): Builder => $query->whereKey((int) $validated['room_id']))
@@ -330,6 +334,29 @@ class RoomServicePriceController extends Controller
             ->orderByDesc('status')
             ->orderByDesc('start_date')
             ->first();
+    }
+
+    private function reservedContractCoveringPeriodScope(Builder $query, Carbon $targetDate): Builder
+    {
+        $periodEnd = $targetDate->copy()->endOfMonth()->startOfDay()->toDateString();
+
+        return $query->whereIn('status', Contract::RESERVED_STATUSES)
+            ->where(function (Builder $scope) use ($periodEnd): void {
+                $scope->whereNull('start_date')
+                    ->orWhereDate('start_date', '<=', $periodEnd);
+            })
+            ->where(function (Builder $scope) use ($targetDate): void {
+                $scope->where(function (Builder $actualEndQuery) use ($targetDate): void {
+                    $actualEndQuery->whereNotNull('actual_end_date')
+                        ->whereDate('actual_end_date', '>=', $targetDate->toDateString());
+                })->orWhere(function (Builder $endDateQuery) use ($targetDate): void {
+                    $endDateQuery->whereNull('actual_end_date')
+                        ->where(function (Builder $query) use ($targetDate): void {
+                            $query->whereNull('end_date')
+                                ->orWhereDate('end_date', '>=', $targetDate->toDateString());
+                        });
+                });
+            });
     }
 
     // Kiểm tra hợp đồng kết thúc trước chu kỳ tính tiền không
