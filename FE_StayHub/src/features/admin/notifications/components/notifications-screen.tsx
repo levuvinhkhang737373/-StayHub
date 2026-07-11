@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
-import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
+import { canManageContractsRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import { fetchAdminBuildings } from '../../facilities/services/facilities.service'
 import type { AdminBuildingResource } from '../../facilities/types/facility-api.model'
 import { fetchAdminTenants } from '../../tenants/services/tenants.service'
@@ -78,23 +78,37 @@ const filterTargetTypeOptions = [
   { value: '4', label: 'Theo khách thuê', tone: 'default' as const },
 ]
 
+const superAdminOnlyNotificationActionPrefixes = [
+  '/admin/facilities',
+  '/admin/asset-templates',
+  '/admin/room-types',
+  '/admin/services',
+  '/admin/system-users',
+  '/admin/activity-logs',
+]
+
+function matchesAdminPathPrefix(path: string, prefix: string) {
+  return path === prefix || path.startsWith(`${prefix}/`) || path.startsWith(`${prefix}?`)
+}
+
+function canOpenNotificationActionPath(path: string, role?: string | number | null) {
+  if (superAdminOnlyNotificationActionPrefixes.some((prefix) => matchesAdminPathPrefix(path, prefix))) {
+    return isSuperAdminRole(role)
+  }
+
+  if (matchesAdminPathPrefix(path, '/admin/contracts')) {
+    return canManageContractsRole(role)
+  }
+
+  return true
+}
+
 
 export function NotificationsScreen() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-
-  // Consume-once: read params into refs then clear URL to prevent stuck IDs
-  const initialParamsRef = useRef({
-    notificationId: searchParams.get('id'),
-  })
-  const paramsConsumedRef = useRef(false)
-
-  useEffect(() => {
-    const params = initialParamsRef.current
-    if (params.notificationId) {
-      navigate('/admin/notifications', { replace: true })
-    }
-  }, [navigate])
+  const notificationIdParam = searchParams.get('id')
+  const lastOpenedNotificationIdRef = useRef<string | null>(null)
   const { session } = useAdminSession()
   const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
   const { notifications: receivedNotifications, markAllAsRead, markAsRead } = useAdminNotifications()
@@ -261,14 +275,18 @@ export function NotificationsScreen() {
   }, [loadNotifications])
 
   useEffect(() => {
-    if (paramsConsumedRef.current) return
-    const notificationId = Number(initialParamsRef.current.notificationId)
-    if (!Number.isFinite(notificationId) || notificationId <= 0) return
+    const notificationId = Number(notificationIdParam)
+    if (!Number.isFinite(notificationId) || notificationId <= 0) {
+      lastOpenedNotificationIdRef.current = null
+      return
+    }
 
-    paramsConsumedRef.current = true
+    if (lastOpenedNotificationIdRef.current === notificationIdParam) return
+
+    lastOpenedNotificationIdRef.current = notificationIdParam
     const matchedNotification = notifications.find((item) => Number(item.id) === notificationId)
     void openDetail(matchedNotification || ({ id: notificationId } as AdminNotificationResource))
-  }, [notifications])
+  }, [notificationIdParam, notifications])
 
   useEffect(() => {
     function handleRefresh() {
@@ -336,11 +354,24 @@ export function NotificationsScreen() {
     }
   }
 
+  const openNotificationAction = (notif: AdminNotificationResource) => {
+    markAsRead(String(notif.id))
+
+    const actionPath = resolveNotificationActionPath(notif) || '/admin/notifications'
+    if (actionPath.startsWith('/admin/notifications') || !canOpenNotificationActionPath(actionPath, session?.admin?.role)) {
+      void openDetail(notif)
+      return
+    }
+
+    navigate(actionPath)
+  }
+
   const closeDetail = () => {
     setIsDetailOpen(false)
     setDetailNotification(null)
     setDetailErrorMessage(null)
-    if (initialParamsRef.current.notificationId) {
+    if (notificationIdParam) {
+      lastOpenedNotificationIdRef.current = null
       navigate('/admin/notifications', { replace: true })
     }
   }
@@ -557,10 +588,7 @@ export function NotificationsScreen() {
                       return (
                         <div
                           key={notif.id}
-                          onClick={() => {
-                            markAsRead(String(notif.id))
-                            navigate(resolveNotificationActionPath(notif) || '/admin/notifications')
-                          }}
+                          onClick={() => openNotificationAction(notif)}
                           className={cn(
                             "group flex flex-col justify-between gap-4 rounded-2xl border p-4 sm:p-5 cursor-pointer transition sm:flex-row sm:items-center",
                             isUnread

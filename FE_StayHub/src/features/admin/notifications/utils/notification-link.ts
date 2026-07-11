@@ -38,6 +38,10 @@ const supportedAdminSections = new Set([
   'vehicles',
 ])
 
+function getNotificationDetailPath(notification: LinkableNotification) {
+  return notification.id ? `${ADMIN_FALLBACK_PATH}?id=${notification.id}` : ADMIN_FALLBACK_PATH
+}
+
 function normalizeAdminPath(path: string | null | undefined) {
   const trimmed = path?.trim()
   if (!trimmed) return null
@@ -45,6 +49,8 @@ function normalizeAdminPath(path: string | null | undefined) {
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     try {
       const url = new URL(trimmed)
+      if (typeof window === 'undefined') return null
+      if (typeof window !== 'undefined' && url.origin !== window.location.origin) return null
       return ensureRoutableAdminPath(`${url.pathname}${url.search}${url.hash}`)
     } catch {
       return null
@@ -55,10 +61,10 @@ function normalizeAdminPath(path: string | null | undefined) {
 }
 
 function ensureRoutableAdminPath(path: string) {
-  if (path !== '/admin' && !path.startsWith('/admin/')) return ADMIN_FALLBACK_PATH
+  if (path !== '/admin' && !path.startsWith('/admin/')) return null
 
   const section = path.split(/[/?#]/)[2] || 'dashboard'
-  return supportedAdminSections.has(section) ? path : ADMIN_FALLBACK_PATH
+  return supportedAdminSections.has(section) ? path : null
 }
 
 export function resolveNotificationActionPath(notification: LinkableNotification): string | null {
@@ -111,17 +117,5 @@ export function resolveNotificationActionPath(notification: LinkableNotification
     return '/admin/maintenance'
   }
 
-  if (notification.room_id) {
-    return `/admin/rooms/update/${notification.room_id}`
-  }
-
-  if (notification.building_id) {
-    return `/admin/facilities/buildings/${notification.building_id}/edit`
-  }
-
-  if (notification.id) {
-    return `/admin/notifications?id=${notification.id}`
-  }
-
-  return null
+  return getNotificationDetailPath(notification)
 }
