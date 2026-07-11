@@ -117,7 +117,7 @@ class _RoomTransferScreenState extends State<RoomTransferScreen> {
         // Get building id and load available rooms
         final bId = contractData['building_id'] ?? contractData['room']?['building_id'];
         if (bId != null) {
-          _availableRooms = await contractController.fetchAvailableRooms(bId);
+          _availableRooms = await contractController.fetchAvailableRooms(bId, forTransfer: true);
         }
       }
     } catch (e) {
