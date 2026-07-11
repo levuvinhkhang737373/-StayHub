@@ -408,6 +408,34 @@ class RoomServicePriceTest extends TestCase
         $this->assertSame('room', $trash['display_price_source']);
     }
 
+    public function test_index_returns_latest_old_contract_when_room_has_no_contract_in_selected_period(): void
+    {
+        $this->contract->forceFill([
+            'status' => Contract::STATUS_LIQUIDATED,
+            'actual_end_date' => '2026-07-14',
+        ])->save();
+
+        $this->internetRoomService->forceFill([
+            'is_active' => false,
+            'ended_at' => '2026-07-14',
+        ])->save();
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->getJson('/api/v1/admin/room-service-prices?billing_month=8&billing_year=2026');
+
+        $response->assertStatus(200);
+
+        $room = collect($response->json('result.data'))->firstWhere('id', $this->room->id);
+
+        $this->assertNull($room['active_contract_id']);
+        $this->assertNull($room['active_contract_code']);
+        $this->assertSame($this->contract->id, $room['latest_contract_id']);
+        $this->assertSame('HD-RSP-001', $room['latest_contract_code']);
+        $this->assertSame(Contract::STATUS_LIQUIDATED, $room['latest_contract_status']);
+        $this->assertSame('Đã thanh lý', $room['latest_contract_status_label']);
+        $this->assertSame('2026-07-14', $room['latest_contract_actual_end_date']);
+    }
+
     public function test_index_does_not_leak_ended_contract_service_price_into_new_contract_context(): void
     {
         $this->contract->forceFill([

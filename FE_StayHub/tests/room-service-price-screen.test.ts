@@ -41,6 +41,8 @@ test('room service price screen blocks scheduling inactive room services in UI',
 
   assert.match(source, /can_schedule_price/)
   assert.match(source, /schedule_block_reason/)
+  assert.match(source, /latest_contract_code/)
+  assert.match(source, /Hợp đồng cũ/)
   assert.match(source, /function isServiceSchedulable/)
   assert.match(source, /disabled=\{!canEdit\}/)
   assert.match(source, /Ngừng hoạt động/)

@@ -122,6 +122,19 @@ function roomContractLabel(room: RoomServicePriceRoomResource) {
   return formatContractCode(room.active_contract_code, room.active_contract_id)
 }
 
+function latestRoomContractLabel(room: RoomServicePriceRoomResource) {
+  return formatContractCode(room.latest_contract_code, room.latest_contract_id)
+}
+
+function formatShortDate(value?: string | null) {
+  if (!value) return null
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 function serviceContractStatusLabel(service: RoomServicePriceServiceResource) {
   if (!hasContractScopedPrice(service)) return null
 
@@ -385,7 +398,6 @@ export function RoomServicePricesScreen() {
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <span className="text-xs font-black uppercase tracking-[0.2em] text-[#f3c56b]">Dịch vụ & Điện nước</span>
-            <p className="mt-2 text-xs font-bold leading-5 text-[#f8e8c8]/70">Bảng này không bao gồm điện/nước và tự khóa dịch vụ phòng đã ngừng hoạt động.</p>
             <h1 className="mt-3 flex flex-col gap-3 text-3xl font-black tracking-[-0.04em] sm:flex-row sm:items-center sm:text-4xl">
               <BadgeDollarSign className="h-9 w-9 shrink-0 text-[#f3c56b]" /> Giá dịch vụ phòng
             </h1>
@@ -520,32 +532,32 @@ export function RoomServicePricesScreen() {
                 const canScheduleService = isServiceSchedulable(service)
 
                 return (
-                <div key={service.id} className="rounded-2xl border border-[#3d2a18]/10 bg-white/80 p-4">
-                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-[#24170d]">{service.service_name}</p>
+                  <div key={service.id} className="rounded-2xl border border-[#3d2a18]/10 bg-white/80 p-4">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-[#24170d]">{service.service_name}</p>
+                      </div>
+                      <span className={cn('w-fit rounded-full px-3 py-1 text-[11px] font-black', !service.is_active ? 'bg-rose-50 text-rose-700' : service.scheduled_price ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-600')}>
+                        {!service.is_active ? 'Ngừng hoạt động' : service.scheduled_price ? 'Đã lên lịch' : 'Chưa có giá mới'}
+                      </span>
                     </div>
-                    <span className={cn('w-fit rounded-full px-3 py-1 text-[11px] font-black', !service.is_active ? 'bg-rose-50 text-rose-700' : service.scheduled_price ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-600')}>
-                      {!service.is_active ? 'Ngừng hoạt động' : service.scheduled_price ? 'Đã lên lịch' : 'Chưa có giá mới'}
-                    </span>
+                    <PriceTransition service={service} />
+                    <div className="mt-4">
+                      <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.18em] text-[#8b5e34]">Giá mới</label>
+                      <input
+                        value={priceInputs[service.id] ?? ''}
+                        onChange={(event) => {
+                          setPriceInputs((current) => ({ ...current, [service.id]: formatMoneyInput(event.target.value) }))
+                          setFieldErrors((current) => ({ ...current, [service.id]: '' }))
+                        }}
+                        className={cn(inputClass, fieldErrors[service.id] && inputErrorClass)}
+                        placeholder="Nhập giá mới"
+                        disabled={!canScheduleService}
+                      />
+                    </div>
+                    {!canScheduleService && <p className="mt-2 text-xs font-bold text-rose-600">{service.schedule_block_reason || 'Dịch vụ phòng đã ngừng hoạt động.'}</p>}
+                    {fieldErrors[service.id] && <p className="mt-2 text-xs font-bold text-rose-600">{fieldErrors[service.id]}</p>}
                   </div>
-                  <PriceTransition service={service} />
-                  <div className="mt-4">
-                    <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.18em] text-[#8b5e34]">Giá mới</label>
-                    <input
-                      value={priceInputs[service.id] ?? ''}
-                      onChange={(event) => {
-                        setPriceInputs((current) => ({ ...current, [service.id]: formatMoneyInput(event.target.value) }))
-                        setFieldErrors((current) => ({ ...current, [service.id]: '' }))
-                      }}
-                      className={cn(inputClass, fieldErrors[service.id] && inputErrorClass)}
-                      placeholder="Nhập giá mới"
-                      disabled={!canScheduleService}
-                    />
-                  </div>
-                  {!canScheduleService && <p className="mt-2 text-xs font-bold text-rose-600">{service.schedule_block_reason || 'Dịch vụ phòng đã ngừng hoạt động.'}</p>}
-                  {fieldErrors[service.id] && <p className="mt-2 text-xs font-bold text-rose-600">{fieldErrors[service.id]}</p>}
-                </div>
                 )
               })}
             </div>
@@ -696,6 +708,19 @@ function getRoomContractSummary(room: RoomServicePriceRoomResource) {
       code: roomContractCode,
       status: room.contract_is_ended ? 'Đã kết thúc' : room.contract_status_label || 'Đang hiệu lực',
       ended: room.contract_is_ended,
+      historical: false,
+    }
+  }
+
+  const latestContractCode = latestRoomContractLabel(room)
+  if (latestContractCode) {
+    const endedDate = formatShortDate(room.latest_contract_actual_end_date || room.latest_contract_end_date)
+
+    return {
+      code: latestContractCode,
+      status: endedDate ? `${room.latest_contract_status_label || 'Đã kết thúc'} ${endedDate}` : room.latest_contract_status_label || 'Đã kết thúc',
+      ended: true,
+      historical: true,
     }
   }
 
@@ -706,6 +731,7 @@ function getRoomContractSummary(room: RoomServicePriceRoomResource) {
     code: serviceContractLabel(contractService) || '—',
     status: serviceContractStatusLabel(contractService) || 'Đang hiệu lực',
     ended: contractService.contract_is_ended,
+    historical: false,
   }
 }
 
@@ -721,7 +747,7 @@ function ContractColumn({ contract }: { contract: ReturnType<typeof getRoomContr
 
   return (
     <div className={cn('rounded-xl border px-3 py-2 text-xs font-black sm:min-w-[150px]', contract.ended ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
-      <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest opacity-70"><FileText className="h-3 w-3" /> Hợp đồng</p>
+      <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest opacity-70"><FileText className="h-3 w-3" /> {contract.historical ? 'Hợp đồng cũ' : 'Hợp đồng'}</p>
       <p className="mt-0.5 break-words text-[#24170d]">{contract.code}</p>
       <p className="mt-1 text-[10px]">{contract.status}</p>
     </div>
@@ -764,12 +790,12 @@ function ServiceStatusPill({ service, isContractEnded = false }: { service: Room
       isInactive
         ? 'bg-rose-50 text-rose-700'
         : isEnded
-        ? 'bg-rose-50 text-rose-700'
-        : hasSchedule
-          ? 'bg-emerald-50 text-emerald-700'
-          : isContractPrice
-            ? 'bg-[#fff4df] text-[#8b5e34]'
-            : 'bg-stone-100 text-stone-600',
+          ? 'bg-rose-50 text-rose-700'
+          : hasSchedule
+            ? 'bg-emerald-50 text-emerald-700'
+            : isContractPrice
+              ? 'bg-[#fff4df] text-[#8b5e34]'
+              : 'bg-stone-100 text-stone-600',
     )}>
       <span className={cn(isInactive || isEnded ? 'text-rose-900' : 'text-[#24170d]')}>{service.service_name}:</span> {serviceStatusText(service, isEnded)}
       {isContractPrice && serviceContractLabel(service) && (
