@@ -138,6 +138,17 @@ class _RoomsScreenState extends State<RoomsScreen> {
                                   behavior: SnackBarBehavior.floating,
                                 ),
                               );
+                            } else if (mounted) {
+                              final controller = context.read<RoomController>();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(controller.errorMessage.isNotEmpty
+                                      ? controller.errorMessage
+                                      : 'Cập nhật trạng thái thất bại'),
+                                  backgroundColor: Colors.redAccent,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
                             }
                           },
                           style: ElevatedButton.styleFrom(

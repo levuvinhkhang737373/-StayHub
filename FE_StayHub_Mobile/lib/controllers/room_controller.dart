@@ -162,8 +162,10 @@ class RoomController extends ChangeNotifier {
   /// Update room status
   Future<bool> updateRoomStatus(int id, int status) async {
     _isLoading = true;
+    _errorMessage = '';
     notifyListeners();
 
+    bool success = false;
     try {
       final response = await _apiService.patch<dynamic>(
         '/admin/rooms/$id/status',
@@ -172,41 +174,48 @@ class RoomController extends ChangeNotifier {
       );
 
       if (response.status) {
+        success = true;
         await fetchRooms();
-        return true;
+      } else {
+        _errorMessage = response.message;
       }
-    } catch (_) {
-      // Offline fallback: Update in mockRooms / rooms list
-      final sourceList = _rooms.isEmpty ? _mockRooms : _rooms;
-      final index = sourceList.indexWhere((r) => r.id == id);
-      if (index != -1) {
-        final oldRoom = sourceList[index];
-        final updatedRoom = Room(
-          id: oldRoom.id,
-          buildingId: oldRoom.buildingId,
-          roomTypeId: oldRoom.roomTypeId,
-          roomNumber: oldRoom.roomNumber,
-          floor: oldRoom.floor,
-          areaM2: oldRoom.areaM2,
-          basePrice: oldRoom.basePrice,
-          maxOccupants: oldRoom.maxOccupants,
-          currentOccupants: oldRoom.currentOccupants,
-          status: status,
-          description: oldRoom.description,
-          buildingName: oldRoom.buildingName,
-          building: oldRoom.building,
-          roomType: oldRoom.roomType,
-        );
-        sourceList[index] = updatedRoom;
-        search(_searchQuery);
-        _isLoading = false;
-        notifyListeners();
-        return true;
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = e.toString();
+      }
+
+      // Offline fallback ONLY if we are in mock mode (no real rooms loaded)
+      if (_rooms.isEmpty) {
+        final index = _mockRooms.indexWhere((r) => r.id == id);
+        if (index != -1) {
+          final oldRoom = _mockRooms[index];
+          final updatedRoom = Room(
+            id: oldRoom.id,
+            buildingId: oldRoom.buildingId,
+            roomTypeId: oldRoom.roomTypeId,
+            roomNumber: oldRoom.roomNumber,
+            floor: oldRoom.floor,
+            areaM2: oldRoom.areaM2,
+            basePrice: oldRoom.basePrice,
+            maxOccupants: oldRoom.maxOccupants,
+            currentOccupants: oldRoom.currentOccupants,
+            status: status,
+            description: oldRoom.description,
+            buildingName: oldRoom.buildingName,
+            building: oldRoom.building,
+            roomType: oldRoom.roomType,
+          );
+          _mockRooms[index] = updatedRoom;
+          search(_searchQuery);
+          success = true;
+        }
       }
     }
 
     _isLoading = false;
     notifyListeners();
-    return false;
+    return success;
   }
 }
