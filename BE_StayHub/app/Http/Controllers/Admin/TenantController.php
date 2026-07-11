@@ -18,6 +18,7 @@ use App\Models\Admin;
 use App\Models\Building;
 use App\Models\Contract;
 use App\Models\Tenant;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -75,6 +76,17 @@ class TenantController extends Controller
             $validated['gender'] = (int) ($validated['gender'] ?? Tenant::GENDER_MALE);
             $validated['status'] = (int) ($validated['status'] ?? Tenant::STATUS_RENTING);
             $validated['identity_type'] = (int) ($validated['identity_type'] ?? Tenant::IDENTITY_TYPE_CCCD);
+
+            $building = Building::query()->find((int) $validated['building_id']);
+
+            if (! $building) {
+                return ApiResponse::responseJson(false, 'Tòa nhà không tồn tại.', 422, null, 422);
+            }
+
+            $buildingStateError = OperationalStateGuard::tenantCreationBlockReason($building);
+            if ($buildingStateError !== null) {
+                return ApiResponse::responseJson(false, $buildingStateError, 422, null, 422);
+            }
 
             if (! $this->buildingAllowsTenantGender((int) $validated['building_id'], $validated['gender'])) {
                 return ApiResponse::responseJson(false, self::GENDER_POLICY_ERROR_MESSAGE, 422, null, 422);
@@ -172,11 +184,20 @@ class TenantController extends Controller
                 $oldData = $tenantModel->toArray();
                 $payload = $this->payload($validated, true);
 
-                if (
-                    array_key_exists('gender', $payload)
-                    && ! $this->buildingAllowsTenantGender((int) $tenantModel->building_id, $payload['gender'] === null ? null : (int) $payload['gender'])
-                ) {
-                    return ApiResponse::responseJson(false, self::GENDER_POLICY_ERROR_MESSAGE, 422, null, 422);
+                if (array_key_exists('status', $payload)) {
+                    $stateError = OperationalStateGuard::tenantStatusBlockReason($tenantModel, (int) $payload['status']);
+
+                    if ($stateError !== null) {
+                        return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                    }
+                }
+
+                if (array_key_exists('gender', $payload)) {
+                    $genderError = OperationalStateGuard::tenantGenderBlockReason($tenantModel, $payload['gender'] === null ? null : (int) $payload['gender']);
+
+                    if ($genderError !== null) {
+                        return ApiResponse::responseJson(false, $genderError, 422, null, 422);
+                    }
                 }
 
                 $imagePayload = $this->storeImages($request, $tenantModel, $uploadedPaths);
@@ -225,6 +246,12 @@ class TenantController extends Controller
                 }
 
                 $oldData = $tenantModel->toArray();
+                $stateError = OperationalStateGuard::tenantStatusBlockReason($tenantModel, (int) $validated['status']);
+
+                if ($stateError !== null) {
+                    return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                }
+
                 $tenantModel->forceFill(['status' => (int) $validated['status']])->save();
                 $newData = $tenantModel->fresh()->toArray();
 
@@ -478,7 +505,7 @@ class TenantController extends Controller
     // Bộ lọc chính sách giới tính của tòa nhà đối với khách thuê
     private function applyBuildingGenderPolicyFilter(Builder $query, int $buildingId): void
     {
-        $building = Building::query()->select(['id', 'gender_policy'])->find($buildingId);
+        $building = Building::query()->select(['id', 'gender_policy', 'status'])->find($buildingId);
 
         if (! $building) {
             $query->whereRaw('1 = 0');
@@ -501,7 +528,7 @@ class TenantController extends Controller
             return true;
         }
 
-        $building = Building::query()->select(['id', 'gender_policy'])->find($buildingId);
+        $building = Building::query()->select(['id', 'gender_policy', 'status'])->find($buildingId);
 
         return $building?->allowsTenantGender($tenantGender) ?? false;
     }

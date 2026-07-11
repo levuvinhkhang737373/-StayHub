@@ -32,6 +32,7 @@ use App\Models\RoomServicePrice;
 use App\Models\Service;
 use App\Models\Tenant;
 use App\Models\Vehicle;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -97,6 +98,7 @@ class ContractController extends Controller
                 ->select(['id', 'building_id', 'room_number', 'status', 'base_price', 'max_occupants', 'current_occupants'])
                 ->where('building_id', $buildingId)
                 ->where('status', Room::STATUS_ACTIVE)
+                ->whereHas('building', fn (Builder $query): Builder => $query->where('status', \App\Models\Building::STATUS_ACTIVE))
                 ->whereDoesntHave('contracts', function (Builder $query) use ($ignoreContractId): void {
                     $query->whereIn('status', Contract::RESERVED_STATUSES)
                         ->when($ignoreContractId > 0, fn (Builder $contractQuery): Builder => $contractQuery->whereKeyNot($ignoreContractId));
@@ -1536,12 +1538,10 @@ class ContractController extends Controller
             $this->throwResponse('Bạn không có quyền thao tác hợp đồng của tòa nhà này.', 403);
         }
 
-        if ((int) $room->status !== Room::STATUS_ACTIVE) {
-            $this->throwResponse('Chỉ có thể lập hợp đồng cho phòng đang hoạt động.', 422);
-        }
+        $stateError = OperationalStateGuard::roomRentableBlockReason($room);
 
-        if ($room->building && (int) $room->building->status !== \App\Models\Building::STATUS_ACTIVE) {
-            $this->throwResponse('Không thể lập hợp đồng vì tòa nhà đã ngừng hoạt động hoặc đang bảo trì.', 422);
+        if ($stateError !== null) {
+            $this->throwResponse($stateError, 422);
         }
     }
 

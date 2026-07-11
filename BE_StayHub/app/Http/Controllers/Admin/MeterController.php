@@ -7,9 +7,15 @@ use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Meter\IndexRequest;
+use App\Http\Requests\Admin\Meter\StatusRequest;
+use App\Http\Requests\Admin\Meter\StoreRequest;
+use App\Http\Requests\Admin\Meter\UpdateRequest;
 use App\Http\Resources\Admin\MeterResource;
 use App\Models\MeterDevice;
 use App\Models\Room;
+use App\Models\Service;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,19 +24,10 @@ use Illuminate\Support\Facades\DB;
 class MeterController extends Controller
 {
     // Danh sách công tơ điện nước của tòa nhà
-    public function index(Request $request): JsonResponse
+    public function index(IndexRequest $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'page' => 'integer|min:1',
-                'per_page' => 'integer|min:1|max:1000',
-                'room_id' => 'nullable|integer|exists:rooms,id',
-                'service_id' => 'nullable|integer|exists:services,id',
-                'meter_type' => 'nullable|integer|in:1,2',
-                'status' => 'nullable|integer|in:1,2,3,4',
-                'keyword' => 'nullable|string|max:100',
-            ]);
-
+            $validated = $request->validated();
             $admin = $request->user('admin');
 
             if (! $admin || (! AdminScope::isSuperAdmin($admin) && ! AdminScope::isBuildingManager($admin))) {
@@ -59,22 +56,10 @@ class MeterController extends Controller
     }
 
     // Tạo mới công tơ điện nước
-    public function store(Request $request): JsonResponse
+    public function store(StoreRequest $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'room_id' => 'nullable|integer|exists:rooms,id',
-                'room_number' => 'nullable|string|max:50',
-                'service_id' => 'required|integer|exists:services,id',
-                'meter_code' => 'nullable|string|max:100|unique:meter_devices,meter_code',
-                'meter_type' => 'required|integer|in:1,2',
-                'initial_reading' => 'required|numeric|min:0',
-                'installed_at' => 'nullable|date',
-                'status' => 'nullable|integer|in:1,2,3,4',
-                'replaced_by_meter_id' => 'nullable|integer|exists:meter_devices,id',
-                'note' => 'nullable|string|max:500',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
-            ]);
+            $validated = $request->validated();
 
             if (empty($validated['room_id']) && !empty($validated['room_number'])) {
                 $room = Room::where('room_number', $validated['room_number'])->first();
@@ -100,8 +85,22 @@ class MeterController extends Controller
                 return ApiResponse::responseJson(false, 'Bạn không có quyền tạo đồng hồ cho phòng này', 403, null, 403);
             }
 
-            if ($validated['status'] === MeterDevice::STATUS_REPLACED && empty($validated['replaced_by_meter_id'])) {
+            $status = (int) ($validated['status'] ?? MeterDevice::STATUS_ACTIVE);
+
+            if ($status === MeterDevice::STATUS_REPLACED && empty($validated['replaced_by_meter_id'])) {
                 return ApiResponse::responseJson(false, 'Khi trạng thái là đã bị thay thế phải chọn đồng hồ thay thế', 422, null, 422);
+            }
+
+            $room = Room::query()->with('building:id,status')->find((int) $validated['room_id']);
+            $service = Service::query()->find((int) $validated['service_id']);
+
+            if (! $room || ! $service) {
+                return ApiResponse::responseJson(false, 'Phòng hoặc dịch vụ không tồn tại', 422, null, 422);
+            }
+
+            $stateError = OperationalStateGuard::meterCreationBlockReason($room, $service);
+            if ($stateError !== null) {
+                return ApiResponse::responseJson(false, $stateError, 422, null, 422);
             }
 
             $oldMeterId = $validated['replaced_by_meter_id'] ?? null;
@@ -109,17 +108,17 @@ class MeterController extends Controller
             $existingActiveMeterQuery = MeterDevice::query()
                 ->where('room_id', $validated['room_id'])
                 ->where('service_id', $validated['service_id'])
-                ->where('status', '!=', MeterDevice::STATUS_REPLACED);
+                ->where('status', MeterDevice::STATUS_ACTIVE);
 
             if ($oldMeterId) {
                 $existingActiveMeterQuery->where('id', '!=', $oldMeterId);
             }
 
-            if ($existingActiveMeterQuery->exists()) {
-                return ApiResponse::responseJson(false, 'Phòng này đã có đồng hồ cho dịch vụ này', 422, null, 422);
+            if ($status === MeterDevice::STATUS_ACTIVE && $existingActiveMeterQuery->exists()) {
+                return ApiResponse::responseJson(false, 'Phòng này đã có đồng hồ đang sử dụng cho dịch vụ này', 422, null, 422);
             }
 
-            $response = DB::transaction(function () use ($validated, $admin, $request, $oldMeterId): JsonResponse {
+            $response = DB::transaction(function () use ($validated, $admin, $request, $oldMeterId, $status): JsonResponse {
                 $meterDevice = MeterDevice::query()->create([
                     'room_id' => $validated['room_id'],
                     'service_id' => $validated['service_id'],
@@ -127,7 +126,7 @@ class MeterController extends Controller
                     'meter_type' => $validated['meter_type'],
                     'initial_reading' => $validated['initial_reading'],
                     'installed_at' => $validated['installed_at'] ?? now(),
-                    'status' => $validated['status'] ?? MeterDevice::STATUS_ACTIVE,
+                    'status' => $status,
                     'replaced_by_meter_id' => null, // The new meter is not replaced
                     'note' => $validated['note'] ?? null,
                     'image_path' => $request->file('image') ? ImageHelper::create($request->file('image'), 'meter-device') : null,
@@ -180,23 +179,10 @@ class MeterController extends Controller
     }
 
     // Cập nhật thông tin công tơ điện nước
-    public function update(Request $request, int $meterDevice): JsonResponse
+    public function update(UpdateRequest $request, int $meterDevice): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'room_id' => 'nullable|integer|exists:rooms,id',
-                'room_number' => 'nullable|string|max:50',
-                'service_id' => 'nullable|integer|exists:services,id',
-                'meter_code' => 'nullable|string|max:100|unique:meter_devices,meter_code,'.$meterDevice,
-                'meter_type' => 'nullable|integer|in:1,2',
-                'initial_reading' => 'nullable|numeric|min:0',
-                'installed_at' => 'nullable|date',
-                'status' => 'nullable|integer|in:1,2,3,4',
-                'replaced_by_meter_id' => 'nullable|integer|exists:meter_devices,id',
-                'note' => 'nullable|string|max:500',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
-                'delete_image' => 'nullable|boolean',
-            ]);
+            $validated = $request->validated();
 
             if (empty($validated['room_id']) && !empty($validated['room_number'])) {
                 $room = Room::where('room_number', $validated['room_number'])->first();
@@ -233,25 +219,37 @@ class MeterController extends Controller
                     return ApiResponse::responseJson(false, 'Khi trạng thái là đã bị thay thế phải chọn đồng hồ thay thế', 422, null, 422);
                 }
 
-                $targetStatus = $validated['status'] ?? $meterDeviceModel->status;
+                $targetStatus = (int) ($validated['status'] ?? $meterDeviceModel->status);
                 $oldMeterId = $validated['replaced_by_meter_id'] ?? null;
 
-                if ($targetStatus !== MeterDevice::STATUS_REPLACED) {
+                if ($targetStatus === MeterDevice::STATUS_ACTIVE) {
                     $roomId = $validated['room_id'] ?? $meterDeviceModel->room_id;
                     $serviceId = $validated['service_id'] ?? $meterDeviceModel->service_id;
+                    $room = Room::query()->with('building:id,status')->find((int) $roomId);
+                    $service = Service::query()->find((int) $serviceId);
+
+                    if (! $room || ! $service) {
+                        return ApiResponse::responseJson(false, 'Phòng hoặc dịch vụ không tồn tại', 422, null, 422);
+                    }
+
+                    $stateError = OperationalStateGuard::meterCreationBlockReason($room, $service);
+
+                    if ($stateError !== null) {
+                        return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                    }
 
                     $existingActiveMeterQuery = MeterDevice::query()
                         ->where('room_id', $roomId)
                         ->where('service_id', $serviceId)
                         ->where('id', '!=', $meterDeviceModel->id)
-                        ->where('status', '!=', MeterDevice::STATUS_REPLACED);
+                        ->where('status', MeterDevice::STATUS_ACTIVE);
 
                     if ($oldMeterId) {
                         $existingActiveMeterQuery->where('id', '!=', $oldMeterId);
                     }
 
                     if ($existingActiveMeterQuery->exists()) {
-                        return ApiResponse::responseJson(false, 'Phòng này đã có đồng hồ cho dịch vụ này', 422, null, 422);
+                        return ApiResponse::responseJson(false, 'Phòng này đã có đồng hồ đang sử dụng cho dịch vụ này', 422, null, 422);
                     }
                 }
 
@@ -298,14 +296,10 @@ class MeterController extends Controller
     }
 
     // Cập nhật trạng thái hoạt động của công tơ
-    public function updateStatus(Request $request, int $meterDevice): JsonResponse
+    public function updateStatus(StatusRequest $request, int $meterDevice): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'status' => 'required|integer|in:1,2,3,4',
-                'replaced_by_meter_id' => 'nullable|integer|exists:meter_devices,id',
-            ]);
-
+            $validated = $request->validated();
             $admin = $request->user('admin');
 
             if (! $admin) {
@@ -329,14 +323,21 @@ class MeterController extends Controller
                     return ApiResponse::responseJson(false, 'Không thể chọn chính đồng hồ này làm đồng hồ thay thế', 422, null, 422);
                 }
 
-                if ($validated['status'] !== MeterDevice::STATUS_REPLACED) {
+                if ((int) $validated['status'] === MeterDevice::STATUS_ACTIVE) {
+                    $meterDeviceModel->loadMissing(['room.building', 'service']);
+                    $stateError = OperationalStateGuard::meterCreationBlockReason($meterDeviceModel->room, $meterDeviceModel->service);
+
+                    if ($stateError !== null) {
+                        return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                    }
+
                     if (MeterDevice::query()
                         ->where('room_id', $meterDeviceModel->room_id)
                         ->where('service_id', $meterDeviceModel->service_id)
                         ->where('id', '!=', $meterDeviceModel->id)
-                        ->where('status', '!=', MeterDevice::STATUS_REPLACED)
+                        ->where('status', MeterDevice::STATUS_ACTIVE)
                         ->exists()) {
-                        return ApiResponse::responseJson(false, 'Phòng này đã có đồng hồ cho dịch vụ này', 422, null, 422);
+                        return ApiResponse::responseJson(false, 'Phòng này đã có đồng hồ đang sử dụng cho dịch vụ này', 422, null, 422);
                     }
                 }
 

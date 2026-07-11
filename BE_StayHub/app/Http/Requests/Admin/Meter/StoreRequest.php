@@ -6,6 +6,7 @@ use App\Helpers\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use App\Models\MeterDevice;
 use Illuminate\Validation\Rule;
 
 class StoreRequest extends FormRequest
@@ -18,20 +19,14 @@ class StoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'room_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('rooms', 'id')->where(function ($query) {
-                    $query->where('status', \App\Models\Room::STATUS_ACTIVE);
-                })
-            ],
+            'room_id' => ['nullable', 'integer', 'exists:rooms,id'],
             'room_number' => ['nullable', 'string', 'max:50'],
             'service_id' => ['required', 'integer', 'exists:services,id'],
             'meter_code' => ['nullable', 'string', 'max:100', 'unique:meter_devices,meter_code'],
             'meter_type' => ['required', 'integer', Rule::in([1, 2])],
             'initial_reading' => ['required', 'numeric', 'min:0'],
             'installed_at' => ['nullable', 'date'],
-            'status' => ['nullable', 'integer', Rule::in([1, 2, 3, 4])],
+            'status' => ['nullable', 'integer', Rule::in(array_keys(MeterDevice::STATUS_LABELS))],
             'replaced_by_meter_id' => ['nullable', 'integer', 'exists:meter_devices,id'],
             'note' => ['nullable', 'string', 'max:500'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:5120'],
@@ -42,7 +37,7 @@ class StoreRequest extends FormRequest
     {
         return [
             'room_id.integer' => 'ID phòng không hợp lệ.',
-            'room_id.exists' => 'Phòng không tồn tại hoặc không ở trạng thái hoạt động.',
+            'room_id.exists' => 'Phòng không tồn tại.',
             'room_number.string' => 'Số phòng không hợp lệ.',
             'room_number.max' => 'Số phòng tối đa 50 ký tự.',
             'service_id.required' => 'Dịch vụ là bắt buộc.',

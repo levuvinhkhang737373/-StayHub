@@ -1231,4 +1231,41 @@ class RoomMovementControllerTest extends TestCase
             'created_by' => $admin->id,
         ];
     }
+
+
+    public function test_transfer_tenant_rejects_destination_room_in_inactive_building(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Asia/Ho_Chi_Minh'));
+
+        $admin = $this->createAdmin('super_room_move_inactive_building', Admin::ROLE_SUPER_ADMIN);
+        $building = $this->createBuilding($admin, 'Tòa chuyển phòng inactive', 'toa-chuyen-phong-inactive');
+        $roomType = $this->createRoomType($admin);
+        $fromRoom = $this->createRoom($building, $roomType, $admin, 'IB101', 1);
+        $toRoom = $this->createRoom($building, $roomType, $admin, 'IB102', 0);
+        $tenant = $this->createTenant($admin, $building, 'tenant_move_inactive_building');
+        $oldContract = $this->createContract($fromRoom, $admin, 'HD-INACTIVE-BUILDING-MOVE');
+
+        ContractTenant::create([
+            'contract_id' => $oldContract->id,
+            'tenant_id' => $tenant->id,
+            'join_date' => '2026-01-01',
+            'billing_start_date' => '2026-01-01',
+            'is_staying' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        $building->update(['status' => Building::STATUS_MAINTENANCE]);
+
+        $response = $this->actingAs($admin, 'admin')->postJson('/api/v1/admin/room-transfers/tenant', [
+            'tenant_ids' => [$tenant->id],
+            'to_room_id' => $toRoom->id,
+            'movement_date' => now('Asia/Ho_Chi_Minh')->addMonthNoOverflow()->startOfMonth()->toDateString(),
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('status', false);
+
+        $this->assertDatabaseCount('room_movements', 0);
+    }
+
 }

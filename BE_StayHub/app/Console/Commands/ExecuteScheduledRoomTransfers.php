@@ -19,6 +19,7 @@ use App\Models\RoomService;
 use App\Models\RoomServicePrice;
 use App\Models\Tenant;
 use App\Services\RoomServiceLifecycleService;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -252,8 +253,9 @@ class ExecuteScheduledRoomTransfers extends Command
 
     private function destinationValidationMessage(array $tenantIds, Room $toRoom): ?string
     {
-        if ((int) $toRoom->status !== Room::STATUS_ACTIVE) {
-            return 'Phòng đích đang không ở trạng thái cho thuê được.';
+        $stateError = OperationalStateGuard::destinationRoomBlockReason($toRoom);
+        if ($stateError !== null) {
+            return $stateError;
         }
 
         $destinationActiveContract = $this->activeDestinationContract($toRoom);

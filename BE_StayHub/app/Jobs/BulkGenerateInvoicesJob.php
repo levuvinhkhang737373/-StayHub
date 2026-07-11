@@ -3,8 +3,10 @@
 namespace App\Jobs;
 
 use App\Models\Admin;
+use App\Models\Building;
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\Room;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -43,8 +45,13 @@ class BulkGenerateInvoicesJob implements ShouldQueue
         $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
 
         $contracts = Contract::query()
-            ->whereHas('room', function ($q) {
+            ->whereHas('room', function ($q) use ($periodStart) {
                 $q->where('building_id', $this->buildingId);
+
+                if ($periodStart->greaterThanOrEqualTo(now()->startOfMonth())) {
+                    $q->where('status', Room::STATUS_ACTIVE)
+                        ->whereHas('building', fn ($buildingQuery) => $buildingQuery->where('status', Building::STATUS_ACTIVE));
+                }
             })
             ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED])
             ->where(function ($query) use ($periodStart, $periodEnd): void {

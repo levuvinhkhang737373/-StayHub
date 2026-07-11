@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin\Meter;
 
 use App\Helpers\ApiResponse;
+use App\Models\MeterDevice;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -22,8 +23,8 @@ class IndexRequest extends FormRequest
             'per_page' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'room_id' => ['nullable', 'integer', 'exists:rooms,id'],
             'service_id' => ['nullable', 'integer', 'exists:services,id'],
-            'meter_type' => ['nullable', 'integer', Rule::in([1, 2])],
-            'status' => ['nullable', 'integer', Rule::in([1, 2, 3, 4])],
+            'meter_type' => ['nullable', 'integer', Rule::in(array_keys(MeterDevice::METER_TYPE_LABELS))],
+            'status' => ['nullable', 'integer', Rule::in(array_keys(MeterDevice::STATUS_LABELS))],
             'keyword' => ['nullable', 'string', 'max:100'],
         ];
     }

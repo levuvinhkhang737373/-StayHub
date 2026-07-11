@@ -22,6 +22,7 @@ use App\Models\Setting;
 use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\Notification;
+use App\Support\BusinessRules\OperationalStateGuard;
 use App\Events\NotificationSent;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -155,6 +156,12 @@ class BuildingController extends Controller
 
                 $this->loadBuildingDetail($buildingModel);
                 $oldData = $buildingModel->toArray();
+                $nextStatus = array_key_exists('status', $validated) ? (int) $validated['status'] : (int) $buildingModel->status;
+                $stateError = OperationalStateGuard::buildingStatusTransitionBlockReason($buildingModel, $nextStatus);
+
+                if ($stateError !== null) {
+                    return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                }
 
                 $buildingModel->fill($this->payload($validated, $admin, true))->save();
 
@@ -195,6 +202,12 @@ class BuildingController extends Controller
                 }
 
                 $oldData = $buildingModel->toArray();
+                $stateError = OperationalStateGuard::buildingStatusTransitionBlockReason($buildingModel, (int) $validated['status']);
+
+                if ($stateError !== null) {
+                    return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                }
+
                 $buildingModel->forceFill(['status' => $validated['status']])->save();
                 $this->loadBuildingDetail($buildingModel);
 

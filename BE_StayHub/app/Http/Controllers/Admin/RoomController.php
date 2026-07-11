@@ -30,6 +30,7 @@ use App\Models\RoomType;
 use App\Models\ServicePrice;
 use App\Models\Tenant;
 use App\Services\RoomServicePriceResolver;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
@@ -219,11 +220,6 @@ class RoomController extends Controller
      */
     public function update(RoomRequest $request, $id)
     {
-        $room = Room::find($id);
-        if (!$room) {
-            return ApiResponse::responseJson(false, 'Không tìm thấy thông tin phòng trọ này.', 404, null, 404);
-        }
-
         $admin = $request->user();
 
         if (!AdminScope::isSuperAdmin($admin)) {
@@ -234,7 +230,22 @@ class RoomController extends Controller
         DB::beginTransaction();
 
         try {
+            $room = Room::where('id', $id)->lockForUpdate()->first();
+            if (!$room) {
+                DB::rollBack();
+                return ApiResponse::responseJson(false, 'Không tìm thấy thông tin phòng trọ này.', 404, null, 404);
+            }
+
             $validatedData = $request->validated();
+
+            // Kiểm tra điều kiện chuyển đổi trạng thái của phòng
+            $newStatus = isset($validatedData['status']) ? (int) $validatedData['status'] : $room->status;
+            $transitionError = $this->validateRoomStatusTransition($room, $newStatus);
+            if ($transitionError) {
+                DB::rollBack();
+                return ApiResponse::responseJson(false, $transitionError, 400, null, 400);
+            }
+
             $oldData = $room->fresh()->toArray();
 
             $room->update([
@@ -364,41 +375,33 @@ class RoomController extends Controller
     // Cập nhật trạng thái của phòng
     public function updateStatus(StatusRequest $request, string $id)
     {
+        DB::beginTransaction();
         try {
             $validated = $request->validated();
             $admin = $request->user();
             
             if (!AdminScope::isSuperAdmin($admin) && !AdminScope::isBuildingManager($admin)) {
+                DB::rollBack();
                 return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật trạng thái phòng', 403, null, 403);
             }
 
-            $room = Room::find($id);
+            $room = Room::where('id', $id)->lockForUpdate()->first();
             if (!$room) {
+                DB::rollBack();
                 return ApiResponse::responseJson(false, 'Không thể tìm thấy phòng', 404, null, 404);
             }
 
             if (AdminScope::isBuildingManager($admin) && !AdminScope::ensureBuildingAccess($admin, $room->building_id)) {
+                DB::rollBack();
                 return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật trạng thái phòng của tòa nhà này', 403, null, 403);
             }
 
             $newStatus = (int) $validated['status'];
 
-            // Nếu muốn đổi sang ngưng hoạt động (STATUS_INACTIVE = 3) hoặc đang bảo trì (STATUS_MAINTENANCE = 2)
-            if ($newStatus === Room::STATUS_INACTIVE || $newStatus === Room::STATUS_MAINTENANCE) {
-                // Kiểm tra có người đang ở hay không
-                if ($room->current_occupants > 0) {
-                    $statusLabel = $newStatus === Room::STATUS_INACTIVE ? 'ngưng hoạt động' : 'bảo trì';
-                    return ApiResponse::responseJson(false, "Không thể chuyển phòng sang trạng thái {$statusLabel} khi đang có khách ở.", 400, null, 400);
-                }
-                
-                // Kiểm tra có hợp đồng đang có hiệu lực hay không
-                $hasActiveContract = Contract::where('room_id', $room->id)
-                    ->where('status', Contract::STATUS_ACTIVE)
-                    ->exists();
-                if ($hasActiveContract) {
-                    $statusLabel = $newStatus === Room::STATUS_INACTIVE ? 'ngưng hoạt động' : 'bảo trì';
-                    return ApiResponse::responseJson(false, "Không thể chuyển phòng sang trạng thái {$statusLabel} khi đang có hợp đồng hiệu lực.", 400, null, 400);
-                }
+            $transitionError = $this->validateRoomStatusTransition($room, $newStatus);
+            if ($transitionError) {
+                DB::rollBack();
+                return ApiResponse::responseJson(false, $transitionError, 400, null, 400);
             }
 
             $oldData = $room->fresh()->toArray();
@@ -408,8 +411,10 @@ class RoomController extends Controller
             
             AdminActivityLogger::write($admin, 'Cập nhật trạng thái phòng', Room::class, $room->id, $oldData, $room->fresh()->toArray(), $request);
             
+            DB::commit();
             return ApiResponse::responseJson(true, "Cập nhật trạng thái phòng thành công", 200, $room->fresh(), 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return ApiResponse::responseJson(false, 'Lỗi server: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -591,8 +596,9 @@ class RoomController extends Controller
     // Tạo thông báo lỗi xác thực cho phòng đến
     private function destinationValidationMessage(array $tenantIds, Room $toRoom): ?string
     {
-        if ((int) $toRoom->status !== Room::STATUS_ACTIVE) {
-            return 'Phòng đích đang không ở trạng thái cho thuê được.';
+        $stateError = OperationalStateGuard::destinationRoomBlockReason($toRoom);
+        if ($stateError !== null) {
+            return $stateError;
         }
 
         $destinationActiveContract = $this->activeDestinationContract($toRoom);
@@ -874,5 +880,10 @@ class RoomController extends Controller
             'toRoom.building:id,name,slug,manager_admin_id,status',
             'creator:id,username,full_name,email,role,status',
         ];
+    }
+
+    private function validateRoomStatusTransition(Room $room, int $newStatus): ?string
+    {
+        return OperationalStateGuard::roomStatusTransitionBlockReason($room, $newStatus);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin\Meter;
 
 use App\Helpers\ApiResponse;
+use App\Models\MeterDevice;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -24,10 +25,10 @@ class UpdateRequest extends FormRequest
             'room_number' => ['nullable', 'string', 'max:50'],
             'service_id' => ['nullable', 'integer', 'exists:services,id'],
             'meter_code' => ['nullable', 'string', 'max:100', 'unique:meter_devices,meter_code,' . $meterDevice],
-            'meter_type' => ['nullable', 'integer', Rule::in([1, 2])],
+            'meter_type' => ['nullable', 'integer', Rule::in(array_keys(MeterDevice::METER_TYPE_LABELS))],
             'initial_reading' => ['nullable', 'numeric', 'min:0'],
             'installed_at' => ['nullable', 'date'],
-            'status' => ['nullable', 'integer', Rule::in([1, 2, 3, 4])],
+            'status' => ['nullable', 'integer', Rule::in(array_keys(MeterDevice::STATUS_LABELS))],
             'replaced_by_meter_id' => ['nullable', 'integer', 'exists:meter_devices,id'],
             'note' => ['nullable', 'string', 'max:500'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:5120'],
