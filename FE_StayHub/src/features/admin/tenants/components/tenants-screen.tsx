@@ -396,7 +396,7 @@ export function TenantsScreen() {
               {/* Desktop View Table */}
               <div className="hidden lg:block w-full max-w-full overflow-x-auto custom-scrollbar">
                 <table className="w-full text-left">
-                  <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8]">
+                  <thead className="bg-[#24170d] text-[10px] font-black uppercase tracking-[0.18em] text-[#f8e8c8] whitespace-nowrap">
                     <tr>
                       <th className="px-5 py-4">Khách thuê</th>
                       <th className="px-5 py-4">Liên hệ</th>
@@ -405,7 +405,7 @@ export function TenantsScreen() {
                       <th className="px-5 py-4 text-center">Tòa nhà</th>
                       <th className="whitespace-nowrap px-5 py-4 text-center">Phòng</th>
                       <th className="px-5 py-4 text-center">Phương tiện</th>
-                      <th className="px-5 py-4"><div className="flex justify-end"><div className="w-[184px] text-center">Thao tác</div></div></th>
+                      <th className="px-5 py-4 min-w-[184px]"><div className="flex justify-end"><div className="w-[184px] text-center">Thao tác</div></div></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#3d2a18]/8 bg-[#fffaf1]/70">

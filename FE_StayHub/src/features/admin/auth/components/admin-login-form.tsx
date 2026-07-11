@@ -182,7 +182,9 @@ export function AdminLoginForm({ onLoginSuccess }: AdminLoginFormProps) {
       <div className="pointer-events-none absolute -bottom-24 left-8 h-48 w-48 rounded-full bg-[#0f766e]/10 blur-3xl" />
 
       <div className="relative mb-8">
-        <h1 className="whitespace-nowrap text-4xl font-black leading-none tracking-[-0.07em] text-[#24170d] sm:text-5xl xl:text-6xl">Đăng nhập quản trị</h1>
+        <h1 className="text-3xl font-black leading-tight tracking-[-0.06em] text-[#24170d] sm:text-4xl xl:text-5xl 2xl:text-6xl sm:whitespace-nowrap">
+          Đăng nhập quản trị
+        </h1>
       </div>
 
       <form className="relative space-y-5" onSubmit={handleSubmit}>
@@ -252,7 +254,7 @@ export function AdminLoginForm({ onLoginSuccess }: AdminLoginFormProps) {
         </button>
       </form>
 
-      <div className="pointer-events-none relative mt-8 hidden flex-1 items-end lg:flex">
+      <div className="pointer-events-none relative mt-8 hidden flex-1 items-end xl:flex">
         <div className="relative h-56 w-full overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fff7e8] shadow-2xl shadow-[#6b3f1d]/15">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(243,197,107,0.75),transparent_19%),radial-gradient(circle_at_18%_88%,rgba(15,118,110,0.18),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.75),rgba(239,226,207,0.45))]" />
           <div className="absolute left-8 top-8 h-20 w-20 rounded-[1.75rem] bg-[#24170d] shadow-xl shadow-[#24170d]/20" />
