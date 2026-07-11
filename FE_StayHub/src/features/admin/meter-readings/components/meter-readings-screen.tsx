@@ -1053,14 +1053,14 @@ export function MeterReadingsScreen() {
                     disabled={isManager && buildings.length === 1}
                   />
                 </div>
-                <div className="w-[calc(50%-0.75rem)] sm:w-32">
+                <div className="w-[calc(50%-0.75rem)] sm:w-40">
                   <AdminSelect
                     value={selectedMonth}
                     options={months}
                     onChange={(val) => setSelectedMonth(Number(val))}
                   />
                 </div>
-                <div className="w-[calc(50%-0.75rem)] sm:w-36">
+                <div className="w-[calc(50%-0.75rem)] sm:w-40">
                   <AdminSelect
                     value={selectedYear}
                     options={years}

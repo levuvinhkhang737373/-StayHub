@@ -34,11 +34,11 @@ export function AdminHeader() {
       let total = 0
 
       if (isBuildingManagerRole(role)) {
-        const tenantRes = await fetchAdminChatConversations({ per_page: 100 })
+        const tenantRes = await fetchAdminChatConversations({ unread: 1, per_page: 100 })
         total += tenantRes.result?.data?.reduce((sum, item) => sum + Number(item.admin_unread_count || 0), 0) || 0
       }
 
-      const directRes = await fetchAdminDirectConversations({ per_page: 100 })
+      const directRes = await fetchAdminDirectConversations({ unread: 1, per_page: 100 })
       total += directRes.result?.data?.reduce((sum, item) => {
         const unread = Number(item.super_admin_id) === Number(adminId)
           ? item.admin_unread_count
@@ -68,8 +68,8 @@ export function AdminHeader() {
     channel.listen('.ChatConversationRead', handleUpdate)
 
     return () => {
-      channel.stopListening('.ChatMessageSent')
-      channel.stopListening('.ChatConversationRead')
+      channel.stopListening('.ChatMessageSent', handleUpdate)
+      channel.stopListening('.ChatConversationRead', handleUpdate)
     }
   }, [echo, session?.admin?.id, loadUnreadCount])
   const drawerRef = useRef<HTMLDivElement | null>(null)

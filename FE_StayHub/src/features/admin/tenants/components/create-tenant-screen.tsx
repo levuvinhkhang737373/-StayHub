@@ -133,7 +133,7 @@ export function CreateTenantScreen() {
     if (!selectedBuildingId) return
 
     const building = buildings.find(b => b.id === selectedBuildingId) ||
-                     session?.admin?.managed_buildings?.find(b => b.id === selectedBuildingId)
+      session?.admin?.managed_buildings?.find(b => b.id === selectedBuildingId)
 
     if (building?.address) {
       setForm(current => ({

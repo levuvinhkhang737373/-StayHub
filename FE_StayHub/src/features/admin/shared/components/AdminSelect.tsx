@@ -164,7 +164,8 @@ export function AdminSelect({ value, options, onChange, placeholder = 'Chọn gi
       }
     }
     const viewportPadding = 12
-    const menuWidth = Math.min(Math.max(coords.width, menuMinWidth ?? coords.width), window.innerWidth - viewportPadding * 2)
+    const minW = menuMinWidth ?? Math.max(coords.width, 160)
+    const menuWidth = Math.min(Math.max(coords.width, minW), window.innerWidth - viewportPadding * 2)
     const menuLeft = Math.min(Math.max(coords.left, viewportPadding), window.innerWidth - menuWidth - viewportPadding)
 
     return {

@@ -392,7 +392,7 @@ export function AdminChatScreen() {
     if (!echo || !adminId) return
 
     const channel = echo.private(`chat.admin.${adminId}`)
-    channel.listen('.ChatMessageSent', (event: ChatMessageSentEvent) => {
+    const handleMessageSent = (event: ChatMessageSentEvent) => {
       if (isDirectConversation(event.conversation)) {
         upsertDirectConversation(event.conversation)
         if (event.conversation.id === activeDirectConversation?.id) {
@@ -410,18 +410,21 @@ export function AdminChatScreen() {
           }
         }
       }
-    })
-    channel.listen('.ChatConversationRead', (event: ChatConversationReadEvent) => {
+    }
+    const handleConversationRead = (event: ChatConversationReadEvent) => {
       if (isDirectConversation(event.conversation)) {
         upsertDirectConversation(event.conversation)
       } else {
         upsertTenantConversation(event.conversation)
       }
-    })
+    }
+
+    channel.listen('.ChatMessageSent', handleMessageSent)
+    channel.listen('.ChatConversationRead', handleConversationRead)
 
     return () => {
-      channel.stopListening('.ChatMessageSent')
-      channel.stopListening('.ChatConversationRead')
+      channel.stopListening('.ChatMessageSent', handleMessageSent)
+      channel.stopListening('.ChatConversationRead', handleConversationRead)
       if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current)
     }
   }, [activeDirectConversation?.id, activeTenantConversation?.id, adminId, echo, upsertDirectConversation, upsertTenantConversation])
@@ -432,7 +435,7 @@ export function AdminChatScreen() {
 
     const channel = echo.private(`chat.conversation.${conversation.id}`)
 
-    channel.listen('.ChatMessageSent', (event: ChatMessageSentEvent) => {
+    const handleMessageSent = (event: ChatMessageSentEvent) => {
       if (isDirectConversation(conversation)) {
         if (messageIsMine(event.message, adminId)) return
         upsertDirectConversation(event.conversation)
@@ -443,18 +446,21 @@ export function AdminChatScreen() {
       if (messageSenderRole(event.message) === ADMIN_ROLE) return
       upsertTenantConversation(event.conversation)
       appendTenantMessage(event.message)
-    })
-    channel.listen('.ChatConversationRead', (event: ChatConversationReadEvent) => {
+    }
+    const handleConversationRead = (event: ChatConversationReadEvent) => {
       if (isDirectConversation(event.conversation)) {
         upsertDirectConversation(event.conversation)
       } else {
         upsertTenantConversation(event.conversation)
       }
-    })
+    }
+
+    channel.listen('.ChatMessageSent', handleMessageSent)
+    channel.listen('.ChatConversationRead', handleConversationRead)
 
     return () => {
-      channel.stopListening('.ChatMessageSent')
-      channel.stopListening('.ChatConversationRead')
+      channel.stopListening('.ChatMessageSent', handleMessageSent)
+      channel.stopListening('.ChatConversationRead', handleConversationRead)
     }
   }, [activeConversation?.id, adminId, echo, upsertDirectConversation, upsertTenantConversation])
 

@@ -8,6 +8,7 @@ use App\Helpers\DecimalMoney;
 use App\Models\Contract;
 use App\Models\RoomServicePrice;
 use App\Models\RoomMovement;
+use App\Models\ServicePrice;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -40,7 +41,7 @@ class ContractDetailResource extends JsonResource
                     'charge_method' => $roomService->service->charge_method,
                     'charge_method_label' => \App\Models\Service::CHARGE_METHOD_LABELS[$roomService->service->charge_method] ?? '',
                     'unit_name' => $roomService->service->unit_name,
-                    'price' => $this->contractRoomServicePrice((int) $roomService->service_id),
+                    'price' => $this->contractRoomServicePrice($roomService),
                     'is_required' => $roomService->service->is_required,
                 ])->values()
                 : null,
@@ -96,18 +97,57 @@ class ContractDetailResource extends JsonResource
             ->all();
     }
 
-    private function contractRoomServicePrice(int $serviceId): string
+    private function contractRoomServicePrice($roomService): string
     {
-        if (! $this->relationLoaded('roomServicePrices')) {
-            return '0.00';
+        $serviceId = (int) $roomService->service_id;
+
+        // 1. Check contract-specific price in $this->roomServicePrices
+        if ($this->relationLoaded('roomServicePrices')) {
+            $roomServicePrice = $this->roomServicePrices
+                ->filter(fn (RoomServicePrice $price): bool => (int) $price->roomService?->service_id === $serviceId)
+                ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
+                ->first();
+
+            if ($roomServicePrice) {
+                return (string) $roomServicePrice->price;
+            }
         }
 
-        $roomServicePrice = $this->roomServicePrices
-            ->filter(fn (RoomServicePrice $price): bool => (int) $price->roomService?->service_id === $serviceId)
-            ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
-            ->first();
+        // 2. Check room-level default price in $roomService->prices (if relation is loaded)
+        if ($roomService->relationLoaded('prices')) {
+            $defaultRoomPrice = $roomService->prices
+                ->sortByDesc(fn (RoomServicePrice $price): string => $price->effective_from?->toDateString() ?? '')
+                ->first();
+            if ($defaultRoomPrice) {
+                return (string) $defaultRoomPrice->price;
+            }
+        }
 
-        return (string) ($roomServicePrice?->price ?? '0.00');
+        // 3. Fallback to building-level service_prices for the service
+        $buildingId = $this->room?->building_id ?: $this->building_id;
+        if ($buildingId) {
+            $periodStart = ($this->start_date ?: now())->toDateString();
+            $periodEnd = ($this->actual_end_date ?: $this->end_date ?: $this->start_date ?: now())->toDateString();
+
+            $fallbackPrice = ServicePrice::query()
+                ->where('building_id', $buildingId)
+                ->where('service_id', $serviceId)
+                ->whereIn('status', [ServicePrice::STATUS_ACTIVE, ServicePrice::STATUS_EXPIRED])
+                ->whereDate('effective_from', '<=', $periodEnd)
+                ->where(function ($query) use ($periodStart) {
+                    $query->whereNull('effective_to')
+                        ->orWhereDate('effective_to', '>=', $periodStart);
+                })
+                ->orderByDesc('effective_from')
+                ->orderByDesc('id')
+                ->value('price');
+
+            if ($fallbackPrice !== null) {
+                return (string) $fallbackPrice;
+            }
+        }
+
+        return '0.00';
     }
 
     private function depositDueAmount(): string

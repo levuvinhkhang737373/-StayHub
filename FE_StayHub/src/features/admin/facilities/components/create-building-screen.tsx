@@ -71,12 +71,6 @@ function FieldError({ message }: { message?: string }) {
     return <p className="mt-2 px-1 text-xs font-black text-rose-600" role="alert">{message}</p>;
 }
 
-function formatDateForDisplay(value: string) {
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) return value;
-    return `${match[3]}/${match[2]}/${match[1]}`;
-}
-
 export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const navigate = useNavigate();
 
@@ -565,7 +559,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                         {form.service_prices.map((item, index) => {
                             const service = services.find((s) => s.id === Number(item.service_id));
                             const isRequired = isRequiredService(service);
-                            return <RowShell key={item.id || `service-${item.service_id}-${index}`} title={service?.name || item.service_name || `Bảng giá ${index + 1}`} disabledRemove={isRequired} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", formatMoneyInput(value))} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div><div><ReadOnlyField label="Hiệu lực từ" value={formatDateForDisplay(item.effective_from || getTodayIsoDate())} /><p className="mt-2 px-1 text-[11px] font-semibold text-gray-400"></p></div></RowShell>;
+                            return <RowShell key={item.id || `service-${item.service_id}-${index}`} title={service?.name || item.service_name || `Bảng giá ${index + 1}`} disabledRemove={isRequired} onRemove={() => removeRow("service_prices", index)}><div className="grid grid-cols-2 gap-3"><TextField label="Giá" value={item.price} onChange={(value) => updateRow("service_prices", index, "price", formatMoneyInput(value))} /><div><label className={labelClass}>Trạng thái</label><AdminSelect value={item.status} options={servicePriceStatusOptions} onChange={(value) => updateRow("service_prices", index, "status", Number(value))} /></div></div></RowShell>;
                         })}
                     </ConfigCard>
 
@@ -814,10 +808,6 @@ function RowShell({ title, children, onRemove, disabledRemove = false }: { title
 
 function TextField({ label, value, onChange, error, type = "text", placeholder }: { label: string; value: string | number; onChange: (value: string) => void; error?: string; type?: string; placeholder?: string }) {
     return <div><label className={labelClass}>{label}</label><input type={type} placeholder={placeholder} className={`${inputClass} ${error ? inputErrorClass : ""}`} value={value} aria-invalid={!!error} onChange={(event) => onChange(event.target.value)} /><FieldError message={error} /></div>;
-}
-
-function ReadOnlyField({ label, value }: { label: string; value: string }) {
-    return <div><label className={labelClass}>{label}</label><div className={`${inputClass} bg-gray-50 text-gray-500`}>{value}</div></div>;
 }
 
 function ImageCard({ src, isPrimary, disabledPrimary, primaryLabel = "Chính", onPrimary, onRemove, onView, removeIcon = "trash" }: { src: string; isPrimary: boolean; disabledPrimary?: boolean; primaryLabel?: string; onPrimary: () => void; onRemove: () => void; onView?: () => void; removeIcon?: "trash" | "x" }) {

@@ -429,7 +429,7 @@ export function InvoicesScreen() {
 
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
         <div className="border-b border-[#3d2a18]/10 bg-[#fff8eb]/85 p-4 sm:p-5">
-          <div className="grid gap-3 lg:grid-cols-[minmax(10rem,1.25fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(80px,1fr)_minmax(70px,1fr)]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(10rem,1.25fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(90px,1fr)]">
             <div className="relative min-w-0">
               <SearchIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a65f16]" />
               <input
@@ -715,7 +715,7 @@ function PaymentModal({ invoice, isSaving, onClose, onSuccess, onSubmit }: { inv
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
-  
+
   const { echo } = useAdminSocket()
   const [isPaidSuccess, setIsPaidSuccess] = useState(false)
 
@@ -789,7 +789,7 @@ function PaymentModal({ invoice, isSaving, onClose, onSuccess, onSubmit }: { inv
                   <p>Có thể thu: <span className="font-black text-emerald-700">{formatCurrency(payableAmount)}</span></p>
                   <p className="mt-1.5 text-[11px] text-[#8b5e34]/80">Có thể nhập số tiền mặt thu thực tế. Hệ thống ưu tiên trừ nợ cũ trước.</p>
                 </div>
-                
+
                 <div>
                   <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-[#8b5e34]/70">Số tiền thu *</label>
                   <input

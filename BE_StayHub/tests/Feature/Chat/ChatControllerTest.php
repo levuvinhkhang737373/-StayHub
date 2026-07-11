@@ -177,6 +177,101 @@ class ChatControllerTest extends TestCase
             ->assertJsonCount(0, 'result.data');
     }
 
+    public function test_tenant_message_event_is_broadcast_only_to_own_manager_channel(): void
+    {
+        $this->actingAs($this->tenant, 'tenant')
+            ->postJson('/api/v1/tenant/chat/messages', ['body' => 'Tin nhắn kiểm tra đúng kênh'])
+            ->assertCreated();
+
+        $message = ChatMessage::query()
+            ->where('body', 'Tin nhắn kiểm tra đúng kênh')
+            ->with('conversation')
+            ->firstOrFail();
+
+        $channelNames = collect((new ChatMessageSent($message))->broadcastOn())
+            ->map(fn ($channel): string => $channel->name)
+            ->all();
+
+        $this->assertContains('private-chat.admin.' . $this->manager->id, $channelNames);
+        $this->assertContains('private-chat.tenant.' . $this->tenant->id, $channelNames);
+        $this->assertNotContains('private-chat.admin.' . $this->otherManager->id, $channelNames);
+    }
+
+    public function test_tenant_chat_notification_uses_only_target_manager_channel(): void
+    {
+        $this->actingAs($this->tenant, 'tenant')
+            ->postJson('/api/v1/tenant/chat/messages', ['body' => 'Thông báo chỉ đúng quản lý'])
+            ->assertCreated();
+
+        $notification = Notification::query()
+            ->where('notification_type', Notification::NOTIFICATION_TYPE_CHAT)
+            ->where('target_admin_id', $this->manager->id)
+            ->latest('id')
+            ->firstOrFail();
+
+        $channelNames = collect((new NotificationSent($notification))->broadcastOn())
+            ->map(fn ($channel): string => $channel->name)
+            ->all();
+
+        $this->assertSame(['private-chat.admin.' . $this->manager->id], $channelNames);
+        $this->assertNotContains('private-admin-building.' . $this->building->id, $channelNames);
+        $this->assertNotContains('private-chat.admin.' . $this->otherManager->id, $channelNames);
+    }
+
+    public function test_conversation_index_can_return_only_admin_unread_items_for_badge_count(): void
+    {
+        $otherBuilding = Building::query()->create([
+            'name' => 'Other Chat Building',
+            'slug' => 'other-chat-building',
+            'address' => '456 Chat Street',
+            'region_id' => $this->building->region_id,
+            'manager_admin_id' => $this->manager->id,
+            'created_by' => $this->manager->id,
+            'status' => Building::STATUS_ACTIVE,
+        ]);
+        $otherRoom = Room::query()->create([
+            'building_id' => $otherBuilding->id,
+            'room_type_id' => $this->room->room_type_id,
+            'room_number' => 'C102',
+            'slug' => 'c102',
+            'floor' => 1,
+            'base_price' => '3500000.00',
+            'max_occupants' => 3,
+            'current_occupants' => 1,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->manager->id,
+        ]);
+
+        $readConversation = ChatConversation::query()->create([
+            'conversation_type' => ChatConversation::TYPE_TENANT_MANAGER,
+            'tenant_id' => $this->tenant->id,
+            'building_id' => $this->building->id,
+            'room_id' => $this->room->id,
+            'manager_admin_id' => $this->manager->id,
+            'tenant_unread_count' => 2,
+            'admin_unread_count' => 0,
+            'status' => ChatConversation::STATUS_ACTIVE,
+        ]);
+
+        $unreadConversation = ChatConversation::query()->create([
+            'conversation_type' => ChatConversation::TYPE_TENANT_MANAGER,
+            'tenant_id' => $this->tenant->id,
+            'building_id' => $otherBuilding->id,
+            'room_id' => $otherRoom->id,
+            'manager_admin_id' => $this->manager->id,
+            'tenant_unread_count' => 0,
+            'admin_unread_count' => 3,
+            'status' => ChatConversation::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($this->manager, 'admin')
+            ->getJson('/api/v1/admin/chat/conversations?unread=1&per_page=50');
+
+        $response->assertOk()
+            ->assertJsonFragment(['id' => $unreadConversation->id, 'admin_unread_count' => 3])
+            ->assertJsonMissing(['id' => $readConversation->id, 'tenant_unread_count' => 2]);
+    }
+
     public function test_super_admin_cannot_open_tenant_manager_conversation(): void
     {
         $superAdmin = $this->createAdmin('super_private_chat', 'super_private_chat@stayhub.local', '0900000004', Admin::ROLE_SUPER_ADMIN);

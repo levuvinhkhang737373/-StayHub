@@ -64,6 +64,9 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
             if (_isTransferDateChangedNotification(data)) {
               final content = data?['content']?.toString() ?? 'Ngày chuyển phòng của bạn vừa được cập nhật.';
               _showRealtimeSnackBar(Icons.event_repeat_rounded, 'Lịch chuyển phòng: $content', const Color(0xFF92400E));
+            } else if (_isServicePriceChangedNotification(data)) {
+              final content = data?['content']?.toString() ?? 'Giá dịch vụ phòng đã được lên lịch thay đổi.';
+              _showRealtimeSnackBar(Icons.monetization_on_rounded, 'Thay đổi giá dịch vụ: $content', const Color(0xFF15803D));
             }
             return;
           }
@@ -96,6 +99,16 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
     final text = '$title $content';
 
     return text.contains('ngày chuyển phòng') && (text.contains('thay đổi') || text.contains('đổi'));
+  }
+
+  bool _isServicePriceChangedNotification(Map<String, dynamic>? data) {
+    if (data == null) return false;
+
+    final title = data['title']?.toString().toLowerCase() ?? '';
+    final content = data['content']?.toString().toLowerCase() ?? '';
+    final text = '$title $content';
+
+    return text.contains('thay đổi giá dịch vụ') || text.contains('giá dịch vụ');
   }
 
   void _showRealtimeSnackBar(IconData icon, String message, Color backgroundColor) {
