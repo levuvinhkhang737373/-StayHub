@@ -368,13 +368,17 @@ class RoomController extends Controller
             $validated = $request->validated();
             $admin = $request->user();
             
-            if (!AdminScope::isSuperAdmin($admin)) {
+            if (!AdminScope::isSuperAdmin($admin) && !AdminScope::isBuildingManager($admin)) {
                 return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật trạng thái phòng', 403, null, 403);
             }
 
             $room = Room::find($id);
             if (!$room) {
                 return ApiResponse::responseJson(false, 'Không thể tìm thấy phòng', 404, null, 404);
+            }
+
+            if (AdminScope::isBuildingManager($admin) && !AdminScope::ensureBuildingAccess($admin, $room->building_id)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền cập nhật trạng thái phòng của tòa nhà này', 403, null, 403);
             }
 
             $newStatus = (int) $validated['status'];
