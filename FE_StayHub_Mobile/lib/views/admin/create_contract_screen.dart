@@ -147,6 +147,9 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
               'tenant_id': tId,
               'tenantName': t?['full_name'] ?? 'Khách thuê',
               'join_date': isRenewMode ? _startDateController.text : (ct['join_date'] ?? _startDateController.text),
+              'leave_date': isRenewMode ? null : ct['leave_date'],
+              'billing_start_date': isRenewMode ? _startDateController.text : (ct['billing_start_date'] ?? ct['join_date'] ?? _startDateController.text),
+              'billing_end_date': isRenewMode ? null : ct['billing_end_date'],
               'isRepresentative': tId == repId,
             };
           }).toList();
@@ -278,6 +281,9 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         'tenant_id': tenant.id,
         'tenantName': tenant.fullName,
         'join_date': _startDateController.text,
+        'leave_date': null,
+        'billing_start_date': _startDateController.text,
+        'billing_end_date': null,
       });
     });
 
@@ -588,7 +594,10 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
       'tenants': _selectedTenants.map((t) => {
         'tenant_id': t['tenant_id'],
         'join_date': t['join_date'],
-        'is_staying': true,
+        'leave_date': t['leave_date'],
+        'billing_start_date': t['billing_start_date'] ?? t['join_date'],
+        'billing_end_date': t['billing_end_date'] ?? t['leave_date'],
+        'is_staying': t['leave_date'] == null,
       }).toList(),
       'vehicles': _selectedVehicles.map((v) => {
         if (v['vehicle_id'] != null) 'vehicle_id': v['vehicle_id'],
@@ -708,6 +717,52 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
         controller.text = picked.toString().split(' ')[0];
       });
     }
+  }
+
+  Future<void> _selectTenantDate(BuildContext context, Map<String, dynamic> tenantMap, String key, {String? defaultDate}) async {
+    final currentVal = tenantMap[key] ?? defaultDate ?? '';
+    final initialDate = DateTime.tryParse(currentVal) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2040),
+    );
+    if (picked != null) {
+      setState(() {
+        tenantMap[key] = picked.toString().split(' ')[0];
+      });
+    }
+  }
+
+  Widget _buildDateBadge(String label, {required VoidCallback onTap, VoidCallback? onClear, Color? color}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: (color ?? const Color(0xFF1C1917)).withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: (color ?? const Color(0xFF1C1917)).withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color ?? const Color(0xFF1C1917)),
+            ),
+            if (onClear != null) ...[
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: onClear,
+                child: Icon(Icons.close, size: 10, color: color ?? const Color(0xFF1C1917)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -965,10 +1020,40 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                                                   ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'Ngày vào ở: ${st['join_date']}',
-                                                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                              const SizedBox(height: 6),
+                                              Wrap(
+                                                spacing: 6,
+                                                runSpacing: 6,
+                                                children: [
+                                                  _buildDateBadge(
+                                                    'Vào ở: ${st['join_date']}',
+                                                    onTap: () => _selectTenantDate(context, st, 'join_date'),
+                                                  ),
+                                                  _buildDateBadge(
+                                                    st['leave_date'] == null ? 'Dời đi: --' : 'Rời đi: ${st['leave_date']}',
+                                                    color: Colors.redAccent,
+                                                    onTap: () => _selectTenantDate(context, st, 'leave_date'),
+                                                    onClear: st['leave_date'] != null ? () {
+                                                      setState(() {
+                                                        st['leave_date'] = null;
+                                                      });
+                                                    } : null,
+                                                  ),
+                                                  _buildDateBadge(
+                                                    'Tính tiền từ: ${st['billing_start_date'] ?? st['join_date']}',
+                                                    onTap: () => _selectTenantDate(context, st, 'billing_start_date', defaultDate: st['join_date']),
+                                                  ),
+                                                  _buildDateBadge(
+                                                    st['billing_end_date'] == null ? 'Tính tiền đến: --' : 'Tính tiền đến: ${st['billing_end_date']}',
+                                                    color: Colors.blueAccent,
+                                                    onTap: () => _selectTenantDate(context, st, 'billing_end_date'),
+                                                    onClear: st['billing_end_date'] != null ? () {
+                                                      setState(() {
+                                                        st['billing_end_date'] = null;
+                                                      });
+                                                    } : null,
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
