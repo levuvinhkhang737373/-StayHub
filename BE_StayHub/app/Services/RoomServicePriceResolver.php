@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 
 class RoomServicePriceResolver
 {
+    // Lấy giá dịch vụ phòng có hiệu lực tại thời điểm chỉ định
     public function effectiveRoomServicePrice(RoomService $roomService, Carbon $targetDate, ?Contract $contract = null): ?RoomServicePrice
     {
         return RoomServicePrice::query()
@@ -26,6 +27,7 @@ class RoomServicePriceResolver
             ->first();
     }
 
+    // Lấy số tiền giá dịch vụ có hiệu lực
     public function effectivePriceAmount(RoomService $roomService, Carbon $targetDate, ?Contract $contract = null): ?string
     {
         $price = $this->effectiveRoomServicePrice($roomService, $targetDate, $contract);
@@ -33,6 +35,7 @@ class RoomServicePriceResolver
         return $price ? DecimalMoney::normalize($price->price) : null;
     }
 
+    // Lấy giá dịch vụ mặc định của phòng
     public function defaultRoomServicePrice(RoomService $roomService, Carbon $targetDate): ?RoomServicePrice
     {
         return RoomServicePrice::query()
@@ -44,6 +47,7 @@ class RoomServicePriceResolver
             ->first();
     }
 
+    // Đảm bảo dịch vụ phòng được cấu hình đầy đủ
     public function ensureRoomService(Room $room, Service|int $service): RoomService
     {
         $serviceId = $service instanceof Service ? $service->id : $service;
@@ -54,6 +58,7 @@ class RoomServicePriceResolver
         ]);
     }
 
+    // Lấy giá mặc định từ bảng giá dịch vụ
     public function ensureDefaultPriceFromServicePrice(Room $room, ServicePrice $servicePrice, ?int $createdBy = null): ?RoomServicePrice
     {
         $service = $servicePrice->relationLoaded('service') ? $servicePrice->service : $servicePrice->service()->first();
@@ -80,6 +85,7 @@ class RoomServicePriceResolver
         });
     }
 
+    // Lấy danh sách giá dịch vụ áp dụng cho hợp đồng
     public function servicePricesForContract(Room $room, Contract $contract, Carbon $targetDate): Collection
     {
         return RoomService::query()

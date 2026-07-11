@@ -28,6 +28,7 @@ use Illuminate\Support\Facades\DB;
 
 class RoomServicePriceController extends Controller
 {
+    // Danh sách bảng giá dịch vụ áp dụng cho các phòng
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -58,6 +59,7 @@ class RoomServicePriceController extends Controller
         }
     }
 
+    // Chi tiết bảng giá dịch vụ của một phòng cụ thể
     public function show(ShowRequest $request, int $room): JsonResponse
     {
         $validated = $request->validated();
@@ -81,6 +83,7 @@ class RoomServicePriceController extends Controller
         }
     }
 
+    // Cập nhật/cấu hình bảng giá dịch vụ cho phòng
     public function update(UpdateRequest $request, int $room): JsonResponse
     {
         $validated = $request->validated();
@@ -168,6 +171,7 @@ class RoomServicePriceController extends Controller
         }
     }
 
+    // Tạo truy vấn phòng trong phạm vi quản lý
     private function roomQuery(array $validated, Admin $admin, Carbon $targetDate): Builder
     {
         $keyword = trim((string) ($validated['keyword'] ?? ''));
@@ -184,6 +188,7 @@ class RoomServicePriceController extends Controller
             ->orderBy('room_number');
     }
 
+    // Các quan hệ liên kết của phòng cần load
     private function roomRelations(Carbon $targetDate): array
     {
         $periodEnd = $targetDate->copy()->endOfMonth();
@@ -226,6 +231,7 @@ class RoomServicePriceController extends Controller
         ];
     }
 
+    // Lấy danh sách dịch vụ không phải điện nước
     private function nonUtilityServiceScope($query)
     {
         return $query->whereHas('service', fn (Builder $serviceQuery): Builder => $serviceQuery
@@ -234,6 +240,7 @@ class RoomServicePriceController extends Controller
             ->whereNotIn('slug', Service::UTILITY_SLUGS));
     }
 
+    // Lập lịch thay đổi giá dịch vụ trong tương lai
     private function schedulePrice(RoomService $roomService, Carbon $targetDate, string $price, Admin $admin, ?Contract $contract = null): RoomServicePrice
     {
         $effectiveFrom = $targetDate->toDateString();
@@ -281,6 +288,7 @@ class RoomServicePriceController extends Controller
         ])->load('roomService.service');
     }
 
+    // Tìm hợp đồng liên quan đến mục giá dịch vụ
     private function contractForPriceItem(array $item, Room $room, ?Contract $activeContract): Contract|false|null
     {
         if (! array_key_exists('contract_id', $item) || $item['contract_id'] === null || $item['contract_id'] === '') {
@@ -299,6 +307,7 @@ class RoomServicePriceController extends Controller
             ->first() ?: false;
     }
 
+    // Tìm hợp đồng đang có hiệu lực của phòng
     private function activeContractForRoom(Room $room): ?Contract
     {
         return Contract::query()
@@ -310,6 +319,7 @@ class RoomServicePriceController extends Controller
             ->first();
     }
 
+    // Kiểm tra hợp đồng kết thúc trước chu kỳ tính tiền không
     private function contractEndsBeforePeriod(Contract $contract, Carbon $targetDate): bool
     {
         $endDate = $contract->actual_end_date ?: $contract->end_date;
@@ -317,6 +327,7 @@ class RoomServicePriceController extends Controller
         return $endDate !== null && $endDate->copy()->startOfDay()->lt($targetDate->copy()->startOfDay());
     }
 
+    // Xác định ngày kết thúc hiệu lực thực tế của hợp đồng trong kỳ
     private function contractEffectiveTo(?Contract $contract): ?string
     {
         $endDate = $contract?->actual_end_date ?: $contract?->end_date;
@@ -324,6 +335,7 @@ class RoomServicePriceController extends Controller
         return $endDate?->toDateString();
     }
 
+    // Gửi thông báo thay đổi giá dịch vụ đến khách thuê trong phòng
     private function notifyTenants(Room $room, Collection $prices, Carbon $targetDate, Admin $admin): void
     {
         $tenantIds = ContractTenant::query()
@@ -362,11 +374,13 @@ class RoomServicePriceController extends Controller
         }
     }
 
+    // Xác định ngày bắt đầu của chu kỳ tính tiền chỉ định
     private function periodStart(int $year, int $month): Carbon
     {
         return Carbon::create($year, $month, 1)->startOfDay();
     }
 
+    // Kiểm tra chu kỳ tính tiền có phải trong tương lai không
     private function isFuturePeriod(Carbon $targetDate): bool
     {
         return $targetDate->greaterThan(now()->copy()->startOfMonth());

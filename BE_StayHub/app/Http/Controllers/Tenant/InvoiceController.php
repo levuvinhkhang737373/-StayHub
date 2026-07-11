@@ -19,8 +19,10 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
+    // Khởi tạo controller hóa đơn khách thuê
     public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
 
+    // Danh sách hóa đơn của khách thuê
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -62,6 +64,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Xem chi tiết hóa đơn
     public function show(Request $request, int $invoice): JsonResponse
     {
         try {
@@ -85,6 +88,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Tải lên ảnh minh chứng thanh toán hóa đơn
     public function uploadProof(Request $request, int $invoice): JsonResponse
     {
         $validated = $request->validate([
@@ -170,6 +174,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Truy vấn danh sách hóa đơn của khách thuê
     private function tenantInvoiceQuery(int $tenantId): Builder
     {
         return Invoice::query()
@@ -179,6 +184,7 @@ class InvoiceController extends Controller
             });
     }
 
+    // Các quan hệ liên kết chi tiết hóa đơn
     private function detailRelations(): array
     {
         return [
@@ -193,6 +199,7 @@ class InvoiceController extends Controller
         ];
     }
 
+    // Tạo mã thanh toán hóa đơn
     private function makePaymentCode(): string
     {
         $prefix = 'PAY-' . now()->format('Y-m') . '-';
@@ -209,6 +216,7 @@ class InvoiceController extends Controller
         return $code;
     }
 
+    // Danh sách thông báo lỗi xác thực dữ liệu
     private function validationMessages(): array
     {
         return [

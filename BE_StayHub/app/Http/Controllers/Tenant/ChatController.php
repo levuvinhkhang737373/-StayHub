@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 
 class ChatController extends Controller
 {
+    // Lấy thông tin phòng chat của khách thuê với admin
     public function conversation(): JsonResponse
     {
         try {
@@ -41,6 +42,7 @@ class ChatController extends Controller
         }
     }
 
+    // Danh sách tin nhắn trong phòng chat
     public function messages(MessageIndexRequest $request): JsonResponse
     {
         try {
@@ -80,6 +82,7 @@ class ChatController extends Controller
         }
     }
 
+    // Gửi tin nhắn đến admin
     public function sendMessage(SendMessageRequest $request): JsonResponse
     {
         try {
@@ -144,6 +147,7 @@ class ChatController extends Controller
         }
     }
 
+    // Đánh dấu đã đọc toàn bộ tin nhắn trong phòng chat
     public function markAsRead(): JsonResponse
     {
         try {
@@ -177,6 +181,7 @@ class ChatController extends Controller
         }
     }
 
+    // Tìm hoặc tạo phòng chat mới
     private function findOrCreateConversation(Tenant $tenant): ChatConversation|JsonResponse
     {
         $currentRoom = $tenant->contractTenants()
@@ -226,6 +231,7 @@ class ChatController extends Controller
         return $conversation->load(['building', 'room', 'tenant', 'manager', 'lastMessage.sender']);
     }
 
+    // Tạo thông báo có tin nhắn mới cho admin quản lý
     private function createAdminChatNotification(ChatConversation $conversation, ChatMessage $message, Tenant $tenant): void
     {
         $bodyText = trim((string) $message->body);

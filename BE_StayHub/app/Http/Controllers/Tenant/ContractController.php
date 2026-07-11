@@ -19,6 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 class ContractController extends Controller
 {
+    // Danh sách hợp đồng của khách thuê
     public function index(Request $request): JsonResponse
     {
         try {
@@ -56,6 +57,7 @@ class ContractController extends Controller
         }
     }
 
+    // Xem chi tiết hợp đồng
     public function show(Request $request): JsonResponse
     {
         try {
@@ -97,6 +99,7 @@ class ContractController extends Controller
         }
     }
 
+    // Ký xác nhận hợp đồng điện tử
     public function sign(SignContractRequest $request, int $id): JsonResponse
     {
         try {
@@ -214,11 +217,13 @@ class ContractController extends Controller
         }
     }
 
+    // Sắp xếp độ ưu tiên trạng thái hợp đồng bằng SQL
     private function statusPrioritySql(): string
     {
         return 'CASE status WHEN ? THEN 0 WHEN ? THEN 1 WHEN ? THEN 2 WHEN ? THEN 3 WHEN ? THEN 4 ELSE 5 END ASC';
     }
 
+    // Tham số ràng buộc cho sắp xếp trạng thái hợp đồng
     private function statusPriorityBindings(): array
     {
         return [

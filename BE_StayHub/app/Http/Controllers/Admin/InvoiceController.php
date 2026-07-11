@@ -48,6 +48,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
+    // Khởi tạo controller quản lý hóa đơn
     public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
 
     private const ADJUSTMENT_ITEM_TYPES = [
@@ -64,6 +65,7 @@ class InvoiceController extends Controller
 
     private const DECREASE_ADJUSTMENT_LIMIT_MESSAGE = 'Tổng giảm trừ không được vượt quá số tiền hóa đơn';
 
+    // Danh sách hóa đơn
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -94,6 +96,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Tính toán số liệu thống kê hóa đơn của tòa nhà
     private function calculateStats(array $validated, Admin $admin, string $keyword): array
     {
         $query = $this->accessibleInvoiceQuery($admin);
@@ -139,6 +142,7 @@ class InvoiceController extends Controller
         ];
     }
 
+    // Xem chi tiết hóa đơn
     public function show(ShowRequest $request, int $invoice): JsonResponse
     {
         try {
@@ -158,6 +162,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Xem trước hóa đơn chuẩn bị tạo cho phòng
     public function preview(GenerateRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -176,6 +181,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Phát hành hóa đơn cho phòng
     public function generate(GenerateRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -238,6 +244,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Chuẩn bị bản nháp hóa đơn
     private function prepareInvoiceDraft(array $validated, Admin $admin, bool $forIssue): array|JsonResponse
     {
         $contractQuery = Contract::query()
@@ -348,6 +355,7 @@ class InvoiceController extends Controller
         ];
     }
 
+    // Cập nhật thông tin hóa đơn
     public function update(UpdateRequest $request, int $invoice): JsonResponse
     {
         $validated = $request->validated();
@@ -460,6 +468,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Ghi nhận thanh toán hóa đơn thủ công bằng tiền mặt/chuyển khoản
     public function recordPayment(RecordPaymentRequest $request, int $invoice): JsonResponse
     {
         $validated = $request->validated();
@@ -544,6 +553,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Xác nhận giao dịch thanh toán hóa đơn thành công
     public function confirmPayment(ConfirmPaymentRequest $request, int $invoice, int $payment): JsonResponse
     {
         try {
@@ -612,6 +622,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Hủy hóa đơn
     public function cancel(CancelRequest $request, int $invoice): JsonResponse
     {
         $validated = $request->validated();
@@ -683,6 +694,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Tạo các khoản mục hóa đơn tự động (tiền phòng, dịch vụ cố định, xe)
     private function buildAutomaticItems(Contract $contract, Carbon $periodStart, Carbon $periodEnd, bool $lockDebt = false): array
     {
         $items = [];
@@ -923,6 +935,7 @@ class InvoiceController extends Controller
         ];
     }
 
+    // Tính tiền phòng theo số ngày ở thực tế (tính lẻ ngày)
     private function calculateProratedAmount(string $amount, Contract $contract, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null, ?Carbon $servicePeriodStart = null): string
     {
         $billingStart = $servicePeriodStart ?: $contract->start_date;
@@ -953,6 +966,7 @@ class InvoiceController extends Controller
         return DecimalMoney::prorateByDays($amount, $actualDays, $totalDays);
     }
 
+    // Tính tiền xe theo số ngày sử dụng thực tế
     private function calculateVehicleProratedAmount(ContractVehicle $contractVehicle, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null): string
     {
         $vehicleBillingStart = $contractVehicle->billing_start_date ?: $contractVehicle->started_at;
@@ -988,11 +1002,13 @@ class InvoiceController extends Controller
         return DecimalMoney::prorateByDays($contractVehicle->monthly_fee, $actualDays, $totalDays);
     }
 
+    // Tính tổng tiền phòng cho chu kỳ hóa đơn
     private function calculateRoomAmount(Contract $contract, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null, ?Carbon $servicePeriodStart = null): string
     {
         return $this->calculateProratedAmount($contract->room_price, $contract, $periodStart, $periodEnd, $cutoffDate, $servicePeriodStart);
     }
 
+    // Lấy thông tin bàn giao/chuyển phòng còn lại
     private function remainingTransferContext(Contract $contract, Carbon $periodStart, Carbon $periodEnd): array
     {
         $empty = [
@@ -1033,6 +1049,7 @@ class InvoiceController extends Controller
         ];
     }
 
+    // Kiểm tra hợp đồng có phải thuộc dạng chuyển phòng còn lại không
     private function isRemainingTransferContract(Contract $contract, Carbon $periodStart, Carbon $periodEnd): bool
     {
         if (! $contract->parent_contract_id || ! $contract->start_date) {
@@ -1051,6 +1068,7 @@ class InvoiceController extends Controller
             && $startDate->lessThanOrEqualTo($periodEnd);
     }
 
+    // Lấy hợp đồng gốc của phòng chuyển đi
     private function remainingTransferSourceContract(Contract $contract): ?Contract
     {
         $movementDate = $contract->start_date->copy()->startOfDay();
@@ -1091,6 +1109,7 @@ class InvoiceController extends Controller
         return $movement?->sourceContract;
     }
 
+    // Kiểm tra phòng đã có hóa đơn chưa hủy trong kỳ này chưa
     private function hasNonCancelledInvoiceForPeriod(Contract $contract, Carbon $periodStart): bool
     {
         return Invoice::query()
@@ -1101,6 +1120,7 @@ class InvoiceController extends Controller
             ->exists();
     }
 
+    // Kiểm tra có thể thay thế hóa đơn cũ khi chốt chuyển phòng không
     private function canReplaceExistingInvoiceForTransferCutoff(Invoice $invoice, Carbon $invoicePeriodEnd, Carbon $periodEnd): bool
     {
         return $this->isTransferFinalizationBlockedByExistingInvoice($invoice, $invoicePeriodEnd, $periodEnd)
@@ -1108,12 +1128,14 @@ class InvoiceController extends Controller
             && (int) ($invoice->payments_count ?? $invoice->payments()->realMoney()->count()) === 0;
     }
 
+    // Kiểm tra việc quyết toán chuyển phòng có bị chặn do hóa đơn hiện tại không
     private function isTransferFinalizationBlockedByExistingInvoice(Invoice $invoice, Carbon $invoicePeriodEnd, Carbon $periodEnd): bool
     {
         return $invoicePeriodEnd->lt($periodEnd)
             && ! $invoice->period_end?->copy()->startOfDay()->isSameDay($invoicePeriodEnd);
     }
 
+    // Hủy hóa đơn cũ trước khi quyết toán chuyển phòng
     private function cancelInvoiceBeforeTransferFinalization(Invoice $invoice): void
     {
         $this->debtRolloverService->cancelTargetRollovers($invoice);
@@ -1126,6 +1148,7 @@ class InvoiceController extends Controller
         ])->save();
     }
 
+    // Lấy danh sách xe của phòng gốc chuyển đi
     private function remainingTransferSourceVehicles(Contract $sourceContract, Carbon $periodStart, Carbon $periodEnd): Collection
     {
         return ContractVehicle::query()
@@ -1140,6 +1163,7 @@ class InvoiceController extends Controller
             ->get();
     }
 
+    // Lấy thông tin giao dịch chuyển phòng đang chờ
     private function pendingTransferContext(Contract $contract, Carbon $periodStart, Carbon $periodEnd): array
     {
         $outgoingMovements = $this->pendingOutgoingTransferMovements($contract, $periodStart, $periodEnd);
@@ -1195,6 +1219,7 @@ class InvoiceController extends Controller
         ];
     }
 
+    // Xác định ngày kết thúc kỳ hóa đơn cho phòng đang chờ chuyển
     private function invoicePeriodEndForPendingTransfer(Contract $contract, Carbon $periodStart, Carbon $periodEnd): Carbon
     {
         $transferContext = $this->pendingTransferContext($contract, $periodStart, $periodEnd);
@@ -1202,6 +1227,7 @@ class InvoiceController extends Controller
         return $transferContext['contract_cutoff_date'] ?: $periodEnd;
     }
 
+    // Lấy danh sách chuyển phòng đi đang chờ
     private function pendingOutgoingTransferMovements(Contract $contract, Carbon $periodStart, Carbon $periodEnd): Collection
     {
         return RoomMovement::query()
@@ -1218,6 +1244,7 @@ class InvoiceController extends Controller
             ->get();
     }
 
+    // Lấy danh sách chuyển phòng đến đang chờ
     private function pendingIncomingTransferMovements(Contract $contract, Carbon $periodStart, Carbon $periodEnd): Collection
     {
         if ((int) $contract->status !== Contract::STATUS_ACTIVE) {
@@ -1236,6 +1263,7 @@ class InvoiceController extends Controller
             ->get();
     }
 
+    // Lấy danh sách xe chuẩn bị chuyển đến phòng mới
     private function pendingIncomingVehicleRows(Contract $contract, Collection $incomingMovements): Collection
     {
         if ($incomingMovements->isEmpty()) {
@@ -1279,6 +1307,7 @@ class InvoiceController extends Controller
             ->values();
     }
 
+    // Tổng hợp số liệu chốt tiền phòng chuyển đi
     private function transferCutoffSummaries(Contract $contract, Collection $groupedMovements, Collection $activeTenantIds): array
     {
         return $groupedMovements
@@ -1303,6 +1332,7 @@ class InvoiceController extends Controller
             ->all();
     }
 
+    // Tổng hợp số liệu bắt đầu tiền phòng chuyển đến
     private function transferStartSummaries(Collection $incomingVehicleRows): array
     {
         return $incomingVehicleRows
@@ -1327,17 +1357,20 @@ class InvoiceController extends Controller
             ->all();
     }
 
+    // Kiểm tra chuyển phòng có làm đóng hợp đồng gốc không
     private function pendingTransferClosesSourceContract(?Contract $contract, Collection $activeTenantIds, Collection $movingTenantIds): bool
     {
         return $activeTenantIds->isNotEmpty() && $movingTenantIds->isNotEmpty();
     }
 
+    // Kiểm tra có phải chuyển toàn bộ khách thuê hoạt động đi không
     private function movingAllActiveTenants(Collection $activeTenantIds, Collection $movingTenantIds): bool
     {
         return $activeTenantIds->diff($movingTenantIds)->isEmpty()
             && $movingTenantIds->diff($activeTenantIds)->isEmpty();
     }
 
+    // Tính tiền xe chốt đến ngày chuyển phòng
     private function vehicleTransferCutoff(ContractVehicle $contractVehicle, Collection $tenantCutoffs, ?Carbon $contractCutoffDate = null): ?Carbon
     {
         $tenantId = $contractVehicle->vehicle?->tenant_id;
@@ -1345,6 +1378,7 @@ class InvoiceController extends Controller
         return ($tenantId ? $tenantCutoffs->get($tenantId) : null) ?: $contractCutoffDate;
     }
 
+    // Tính tiền xe lẻ ngày cho giao dịch chuyển phòng đang chờ
     private function calculatePendingVehicleProratedAmount(string $monthlyFee, Carbon $vehicleBillingStart, Carbon $periodStart, Carbon $periodEnd): string
     {
         $chargeStart = $vehicleBillingStart->copy()->startOfDay()->greaterThan($periodStart)
@@ -1363,6 +1397,7 @@ class InvoiceController extends Controller
             : DecimalMoney::prorateByDays($monthlyFee, $actualDays, $totalDays);
     }
 
+    // Tạo mô tả hóa đơn kèm thông tin chốt chuyển phòng đi
     private function descriptionWithTransferCutoff(string $description, ?Carbon $cutoffDate): string
     {
         return $cutoffDate
@@ -1370,6 +1405,7 @@ class InvoiceController extends Controller
             : $description;
     }
 
+    // Tạo mô tả hóa đơn kèm thông tin chốt chuyển phòng còn lại
     private function descriptionWithRemainingTransferCutoff(string $description, ?Carbon $cutoffDate): string
     {
         return $cutoffDate
@@ -1377,11 +1413,13 @@ class InvoiceController extends Controller
             : $description;
     }
 
+    // Tạo mô tả hóa đơn kèm thông tin bắt đầu ở phòng mới
     private function descriptionWithTransferStart(string $description, Carbon $startDate): string
     {
         return $description.' (tính từ '.$startDate->format('d/m/Y').' theo lịch chuyển phòng)';
     }
 
+    // Lấy bảng giá dịch vụ hiện tại của phòng
     private function currentServicePrices(int $buildingId, Carbon $periodEnd): Collection
     {
         return ServicePrice::query()
@@ -1402,6 +1440,7 @@ class InvoiceController extends Controller
             ->values();
     }
 
+    // Lấy giá dịch vụ phòng áp dụng cho kỳ chỉ định
     private function roomServicePriceForPeriod(RoomService $roomService, Carbon $periodEnd, Contract $contract): ?string
     {
         $scheduledPrice = $roomService->relationLoaded('prices')
@@ -1416,6 +1455,7 @@ class InvoiceController extends Controller
         return $scheduledPrice ? DecimalMoney::normalize($scheduledPrice->price) : null;
     }
 
+    // Tổng tiền nợ kỳ trước của phòng
     private function previousDebtAmount(Contract $contract, int $billingYear, int $billingMonth): string
     {
         return $this->debtRolloverService->previousDebtAmount(
@@ -1423,16 +1463,19 @@ class InvoiceController extends Controller
         );
     }
 
+    // Danh sách các khoản nợ chuyển tiếp từ kỳ trước
     private function previousDebtRollovers(Contract $contract, int $billingYear, int $billingMonth, ?int $targetInvoiceId = null, bool $lock = false): Collection
     {
         return $this->debtRolloverService->previousDebtRollovers($contract, $billingYear, $billingMonth, $targetInvoiceId, $lock);
     }
 
+    // Tạo các khoản nợ chuyển tiếp sang kỳ này
     private function createDebtRollovers(Invoice $targetInvoice, Collection|array $rollovers): void
     {
         $this->debtRolloverService->syncTargetRollovers($targetInvoice, $rollovers);
     }
 
+    // Từ chối thanh toán nếu hóa đơn gốc đã chuyển tiếp nợ
     private function rejectPaymentForRolledSourceInvoice(Invoice $invoice): ?JsonResponse
     {
         $rollover = $this->debtRolloverService->activeRolloverOut($invoice);
@@ -1452,11 +1495,13 @@ class InvoiceController extends Controller
         );
     }
 
+    // Phân bổ số tiền đã thanh toán cho các khoản nợ chuyển tiếp
     private function allocateConfirmedPaymentToDebtRollovers(Invoice $targetInvoice, Payment $payment): void
     {
         $this->debtRolloverService->allocateConfirmedPaymentToDebtRollovers($targetInvoice, $payment);
     }
 
+    // Tạo các khoản mục điều chỉnh hóa đơn (phụ thu/giảm trừ)
     private function buildAdjustmentItems(array $adjustments): array
     {
         return collect($adjustments)
@@ -1484,11 +1529,13 @@ class InvoiceController extends Controller
             ->all();
     }
 
+    // Tính tổng tiền các khoản mục trong hóa đơn
     private function calculateItemsTotal(array $items): string
     {
         return DecimalMoney::add(array_map(fn (array $item): string => (string) ($item['amount'] ?? '0'), $items));
     }
 
+    // Tạo thông báo lỗi vượt quá giới hạn giảm trừ
     private function decreaseAdjustmentLimitMessage(array|Collection $items): ?string
     {
         $itemCollection = collect($items);
@@ -1510,6 +1557,7 @@ class InvoiceController extends Controller
             : null;
     }
 
+    // Lấy giá trị tuyệt đối của số tiền
     private function absoluteMoney(mixed $value): string
     {
         $amount = DecimalMoney::normalize($value);
@@ -1519,6 +1567,7 @@ class InvoiceController extends Controller
             : $amount;
     }
 
+    // Đánh dấu các số đọc điện nước đã được xuất hóa đơn
     private function markMeterReadingsInvoiced(Invoice $invoice): void
     {
         $readingIds = $invoice->items()
@@ -1534,6 +1583,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Đảm bảo hóa đơn đủ điều kiện để phát hành lại
     private function ensureInvoiceCanBeReissued(Invoice $invoice, ?string $prefix = null): ?JsonResponse
     {
         $label = $prefix ? $prefix.' '.$invoice->invoice_code.': ' : '';
@@ -1553,6 +1603,7 @@ class InvoiceController extends Controller
         return null;
     }
 
+    // Áp dụng điều chỉnh số đọc điện nước khi phát hành lại hóa đơn
     private function applyMeterReadingCorrections(Invoice $invoice, array $corrections): Collection
     {
         $correctionsByReadingId = collect($corrections)
@@ -1645,6 +1696,7 @@ class InvoiceController extends Controller
         return $affectedInvoiceIds->unique()->values();
     }
 
+    // Đồng bộ các khoản mục hóa đơn theo số đọc điện nước mới
     private function syncInvoiceItemsForMeterReading(MeterReading $reading): Collection
     {
         $items = InvoiceItem::query()
@@ -1670,6 +1722,7 @@ class InvoiceController extends Controller
         return $invoiceIds->unique()->values();
     }
 
+    // Tạo mô tả khoản mục điện nước trên hóa đơn
     private function meterReadingItemDescription(InvoiceItem $item, MeterReading $reading): string
     {
         $name = $item->service?->name;
@@ -1680,6 +1733,7 @@ class InvoiceController extends Controller
         return $name.' ('.((float)$reading->previous_reading).' → '.((float)$reading->current_reading).')';
     }
 
+    // Đồng bộ chỉ số đầu của công tơ điện nước
     private function syncMeterDeviceInitialReading(int $meterDeviceId): void
     {
         $latestReading = MeterReading::query()
@@ -1694,6 +1748,7 @@ class InvoiceController extends Controller
         }
     }
 
+    // Lấy danh sách ID hóa đơn nợ trong tương lai
     private function futureDebtInvoiceIds(Invoice $invoice): Collection
     {
         return Invoice::query()
@@ -1712,6 +1767,7 @@ class InvoiceController extends Controller
             ->values();
     }
 
+    // Đồng bộ khoản mục nợ cũ trên hóa đơn phát hành lại
     private function syncPreviousDebtItem(Invoice $invoice): void
     {
         $previousDebtRollovers = $this->previousDebtRollovers($invoice->contract, (int) $invoice->billing_year, (int) $invoice->billing_month, (int) $invoice->id, true);
@@ -1748,6 +1804,7 @@ class InvoiceController extends Controller
         $this->createDebtRollovers($invoice, $previousDebtRollovers);
     }
 
+    // Tính toán lại toàn bộ tiền hóa đơn khi phát hành lại
     private function recalculateReissuedInvoice(Invoice $invoice, Admin $admin, string $reason, ?string $dueDate = null, bool $applyDueDate = false): void
     {
         $items = $invoice->items()->lockForUpdate()->get();
@@ -1789,6 +1846,7 @@ class InvoiceController extends Controller
         $invoice->forceFill($data)->save();
     }
 
+    // Xác định trạng thái của hóa đơn phát hành lại
     private function reissuedInvoiceStatus(string $totalAmount, ?string $dueDate, int $currentStatus): int
     {
         if (DecimalMoney::compare($totalAmount, '0') <= 0) {
@@ -1802,11 +1860,13 @@ class InvoiceController extends Controller
         return Invoice::STATUS_UNPAID;
     }
 
+    // Xử lý khi phát hành lại hóa đơn thất bại
     private function failReissue(string $message, int $status = 422): never
     {
         throw new \DomainException($message, $status);
     }
 
+    // Ghi nhận thanh toán hóa đơn thành công vào hệ thống
     private function applyConfirmedPayment(Invoice $invoice, string $amount): void
     {
         $paidAmount = DecimalMoney::add([$invoice->paid_amount, $amount]);
@@ -1825,6 +1885,7 @@ class InvoiceController extends Controller
         ])->save();
     }
 
+    // Tạo thông báo hóa đơn đã được phát hành
     private function createInvoiceIssuedNotifications(Invoice $invoice, Admin $admin): Collection
     {
         $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
@@ -1862,6 +1923,7 @@ class InvoiceController extends Controller
             ->values();
     }
 
+    // Tạo thông báo hóa đơn đã được phát hành lại
     private function createInvoiceReissuedNotifications(Invoice $invoice, Admin $admin, bool $isCascade = false): Collection
     {
         $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
@@ -1904,6 +1966,7 @@ class InvoiceController extends Controller
             ->values();
     }
 
+    // Tạo thông báo hóa đơn đã thanh toán xong
     private function createInvoicePaidNotifications(Invoice $invoice, Payment $payment, ?Admin $admin = null): Collection
     {
         $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
@@ -1957,11 +2020,13 @@ class InvoiceController extends Controller
         return $tenantNotifications->push($adminNotification)->values();
     }
 
+    // Phát các thông báo qua realtime
     private function broadcastNotifications(Collection $notifications): void
     {
         $notifications->each(fn (Notification $notification): mixed => event(new NotificationSent($notification)));
     }
 
+    // Xác định loại khoản mục điện hay nước
     private function meterItemType(MeterDevice $meterDevice, Service $service): int
     {
         if ((int) $meterDevice->meter_type === MeterDevice::METER_TYPE_ELECTRIC) {
@@ -1975,6 +2040,7 @@ class InvoiceController extends Controller
         return $this->serviceItemType($service);
     }
 
+    // Xác định loại khoản mục dịch vụ
     private function serviceItemType(Service $service): int
     {
         $searchText = mb_strtolower(($service->slug ?? '').' '.($service->name ?? ''));
@@ -1994,6 +2060,7 @@ class InvoiceController extends Controller
         return InvoiceItem::ITEM_TYPE_SURCHARGE;
     }
 
+    // Tạo mã hóa đơn tự động
     private function makeInvoiceCode(Carbon $period): string
     {
         $prefix = 'INV-'.$period->format('Y-m').'-';
@@ -2010,6 +2077,7 @@ class InvoiceController extends Controller
         return $code;
     }
 
+    // Tạo mã thanh toán hóa đơn
     private function makePaymentCode(): string
     {
         $prefix = 'PAY-'.now()->format('Y-m').'-';
@@ -2026,11 +2094,13 @@ class InvoiceController extends Controller
         return $code;
     }
 
+    // Tạo tên khóa đồng bộ thanh toán hóa đơn (tránh trùng lặp)
     private function paymentLockName(string $reference): string
     {
         return 'invoice-payment:'.sha1($reference);
     }
 
+    // Truy vấn hóa đơn trong phạm vi quản lý của admin
     private function accessibleInvoiceQuery(Admin $admin): Builder
     {
         $query = Invoice::query();
@@ -2048,11 +2118,13 @@ class InvoiceController extends Controller
 
 
 
+    // Kiểm tra admin có quyền quản lý tòa nhà chứa hóa đơn không
     private function canAccessBuilding(Admin $admin, int $buildingId): bool
     {
         return AdminScope::ensureBuildingAccess($admin, $buildingId);
     }
 
+    // Các quan hệ liên kết hiển thị trong danh sách hóa đơn
     private function listRelations(): array
     {
         return [
@@ -2067,6 +2139,7 @@ class InvoiceController extends Controller
         ];
     }
 
+    // Các quan hệ liên kết hiển thị trong chi tiết hóa đơn
     private function detailRelations(): array
     {
         return [
@@ -2087,6 +2160,7 @@ class InvoiceController extends Controller
         ];
     }
 
+    // Tạo truy vấn danh sách hóa đơn
     private function queryInvoices(array $validated, Admin $admin): Builder
     {
         return $this->accessibleInvoiceQuery($admin)
@@ -2103,6 +2177,7 @@ class InvoiceController extends Controller
             ->orderByDesc('id');
     }
 
+    // Tìm kiếm hóa đơn theo từ khóa
     private function searchInvoices(string $keyword, array $validated, Admin $admin): LengthAwarePaginator
     {
         $builder = Invoice::search($keyword);

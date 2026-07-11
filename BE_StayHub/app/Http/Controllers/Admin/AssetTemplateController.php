@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 class AssetTemplateController extends Controller
 {
+    // Danh sách mẫu tài sản/trang thiết bị
     public function index(IndexRequest $request): JsonResponse
     {
         try {
@@ -39,6 +40,7 @@ class AssetTemplateController extends Controller
         }
     }
 
+    // Tạo mẫu tài sản mới
     public function store(RegisterRequest $request): JsonResponse
     {
         try {
@@ -69,6 +71,7 @@ class AssetTemplateController extends Controller
         }
     }
 
+    // Xem chi tiết mẫu tài sản
     public function show(Request $request, int $assetTemplate): JsonResponse
     {
         try {
@@ -94,6 +97,7 @@ class AssetTemplateController extends Controller
         }
     }
 
+    // Cập nhật mẫu tài sản
     public function update(UpdateRequest $request, int $assetTemplate): JsonResponse
     {
         try {
@@ -133,6 +137,7 @@ class AssetTemplateController extends Controller
         }
     }
 
+    // Cập nhật trạng thái hoạt động của mẫu tài sản
     public function updateStatus(StatusRequest $request, int $assetTemplate): JsonResponse
     {
         try {
@@ -166,6 +171,7 @@ class AssetTemplateController extends Controller
         }
     }
 
+    // Xóa mẫu tài sản khỏi hệ thống
     public function destroy(Request $request, int $assetTemplate): JsonResponse
     {
         try {
@@ -200,6 +206,7 @@ class AssetTemplateController extends Controller
         }
     }
 
+    // Tạo cấu trúc dữ liệu mẫu tài sản
     private function payload(array $validated, Admin $admin, bool $isUpdate = false): array
     {
         $payload = [];
@@ -220,31 +227,37 @@ class AssetTemplateController extends Controller
         return $payload;
     }
 
+    // Danh sách cột dữ liệu cần lấy của mẫu tài sản
     private function columns(): array
     {
         return ['id', 'name', 'slug', 'default_unit_name', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của mẫu tài sản trong danh sách
     private function listRelations(): array
     {
         return ['creator:id,full_name'];
     }
 
+    // Các quan hệ liên kết cần load sau khi tạo mới mẫu tài sản
     private function storeRelations(): array
     {
         return ['creator:id,full_name'];
     }
 
+    // Các quan hệ liên kết chi tiết mẫu tài sản
     private function detailRelations(): array
     {
         return ['creator:id,full_name'];
     }
 
+    // Đếm số lượng liên kết của mẫu tài sản
     private function counts(): array
     {
         return ['roomAssets'];
     }
 
+    // Tạo câu lệnh truy vấn mẫu tài sản
     private function queryAssetTemplates(array $validated, Admin $admin): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -263,6 +276,7 @@ class AssetTemplateController extends Controller
             ->orderByDesc('id');
     }
 
+    // Kiểm tra tên mẫu tài sản đã tồn tại chưa
     private function assetTemplateNameExists(string $name, ?int $ignoreId = null): bool
     {
         return AssetTemplate::query()
@@ -271,6 +285,7 @@ class AssetTemplateController extends Controller
             ->exists();
     }
 
+    // Định dạng dữ liệu mẫu tài sản phân trang
     private function paginatedResource(\Illuminate\Contracts\Pagination\LengthAwarePaginator $paginator): array
     {
         return [

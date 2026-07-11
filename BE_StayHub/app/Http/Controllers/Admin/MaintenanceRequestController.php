@@ -228,6 +228,7 @@ class MaintenanceRequestController extends Controller
         }
     }
 
+    // Định dạng dữ liệu phân trang cho yêu cầu bảo trì
     private function paginatedResource(LengthAwarePaginator $paginator): array
     {
         return [

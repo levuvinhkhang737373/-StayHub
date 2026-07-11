@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 
 class BulkGenerateInvoiceController extends Controller
 {
+    // Tạo hóa đơn hàng loạt cho tòa nhà
     public function __invoke(BulkGenerateRequest $request): JsonResponse
     {
         $validated = $request->validated();

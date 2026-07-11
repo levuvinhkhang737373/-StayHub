@@ -12,6 +12,7 @@ use Illuminate\Support\Collection;
 
 class InvoiceDebtRolloverService
 {
+    // Lấy danh sách các khoản nợ chuyển tiếp từ kỳ trước
     public function previousDebtRollovers(Contract $contract, int $billingYear, int $billingMonth, ?int $targetInvoiceId = null, bool $lock = false): Collection
     {
         $query = Invoice::query()
@@ -54,6 +55,7 @@ class InvoiceDebtRolloverService
             ->values();
     }
 
+    // Tính tổng số tiền nợ chuyển tiếp từ kỳ trước
     public function previousDebtAmount(Collection|array $rollovers): string
     {
         return DecimalMoney::add(collect($rollovers)
@@ -61,6 +63,7 @@ class InvoiceDebtRolloverService
             ->all());
     }
 
+    // Đồng bộ nợ chuyển tiếp đích cho hóa đơn mới
     public function syncTargetRollovers(Invoice $targetInvoice, Collection|array $rollovers): void
     {
         $wantedRollovers = collect($rollovers)
@@ -109,6 +112,7 @@ class InvoiceDebtRolloverService
         }
     }
 
+    // Hủy các khoản nợ chuyển tiếp đích của hóa đơn
     public function cancelTargetRollovers(Invoice $targetInvoice): void
     {
         $rollovers = InvoiceDebtRollover::query()
@@ -131,6 +135,7 @@ class InvoiceDebtRolloverService
         ])->save());
     }
 
+    // Kiểm tra khoản nợ chuyển tiếp đi có hoạt động không
     public function activeRolloverOut(Invoice $sourceInvoice): ?InvoiceDebtRollover
     {
         return InvoiceDebtRollover::query()
@@ -143,6 +148,7 @@ class InvoiceDebtRolloverService
             ->first();
     }
 
+    // Mở lại khoản nợ chuyển tiếp đi để tiếp tục thu
     public function openRolloverOut(Invoice $sourceInvoice): ?InvoiceDebtRollover
     {
         return InvoiceDebtRollover::query()
@@ -154,6 +160,7 @@ class InvoiceDebtRolloverService
             ->first();
     }
 
+    // Xác định hóa đơn gốc của khoản nợ chuyển tiếp đến
     public function payableInvoiceForIncomingInvoice(Invoice $invoice): Invoice
     {
         $payableInvoice = $invoice;
@@ -175,11 +182,13 @@ class InvoiceDebtRolloverService
         }
     }
 
+    // Kiểm tra hóa đơn đã được chuyển tiếp nợ hay chưa
     public function isInvoiceRolledOver(Invoice $invoice): bool
     {
         return $this->activeRolloverOut($invoice) !== null;
     }
 
+    // Tính số tiền còn lại có thể thu của hóa đơn
     public function collectibleRemainingAmount(Invoice $invoice, ?int $excludedTargetInvoiceId = null): string
     {
         $activeRolloverAmount = $this->activeRolloverOutAmount($invoice, $excludedTargetInvoiceId);
@@ -187,6 +196,7 @@ class InvoiceDebtRolloverService
         return DecimalMoney::maxZero(DecimalMoney::subtract($invoice->remaining_amount, $activeRolloverAmount));
     }
 
+    // Phân bổ số tiền đã thanh toán cho các khoản nợ chuyển tiếp
     public function allocateConfirmedPaymentToDebtRollovers(Invoice $targetInvoice, Payment $realPayment): void
     {
         if ((int) $realPayment->status !== Payment::STATUS_CONFIRMED) {
@@ -276,6 +286,7 @@ class InvoiceDebtRolloverService
         }
     }
 
+    // Tính tổng tiền nợ chuyển tiếp đi đang hoạt động
     private function activeRolloverOutAmount(Invoice $invoice, ?int $excludedTargetInvoiceId = null): string
     {
         $rollovers = $invoice->relationLoaded('debtRolloversOut')
@@ -306,6 +317,7 @@ class InvoiceDebtRolloverService
         return DecimalMoney::add($amounts);
     }
 
+    // Tất toán khoản nợ chuyển tiếp nếu hóa đơn gốc đã thanh toán xong
     private function settleRolloverIfSourceCleared(InvoiceDebtRollover $rollover, Invoice $sourceInvoice): void
     {
         if (! DecimalMoney::isPositive($sourceInvoice->remaining_amount)) {
@@ -316,6 +328,7 @@ class InvoiceDebtRolloverService
         }
     }
 
+    // Áp dụng thanh toán đã xác nhận vào công nợ hóa đơn
     private function applyConfirmedPayment(Invoice $invoice, string $amount): void
     {
         $paidAmount = DecimalMoney::add([$invoice->paid_amount, $amount]);
@@ -334,6 +347,7 @@ class InvoiceDebtRolloverService
         ])->save();
     }
 
+    // Tạo mã thanh toán cho khoản nợ chuyển tiếp
     private function makePaymentCode(): string
     {
         $prefix = 'PAY-'.now()->format('Y-m').'-';

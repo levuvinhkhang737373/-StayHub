@@ -32,6 +32,7 @@ class TenantController extends Controller
     private const IMAGE_DISK = 's3';
     private const GENDER_POLICY_ERROR_MESSAGE = 'Giới tính khách thuê không phù hợp với chính sách giới tính của tòa nhà.';
 
+    // Danh sách khách thuê
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -54,6 +55,7 @@ class TenantController extends Controller
         }
     }
 
+    // Tạo mới khách thuê
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -118,6 +120,7 @@ class TenantController extends Controller
         }
     }
 
+    // Xem chi tiết khách thuê
     public function show(Request $request, int $tenant): JsonResponse
     {
         try {
@@ -143,6 +146,7 @@ class TenantController extends Controller
         }
     }
 
+    // Cập nhật thông tin khách thuê
     public function update(UpdateRequest $request, int $tenant): JsonResponse
     {
         $validated = $request->validated();
@@ -199,6 +203,7 @@ class TenantController extends Controller
         }
     }
 
+    // Cập nhật trạng thái tài khoản của khách thuê
     public function updateStatus(StatusRequest $request, int $tenant): JsonResponse
     {
         $validated = $request->validated();
@@ -238,6 +243,7 @@ class TenantController extends Controller
         }
     }
 
+    // Xóa khách thuê
     public function destroy(Request $request, int $tenant): JsonResponse
     {
         $pathsToDelete = [];
@@ -284,11 +290,13 @@ class TenantController extends Controller
         }
     }
 
+    // Kiểm tra quyền quản lý khách thuê của admin
     private function canManageTenants(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
+    // Định dạng dữ liệu khách thuê phân trang
     private function paginatedResource(LengthAwarePaginator $paginator): array
     {
         return [
@@ -311,6 +319,7 @@ class TenantController extends Controller
         ];
     }
 
+    // Tạo cấu trúc dữ liệu lưu thông tin khách thuê
     private function payload(array $validated, bool $isUpdate = false): array
     {
         $payload = [];
@@ -335,11 +344,13 @@ class TenantController extends Controller
         return $payload;
     }
 
+    // Tạo mật khẩu ngẫu nhiên ban đầu cho khách thuê
     private function generateInitialPassword(): string
     {
         return 'stayhub'.str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     }
 
+    // Tạo truy vấn danh sách khách thuê
     private function queryTenants(array $validated, Admin $admin): Builder
     {
         $query = $this->tenantQueryFor($admin)
@@ -386,6 +397,7 @@ class TenantController extends Controller
             ->orderByDesc('id');
     }
 
+    // Tìm kiếm khách thuê theo từ khóa
     private function searchTenants(string $keyword, array $validated, Admin $admin): LengthAwarePaginator
     {
         $isContractSearch = (isset($validated['without_active_contract']) && filter_var($validated['without_active_contract'], FILTER_VALIDATE_BOOLEAN))
@@ -418,6 +430,7 @@ class TenantController extends Controller
             ->paginate($validated['per_page'] ?? 20);
     }
 
+    // Bộ lọc tìm kiếm khách thuê theo từ khóa
     private function applyKeywordFilter(Builder $query, string $keyword): Builder
     {
         $likeKeyword = '%'.addcslashes($keyword, '\\%_').'%';
@@ -429,12 +442,14 @@ class TenantController extends Controller
         });
     }
 
+    // Kiểm tra bộ lọc có yêu cầu khách thuê đang có phòng hoạt động không
     private function requiresActiveCurrentRoom(array $validated): bool
     {
         return isset($validated['with_active_current_room'])
             && filter_var($validated['with_active_current_room'], FILTER_VALIDATE_BOOLEAN);
     }
 
+    // Lọc danh sách khách thuê đang có phòng ở hoạt động
     private function filterHasActiveCurrentRoom(Builder $query): Builder
     {
         return $query->whereHas('contractTenants', fn (Builder $contractTenantQuery): Builder => $contractTenantQuery
@@ -445,6 +460,7 @@ class TenantController extends Controller
                 ->whereHas('room')));
     }
 
+    // Lọc khách thuê đang ở tại tòa nhà cụ thể
     private function filterActiveCurrentRoomBuilding(Builder $query, int $buildingId): Builder
     {
         return $query->whereHas('contractTenants', fn (Builder $contractTenantQuery): Builder => $contractTenantQuery
@@ -455,6 +471,7 @@ class TenantController extends Controller
                 ->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->where('building_id', $buildingId))));
     }
 
+    // Bộ lọc chính sách giới tính của tòa nhà đối với khách thuê
     private function applyBuildingGenderPolicyFilter(Builder $query, int $buildingId): void
     {
         $building = Building::query()->select(['id', 'gender_policy'])->find($buildingId);
@@ -473,6 +490,7 @@ class TenantController extends Controller
         };
     }
 
+    // Kiểm tra tòa nhà có chấp nhận giới tính của khách thuê không
     private function buildingAllowsTenantGender(?int $buildingId, ?int $tenantGender): bool
     {
         if (! $buildingId) {
@@ -484,16 +502,19 @@ class TenantController extends Controller
         return $building?->allowsTenantGender($tenantGender) ?? false;
     }
 
+    // Tạo truy vấn tìm kiếm khách thuê
     private function tenantQueryFor(Admin $admin): Builder
     {
         return $this->applyTenantScope(Tenant::query(), $admin);
     }
 
+    // Áp dụng phạm vi truy cập dữ liệu khách thuê cho admin
     private function applyTenantScope(Builder $query, Admin $admin): Builder
     {
         return AdminScope::applyTenantScope($query, $admin);
     }
 
+    // Lưu trữ hình ảnh chân dung/CCCD của khách thuê
     private function storeImages(Request $request, Tenant $tenant, array &$uploadedPaths): array
     {
         $images = [];
@@ -510,6 +531,7 @@ class TenantController extends Controller
         return $images;
     }
 
+    // Gom danh sách ảnh cũ cần xóa khi cập nhật
     private function collectOldImagesForDeletion(Tenant $tenant, Request $request, array $imagePayload): array
     {
         $paths = [];
@@ -523,6 +545,7 @@ class TenantController extends Controller
         return array_values(array_filter($paths));
     }
 
+    // Xử lý giá trị rỗng cho các ảnh đã xóa
     private function nullDeletedImages(Request $request, array $imagePayload): array
     {
         $payload = [];
@@ -536,6 +559,7 @@ class TenantController extends Controller
         return $payload;
     }
 
+    // Danh sách các trường lưu trữ đường dẫn ảnh của khách thuê
     private function imageFields(): array
     {
         return [
@@ -544,6 +568,7 @@ class TenantController extends Controller
         ];
     }
 
+    // Thư mục lưu trữ hình ảnh của khách thuê
     private function imageFolder(Tenant $tenant, string $requestKey): string
     {
         $folder = match ($requestKey) {
@@ -555,6 +580,7 @@ class TenantController extends Controller
         return 'tenants/'.$tenant->id.'/'.$folder;
     }
 
+    // Xóa ảnh vật lý khỏi đĩa lưu trữ
     private function deleteDiskImages(array $paths): void
     {
         collect($paths)
@@ -563,6 +589,7 @@ class TenantController extends Controller
             ->each(fn (string $path): bool => ImageHelper::deleteFromDisk($path, self::IMAGE_DISK));
     }
 
+    // Lấy đường dẫn các ảnh hiện tại của khách thuê
     private function currentImagePaths(Tenant $tenant): array
     {
         return collect(['avatar_url', 'front_image_url', 'back_image_url'])
@@ -572,28 +599,33 @@ class TenantController extends Controller
             ->all();
     }
 
+    // Kiểm tra khách thuê có dữ liệu liên quan phát sinh không
     private function hasRelatedData(Tenant $tenant): bool
     {
         return collect($this->deleteCountColumns())
             ->sum(fn (string $column): int => (int) $tenant->{$column}) > 0;
     }
 
+    // Nạp chi tiết các quan hệ liên kết của khách thuê
     private function loadDetailRelations(Tenant $tenant): void
     {
         $tenant->load($this->detailRelations());
         $tenant->loadCount($this->detailCounts());
     }
 
+    // Cột hiển thị trong danh sách khách thuê
     private function listColumns(): array
     {
         return ['id', 'created_by', 'building_id', 'username', 'full_name', 'phone', 'email', 'avatar_url', 'date_of_birth', 'gender', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url', 'created_at', 'updated_at'];
     }
 
+    // Cột hiển thị trong chi tiết khách thuê
     private function detailColumns(): array
     {
         return ['id', 'created_by', 'building_id', 'username', 'full_name', 'phone', 'email', 'avatar_url', 'date_of_birth', 'gender', 'permanent_address', 'current_address', 'status', 'identity_type', 'identity_number', 'front_image_url', 'back_image_url', 'created_at', 'updated_at'];
     }
 
+    // Truy vấn quan hệ khách thuê đang tham gia hợp đồng hiệu lực
     private function currentContractTenantQuery(HasMany $query): HasMany
     {
         return $query
@@ -604,6 +636,7 @@ class TenantController extends Controller
             ->orderByDesc('id');
     }
 
+    // Các quan hệ liên kết hiển thị ở danh sách
     private function listRelations(): array
     {
         return [
@@ -616,6 +649,7 @@ class TenantController extends Controller
         ];
     }
 
+    // Các quan hệ liên kết hiển thị ở chi tiết
     private function detailRelations(): array
     {
         return [
@@ -629,6 +663,7 @@ class TenantController extends Controller
         ];
     }
 
+    // Đếm số lượng quan hệ ở danh sách
     private function listCounts(): array
     {
         return [
@@ -636,6 +671,7 @@ class TenantController extends Controller
         ];
     }
 
+    // Đếm số lượng quan hệ ở chi tiết
     private function detailCounts(): array
     {
         return array_merge($this->listCounts(), [
@@ -643,6 +679,7 @@ class TenantController extends Controller
         ]);
     }
 
+    // Đếm các quan hệ dữ liệu liên quan trước khi xóa
     private function deleteCounts(): array
     {
         return [
@@ -655,6 +692,7 @@ class TenantController extends Controller
         ];
     }
 
+    // Danh sách tên cột đếm dữ liệu liên quan trước khi xóa
     private function deleteCountColumns(): array
     {
         return collect($this->deleteCounts())

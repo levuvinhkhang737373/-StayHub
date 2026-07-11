@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 
 class AdminLogController extends Controller
 {
+    // Danh sách nhật ký hoạt động của admin
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -28,6 +29,7 @@ class AdminLogController extends Controller
         }
     }
 
+    // Xem chi tiết nhật ký hoạt động
     public function show(Request $request, AdminLog $adminLog): JsonResponse
     {
         try {
@@ -39,6 +41,7 @@ class AdminLogController extends Controller
         }
     }
 
+    // Tạo truy vấn nhật ký hoạt động
     private function queryLogs(array $validated): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -56,6 +59,7 @@ class AdminLogController extends Controller
             ->orderByDesc('id');
     }
 
+    // Tìm kiếm nhật ký theo từ khóa
     private function applyKeywordFilter(Builder $query, string $keyword): Builder
     {
         return $query->where(function (Builder $keywordQuery) use ($keyword): void {
@@ -77,6 +81,7 @@ class AdminLogController extends Controller
         });
     }
 
+    // Các quan hệ liên kết của nhật ký hoạt động
     private function adminLogRelations(): array
     {
         return [
@@ -85,6 +90,7 @@ class AdminLogController extends Controller
         ];
     }
 
+    // Định dạng dữ liệu nhật ký hoạt động phân trang
     private function paginatedResource(LengthAwarePaginator $paginator): array
     {
         return [

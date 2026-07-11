@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 
 class MeterController extends Controller
 {
+    // Danh sách công tơ điện nước của tòa nhà
     public function index(Request $request): JsonResponse
     {
         try {
@@ -56,6 +57,7 @@ class MeterController extends Controller
         }
     }
 
+    // Tạo mới công tơ điện nước
     public function store(Request $request): JsonResponse
     {
         try {
@@ -150,6 +152,7 @@ class MeterController extends Controller
         }
     }
 
+    // Xem chi tiết công tơ điện nước
     public function show(Request $request, int $meterDevice): JsonResponse
     {
         try {
@@ -173,6 +176,7 @@ class MeterController extends Controller
         }
     }
 
+    // Cập nhật thông tin công tơ điện nước
     public function update(Request $request, int $meterDevice): JsonResponse
     {
         try {
@@ -289,6 +293,7 @@ class MeterController extends Controller
         }
     }
 
+    // Cập nhật trạng thái hoạt động của công tơ
     public function updateStatus(Request $request, int $meterDevice): JsonResponse
     {
         try {
@@ -347,6 +352,7 @@ class MeterController extends Controller
         }
     }
 
+    // Xóa công tơ điện nước
     public function destroy(Request $request, int $meterDevice): JsonResponse
     {
         try {
@@ -386,6 +392,7 @@ class MeterController extends Controller
         }
     }
 
+    // Truy vấn danh sách công tơ trong phạm vi quản lý
     private function accessibleQuery($admin): Builder
     {
         $query = MeterDevice::query();
@@ -397,6 +404,7 @@ class MeterController extends Controller
         return $query;
     }
 
+    // Kiểm tra phòng thuộc phạm vi quản lý của admin không
     private function roomBelongsToAdmin(int $roomId, int $adminId): bool
     {
         return Room::query()
@@ -405,6 +413,7 @@ class MeterController extends Controller
             ->exists();
     }
 
+    // Định dạng dữ liệu công tơ điện nước phân trang
     private function paginatedResource(\Illuminate\Contracts\Pagination\LengthAwarePaginator $paginator): array
     {
         return [

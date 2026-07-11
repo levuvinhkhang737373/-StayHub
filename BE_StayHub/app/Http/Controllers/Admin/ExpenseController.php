@@ -26,6 +26,7 @@ class ExpenseController extends Controller
 {
     private const MAX_RECEIPT_IMAGES = 10;
 
+    // Danh sách phiếu chi/chi phí của tòa nhà
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -48,6 +49,7 @@ class ExpenseController extends Controller
         }
     }
 
+    // Tạo phiếu chi mới
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -88,6 +90,7 @@ class ExpenseController extends Controller
         }
     }
 
+    // Xem chi tiết phiếu chi
     public function show(Request $request, int $expense): JsonResponse
     {
         try {
@@ -112,6 +115,7 @@ class ExpenseController extends Controller
         }
     }
 
+    // Cập nhật thông tin phiếu chi
     public function update(UpdateRequest $request, int $expense): JsonResponse
     {
         $validated = $request->validated();
@@ -173,6 +177,7 @@ class ExpenseController extends Controller
         }
     }
 
+    // Hủy phiếu chi
     public function cancel(CancelRequest $request, int $expense): JsonResponse
     {
         try {
@@ -204,11 +209,13 @@ class ExpenseController extends Controller
         }
     }
 
+    // Xóa phiếu chi khỏi hệ thống
     public function destroy(CancelRequest $request, int $expense): JsonResponse
     {
         return $this->cancel($request, $expense);
     }
 
+    // Tạo câu lệnh truy vấn danh sách chi phí
     private function queryExpenses(array $validated, Admin $admin): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -235,16 +242,19 @@ class ExpenseController extends Controller
             ->orderByDesc('id');
     }
 
+    // Truy vấn chi phí thuộc phạm vi quản lý của admin
     private function accessibleExpenseQuery(Admin $admin): Builder
     {
         return AdminScope::applyBuildingScope(Expense::query(), $admin, 'building_id');
     }
 
+    // Kiểm tra quyền truy cập chi phí của admin
     private function canAccessExpenses(?Admin $admin): bool
     {
         return $admin && (AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin));
     }
 
+    // Tạo cấu trúc dữ liệu lưu thông tin chi phí
     private function payload(array $validated): array
     {
         $payload = [];
@@ -264,6 +274,7 @@ class ExpenseController extends Controller
         return $payload;
     }
 
+    // Tải lên ảnh hóa đơn/chứng từ chi
     private function uploadReceiptImages(Request $request): array
     {
         return collect($request->file('receipt_images', []))
@@ -272,6 +283,7 @@ class ExpenseController extends Controller
             ->all();
     }
 
+    // Hợp nhất danh sách ảnh chứng từ cũ và mới
     private function mergeReceiptImages(array $currentImages, array $newImages, array $deletedImages): array
     {
         $deleteSet = array_flip($deletedImages);
@@ -283,6 +295,7 @@ class ExpenseController extends Controller
         return array_values(array_unique(array_merge($remainingImages, $newImages)));
     }
 
+    // Kiểm tra phòng có thuộc tòa nhà chi định không
     private function roomBelongsToBuilding(mixed $roomId, int $buildingId): bool
     {
         if (blank($roomId)) {
@@ -295,6 +308,7 @@ class ExpenseController extends Controller
             ->exists();
     }
 
+    // Tạo mã số phiếu chi tự động
     private function makeExpenseCode(): string
     {
         $prefix = 'EXP-'.now()->format('Y-m').'-';
@@ -311,11 +325,13 @@ class ExpenseController extends Controller
         return $code;
     }
 
+    // Danh sách cột dữ liệu cần lấy của phiếu chi
     private function columns(): array
     {
         return ['id', 'expense_code', 'building_id', 'room_id', 'expense_category_id', 'title', 'amount', 'expense_date', 'receipt_images', 'payment_method', 'note', 'status', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của chi phí trong danh sách
     private function listRelations(): array
     {
         return [
@@ -326,6 +342,7 @@ class ExpenseController extends Controller
         ];
     }
 
+    // Các quan hệ liên kết chi tiết phiếu chi
     private function detailRelations(): array
     {
         return [

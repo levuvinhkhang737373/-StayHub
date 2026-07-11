@@ -37,6 +37,7 @@ use Throwable;
 
 class BuildingController extends Controller
 {
+    // Danh sách tòa nhà
     public function index(IndexRequest $request): JsonResponse
     {
         try {
@@ -58,6 +59,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Tạo tòa nhà mới
     public function store(RegisterRequest $request): JsonResponse
     {
         try {
@@ -94,6 +96,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Xem chi tiết tòa nhà
     public function show(Request $request, int $building): JsonResponse
     {
         try {
@@ -119,6 +122,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Cập nhật thông tin tòa nhà
     public function update(UpdateRequest $request, int $building): JsonResponse
     {
         try {
@@ -168,6 +172,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Cập nhật trạng thái hoạt động của tòa nhà
     public function updateStatus(StatusRequest $request, int $building): JsonResponse
     {
         try {
@@ -200,6 +205,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Xóa tòa nhà
     public function destroy(Request $request, int $building): JsonResponse
     {
         try {
@@ -238,6 +244,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Cập nhật bảng giá điện nước của tòa nhà
     public function updateUtilityPrices(Request $request, int $building): JsonResponse
     {
         try {
@@ -364,6 +371,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Lịch sử thay đổi giá điện nước của tòa nhà
     public function utilityPriceHistory(Request $request, int $building): JsonResponse
     {
         try {
@@ -417,6 +425,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Tạo cấu trúc dữ liệu lưu thông tin tòa nhà
     private function payload(array $validated, Admin $admin, bool $isUpdate = false): array
     {
         $payload = [];
@@ -438,12 +447,14 @@ class BuildingController extends Controller
         return $payload;
     }
 
+    // Đồng bộ cấu hình khi cập nhật tòa nhà
     private function syncBuildingUpdateConfiguration(Building $building, array $validated, Request $request, Admin $admin): void
     {
         $this->syncBuildingConfiguration($building, $validated, $admin);
         $this->syncBuildingImages($building, $validated, $request, $admin);
     }
 
+    // Đồng bộ cấu hình dịch vụ/tiện ích tòa nhà
     private function syncBuildingConfiguration(Building $building, array $validated, Admin $admin): void
     {
         foreach ([
@@ -458,6 +469,7 @@ class BuildingController extends Controller
         }
     }
 
+    // Tạo dữ liệu chuẩn bị đồng bộ cấu hình tòa nhà
     private function buildingSyncPreflightPayload(array $validated): array
     {
         return [
@@ -478,6 +490,7 @@ class BuildingController extends Controller
         ];
     }
 
+    // Kiểm tra điều kiện trước khi đồng bộ cấu hình tòa nhà
     private function preflightBuildingSync(array $payload, ?int $buildingId): ?JsonResponse
     {
         $checks = [];
@@ -505,6 +518,7 @@ class BuildingController extends Controller
         );
     }
 
+    // Chạy các bước kiểm tra cấu hình trước đồng bộ
     private function runBuildingPreflightChecks(array $checks): array
     {
         if ($checks === []) {
@@ -527,12 +541,14 @@ class BuildingController extends Controller
             ->all();
     }
 
+    // Kiểm tra hệ thống có thể chạy tác vụ song song (Octane) không
     private function canDispatchOctaneTasks(): bool
     {
         return app()->bound(DispatchesTasks::class) || app()->bound(SwooleServer::class);
     }
 
 
+    // Kiểm tra giá dịch vụ trước khi đồng bộ
     private static function preflightServicePrices(array $payload, ?int $buildingId): ?array
     {
         if (! $buildingId) {
@@ -560,11 +576,13 @@ class BuildingController extends Controller
             : null;
     }
 
+    // Kiểm tra thiết lập cấu hình trước khi đồng bộ
     private static function preflightSettings(array $payload, ?int $buildingId): ?array
     {
         return null;
     }
 
+    // Tạo phản hồi lỗi kiểm tra trước đồng bộ
     private static function preflightError(string $message, int $statusCode = 422): array
     {
         return [
@@ -575,6 +593,7 @@ class BuildingController extends Controller
         ];
     }
 
+    // Đồng bộ ảnh chụp của tòa nhà
     private function syncBuildingImages(Building $building, array $validated, Request $request, Admin $admin): void
     {
         $deleteIds = $this->ids($validated['delete_image_ids'] ?? []);
@@ -606,6 +625,7 @@ class BuildingController extends Controller
         $this->normalizePrimaryImage($building);
     }
 
+    // Chuẩn hóa ảnh đại diện chính của tòa nhà
     private function normalizePrimaryImage(Building $building): void
     {
         $primaryImageIds = $building->images()->where('is_primary', true)->orderBy('sort_order')->orderBy('id')->pluck('id');
@@ -620,6 +640,7 @@ class BuildingController extends Controller
     }
 
 
+    // Đồng bộ bảng giá dịch vụ cho toàn bộ phòng trong tòa nhà
     private function syncServicePrices(Building $building, array $validated, ?Admin $admin = null): ?JsonResponse
     {
         $today = now()->toDateString();
@@ -723,6 +744,7 @@ class BuildingController extends Controller
         return null;
     }
 
+    // Đồng bộ thiết lập cấu hình cho tòa nhà
     private function syncSettings(Building $building, array $validated, Admin $admin): ?JsonResponse
     {
         $deleteIds = $this->ids($validated['delete_setting_ids'] ?? []);
@@ -774,6 +796,7 @@ class BuildingController extends Controller
         return null;
     }
 
+    // Lấy giá dịch vụ đang có hiệu lực của tòa nhà
     private function activeServicePrice(Building $building, int $serviceId): ?ServicePrice
     {
         return $building->servicePrices()
@@ -784,6 +807,7 @@ class BuildingController extends Controller
             ->first();
     }
 
+    // Tìm giá dịch vụ theo ngày hiệu lực
     private function servicePriceByEffectiveDate(Building $building, int $serviceId, string $effectiveFrom, ?int $ignoreId = null): ?ServicePrice
     {
         return $building->servicePrices()
@@ -794,6 +818,7 @@ class BuildingController extends Controller
             ->first();
     }
 
+    // Kết thúc hiệu lực của các bảng giá dịch vụ khác
     private function expireOtherActiveServicePrices(Building $building, int $serviceId, string $effectiveTo, ?int $ignoreId = null): void
     {
         $building->servicePrices()
@@ -806,6 +831,7 @@ class BuildingController extends Controller
             ->each(fn (ServicePrice $servicePrice): bool => $this->expireServicePrice($servicePrice, $effectiveTo));
     }
 
+    // Chấm dứt hiệu lực của bảng giá dịch vụ
     private function expireServicePrice(ServicePrice $servicePrice, string $effectiveTo): bool
     {
         return $servicePrice->forceFill([
@@ -814,26 +840,31 @@ class BuildingController extends Controller
         ])->save();
     }
 
+    // Kiểm tra giá dịch vụ đã hết hiệu lực chưa
     private function isExpiredServicePrice(ServicePrice $servicePrice): bool
     {
         return (int) $servicePrice->status === ServicePrice::STATUS_EXPIRED || $servicePrice->effective_to !== null;
     }
 
+    // Xác định ngày bắt đầu hiệu lực của giá dịch vụ
     private function servicePriceEffectiveFrom(ServicePrice $servicePrice): ?string
     {
         return $servicePrice->effective_from?->toDateString();
     }
 
+    // Tạo phản hồi lỗi khi ngày hiệu lực giá dịch vụ bị trùng lặp
     private function servicePriceEffectiveDateConflictResponse(): JsonResponse
     {
         return ApiResponse::responseJson(false, 'Bảng giá dịch vụ đã tồn tại ngày hiệu lực này', 422, null, 422);
     }
 
+    // Kiểm tra thông tin giá dịch vụ có thay đổi không
     private function servicePriceChanged(ServicePrice $servicePrice, int $serviceId, mixed $price): bool
     {
         return (int) $servicePrice->service_id !== $serviceId || $this->normalizeDecimal($servicePrice->price) !== $this->normalizeDecimal($price);
     }
 
+    // Chuẩn hóa số thập phân
     private function normalizeDecimal(mixed $value): string
     {
         $value = trim((string) $value);
@@ -851,11 +882,13 @@ class BuildingController extends Controller
 
 
 
+    // Danh sách cột dữ liệu tòa nhà cần lấy
     private function columns(): array
     {
         return ['id', 'region_id', 'manager_admin_id', 'name', 'slug', 'address', 'total_floors', 'gender_policy', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của tòa nhà trong danh sách
     private function listRelations(): array
     {
         return [
@@ -865,6 +898,7 @@ class BuildingController extends Controller
         ];
     }
 
+    // Các quan hệ liên kết chi tiết tòa nhà
     private function detailRelations(): array
     {
         return [
@@ -881,21 +915,25 @@ class BuildingController extends Controller
         ];
     }
 
+    // Đếm số lượng thực thể liên kết với tòa nhà
     private function counts(): array
     {
         logger("counts: " . json_encode(['images', 'rooms', 'servicePrices', 'settings', 'notifications', 'expenses'])); return ['images', 'rooms', 'servicePrices', 'settings', 'notifications', 'expenses'];
     }
 
+    // Đếm số lượng dữ liệu ràng buộc ngăn xóa tòa nhà
     private function deleteBlockingCounts(): array
     {
         return ['rooms', 'servicePrices', 'settings', 'notifications', 'expenses'];
     }
 
+    // Kiểm tra tòa nhà có dữ liệu liên quan không thể xóa không
     private function hasDeleteBlockingData(Building $building): bool
     {
         return collect($this->deleteBlockingCounts())->contains(fn (string $relation): bool => (int) $building->{Str::snake($relation).'_count'} > 0);
     }
 
+    // Tạo truy vấn danh sách tòa nhà
     private function queryBuildings(array $validated, Admin $admin): Builder
     {
         return $this->accessibleQuery($admin)
@@ -910,6 +948,7 @@ class BuildingController extends Controller
             ->orderByDesc('id');
     }
 
+    // Tìm kiếm tòa nhà theo từ khóa
     private function searchBuildings(string $keyword, array $validated, Admin $admin): LengthAwarePaginator
     {
         $builder = Building::search($keyword);
@@ -934,11 +973,13 @@ class BuildingController extends Controller
             ->paginate($validated['per_page'] ?? 20);
     }
 
+    // Truy vấn tòa nhà trong phạm vi quản lý của admin
     private function accessibleQuery(Admin $admin): Builder
     {
         return $this->applyAccessibleBuildingQuery(Building::query(), $admin);
     }
 
+    // Áp dụng điều kiện giới hạn quyền quản lý tòa nhà
     private function applyAccessibleBuildingQuery(Builder $query, Admin $admin): Builder
     {
         if (AdminScope::isSuperAdmin($admin)) {
@@ -952,11 +993,13 @@ class BuildingController extends Controller
         return $query->whereRaw('1 = 0');
     }
 
+    // Nạp chi tiết các liên kết thông tin tòa nhà
     private function loadBuildingDetail(Building $building): Building
     {
         return $building->load($this->detailRelations())->loadCount($this->counts());
     }
 
+    // Lấy danh sách ID tòa nhà admin quản lý
     private function ids(array $values): array
     {
         return collect($values)

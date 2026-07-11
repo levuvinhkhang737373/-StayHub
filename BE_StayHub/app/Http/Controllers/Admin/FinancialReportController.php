@@ -149,6 +149,7 @@ class FinancialReportController extends Controller
         }
     }
 
+    // Danh sách tòa nhà admin được quyền xem báo cáo tài chính
     private function availableBuildings(Admin $admin): Collection
     {
         $query = Building::query()
@@ -162,6 +163,7 @@ class FinancialReportController extends Controller
         return $query->get();
     }
 
+    // Tạo cấu trúc dữ liệu báo cáo tài chính rỗng
     private function emptySummary(): array
     {
         return [
@@ -180,6 +182,7 @@ class FinancialReportController extends Controller
         ];
     }
 
+    // Lấy danh sách các tháng trong khoảng thời gian báo cáo
     private function monthRange(int $year, int $monthFrom, int $monthTo): array
     {
         $monthRange = [];
@@ -196,6 +199,7 @@ class FinancialReportController extends Controller
         return $monthRange;
     }
 
+    // Tính tổng số liệu tài chính theo từng chu kỳ
     private function periodTotals(array $buildingIds, Carbon $start, Carbon $end, bool $includeGlobalExpenses, Collection $roomMovements): array
     {
         $collectedRevenue = $this->periodRevenue($buildingIds, $start, $end, $roomMovements);
@@ -213,6 +217,7 @@ class FinancialReportController extends Controller
         ];
     }
 
+    // Tính tổng doanh thu thực tế thu được trong kỳ
     private function periodRevenue(array $buildingIds, Carbon $start, Carbon $end, Collection $roomMovements): float
     {
         $paymentRevenue = (float) $this->scopedPaymentQuery($buildingIds)
@@ -226,6 +231,7 @@ class FinancialReportController extends Controller
         return $paymentRevenue + $deductionRevenue + $this->roomMovementExtraRevenue($roomMovements, $buildingIds, $start, $end);
     }
 
+    // Tính tổng dư nợ phát sinh trong kỳ
     private function periodDebt(array $buildingIds, Carbon $start, Carbon $end): array
     {
         $invoices = $this->scopedInvoiceQuery($buildingIds)
@@ -262,6 +268,7 @@ class FinancialReportController extends Controller
         ];
     }
 
+    // Chi tiết các khoản doanh thu theo loại dịch vụ/chi phí
     private function revenueBreakdown(array $buildingIds, Carbon $startDate, Carbon $endDate, Collection $roomMovements, float $totalRevenue): array
     {
         $payments = $this->scopedPaymentQuery($buildingIds)
@@ -362,6 +369,7 @@ class FinancialReportController extends Controller
         return $revenueBreakdown;
     }
 
+    // Chi tiết các khoản chi phí theo danh mục
     private function expenseBreakdown(array $buildingIds, bool $includeGlobalExpenses, Carbon $startDate, Carbon $endDate, float $totalExpenses): array
     {
         $expenses = $this->scopedExpenseQuery($buildingIds, $includeGlobalExpenses)
@@ -393,6 +401,7 @@ class FinancialReportController extends Controller
         return $expenseBreakdown;
     }
 
+    // Chi tiết các khoản công nợ của khách thuê
     private function debtBreakdown(float $currentDebt, float $rolledDebt, float $totalDebt): array
     {
         return collect([
@@ -409,6 +418,7 @@ class FinancialReportController extends Controller
             ->all();
     }
 
+    // Danh sách tòa nhà có doanh thu cao nhất
     private function topBuildings(array $buildingIds, Carbon $startDate, Carbon $endDate, Collection $roomMovements): array
     {
         $buildingRows = Building::query()
@@ -460,6 +470,7 @@ class FinancialReportController extends Controller
         return array_values(array_filter($buildingRows, fn (array $row): bool => $row['revenue'] > 0 || $row['debt'] > 0));
     }
 
+    // Tính toán phân bổ doanh thu theo từng tòa nhà
     private function applyBuildingRevenueRows(array &$buildingRows, array $buildingIds, Carbon $startDate, Carbon $endDate): void
     {
         Payment::query()
@@ -493,6 +504,7 @@ class FinancialReportController extends Controller
             });
     }
 
+    // Tính toán phân bổ công nợ theo từng tòa nhà
     private function applyBuildingDebtRows(array &$buildingRows, array $buildingIds, Carbon $startDate, Carbon $endDate): void
     {
         $this->scopedInvoiceQuery($buildingIds)
@@ -511,6 +523,7 @@ class FinancialReportController extends Controller
             });
     }
 
+    // Tính tỷ lệ phần trăm đóng góp của mỗi tòa nhà
     private function withBuildingPercentages(array $topBuildings, float $totalRevenue, float $totalDebt, float $totalCollectedRevenue): array
     {
         return collect($topBuildings)
@@ -529,6 +542,7 @@ class FinancialReportController extends Controller
             ->all();
     }
 
+    // Tính công nợ hóa đơn phục vụ báo cáo tài chính
     private function invoiceReportDebt(Invoice $invoice): float
     {
         $rolledInRemaining = $invoice->debtRolloversIn
@@ -545,6 +559,7 @@ class FinancialReportController extends Controller
         return max(0.0, $collectibleRemaining - $rolledInRemaining) + min($rolledInRemaining, $collectibleRemaining);
     }
 
+    // Lấy doanh thu phát sinh thêm từ việc chuyển phòng
     private function roomMovementExtraRevenue(Collection $roomMovements, array $buildingIds, Carbon $start, Carbon $end): float
     {
         $extraRevenue = 0.0;
@@ -570,6 +585,7 @@ class FinancialReportController extends Controller
         return $extraRevenue;
     }
 
+    // Truy vấn danh sách thanh toán trong phạm vi báo cáo
     private function scopedPaymentQuery(array $buildingIds): Builder
     {
         $query = Payment::query()->realMoney()->where('status', Payment::STATUS_CONFIRMED);
@@ -581,6 +597,7 @@ class FinancialReportController extends Controller
         return $query->whereHas('invoice.room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
+    // Truy vấn danh sách hóa đơn trong phạm vi báo cáo
     private function scopedInvoiceQuery(array $buildingIds): Builder
     {
         $query = Invoice::query();
@@ -592,6 +609,7 @@ class FinancialReportController extends Controller
         return $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
+    // Truy vấn danh sách chi phí trong phạm vi báo cáo
     private function scopedExpenseQuery(array $buildingIds, bool $includeGlobalExpenses = false): Builder
     {
         $query = Expense::query()->where('status', Expense::STATUS_RECORDED);
@@ -616,6 +634,7 @@ class FinancialReportController extends Controller
         });
     }
 
+    // Truy vấn các khoản khấu trừ tiền cọc
     private function scopedDepositDeductionQuery(array $buildingIds): Builder
     {
         $query = ContractDepositTransaction::query()
@@ -628,6 +647,7 @@ class FinancialReportController extends Controller
         return $query->whereHas('contract.room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
+    // Truy vấn các khoản phí phát sinh chuyển phòng
     private function scopedRoomMovementExtraChargeQuery(array $buildingIds): Builder
     {
         $query = RoomMovement::query()

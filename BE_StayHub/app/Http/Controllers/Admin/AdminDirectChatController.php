@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\DB;
 
 class AdminDirectChatController extends Controller
 {
+    // Danh sách các cuộc trò chuyện trực tiếp của admin
     public function index(IndexConversationRequest $request): JsonResponse
     {
         try {
@@ -102,6 +103,7 @@ class AdminDirectChatController extends Controller
         }
     }
 
+    // Danh sách tin nhắn trong cuộc trò chuyện trực tiếp
     public function messages(MessageIndexRequest $request, ChatConversation $conversation): JsonResponse
     {
         try {
@@ -134,6 +136,7 @@ class AdminDirectChatController extends Controller
         }
     }
 
+    // Gửi tin nhắn trực tiếp đến admin khác
     public function sendMessage(SendMessageRequest $request, ChatConversation $conversation): JsonResponse
     {
         try {
@@ -207,6 +210,7 @@ class AdminDirectChatController extends Controller
         }
     }
 
+    // Đánh dấu đã đọc toàn bộ tin nhắn trong cuộc trò chuyện trực tiếp
     public function markAsRead(ChatConversation $conversation): JsonResponse
     {
         try {
@@ -252,6 +256,7 @@ class AdminDirectChatController extends Controller
         }
     }
 
+    // Đồng bộ danh sách cuộc trò chuyện cho admin chỉ định
     private function syncConversationsFor(Admin $admin): void
     {
         if (AdminScope::isSuperAdmin($admin)) {
@@ -282,6 +287,7 @@ class AdminDirectChatController extends Controller
         }
     }
 
+    // Truy vấn danh sách quản lý tòa nhà đang hoạt động
     private function activeBuildingManagerQuery(): Builder
     {
         return Admin::query()
@@ -289,6 +295,7 @@ class AdminDirectChatController extends Controller
             ->where('status', Admin::STATUS_ACTIVE);
     }
 
+    // Tìm hoặc tạo cuộc trò chuyện trực tiếp mới giữa hai admin
     private function firstOrCreateConversation(int $superAdminId, int $managerAdminId): ChatConversation
     {
         try {
@@ -308,6 +315,7 @@ class AdminDirectChatController extends Controller
         }
     }
 
+    // Kiểm tra quyền tham gia cuộc trò chuyện trực tiếp của admin
     private function authorizeConversation(?Admin $admin, ChatConversation $conversation): true|JsonResponse
     {
         if (! $admin) {
@@ -335,6 +343,7 @@ class AdminDirectChatController extends Controller
         return ApiResponse::responseJson(false, 'Bạn không có quyền truy cập đoạn chat này', 403, null, 403);
     }
 
+    // Tạo thông báo tin nhắn mới cho admin nhận tin
     private function createRecipientNotification(ChatConversation $conversation, ChatMessage $message, Admin $sender): void
     {
         $bodyText = trim((string) $message->body);
@@ -371,11 +380,13 @@ class AdminDirectChatController extends Controller
         DB::afterCommit(fn (): mixed => event(new NotificationSent($notification)));
     }
 
+    // Xác định ID của admin nhận tin nhắn trong cuộc hội thoại
     private function recipientAdminId(ChatConversation $conversation, Admin $sender): int
     {
         return (int) $conversation->super_admin_id === (int) $sender->id ? (int) $conversation->manager_admin_id : (int) $conversation->super_admin_id;
     }
 
+    // Kiểm tra có Super Admin nào đang hoạt động tham gia không
     private function hasActiveSuperAdminParticipant(ChatConversation $conversation): bool
     {
         return Admin::query()
@@ -385,6 +396,7 @@ class AdminDirectChatController extends Controller
             ->exists();
     }
 
+    // Kiểm tra có Quản lý tòa nhà nào đang hoạt động tham gia không
     private function hasActiveBuildingManagerParticipant(ChatConversation $conversation): bool
     {
         return Admin::query()

@@ -19,8 +19,10 @@ use Illuminate\Support\Collection;
 
 class DebtController extends Controller
 {
+    // Khởi tạo controller quản lý nợ
     public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
 
+    // Danh sách nợ của khách thuê theo tòa nhà
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -48,6 +50,7 @@ class DebtController extends Controller
         }
     }
 
+    // Lấy danh sách các dòng dữ liệu công nợ
     private function debtRows(array $validated, Admin $admin): Collection
     {
         return $this->accessibleInvoiceQuery($admin)
@@ -93,6 +96,7 @@ class DebtController extends Controller
             ->values();
     }
 
+    // Lọc dữ liệu công nợ theo trạng thái nợ
     private function filterRowsByDebtStatus(Collection $rows, string $debtStatus): Collection
     {
         return match ($debtStatus) {
@@ -103,6 +107,7 @@ class DebtController extends Controller
         };
     }
 
+    // Tạo cấu trúc dữ liệu công nợ để trả về client
     private function debtPayload(Invoice $invoice): array
     {
         $rolloverOut = $this->activeRolloverOut($invoice);
@@ -163,6 +168,7 @@ class DebtController extends Controller
         ];
     }
 
+    // Xác định trạng thái nợ của hóa đơn
     private function debtStatus(Invoice $invoice, string $collectibleAmount, ?InvoiceDebtRollover $rolloverOut, bool $isOverdue): string
     {
         if ($rolloverOut) {
@@ -180,6 +186,7 @@ class DebtController extends Controller
         return 'cleared';
     }
 
+    // Kiểm tra khoản nợ chuyển tiếp còn hoạt động hay không
     private function activeRolloverOut(Invoice $invoice): ?InvoiceDebtRollover
     {
         if (! $invoice->relationLoaded('debtRolloversOut')) {
@@ -192,6 +199,7 @@ class DebtController extends Controller
                 && (! $rollover->targetInvoice || (int) $rollover->targetInvoice->status !== Invoice::STATUS_CANCELLED));
     }
 
+    // Tạo cấu trúc dữ liệu thông tin khách thuê
     private function tenantPayload(Invoice $invoice): array
     {
         if (! $invoice->contract?->relationLoaded('contractTenants')) {
@@ -210,6 +218,7 @@ class DebtController extends Controller
             ->all();
     }
 
+    // Tạo cấu trúc dữ liệu nguồn nợ chuyển tiếp
     private function rolledSourcesPayload(Invoice $invoice): array
     {
         if (! $invoice->relationLoaded('debtRolloversIn')) {
@@ -231,6 +240,7 @@ class DebtController extends Controller
             ->all();
     }
 
+    // Tổng hợp số liệu công nợ (tổng nợ, đã trả, còn lại)
     private function summary(Collection $rows): array
     {
         return [
@@ -243,6 +253,7 @@ class DebtController extends Controller
         ];
     }
 
+    // Truy vấn hóa đơn thuộc phạm vi quản lý của admin
     private function accessibleInvoiceQuery(Admin $admin): Builder
     {
         $query = Invoice::query();

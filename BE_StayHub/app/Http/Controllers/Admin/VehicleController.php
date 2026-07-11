@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 
 class VehicleController extends Controller
 {
+    // Danh sách xe của khách thuê
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -47,6 +48,7 @@ class VehicleController extends Controller
         }
     }
 
+    // Đăng ký thông tin xe mới cho khách thuê
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -78,6 +80,7 @@ class VehicleController extends Controller
         }
     }
 
+    // Xem chi tiết thông tin xe
     public function show(Request $request, int $vehicle): JsonResponse
     {
         try {
@@ -103,6 +106,7 @@ class VehicleController extends Controller
         }
     }
 
+    // Cập nhật thông tin xe
     public function update(UpdateRequest $request, int $vehicle): JsonResponse
     {
         $validated = $request->validated();
@@ -141,6 +145,7 @@ class VehicleController extends Controller
         }
     }
 
+    // Cập nhật trạng thái duyệt/hoạt động của xe
     public function updateStatus(StatusRequest $request, int $vehicle): JsonResponse
     {
         $validated = $request->validated();
@@ -175,6 +180,7 @@ class VehicleController extends Controller
         }
     }
 
+    // Xóa thông tin xe khỏi hệ thống
     public function destroy(Request $request, int $vehicle): JsonResponse
     {
         try {
@@ -209,6 +215,7 @@ class VehicleController extends Controller
         }
     }
 
+    // Tạo cấu trúc dữ liệu lưu thông tin xe
     private function payload(array $validated, bool $isUpdate = false): array
     {
         $payload = [];
@@ -231,26 +238,31 @@ class VehicleController extends Controller
         return $payload;
     }
 
+    // Danh sách cột cần lấy của xe
     private function columns(): array
     {
         return ['id', 'tenant_id', 'vehicle_type', 'license_plate', 'brand', 'color', 'is_active', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của xe trong danh sách
     private function listRelations(): array
     {
         return ['tenant:id,full_name,phone,email'];
     }
 
+    // Các quan hệ liên kết chi tiết xe
     private function detailRelations(): array
     {
         return ['tenant:id,full_name,phone,email'];
     }
 
+    // Đếm số lượng quan hệ liên quan
     private function counts(): array
     {
         return ['contractVehicles'];
     }
 
+    // Tạo câu lệnh truy vấn danh sách xe
     private function queryVehicles(array $validated, Admin $admin): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -293,6 +305,7 @@ class VehicleController extends Controller
             ->orderByDesc('id');
     }
 
+    // Truy vấn danh sách xe trong phạm vi quản lý
     private function accessibleQuery(Admin $admin): Builder
     {
         $query = Vehicle::query();
@@ -310,6 +323,7 @@ class VehicleController extends Controller
         return $query->whereRaw('1 = 0');
     }
 
+    // Đảm bảo admin có quyền thao tác trên khách thuê sở hữu xe này
     private function ensureTenantAccess(Admin $admin, int $tenantId): bool
     {
         if (AdminScope::isSuperAdmin($admin)) {
@@ -328,16 +342,19 @@ class VehicleController extends Controller
         return false;
     }
 
+    // Kiểm tra quyền xem thông tin xe của admin
     private function canViewVehicles(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
+    // Kiểm tra quyền đăng ký/chỉnh sửa thông tin xe
     private function canMutateVehicles(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
+    // Định dạng dữ liệu xe phân trang
     private function paginatedResource(LengthAwarePaginator $paginator): array
     {
         return [

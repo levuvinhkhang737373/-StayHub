@@ -315,6 +315,7 @@ class NotificationController extends Controller
         }
     }
 
+    // Truy vấn danh sách thông báo theo quyền hạn của admin
     private function accessibleQuery($admin): Builder
     {
         $query = Notification::query()

@@ -34,8 +34,10 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    // Khởi tạo dashboard controller
     public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
 
+    // Lấy số liệu tổng quan trang Dashboard
     public function overview(OverviewRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -142,6 +144,7 @@ class DashboardController extends Controller
         }
     }
 
+    // Lấy lịch sử biến động giá điện nước
     public function utilityPriceHistory(Request $request): JsonResponse
     {
         try {
@@ -187,6 +190,7 @@ class DashboardController extends Controller
         }
     }
 
+    // Danh sách tòa nhà admin có quyền truy cập số liệu
     private function availableBuildings(Admin $admin): Collection
     {
         $query = Building::query()
@@ -200,6 +204,7 @@ class DashboardController extends Controller
         return $query->get();
     }
 
+    // Xác định ID tòa nhà đang được chọn để xem số liệu
     private function selectedBuildingId(Admin $admin, Collection $availableBuildings, ?int $requestedBuildingId): ?int
     {
         if (AdminScope::isSuperAdmin($admin)) {
@@ -209,6 +214,7 @@ class DashboardController extends Controller
         return $requestedBuildingId ?: $availableBuildings->first()?->id;
     }
 
+    // Lấy danh sách tháng trong khoảng thời gian phân tích
     private function monthRange(int $year, int $monthFrom, int $monthTo): array
     {
         $months = [];
@@ -226,6 +232,7 @@ class DashboardController extends Controller
         return $months;
     }
 
+    // Lấy khoảng thời gian cuốn chiếu (ví dụ 6 tháng gần nhất)
     private function rollingMonthRange(int $monthsCount): array
     {
         $currentMonth = Carbon::now()->startOfMonth();
@@ -244,6 +251,7 @@ class DashboardController extends Controller
         return $months;
     }
 
+    // Lấy chi tiết một chỉ số thống kê cụ thể
     private function metric(string $label, int|float $value, int|float|null $previousValue, string $unit, array $extra = []): array
     {
         $change = $previousValue === null ? null : $value - $previousValue;
@@ -263,6 +271,7 @@ class DashboardController extends Controller
         ], $extra);
     }
 
+    // Thống kê tổng số liệu doanh thu, chi phí, công nợ
     private function financialTotals(array $buildingIds, Carbon $start, Carbon $end, bool $includeGlobalExpenses = false, $roomMovements = null): array
     {
         if ($roomMovements === null) {
@@ -290,6 +299,7 @@ class DashboardController extends Controller
         ];
     }
 
+    // Tính doanh thu thực tế thu được trong khoảng thời gian chỉ định
     private function periodRevenue(array $buildingIds, Carbon $start, Carbon $end, Collection $roomMovements): float
     {
         $paymentRevenue = (float) $this->scopedPaymentQuery($buildingIds)
@@ -303,6 +313,7 @@ class DashboardController extends Controller
         return $paymentRevenue + $deductionRevenue + $this->roomMovementExtraRevenue($roomMovements, $buildingIds, $start, $end);
     }
 
+    // Tính nợ phát sinh trong khoảng thời gian chỉ định
     private function periodDebt(array $buildingIds, Carbon $start, Carbon $end): array
     {
         $invoices = $this->scopedInvoiceQuery($buildingIds)
@@ -339,6 +350,7 @@ class DashboardController extends Controller
         ];
     }
 
+    // Tính phụ thu phát sinh từ hoạt động chuyển phòng
     private function roomMovementExtraRevenue(Collection $roomMovements, array $buildingIds, Carbon $start, Carbon $end): float
     {
         $extraRevenue = 0.0;
@@ -365,6 +377,7 @@ class DashboardController extends Controller
         return $extraRevenue;
     }
 
+    // Biểu đồ thống kê doanh thu theo thời gian
     private function revenueChart(array $buildingIds, array $monthRange, bool $includeGlobalExpenses, $roomMovements = null): array
     {
         return collect($monthRange)->map(function (array $month) use ($buildingIds, $includeGlobalExpenses, $roomMovements): array {
@@ -386,6 +399,7 @@ class DashboardController extends Controller
         })->values()->all();
     }
 
+    // Biểu đồ thống kê chi phí theo thời gian
     private function expenseChart(array $buildingIds, array $monthRange, bool $includeGlobalExpenses): array
     {
         $periodStart = $monthRange[0]['start'];
@@ -430,6 +444,7 @@ class DashboardController extends Controller
         ];
     }
 
+    // Tổng hợp số liệu và tỷ lệ lấp đầy phòng
     private function occupancySummary(array $buildingIds, bool $isSystemWide, ?int $selectedBuildingId): array
     {
         $baseQuery = $this->scopedRoomQuery($buildingIds)->where('status', Room::STATUS_ACTIVE);
@@ -458,6 +473,7 @@ class DashboardController extends Controller
         ];
     }
 
+    // Số liệu lấp đầy phòng phân bổ theo từng tòa nhà
     private function occupancyByBuilding(array $buildingIds): array
     {
         if (empty($buildingIds)) {
@@ -490,6 +506,7 @@ class DashboardController extends Controller
             ->all();
     }
 
+    // Số liệu lấp đầy phòng phân bổ theo từng tầng
     private function occupancyByFloor(array $buildingIds): array
     {
         if (empty($buildingIds)) {
@@ -518,6 +535,7 @@ class DashboardController extends Controller
             ->all();
     }
 
+    // Định dạng cấu trúc dữ liệu tỷ lệ lấp đầy
     private function occupancyItem(string $label, int $totalRooms, int $currentOccupants, int $totalCapacity): array
     {
         return [
@@ -530,6 +548,7 @@ class DashboardController extends Controller
         ];
     }
 
+    // Tổng số khách thuê đang hoạt động
     private function tenantCount(array $buildingIds): int
     {
         if (empty($buildingIds)) {
@@ -546,6 +565,7 @@ class DashboardController extends Controller
             ->count('tenants.id');
     }
 
+    // Tổng hợp số liệu dư nợ của khách thuê
     private function debtSummary(array $buildingIds): array
     {
         $debtInvoices = $this->scopedInvoiceQuery($buildingIds)
@@ -574,6 +594,7 @@ class DashboardController extends Controller
         ];
     }
 
+    // Biểu đồ phân bố trạng thái hóa đơn (chưa thanh toán, đã thanh toán, quá hạn)
     private function invoiceStatusChart(array $buildingIds): array
     {
         $rows = $this->scopedInvoiceQuery($buildingIds)
@@ -599,6 +620,7 @@ class DashboardController extends Controller
         ])->values()->all();
     }
 
+    // Số lượng yêu cầu bảo trì đang mở/chưa xử lý
     private function openMaintenanceCount(array $buildingIds): int
     {
         return $this->scopedMaintenanceQuery($buildingIds)
@@ -610,6 +632,7 @@ class DashboardController extends Controller
             ->count();
     }
 
+    // Biểu đồ phân bố trạng thái các yêu cầu bảo trì
     private function maintenanceStatusChart(array $buildingIds): array
     {
         $labels = $this->maintenanceLabels();
@@ -626,6 +649,7 @@ class DashboardController extends Controller
         ])->values()->all();
     }
 
+    // Nhãn hiển thị cho biểu đồ bảo trì
     private function maintenanceLabels(): array
     {
         return [
@@ -637,6 +661,7 @@ class DashboardController extends Controller
         ];
     }
 
+    // Thống kê số lượng hợp đồng sắp hết hạn trong 30/60/90 ngày
     private function contractExpirationChart(array $buildingIds): array
     {
         $today = Carbon::today();
@@ -668,6 +693,7 @@ class DashboardController extends Controller
         ];
     }
 
+    // Biểu đồ thống kê chỉ số tiêu thụ điện nước
     private function utilityReadingChart(array $buildingIds, array $monthRange): array
     {
         if (empty($buildingIds) || empty($monthRange)) {
@@ -750,11 +776,13 @@ class DashboardController extends Controller
         })->values()->all();
     }
 
+    // Tính sản lượng tiêu thụ điện nước trong kỳ
     private function meterConsumptionValue(mixed $row): ?float
     {
         return $row ? round((float) $row->total_consumption, 2) : null;
     }
 
+    // Nhật ký các hoạt động mới nhất của hệ thống
     private function recentActivities(array $buildingIds): array
     {
         if (empty($buildingIds)) {
@@ -851,6 +879,7 @@ class DashboardController extends Controller
             ->all();
     }
 
+    // Truy vấn danh sách thanh toán trong phạm vi thống kê
     private function scopedPaymentQuery(array $buildingIds): Builder
     {
         $query = Payment::query()->realMoney()->where('status', Payment::STATUS_CONFIRMED);
@@ -862,6 +891,7 @@ class DashboardController extends Controller
         return $query->whereHas('invoice.room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
+    // Truy vấn danh sách chi phí trong phạm vi thống kê
     private function scopedExpenseQuery(array $buildingIds, bool $includeGlobalExpenses = false): Builder
     {
         $query = Expense::query()->where('status', Expense::STATUS_RECORDED);
@@ -886,6 +916,7 @@ class DashboardController extends Controller
         });
     }
 
+    // Truy vấn danh sách phòng trong phạm vi thống kê
     private function scopedRoomQuery(array $buildingIds): Builder
     {
         $query = Room::query();
@@ -893,6 +924,7 @@ class DashboardController extends Controller
         return empty($buildingIds) ? $query->whereRaw('1 = 0') : $query->whereIn('building_id', $buildingIds);
     }
 
+    // Truy vấn danh sách hóa đơn trong phạm vi thống kê
     private function scopedInvoiceQuery(array $buildingIds): Builder
     {
         $query = Invoice::query();
@@ -904,6 +936,7 @@ class DashboardController extends Controller
         return $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
+    // Truy vấn yêu cầu bảo trì trong phạm vi thống kê
     private function scopedMaintenanceQuery(array $buildingIds): Builder
     {
         $query = MaintenanceRequest::query();
@@ -915,6 +948,7 @@ class DashboardController extends Controller
         return $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
+    // Truy vấn hợp đồng trong phạm vi thống kê
     private function scopedContractQuery(array $buildingIds): Builder
     {
         $query = Contract::query();
@@ -926,6 +960,7 @@ class DashboardController extends Controller
         return $query->whereHas('room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
+    // Truy vấn các khoản khấu trừ cọc trong phạm vi thống kê
     private function scopedDepositDeductionQuery(array $buildingIds): Builder
     {
         $query = ContractDepositTransaction::query()
@@ -938,6 +973,7 @@ class DashboardController extends Controller
         return $query->whereHas('contract.room', fn (Builder $roomQuery): Builder => $roomQuery->whereIn('building_id', $buildingIds));
     }
 
+    // Truy vấn các khoản phụ thu chuyển phòng trong phạm vi thống kê
     private function scopedRoomMovementExtraChargeQuery(array $buildingIds): Builder
     {
         $query = RoomMovement::query()

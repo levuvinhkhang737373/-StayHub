@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 
 class ChatController extends Controller
 {
+    // Danh sách phòng chat của admin với khách thuê
     public function index(IndexConversationRequest $request): JsonResponse
     {
         try {
@@ -142,6 +143,7 @@ class ChatController extends Controller
         }
     }
 
+    // Danh sách tin nhắn trong phòng chat
     public function messages(MessageIndexRequest $request, ChatConversation $conversation): JsonResponse
     {
         try {
@@ -177,6 +179,7 @@ class ChatController extends Controller
         }
     }
 
+    // Gửi tin nhắn đến khách thuê
     public function sendMessage(SendMessageRequest $request, ChatConversation $conversation): JsonResponse
     {
         try {
@@ -240,6 +243,7 @@ class ChatController extends Controller
         }
     }
 
+    // Đánh dấu đã đọc toàn bộ tin nhắn trong phòng chat
     public function markAsRead(ChatConversation $conversation): JsonResponse
     {
         try {
@@ -267,6 +271,7 @@ class ChatController extends Controller
         }
     }
 
+    // Kiểm tra quyền tham gia phòng chat của admin
     private function authorizeConversation(?Admin $admin, ChatConversation $conversation): true|JsonResponse
     {
         if (! $admin) {
@@ -297,6 +302,7 @@ class ChatController extends Controller
         return true;
     }
 
+    // Tạo thông báo có tin nhắn mới cho khách thuê
     private function createTenantChatNotification(ChatConversation $conversation, ChatMessage $message, Admin $admin): void
     {
         // Clean up any existing unread chat notifications for this tenant to combine them

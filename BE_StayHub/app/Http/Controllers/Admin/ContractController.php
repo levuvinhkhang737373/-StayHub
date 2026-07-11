@@ -49,6 +49,7 @@ class ContractController extends Controller
 {
     private const FILE_DISK = 'public';
 
+    // Lấy danh sách phòng trống/có thể thuê
     public function availableRooms(Request $request): JsonResponse
     {
         try {
@@ -153,6 +154,7 @@ class ContractController extends Controller
         }
     }
 
+    // Danh sách hợp đồng
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -180,6 +182,7 @@ class ContractController extends Controller
         }
     }
 
+    // Tạo hợp đồng mới
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -283,6 +286,7 @@ class ContractController extends Controller
         }
     }
 
+    // Xem chi tiết hợp đồng
     public function show(Request $request, int $contract): JsonResponse
     {
         try {
@@ -308,6 +312,7 @@ class ContractController extends Controller
         }
     }
 
+    // Danh sách khách thuê chưa có hợp đồng/có thể thêm
     public function availableTenants(Request $request, int $contract): JsonResponse
     {
         try {
@@ -360,6 +365,7 @@ class ContractController extends Controller
         }
     }
 
+    // Thêm khách thuê vào hợp đồng hiện tại
     public function addTenant(AddTenantRequest $request, int $contract): JsonResponse
     {
         $validated = $request->validated();
@@ -459,6 +465,7 @@ class ContractController extends Controller
         }
     }
 
+    // Cập nhật thông tin hợp đồng
     public function update(UpdateRequest $request, int $contract): JsonResponse
     {
         $validated = $request->validated();
@@ -609,6 +616,7 @@ class ContractController extends Controller
         }
     }
 
+    // Cập nhật trạng thái của hợp đồng
     public function updateStatus(StatusRequest $request, int $contract): JsonResponse
     {
         $validated = $request->validated();
@@ -689,6 +697,7 @@ class ContractController extends Controller
         }
     }
 
+    // Quyết toán và chấm dứt hợp đồng
     public function terminate(TerminateRequest $request, int $contract): JsonResponse
     {
         $validated = $request->validated();
@@ -790,6 +799,7 @@ class ContractController extends Controller
         }
     }
 
+    // Xóa hợp đồng
     public function destroy(Request $request, int $contract): JsonResponse
     {
         $pathsToDelete = [];
@@ -844,6 +854,7 @@ class ContractController extends Controller
         }
     }
 
+    // Gia hạn hợp đồng
     public function renew(RegisterRequest $request, int $contract): JsonResponse
     {
         $validated = $request->validated();
@@ -1008,6 +1019,7 @@ class ContractController extends Controller
         }
     }
 
+    // Thêm giao dịch đặt cọc cho hợp đồng
     public function addDepositTransaction(DepositTransactionRequest $request, int $contract): JsonResponse
     {
         $validated = $request->validated();
@@ -1064,6 +1076,7 @@ class ContractController extends Controller
         }
     }
 
+    // Tạo mã hợp đồng tự động
     private function generateContractCode(Room $room): string
     {
         $buildingSlug = Str::upper(Str::slug($room->building->name ?? 'BUILDING'));
@@ -1081,6 +1094,7 @@ class ContractController extends Controller
         return $code;
     }
 
+    // Tạo câu lệnh truy vấn hợp đồng
     private function queryContracts(array $validated, Admin $admin): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -1113,6 +1127,7 @@ class ContractController extends Controller
             ->orderByDesc('id');
     }
 
+    // Truy vấn hợp đồng trong phạm vi quản lý của admin
     private function accessibleQuery(Admin $admin): Builder
     {
         $query = Contract::query();
@@ -1130,6 +1145,7 @@ class ContractController extends Controller
         return $query->whereRaw('1 = 0');
     }
 
+    // Tạo cấu trúc dữ liệu lưu hợp đồng
     private function payload(array $validated, Admin $admin, int $status, bool $isUpdate = false): array
     {
         $payload = [];
@@ -1151,6 +1167,7 @@ class ContractController extends Controller
         return $payload;
     }
 
+    // Định dạng dữ liệu hợp đồng phân trang
     private function paginatedResource(LengthAwarePaginator $paginator): array
     {
         return [
@@ -1173,6 +1190,7 @@ class ContractController extends Controller
         ];
     }
 
+    // Định dạng danh sách lựa chọn khách thuê phân trang
     private function paginatedTenantOptions(LengthAwarePaginator $paginator): array
     {
         return [
@@ -1212,6 +1230,7 @@ class ContractController extends Controller
         ];
     }
 
+    // Truy vấn khách thuê có sẵn để thêm vào hợp đồng
     private function availableTenantsQuery(Admin $admin, Contract $contract, string $keyword, array $excludedTenantIds): Builder
     {
         $room = $contract->room;
@@ -1252,6 +1271,7 @@ class ContractController extends Controller
             ->orderBy('id');
     }
 
+    // Áp dụng chính sách giới tính của tòa nhà đối với khách thuê
     private function applyBuildingGenderPolicy(Builder $query, int $genderPolicy): Builder
     {
         return match ($genderPolicy) {
@@ -1262,6 +1282,7 @@ class ContractController extends Controller
         };
     }
 
+    // Kiểm tra ngày thêm khách thuê có hợp lệ không
     private function assertAddTenantDates(Contract $contract, string $joinDate, string $billingStartDate): void
     {
         $contractStartDate = $contract->start_date?->toDateString();
@@ -1280,6 +1301,7 @@ class ContractController extends Controller
         }
     }
 
+    // Chuẩn hóa dữ liệu khách thuê đầu vào
     private function normalizedTenantPayloads(array $validated, ?Contract $contract): array
     {
         $isCreate = $contract === null;
@@ -1297,6 +1319,7 @@ class ContractController extends Controller
             ->all();
     }
 
+    // Chuẩn hóa dữ liệu xe đầu vào
     private function normalizedVehiclePayloads(array $validated, bool $isCreate = false): array
     {
         return collect($validated['vehicles'] ?? [])
@@ -1314,6 +1337,7 @@ class ContractController extends Controller
             ->all();
     }
 
+    // Lấy dữ liệu khách thuê hiện tại trong hợp đồng
     private function currentTenantPayloads(Contract $contract): array
     {
         return $contract->contractTenants()
@@ -1330,6 +1354,7 @@ class ContractController extends Controller
             ->all();
     }
 
+    // Lấy dữ liệu xe hiện tại trong hợp đồng
     private function currentVehiclePayloads(Contract $contract): array
     {
         return $contract->contractVehicles()
@@ -1348,6 +1373,7 @@ class ContractController extends Controller
             ->all();
     }
 
+    // Kiểm tra các mốc thời gian hợp đồng có hợp lệ không
     private function assertContractDates(Contract $contract, array $payload): void
     {
         $startDate = $payload['start_date'] ?? $contract->start_date?->toDateString();
@@ -1363,6 +1389,7 @@ class ContractController extends Controller
         }
     }
 
+    // Xác thực thông tin khách thuê hợp lệ
     private function assertTenantPayloads(Admin $admin, array $tenantPayloads, Room $room, ?int $contractId, int $status): void
     {
         $tenantIds = collect($tenantPayloads)->pluck('tenant_id')->all();
@@ -1439,6 +1466,7 @@ class ContractController extends Controller
         }
     }
 
+    // Xác thực thông tin xe hợp lệ
     private function assertVehiclePayloads(Admin $admin, array $vehiclePayloads, array $tenantIds, ?int $contractId, int $status): void
     {
         if ($vehiclePayloads === []) {
@@ -1490,6 +1518,7 @@ class ContractController extends Controller
         }
     }
 
+    // Kiểm tra phòng có thể sử dụng được không (trạng thái phòng)
     private function assertRoomCanBeUsed(Admin $admin, Room $room): void
     {
         if (! AdminScope::ensureBuildingAccess($admin, (int) $room->building_id)) {
@@ -1505,6 +1534,7 @@ class ContractController extends Controller
         }
     }
 
+    // Kiểm tra phòng có bị trùng lịch thuê với hợp đồng khác không
     private function assertRoomContractAvailability(int $roomId, ?int $ignoreContractId, int $status): void
     {
         if (! in_array($status, Contract::RESERVED_STATUSES, true)) {
@@ -1527,6 +1557,7 @@ class ContractController extends Controller
         }
     }
 
+    // Kiểm tra sức chứa phòng có bị quá tải không
     private function assertRoomCapacity(Room $room, array $tenantPayloads, ?int $ignoreContractId = null): void
     {
         $stayingCount = collect($tenantPayloads)
@@ -1555,6 +1586,7 @@ class ContractController extends Controller
         }
     }
 
+    // Xác thực tính hợp lệ của các giao dịch cọc
     private function assertDepositTransactions(array $transactions, int $currentBalanceCents, int $depositLimitCents): void
     {
         $balance = $currentBalanceCents;
@@ -1586,6 +1618,7 @@ class ContractController extends Controller
         }
     }
 
+    // Đồng bộ danh sách khách thuê của hợp đồng
     private function syncContractTenants(Contract $contract, array $tenantPayloads, Admin $admin, bool $isCreate): void
     {
         $incomingTenantIds = collect($tenantPayloads)->pluck('tenant_id')->all();
@@ -1620,6 +1653,7 @@ class ContractController extends Controller
         ])->save());
     }
 
+    // Đồng bộ danh sách xe của hợp đồng
     private function syncContractVehicles(Contract $contract, array $vehiclePayloads, bool $isCreate): void
     {
         $incomingVehicleIds = collect($vehiclePayloads)->pluck('vehicle_id')->all();
@@ -1663,6 +1697,7 @@ class ContractController extends Controller
         });
     }
 
+    // Ghi nhận thêm các giao dịch cọc phát sinh
     private function appendDepositTransactions(Contract $contract, array $transactions, Admin $admin): void
     {
         foreach ($transactions as $transaction) {
@@ -1677,6 +1712,7 @@ class ContractController extends Controller
         }
     }
 
+    // Đóng/chấm dứt các bản ghi hợp đồng đang hoạt động của phòng
     private function closeActiveContractRows(Contract $contract, string $endDate): void
     {
         $contract->contractTenants()
@@ -1700,6 +1736,7 @@ class ContractController extends Controller
             ])->save());
     }
 
+    // Đồng bộ dịch vụ phòng cho hợp đồng
     private function syncContractRoomServices(Contract $contract, Room $room, array $servicesPayload, Admin $admin): void
     {
         $incomingServiceIds = collect($servicesPayload)->pluck('service_id')->map(fn ($id): int => (int) $id)->all();
@@ -1730,6 +1767,7 @@ class ContractController extends Controller
         }
     }
 
+    // Cập nhật hoặc thêm mới giá dịch vụ phòng trong hợp đồng
     private function upsertContractRoomServicePrice(RoomService $roomService, Contract $contract, Carbon $contractStart, ?Carbon $contractEnd, string $price, Admin $admin): void
     {
         $effectiveFrom = $contractStart->toDateString();
@@ -1764,6 +1802,7 @@ class ContractController extends Controller
         ]);
     }
 
+    // Đóng tất cả bảng giá dịch vụ phòng của hợp đồng
     private function closeContractRoomServicePrices(Contract $contract, string $endDate): void
     {
         RoomServicePrice::query()
@@ -1778,6 +1817,7 @@ class ContractController extends Controller
             ]);
     }
 
+    // Kết thúc hiệu lực của một bảng giá dịch vụ phòng
     private function closeRoomServicePrice(RoomService $roomService, string $endDate, ?Contract $exceptContract = null): void
     {
         RoomServicePrice::query()
@@ -1793,6 +1833,7 @@ class ContractController extends Controller
             ]);
     }
 
+    // Xác định ngày kết thúc dịch vụ trong hợp đồng
     private function contractServiceEndDate(Contract $contract): ?Carbon
     {
         $endDate = $contract->actual_end_date ?: $contract->end_date;
@@ -1800,6 +1841,7 @@ class ContractController extends Controller
         return $endDate ? $endDate->copy()->startOfDay() : null;
     }
 
+    // Hủy kích hoạt các bản ghi hợp đồng ở trạng thái chờ
     private function deactivatePendingContractRows(Contract $contract): void
     {
         $contract->contractTenants()
@@ -1813,6 +1855,7 @@ class ContractController extends Controller
             ->update(['is_active' => false]);
     }
 
+    // Tạo giao dịch xử lý tiền cọc khi chấm dứt hợp đồng
     private function createTerminationDepositTransactions(Contract $contract, Admin $admin, array $validated, int $deductionCents, int $refundCents, string $transactionDate): void
     {
         $note = trim((string) ($validated['note'] ?? ''));
@@ -1850,6 +1893,7 @@ class ContractController extends Controller
         }
     }
 
+    // Ghi nhận giao dịch trả phòng/rời phòng
     private function createCheckoutMovements(Contract $contract, Collection $activeTenantRows, Admin $admin, Carbon $actualEndDate, int $deductionCents, int $refundCents, string $note): void
     {
         $tenantIds = $activeTenantRows->pluck('tenant_id')->unique()->values();
@@ -1882,6 +1926,7 @@ class ContractController extends Controller
         });
     }
 
+    // Tạo dữ liệu quyết toán chấm dứt hợp đồng
     private function terminationSettlementPayload(int $depositBalanceBeforeCents, int $deductionCents, int $refundCents): array
     {
         return [
@@ -1892,6 +1937,7 @@ class ContractController extends Controller
         ];
     }
 
+    // Tạo thông báo chấm dứt hợp đồng
     private function createContractTerminatedNotifications(Contract $contract, Admin $admin, Collection $activeTenantRows, array $settlement): Collection
     {
         return $activeTenantRows
@@ -1913,16 +1959,19 @@ class ContractController extends Controller
             ]));
     }
 
+    // Phát các thông báo qua realtime
     private function broadcastNotifications(Collection $notifications): void
     {
         $notifications->each(fn (Notification $notification) => broadcast(new NotificationSent($notification)));
     }
 
+    // Tạo ghi chú giao dịch chấm dứt hợp đồng
     private function terminationTransactionNote(string $prefix, string $note): string
     {
         return $note === '' ? $prefix.'.' : $prefix.': '.$note;
     }
 
+    // Chia số tiền lẻ (cents) một cách chính xác
     private function allocateCents(int $amount, int $parts): array
     {
         if ($parts <= 0) {
@@ -1937,6 +1986,7 @@ class ContractController extends Controller
             ->all();
     }
 
+    // Cập nhật số lượng khách đang ở trong phòng
     private function refreshRoomOccupants(int $roomId): void
     {
         $occupants = ContractTenant::query()
@@ -1949,6 +1999,7 @@ class ContractController extends Controller
         Room::query()->whereKey($roomId)->update(['current_occupants' => $occupants]);
     }
 
+    // Kiểm tra khách thuê có bị trùng lịch ở hợp đồng khác không
     private function hasReservedTenantConflict(array $tenantIds, ?int $ignoreContractId): bool
     {
         return ContractTenant::query()
@@ -1962,6 +2013,7 @@ class ContractController extends Controller
             ->exists();
     }
 
+    // Kiểm tra có giao dịch chuyển phòng nào xung đột không
     private function hasPendingTransferConflict(array $tenantIds, ?int $contractId): bool
     {
         return RoomMovement::query()
@@ -1978,6 +2030,7 @@ class ContractController extends Controller
             ->exists();
     }
 
+    // Truy vấn giao dịch chuyển phòng đang chờ xử lý
     private function pendingTransferQuery(Builder $query): Builder
     {
         return $query
@@ -1985,6 +2038,7 @@ class ContractController extends Controller
             ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED]);
     }
 
+    // Kiểm tra xe có bị trùng lịch đăng ký ở hợp đồng khác không
     private function hasReservedVehicleConflict(array $vehicleIds, ?int $ignoreContractId): bool
     {
         return ContractVehicle::query()
@@ -1997,6 +2051,7 @@ class ContractController extends Controller
             ->exists();
     }
 
+    // Tính số dư tiền cọc (đơn vị cents)
     private function depositBalanceCents(Contract $contract): int
     {
         return $contract->depositTransactions()
@@ -2013,6 +2068,7 @@ class ContractController extends Controller
             }, 0);
     }
 
+    // Kiểm tra bước chuyển trạng thái hợp đồng có hợp lệ không
     private function assertStatusTransition(int $currentStatus, int $nextStatus): void
     {
         if ($currentStatus === $nextStatus) {
@@ -2039,6 +2095,7 @@ class ContractController extends Controller
         }
     }
 
+    // Kiểm tra việc chấm dứt hợp đồng có hợp lệ không
     private function assertTerminationTransition(int $currentStatus): void
     {
         if (in_array($currentStatus, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true)) {
@@ -2051,6 +2108,7 @@ class ContractController extends Controller
         $this->throwResponse("Không thể chuyển hợp đồng từ trạng thái {$currentLabel} sang {$nextLabel}.", 422);
     }
 
+    // Lưu trữ các tệp tin đính kèm của hợp đồng
     private function storeContractFiles(Request $request, Contract $contract, array &$uploadedPaths): array
     {
         return collect($request->file('contract_files', []))
@@ -2074,6 +2132,7 @@ class ContractController extends Controller
             ->all();
     }
 
+    // Xác định các tệp tin hợp đồng cần xóa
     private function contractFilesToDelete(Contract $contract, array $deletePaths): array
     {
         $currentFiles = collect($contract->contract_files ?? [])->filter()->values();
@@ -2085,6 +2144,7 @@ class ContractController extends Controller
             ->all();
     }
 
+    // Xóa các tệp tin khỏi đĩa lưu trữ
     private function deleteDiskFiles(array $paths): void
     {
         collect($paths)
@@ -2093,6 +2153,7 @@ class ContractController extends Controller
             ->each(fn (string $path): bool => ImageHelper::deleteFromDisk($path, self::FILE_DISK));
     }
 
+    // Đảm bảo admin có quyền truy cập vào phòng này
     private function ensureRoomAccess(Admin $admin, int $roomId): bool
     {
         $room = Room::query()->select(['id', 'building_id'])->find($roomId);
@@ -2100,26 +2161,31 @@ class ContractController extends Controller
         return $room ? AdminScope::ensureBuildingAccess($admin, (int) $room->building_id) : false;
     }
 
+    // Đảm bảo admin có quyền thao tác trên khách thuê này
     private function ensureTenantAccess(Admin $admin, int $tenantId): bool
     {
         return AdminScope::applyTenantScope(Tenant::query(), $admin)->whereKey($tenantId)->exists();
     }
 
+    // Kiểm tra quyền quản lý hợp đồng của admin
     private function canManageContracts(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
+    // Kiểm tra hợp đồng đã ở trạng thái kết thúc chưa
     private function isTerminalContract(Contract $contract): bool
     {
         return in_array((int) $contract->status, [Contract::STATUS_LIQUIDATED, Contract::STATUS_CANCELLED], true);
     }
 
+    // Kiểm tra hợp đồng có cập nhật cấu trúc lớn (phòng/khách thuê) không
     private function hasStructuralUpdate(array $validated): bool
     {
         return collect(array_keys($validated))->contains(fn (string $key): bool => ! in_array($key, ['note', 'contract_files', 'delete_contract_files'], true));
     }
 
+    // Kiểm tra có dữ liệu liên quan ngăn cản việc xóa hợp đồng không
     private function hasDeleteBlockingData(Contract $contract): bool
     {
         return (int) $contract->deposit_transactions_count > 0
@@ -2127,11 +2193,13 @@ class ContractController extends Controller
             || (int) $contract->invoices_count > 0;
     }
 
+    // Ném ra phản hồi lỗi API
     private function throwResponse(string $message, int $statusCode): never
     {
         throw new HttpResponseException(ApiResponse::responseJson(false, $message, $statusCode, null, $statusCode));
     }
 
+    // Chuẩn hóa số thập phân
     private function normalizeDecimal(mixed $value): string
     {
         $value = trim((string) $value);
@@ -2147,6 +2215,7 @@ class ContractController extends Controller
         return $integer.'.'.$decimal;
     }
 
+    // Đổi tiền tệ từ thập phân sang cents
     private function decimalToCents(mixed $value): int
     {
         [$integer, $decimal] = explode('.', $this->normalizeDecimal($value));
@@ -2154,6 +2223,7 @@ class ContractController extends Controller
         return ((int) $integer * 100) + (int) str_pad($decimal, 2, '0');
     }
 
+    // Đổi tiền tệ từ cents sang thập phân
     private function centsToDecimal(int $cents): string
     {
         $sign = $cents < 0 ? '-' : '';
@@ -2162,22 +2232,26 @@ class ContractController extends Controller
         return $sign.intdiv($absoluteCents, 100).'.'.str_pad((string) ($absoluteCents % 100), 2, '0', STR_PAD_LEFT);
     }
 
+    // Nạp các quan hệ chi tiết của hợp đồng
     private function loadDetailRelations(Contract $contract): void
     {
         $contract->load($this->detailRelations());
         $contract->loadCount($this->detailCounts());
     }
 
+    // Cột hiển thị trong danh sách hợp đồng
     private function listColumns(): array
     {
         return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'room_price', 'deposit_amount', 'status', 'payment_status', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Cột hiển thị trong chi tiết hợp đồng
     private function detailColumns(): array
     {
         return ['id', 'contract_code', 'room_id', 'start_date', 'end_date', 'actual_end_date', 'room_price', 'deposit_amount', 'status', 'payment_status', 'contract_files', 'note', 'created_by', 'representative_tenant_id', 'parent_contract_id', 'renew_from_contract_id', 'created_at', 'updated_at', 'tenant_signed_at', 'tenant_signature_url'];
     }
 
+    // Các quan hệ liên kết hiển thị ở danh sách
     private function listRelations(): array
     {
         return [
@@ -2190,6 +2264,7 @@ class ContractController extends Controller
         ];
     }
 
+    // Các quan hệ liên kết hiển thị ở chi tiết
     private function detailRelations(): array
     {
         return [
@@ -2212,21 +2287,25 @@ class ContractController extends Controller
         ];
     }
 
+    // Đếm số lượng quan hệ ở danh sách
     private function listCounts(): array
     {
         return ['contractTenants', 'tenants', 'vehicles', 'depositTransactions'];
     }
 
+    // Đếm số lượng quan hệ ở chi tiết
     private function detailCounts(): array
     {
         return ['contractTenants', 'tenants', 'vehicles', 'contractVehicles', 'depositTransactions', 'roomMovements'];
     }
 
+    // Đếm các quan hệ ngăn cản việc xóa
     private function deleteBlockingCounts(): array
     {
         return ['depositTransactions', 'roomMovements', 'invoices'];
     }
 
+    // Thông báo cho khách thuê về hợp đồng mới
     private function notifyTenantsOfNewContract(Contract $contract, $adminId): void
     {
         try {
@@ -2267,6 +2346,7 @@ class ContractController extends Controller
         }
     }
 
+    // Thông báo cho các khách thuê mới được thêm vào hợp đồng
     private function notifyNewTenantsAdded(Contract $contract, array $tenantIds, $adminId): void
     {
         try {

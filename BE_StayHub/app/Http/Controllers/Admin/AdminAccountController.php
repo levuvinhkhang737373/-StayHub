@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Mail;
 
 class AdminAccountController extends Controller
 {
+    //Danh sách tài khoản admin
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -43,6 +44,7 @@ class AdminAccountController extends Controller
         }
     }
 
+    //Tạo tài khoản quản trị
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -87,6 +89,7 @@ class AdminAccountController extends Controller
         }
     }
 
+    //Xem chi tiết tài khoản admin
     public function show(Request $request, int $account): JsonResponse
     {
         try {
@@ -111,7 +114,8 @@ class AdminAccountController extends Controller
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
-
+    
+    //Cập nhật tài khoản admin
     public function update(UpdateRequest $request, int $account): JsonResponse
     {
         $validated = $request->validated();
@@ -164,6 +168,7 @@ class AdminAccountController extends Controller
         }
     }
 
+    //Đổi trạng thái tài khoản admin
     public function updateStatus(StatusRequest $request, int $account): JsonResponse
     {
         $validated = $request->validated();
@@ -213,6 +218,7 @@ class AdminAccountController extends Controller
         }
     }
 
+    // Xóa tài khoản admin
     public function destroy(Request $request, int $account): JsonResponse
     {
         try {
@@ -259,6 +265,7 @@ class AdminAccountController extends Controller
         }
     }
 
+    // Kiểm tra quyền quản lý tài khoản admin
     private function canManageAdminAccounts(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin);
@@ -286,6 +293,7 @@ class AdminAccountController extends Controller
         ];
     }
 
+    // Tạo payload để lưu vào database
     private function payload(array $validated, bool $isUpdate = false): array
     {
         $payload = [];
@@ -316,11 +324,13 @@ class AdminAccountController extends Controller
         return $payload;
     }
 
+    // Tạo password mặc định
     private function generateInitialPassword(): string
     {
         return 'stayhub'.str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     }
 
+    // Tạo query accounts
     private function queryAccounts(array $validated): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -342,11 +352,13 @@ class AdminAccountController extends Controller
             ->latest('id');
     }
 
+    // Truy vấn tài khoản admin
     private function supportedAccountQuery(): Builder
     {
         return Admin::query()->whereIn('role', array_keys(Admin::ROLE_LABELS));
     }
 
+    // Kiểm tra có xóa tài khoản admin cuối cùng không
     private function wouldRemoveLastActiveSuperAdmin(Admin $account, array $validated): bool
     {
         if (! isset($validated['role']) || (int) $validated['role'] === Admin::ROLE_SUPER_ADMIN) {
@@ -357,7 +369,7 @@ class AdminAccountController extends Controller
             && $account->status === Admin::STATUS_ACTIVE
             && $this->activeSuperAdminsCount() <= 1;
     }
-
+    // Đếm số lượng tài khoản admin hoạt động
     private function activeSuperAdminsCount(): int
     {
         return Admin::query()
@@ -366,43 +378,50 @@ class AdminAccountController extends Controller
             ->count();
     }
 
+    // Kiểm tra có dữ liệu liên quan không
     private function hasRelatedData(Admin $account): bool
     {
         return collect($this->deleteCountColumns())
             ->sum(fn (string $column): int => (int) $account->{$column}) > 0;
     }
-
+    // Lấy danh sách cột cần lấy
     private function listColumns(): array
     {
         return ['id', 'username', 'full_name', 'email', 'phone', 'avatar_url', 'image_path_faceid', 'role', 'status', 'gender', 'date_of_birth', 'address', 'created_at', 'updated_at'];
     }
 
+    // Quan hệ với tòa nhà quản lý
     private function managedBuildingRelation(): array
     {
         return ['managedBuildings:id,manager_admin_id,name,slug,address,status'];
     }
 
+    // Load chi tiết quan hệ
     private function loadDetailRelations(Admin $account): void
     {
         $account->load($this->managedBuildingRelation());
         $account->loadCount($this->detailCounts());
     }
 
+    // Lấy danh sách cột cần lấy
     private function detailColumns(): array
     {
         return ['id', 'username', 'full_name', 'email', 'phone', 'avatar_url', 'image_path_faceid', 'created_faceid_at', 'updated_faceid_at', 'role', 'status', 'gender', 'date_of_birth', 'address', 'created_at', 'updated_at'];
     }
 
+    // Đếm số lượng
     private function listCounts(): array
     {
         return ['managedBuildings', 'logs'];
     }
 
+    // Đếm số lượng chi tiết
     private function detailCounts(): array
     {
         return ['managedBuildings', 'createdRegions', 'createdBuildings', 'createdRoomTypes', 'createdRooms', 'settings', 'logs'];
     }
 
+    // Đếm số lượng
     private function deleteCounts(): array
     {
         return [
@@ -431,7 +450,7 @@ class AdminAccountController extends Controller
             'logs',
         ];
     }
-
+    // Tên cột đếm số lượng
     private function deleteCountColumns(): array
     {
         return collect($this->deleteCounts())

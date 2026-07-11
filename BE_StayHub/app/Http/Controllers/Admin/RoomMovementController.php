@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\DB;
 
 class RoomMovementController extends Controller
 {
+    // Danh sách các giao dịch chuyển phòng
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -53,6 +54,7 @@ class RoomMovementController extends Controller
         }
     }
 
+    // Xem chi tiết giao dịch chuyển phòng
     public function show(Request $request, int $roomMovement): JsonResponse
     {
         try {
@@ -74,6 +76,7 @@ class RoomMovementController extends Controller
         }
     }
 
+    // Cập nhật ngày thực hiện chuyển phòng
     public function updateTransferDate(UpdateTransferDateRequest $request, int $roomMovement): JsonResponse
     {
         $validated = $request->validated();
@@ -181,6 +184,7 @@ class RoomMovementController extends Controller
         }
     }
 
+    // Ghi nhận thanh toán quyết toán bằng tiền mặt
     public function recordSettlementCashPayment(SettlementCashPaymentRequest $request, int $roomMovement): JsonResponse
     {
         $validated = $request->validated();
@@ -286,6 +290,7 @@ class RoomMovementController extends Controller
         }
     }
 
+    // Tạo câu lệnh truy vấn giao dịch chuyển phòng
     private function movementQuery(Admin $admin, array $validated): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -307,6 +312,7 @@ class RoomMovementController extends Controller
             ->orderByDesc('id');
     }
 
+    // Tự động thực hiện các giao dịch chuyển phòng đến hạn hôm nay
     private function executeTodayTransferIfNeeded(array $result, Admin $admin): array
     {
         $movement = $result['movement'] ?? null;
@@ -330,6 +336,7 @@ class RoomMovementController extends Controller
         ]);
     }
 
+    // Truy vấn gốc cho giao dịch chuyển phòng
     private function baseQuery(Admin $admin): Builder
     {
         $query = RoomMovement::query()
@@ -345,6 +352,7 @@ class RoomMovementController extends Controller
         });
     }
 
+    // Áp dụng bộ lọc từ khóa tìm kiếm
     private function applyKeywordFilter(Builder $query, string $keyword): Builder
     {
         return $query->where(function (Builder $keywordQuery) use ($keyword): void {
@@ -362,6 +370,7 @@ class RoomMovementController extends Controller
         });
     }
 
+    // Bộ lọc từ khóa theo tên phòng
     private function applyRoomKeyword(Builder $query, string $keyword): Builder
     {
         return $query->where(function (Builder $roomQuery) use ($keyword): void {
@@ -371,6 +380,7 @@ class RoomMovementController extends Controller
         });
     }
 
+    // Áp dụng bộ lọc theo tòa nhà
     private function applyBuildingFilter(Builder $query, int $buildingId): Builder
     {
         return $query->where(function (Builder $buildingQuery) use ($buildingId): void {
@@ -379,11 +389,13 @@ class RoomMovementController extends Controller
         });
     }
 
+    // Kiểm tra quyền xem giao dịch chuyển phòng của admin
     private function canViewRoomMovements(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
+    // Xác thực dữ liệu thanh toán quyết toán tiền mặt
     private function validateSettlementCashPayment(RoomMovement $movement): ?JsonResponse
     {
         if ((int) $movement->movement_type !== RoomMovement::MOVEMENT_TYPE_TRANSFER || blank($movement->transfer_code)) {
@@ -408,6 +420,7 @@ class RoomMovementController extends Controller
         return null;
     }
 
+    // Kiểm tra quyền thu tiền quyết toán của admin
     private function canCollectSettlementCashPayment(Admin $admin, RoomMovement $movement): bool
     {
         if (AdminScope::isSuperAdmin($admin)) {
@@ -420,11 +433,13 @@ class RoomMovementController extends Controller
             && AdminScope::ensureBuildingAccess($admin, (int) $destinationBuildingId);
     }
 
+    // Tính số tiền quyết toán còn lại cần thu
     private function settlementRemainingAmount(RoomMovement $movement): string
     {
         return DecimalMoney::maxZero(DecimalMoney::subtract($movement->settlement_due_amount ?? '0', $movement->settlement_paid_amount ?? '0'));
     }
 
+    // Tìm hợp đồng đích phục vụ quyết toán chuyển phòng
     private function destinationContractForSettlement(RoomMovement $movement): ?Contract
     {
         if (! $movement->destination_contract_id) {
@@ -434,6 +449,7 @@ class RoomMovementController extends Controller
         return Contract::query()->lockForUpdate()->find($movement->destination_contract_id);
     }
 
+    // Phân bổ tiền thanh toán quyết toán cho các khoản nợ chuyển phòng
     private function allocateSettlementPayment(RoomMovement $movement, Collection $references, string $appliedAmount, ?Contract $destinationContract): array
     {
         $depositRemaining = $this->settlementDepositRemainingAmount($movement, $references);
@@ -447,6 +463,7 @@ class RoomMovementController extends Controller
         ];
     }
 
+    // Tính số tiền cọc quyết toán còn lại
     private function settlementDepositRemainingAmount(RoomMovement $movement, Collection $references): string
     {
         $depositPaidBySettlement = DecimalMoney::add($references->pluck('deposit_amount')->all());
@@ -454,6 +471,7 @@ class RoomMovementController extends Controller
         return DecimalMoney::maxZero(DecimalMoney::subtract($movement->deposit_due_amount ?? '0', $depositPaidBySettlement));
     }
 
+    // Tạo mã tham chiếu thanh toán quyết toán tiền mặt
     private function makeCashSettlementReference(RoomMovement $movement, string $amount, array $allocation, Admin $admin, ?string $note): array
     {
         $paidAt = now();
@@ -472,6 +490,7 @@ class RoomMovementController extends Controller
         ];
     }
 
+    // Ghi nhận thanh toán cọc quyết toán bằng tiền mặt
     private function recordSettlementDepositCashPayment(?Contract $destinationContract, string $depositAmount, string $reference, ?string $note, Admin $admin): void
     {
         if (! $destinationContract || ! DecimalMoney::isPositive($depositAmount)) {
@@ -491,6 +510,7 @@ class RoomMovementController extends Controller
         ]);
     }
 
+    // Tạo thông báo xác nhận thanh toán quyết toán tiền mặt
     private function createSettlementCashPaymentNotifications(EloquentCollection $movements, string $amount, Admin $admin): Collection
     {
         $amountText = number_format(DecimalMoney::toIntegerAmount($amount), 0, ',', '.').' VND';
@@ -531,6 +551,7 @@ class RoomMovementController extends Controller
         return $tenantNotifications->push($adminNotification)->values();
     }
 
+    // Tạo thông báo khi thay đổi ngày chuyển phòng
     private function createTransferDateChangedNotifications(EloquentCollection $movements, ?Carbon $oldDate, Carbon $newDate, Admin $admin, ?string $note): Collection
     {
         $firstMovement = $movements->first();
@@ -574,11 +595,13 @@ class RoomMovementController extends Controller
         return $tenantNotifications->push($adminNotification)->values();
     }
 
+    // Phát các thông báo realtime
     private function broadcastNotifications(Collection $notifications): void
     {
         $notifications->each(fn (Notification $notification): mixed => event(new NotificationSent($notification)));
     }
 
+    // Các quan hệ liên kết của giao dịch chuyển phòng
     private function relations(): array
     {
         return [
@@ -594,6 +617,7 @@ class RoomMovementController extends Controller
         ];
     }
 
+    // Định dạng dữ liệu giao dịch chuyển phòng phân trang
     private function paginatedResource(LengthAwarePaginator $paginator): array
     {
         return [

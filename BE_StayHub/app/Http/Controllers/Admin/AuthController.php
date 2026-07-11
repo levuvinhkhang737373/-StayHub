@@ -392,6 +392,7 @@ class AuthController extends Controller
         }
     }
 
+    // Đăng nhập phiên làm việc của admin bằng tài khoản mật khẩu
     private function loginAdminSession(Request $request, Admin $admin): void
     {
         // Dọn legacy admin_id trước khi đăng nhập để session chỉ còn Laravel admin guard chuẩn.
@@ -401,6 +402,7 @@ class AuthController extends Controller
         $request->session()->save();
     }
 
+    // Lấy thông tin tài khoản admin đang đăng nhập
     private function authProfile(Admin $admin): Admin
     {
         if ($admin->role === Admin::ROLE_SUPER_ADMIN) {
@@ -421,11 +423,13 @@ class AuthController extends Controller
         return $admin;
     }
 
+    // Ghi nhật ký đăng nhập của admin
     private function writeLoginLog(Request $request, Admin $admin, string $action): void
     {
         AdminActivityLogger::write($admin, $action, Admin::class, $admin->id, null, null, $request);
     }
 
+    // Trả về phản hồi lỗi khi xác thực khuôn mặt thất bại
     private function faceExceptionResponse(\Exception $e, string $message): JsonResponse
     {
         $errorCode = (int) ($e->getCode() ?: 500);
@@ -433,6 +437,7 @@ class AuthController extends Controller
         return ApiResponse::responseJson(false, $e->getMessage() ?: $message, $errorCode, null, $errorCode);
     }
 
+    // Trích xuất vector đặc trưng khuôn mặt từ ảnh FaceID
     private function extractEmbedding(array $images, bool $requireLiveness = false): array
     {
         $request = Http::timeout(90);
@@ -476,6 +481,7 @@ class AuthController extends Controller
         return array_map('floatval', $embedding);
     }
 
+    // Thêm hoặc cập nhật vector đặc trưng khuôn mặt của admin lên Qdrant
     private function upsertFaceEmbedding(Admin $admin, array $embedding): void
     {
         $response = Http::timeout(30)->put($this->qdrantUrl('/points?wait=true'), [
@@ -493,6 +499,7 @@ class AuthController extends Controller
         }
     }
 
+    // Tìm kiếm so khớp vector đặc trưng khuôn mặt trên Qdrant
     private function searchFaceEmbedding(array $embedding): ?array
     {
         $response = Http::timeout(30)->post($this->qdrantUrl('/points/search'), [
@@ -511,6 +518,7 @@ class AuthController extends Controller
         return is_array($result) && isset($result[0]) ? $result[0] : null;
     }
 
+    // Xóa vector đặc trưng khuôn mặt của admin trên Qdrant
     private function deleteFaceEmbedding(Admin $admin): void
     {
         $response = Http::timeout(30)->post($this->qdrantUrl('/points/delete?wait=true'), [
@@ -522,6 +530,7 @@ class AuthController extends Controller
         }
     }
 
+    // Lấy đường dẫn API của dịch vụ Qdrant Vector DB
     private function qdrantUrl(string $path): string
     {
         return config('services.qdrant.url') . '/collections/' . config('services.qdrant.face_collection') . $path;

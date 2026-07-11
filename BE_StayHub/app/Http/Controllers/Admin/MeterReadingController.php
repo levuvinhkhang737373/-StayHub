@@ -29,6 +29,7 @@ use JsonException;
 
 class MeterReadingController extends Controller
 {
+    // Lấy thông tin khởi tạo trang chốt số điện nước
     public function init(InitRequest $request): JsonResponse
     {
         try {
@@ -98,6 +99,7 @@ class MeterReadingController extends Controller
         }
     }
 
+    // Lấy danh sách phòng cần chốt số điện nước
     private function meterReadingRooms(int $buildingId, int $month, int $year, Collection $transferFinalizations): array
     {
         $rooms = Room::query()
@@ -141,6 +143,7 @@ class MeterReadingController extends Controller
         return $roomsData;
     }
 
+    // Lấy bối cảnh chốt số phục vụ quyết toán chuyển phòng
     private function transferFinalizationContexts(int $buildingId, Carbon $periodStart, Carbon $periodEnd): Collection
     {
         return RoomMovement::query()
@@ -162,6 +165,7 @@ class MeterReadingController extends Controller
             ->keyBy(fn (array $context): int => (int) $context['source_contract']->id);
     }
 
+    // Lấy chi tiết bối cảnh chốt số chuyển phòng cụ thể
     private function transferFinalizationContext(Collection $movements): ?array
     {
         $firstMovement = $movements->first();
@@ -199,6 +203,7 @@ class MeterReadingController extends Controller
         ];
     }
 
+    // Tạo cấu trúc dữ liệu số đọc của phòng
     private function roomReadingPayload(Room $room, Contract $contract, int $month, int $year, ?array $transferContext = null): array
     {
         $tenantName = $transferContext && ! empty($transferContext['tenant_names'])
@@ -224,6 +229,7 @@ class MeterReadingController extends Controller
         ];
     }
 
+    // Lấy tên khách thuê đại diện trên hợp đồng
     private function contractTenantName(Contract $contract): ?string
     {
         $tenants = $contract->relationLoaded('tenants')
@@ -233,6 +239,7 @@ class MeterReadingController extends Controller
         return $tenants->isNotEmpty() ? $tenants->first()->full_name : null;
     }
 
+    // Danh sách công tơ điện nước trong phòng
     private function metersForRoom(Room $room, int $month, int $year): array
     {
         return MeterDevice::query()
@@ -245,6 +252,7 @@ class MeterReadingController extends Controller
             ->all();
     }
 
+    // Định dạng cấu trúc dữ liệu công tơ
     private function meterPayload(MeterDevice $meter, int $month, int $year): array
     {
         $existingReading = MeterReading::query()
@@ -281,6 +289,7 @@ class MeterReadingController extends Controller
         ];
     }
 
+    // Định dạng cấu trúc dữ liệu số đọc cũ
     private function existingReadingPayload(MeterReading $reading): array
     {
         return [
@@ -295,6 +304,7 @@ class MeterReadingController extends Controller
         ];
     }
 
+    // Kiểm tra phòng đã xuất hóa đơn cho kỳ này chưa
     private function hasInvoiceForPeriod(Contract $contract, int $month, int $year): bool
     {
         return $contract->invoices()
@@ -304,6 +314,7 @@ class MeterReadingController extends Controller
             ->exists();
     }
 
+    // Phân tích ảnh công tơ bằng AI
     public function analyzeImage(AnalyzeImageRequest $request): JsonResponse
     {
         try {
@@ -371,6 +382,7 @@ class MeterReadingController extends Controller
         ImageHelper::delete($oldPath);
     }
 
+    // Lưu chỉ số chốt điện nước mới
     public function store(StoreRequest $request): JsonResponse
     {
         try {
@@ -475,6 +487,7 @@ class MeterReadingController extends Controller
         }
     }
 
+    // Kiểm tra có phải số chốt phục vụ bàn giao/chuyển phòng không
     private function isTransferCutoffReading(MeterDevice $meter, int $month, int $year, string $readingDate): bool
     {
         $readingDateCarbon = Carbon::parse($readingDate)->startOfDay();
@@ -491,6 +504,7 @@ class MeterReadingController extends Controller
             ->exists();
     }
 
+    // Gọi AI phân tích ảnh chụp mặt công tơ điện nước
     private function analyzeMeterImage(string $imagePath, int $meterType, ?float $previousReading = null): array
     {
         $absolutePath = ImageHelper::toAbsolutePath($imagePath);
@@ -598,6 +612,7 @@ class MeterReadingController extends Controller
         }
     }
 
+    // Tạo câu lệnh prompt gửi AI phân tích ảnh công tơ
     private function meterImagePrompt(int $meterType, ?float $previousReading): string
     {
         $meterName = $meterType === MeterDevice::METER_TYPE_WATER ? 'nước' : 'điện';
@@ -635,6 +650,7 @@ Quy tắc đọc:
 PROMPT;
     }
 
+    // Phân tích kết quả JSON trả về từ AI
     private function parseAiJson(string $content): array
     {
         $content = trim($content);
@@ -644,6 +660,7 @@ PROMPT;
         return json_decode($content, true, 512, JSON_THROW_ON_ERROR);
     }
 
+    // Chuẩn hóa thông báo lỗi phân tích ảnh từ AI
     private function normalizeAiError(string $error): string
     {
         return in_array($error, ['image_blurry', 'image_too_dark', 'image_glare', 'no_meter_found', 'meter_type_mismatch'], true)
@@ -651,6 +668,7 @@ PROMPT;
             : 'invalid_response';
     }
 
+    // Kiểm tra loại công tơ phân tích được có đúng yêu cầu không
     private function isExpectedMeterKind(mixed $meterKind, int $meterType): bool
     {
         if (! is_string($meterKind)) {
@@ -662,6 +680,7 @@ PROMPT;
         return strtolower(trim($meterKind)) === $expectedKind;
     }
 
+    // Chuẩn hóa các chữ số không rõ ràng
     private function normalizeUncertainDigits(mixed $uncertainDigits): array
     {
         if (! is_array($uncertainDigits)) {
@@ -688,6 +707,7 @@ PROMPT;
             ->all();
     }
 
+    // Chuẩn hóa phần số nguyên của chỉ số
     private function normalizeDigitInteger(mixed $value, ?int $minimum = null, ?int $maximum = null): ?int
     {
         if (! is_numeric($value)) {
@@ -707,6 +727,7 @@ PROMPT;
         return $integerValue;
     }
 
+    // Cảnh báo chỉ số điện nước tăng giảm bất thường
     private function meterAnomalyWarning(int $readingValue, ?float $previousReading): ?string
     {
         if ($previousReading === null) {

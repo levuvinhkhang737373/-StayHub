@@ -361,6 +361,7 @@ class RoomController extends Controller
         }
     }
 
+    // Cập nhật trạng thái của phòng
     public function updateStatus(StatusRequest $request, string $id)
     {
         try {
@@ -407,6 +408,7 @@ class RoomController extends Controller
         }
     }
 
+    // Thực hiện chuyển phòng cho khách thuê
     public function transferTenant(TranferSingleTenantRequest $request)
     {
         try {
@@ -426,6 +428,7 @@ class RoomController extends Controller
         }
     }
 
+    // Lập lịch chuyển phòng cho khách thuê
     private function scheduleRoomTransfer(array $validated, Admin $admin, Request $request): array
     {
         $tenantIds = $this->tenantIds($validated);
@@ -470,6 +473,7 @@ class RoomController extends Controller
         ];
     }
 
+    // Thực hiện các giao dịch chuyển phòng lên lịch trong ngày hôm nay nếu cần
     private function executeTodayTransferIfNeeded(array $result): array
     {
         $movementDate = Carbon::parse($result['scheduled_payload']['movement_date'] ?? null)->startOfDay();
@@ -499,6 +503,7 @@ class RoomController extends Controller
         ]);
     }
 
+    // Lấy danh sách ID của khách thuê trong phòng
     private function tenantIds(array $validated): array
     {
         return collect($validated['tenant_ids'] ?? [$validated['tenant_id']])
@@ -509,6 +514,7 @@ class RoomController extends Controller
             ->all();
     }
 
+    // Lấy dữ liệu hoạt động của khách thuê
     private function activeRowsForTenants(array $tenantIds): EloquentCollection
     {
         return ContractTenant::query()
@@ -520,6 +526,7 @@ class RoomController extends Controller
             ->get();
     }
 
+    // Kiểm tra toàn bộ khách thuê có chung hợp đồng đang hiệu lực không
     private function assertAllTenantsHaveSameActiveContract(array $tenantIds, EloquentCollection $activeRows): void
     {
         if ($activeRows->count() !== count($tenantIds)) {
@@ -531,6 +538,7 @@ class RoomController extends Controller
         }
     }
 
+    // Lấy hợp đồng gốc của phòng hiện tại
     private function sourceContract(int $contractId): Contract
     {
         $contract = Contract::query()
@@ -545,6 +553,7 @@ class RoomController extends Controller
         return $contract;
     }
 
+    // Kiểm tra việc lập lịch chuyển phòng có hợp lệ không
     private function assertScheduleIsAllowed(Admin $admin, array $tenantIds, Contract $sourceContract, ?Room $fromRoom, ?Room $toRoom, Carbon $movementDate): void
     {
         if (! $fromRoom || ! $toRoom) {
@@ -573,6 +582,7 @@ class RoomController extends Controller
         }
     }
 
+    // Tạo thông báo lỗi xác thực cho phòng đến
     private function destinationValidationMessage(array $tenantIds, Room $toRoom): ?string
     {
         if ((int) $toRoom->status !== Room::STATUS_ACTIVE) {
@@ -596,6 +606,7 @@ class RoomController extends Controller
         return null;
     }
 
+    // Đảm bảo không có giao dịch chuyển phòng nào đang chờ xử lý
     private function assertNoPendingTransfers(array $tenantIds): void
     {
         $hasPendingTransfer = RoomMovement::query()
@@ -609,6 +620,7 @@ class RoomController extends Controller
         }
     }
 
+    // Kiểm tra tiền cọc mới có đủ cho giá phòng đến hay không
     private function assertNewDepositExceedsDestinationRoomPrice(array $validated, Room $toRoom): void
     {
         if ($this->activeDestinationContract($toRoom)) {
@@ -628,6 +640,7 @@ class RoomController extends Controller
         }
     }
 
+    // Đảm bảo hợp đồng gốc không có giao dịch chuyển phòng chờ xử lý
     private function assertNoPendingTransferForSourceContract(int $sourceContractId): void
     {
         $hasPendingTransfer = RoomMovement::query()
@@ -641,6 +654,7 @@ class RoomController extends Controller
         }
     }
 
+    // Kiểm tra phòng có nợ cũ chưa thanh toán không
     private function hasUnpaidOldDebt(Contract $contract, Carbon $movementDate): bool
     {
         $finalInvoiceCutoffDate = $movementDate->copy()->subDay();
@@ -668,6 +682,7 @@ class RoomController extends Controller
             ->exists();
     }
 
+    // Tạo dữ liệu payload để lưu lịch chuyển phòng
     private function scheduledPayload(array $validated, array $tenantIds, Carbon $movementDate, Room $toRoom): array
     {
         return [
@@ -682,6 +697,7 @@ class RoomController extends Controller
         ];
     }
 
+    // Tính số tiền khấu trừ khi chuyển phòng
     private function deductionAmount(array $validated): string
     {
         if (array_key_exists('deposit_deduction_amount', $validated)) {
@@ -691,6 +707,7 @@ class RoomController extends Controller
         return DecimalMoney::add(collect($validated['deduction_items'] ?? [])->pluck('amount')->all());
     }
 
+    // Tạo bản ghi chuyển phòng ở trạng thái chờ xử lý
     private function createPendingMovements(string $transferCode, Contract $sourceContract, Room $fromRoom, Room $toRoom, EloquentCollection $rows, array $payload, Admin $admin): Collection
     {
         return $rows->map(fn(ContractTenant $row): RoomMovement => RoomMovement::query()->create([
@@ -722,6 +739,7 @@ class RoomController extends Controller
         ]));
     }
 
+    // Lấy hợp đồng đang hiệu lực của phòng đến
     private function activeDestinationContract(Room $toRoom): ?Contract
     {
         return Contract::query()
@@ -732,6 +750,7 @@ class RoomController extends Controller
             ->first();
     }
 
+    // Đếm số lượng khách thuê đang hoạt động trong phòng
     private function activeTenantCount(int $contractId): int
     {
         return ContractTenant::query()
@@ -742,6 +761,7 @@ class RoomController extends Controller
             ->count('tenant_id');
     }
 
+    // Tạo thông báo đã lập lịch chuyển phòng
     private function createTransferScheduledNotifications(Collection $movements, Contract $sourceContract, Room $toRoom, Admin $admin): Collection
     {
         return $movements->map(fn(RoomMovement $movement): Notification => Notification::query()->create([
@@ -759,6 +779,7 @@ class RoomController extends Controller
         ]));
     }
 
+    // Tạo thông báo chốt điện nước khi chuyển phòng
     private function createDueUtilityCutoffNotifications(Collection $movements, Contract $sourceContract, Room $fromRoom, Admin $admin): Collection
     {
         $movement = $movements->first();
@@ -772,6 +793,7 @@ class RoomController extends Controller
         return collect([$this->createUtilityCutoffNotification($movement, $sourceContract, $fromRoom, $admin, $movementDate, $cutoffDate)]);
     }
 
+    // Tạo chi tiết thông báo chốt điện nước
     private function createUtilityCutoffNotification(RoomMovement $movement, Contract $sourceContract, Room $fromRoom, Admin $admin, Carbon $movementDate, Carbon $cutoffDate): Notification
     {
         $actionUrl = $this->utilityCutoffActionUrl($movement, $sourceContract, $fromRoom, $movementDate, $cutoffDate);
@@ -795,6 +817,7 @@ class RoomController extends Controller
         );
     }
 
+    // Đường dẫn hành động chốt số điện nước
     private function utilityCutoffActionUrl(RoomMovement $movement, Contract $sourceContract, Room $fromRoom, Carbon $movementDate, Carbon $cutoffDate): string
     {
         return '/admin/meter-readings?' . http_build_query([
@@ -808,11 +831,13 @@ class RoomController extends Controller
         ]);
     }
 
+    // Phát các thông báo qua realtime
     private function broadcastNotifications(Collection $notifications): void
     {
         $notifications->each(fn(Notification $notification): mixed => event(new NotificationSent($notification)));
     }
 
+    // Tạo mã giao dịch chuyển phòng
     private function generateTransferCode(Carbon $movementDate): string
     {
         $prefix = 'TRF-' . $movementDate->format('Y-m') . '-';
@@ -829,6 +854,7 @@ class RoomController extends Controller
         return $code;
     }
 
+    // Các quan hệ liên kết của kết quả chuyển phòng
     private function transferResultRelations(): array
     {
         return [

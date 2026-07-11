@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 
 class ServiceController extends Controller
 {
+    // Danh sách các dịch vụ của tòa nhà
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -39,6 +40,7 @@ class ServiceController extends Controller
         }
     }
 
+    // Tạo mới dịch vụ
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -66,6 +68,7 @@ class ServiceController extends Controller
         }
     }
 
+    // Xem chi tiết dịch vụ
     public function show(Request $request, int $service): JsonResponse
     {
         try {
@@ -91,6 +94,7 @@ class ServiceController extends Controller
         }
     }
 
+    // Cập nhật thông tin dịch vụ
     public function update(UpdateRequest $request, int $service): JsonResponse
     {
         $validated = $request->validated();
@@ -125,6 +129,7 @@ class ServiceController extends Controller
         }
     }
 
+    // Cập nhật trạng thái hoạt động của dịch vụ
     public function updateStatus(StatusRequest $request, int $service): JsonResponse
     {
         $validated = $request->validated();
@@ -159,6 +164,7 @@ class ServiceController extends Controller
         }
     }
 
+    // Xóa dịch vụ khỏi hệ thống
     public function destroy(Request $request, int $service): JsonResponse
     {
         try {
@@ -193,6 +199,7 @@ class ServiceController extends Controller
         }
     }
 
+    // Tạo cấu trúc dữ liệu lưu dịch vụ
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
@@ -213,16 +220,19 @@ class ServiceController extends Controller
         return $payload;
     }
 
+    // Danh sách cột cần lấy của dịch vụ
     private function columns(): array
     {
         return ['id', 'name', 'slug', 'charge_method', 'unit_name', 'is_required', 'is_active', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của dịch vụ trong danh sách
     private function listRelations(): array
     {
         return ['creator:id,full_name'];
     }
 
+    // Các quan hệ liên kết chi tiết dịch vụ
     private function detailRelations(Admin $admin): array
     {
         if (AdminScope::isSuperAdmin($admin)) {
@@ -236,6 +246,7 @@ class ServiceController extends Controller
         ];
     }
 
+    // Các quan hệ cần đếm số lượng liên kết
     private function counts(Admin $admin): array
     {
         if (AdminScope::isSuperAdmin($admin)) {
@@ -249,6 +260,7 @@ class ServiceController extends Controller
         ];
     }
 
+    // Tạo truy vấn danh sách dịch vụ
     private function queryServices(array $validated, Admin $admin): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -269,11 +281,13 @@ class ServiceController extends Controller
             ->orderByDesc('id');
     }
 
+    // Kiểm tra quyền xem dịch vụ của admin
     private function canViewServices(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
+    // Kiểm tra quyền chỉnh sửa/thao tác dịch vụ
     private function canMutateServices(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin);

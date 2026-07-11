@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 class ExpenseCategoryController extends Controller
 {
+    // Danh sách danh mục chi phí
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -40,6 +41,7 @@ class ExpenseCategoryController extends Controller
         }
     }
 
+    // Tạo mới danh mục chi phí
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -67,6 +69,7 @@ class ExpenseCategoryController extends Controller
         }
     }
 
+    // Xem chi tiết danh mục chi phí
     public function show(Request $request, int $expenseCategory): JsonResponse
     {
         try {
@@ -92,6 +95,7 @@ class ExpenseCategoryController extends Controller
         }
     }
 
+    // Cập nhật thông tin danh mục chi phí
     public function update(UpdateRequest $request, int $expenseCategory): JsonResponse
     {
         $validated = $request->validated();
@@ -126,6 +130,7 @@ class ExpenseCategoryController extends Controller
         }
     }
 
+    // Cập nhật trạng thái hoạt động của danh mục chi phí
     public function updateStatus(StatusRequest $request, int $expenseCategory): JsonResponse
     {
         $validated = $request->validated();
@@ -160,6 +165,7 @@ class ExpenseCategoryController extends Controller
         }
     }
 
+    // Xóa danh mục chi phí
     public function destroy(Request $request, int $expenseCategory): JsonResponse
     {
         try {
@@ -194,6 +200,7 @@ class ExpenseCategoryController extends Controller
         }
     }
 
+    // Tạo cấu trúc dữ liệu lưu danh mục chi phí
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
@@ -217,21 +224,25 @@ class ExpenseCategoryController extends Controller
         return $payload;
     }
 
+    // Danh sách cột cần lấy của danh mục chi phí
     private function columns(): array
     {
         return ['id', 'name', 'description', 'is_active', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của danh mục chi phí
     private function relations(): array
     {
         return ['creator:id,full_name'];
     }
 
+    // Các quan hệ cần đếm số lượng liên kết
     private function counts(): array
     {
         return ['expenses'];
     }
 
+    // Tạo truy vấn danh sách danh mục chi phí
     private function queryExpenseCategories(array $validated): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -250,11 +261,13 @@ class ExpenseCategoryController extends Controller
             ->orderByDesc('id');
     }
 
+    // Kiểm tra quyền xem danh mục chi phí của admin
     private function canViewExpenseCategories(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
+    // Kiểm tra quyền chỉnh sửa/thao tác danh mục chi phí
     private function canMutateExpenseCategories(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin);

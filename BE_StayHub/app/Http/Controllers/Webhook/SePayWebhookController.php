@@ -23,8 +23,10 @@ use Illuminate\Support\Facades\Log;
 
 class SePayWebhookController extends Controller
 {
+    // Khởi tạo webhook SePay
     public function __construct(private readonly InvoiceDebtRolloverService $debtRolloverService) {}
 
+    // Xử lý dữ liệu callback từ cổng thanh toán SePay
     public function handle(Request $request): JsonResponse
     {
         try {
@@ -260,6 +262,7 @@ class SePayWebhookController extends Controller
         }
     }
 
+    // Thông báo cho admin khi khách thuê chuyển khoản thừa tiền
     private function notifyAdminExcessPayment(Invoice $invoice, Payment $payment, string $amount, string $reason): void
     {
         try {
@@ -285,6 +288,7 @@ class SePayWebhookController extends Controller
         }
     }
 
+    // Xử lý thanh toán hóa đơn tự động bằng mã hóa đơn
     private function processInvoicePayment(Invoice $invoice, string $amount, string $transactionReference, string $content): JsonResponse
     {
         $payableInvoice = $this->debtRolloverService->payableInvoiceForIncomingInvoice($invoice);
@@ -396,6 +400,7 @@ class SePayWebhookController extends Controller
         return $response;
     }
 
+    // Trích xuất mã hóa đơn từ nội dung chuyển khoản
     private function extractInvoiceCode(string $content): ?string
     {
         if (preg_match('/(INV-[A-Za-z0-9_\-\.]+)/i', $content, $matches)) {
@@ -420,6 +425,7 @@ class SePayWebhookController extends Controller
         return null;
     }
 
+    // Trích xuất mã chuyển phòng từ nội dung chuyển khoản
     private function extractTransferCode(string $content): ?string
     {
         if (preg_match('/(TRF-[A-Za-z0-9_\-\.]+)/i', $content, $matches)) {
@@ -450,12 +456,14 @@ class SePayWebhookController extends Controller
         return null;
     }
 
+    // Kiểm tra mã giao dịch ngân hàng đã tồn tại chưa
     private function transactionReferenceExists(string $transactionReference): bool
     {
         return Payment::query()->where('transaction_reference', $transactionReference)->exists()
             || ContractDepositTransaction::query()->where('transaction_reference', $transactionReference)->exists();
     }
 
+    // Xử lý thanh toán quyết toán chuyển phòng tự động
     private function processTransferSettlementPayment(string $transferCode, string $amount, string $transactionReference, string $content): JsonResponse
     {
         $lock = Cache::lock('sepay-transfer-payment:' . $transferCode, 10);
@@ -547,6 +555,7 @@ class SePayWebhookController extends Controller
         ];
     }
 
+    // Tìm hợp đồng đích phục vụ quyết toán chuyển phòng tự động
     private function destinationContractForTransferSettlement(RoomMovement $movement): ?Contract
     {
         if (! $movement->destination_contract_id) {
@@ -556,6 +565,7 @@ class SePayWebhookController extends Controller
         return Contract::query()->lockForUpdate()->find($movement->destination_contract_id);
     }
 
+    // Ghi nhận khoản thanh toán đặt cọc chuyển phòng
     private function recordTransferDepositPayment(?Contract $destinationContract, string $depositAmount, string $transactionReference, string $content): void
     {
         if (! $destinationContract || ! DecimalMoney::isPositive($depositAmount)) {
@@ -573,6 +583,7 @@ class SePayWebhookController extends Controller
         ]);
     }
 
+    // Ghi nhận thanh toán thành công vào hệ thống
     private function applyConfirmedPayment(Invoice $invoice, string $amount): void
     {
         $paidAmount = DecimalMoney::add([$invoice->paid_amount, $amount]);
@@ -591,6 +602,7 @@ class SePayWebhookController extends Controller
         ])->save();
     }
 
+    // Tạo thông báo hóa đơn đã được thanh toán xong
     private function createInvoicePaidNotifications(Invoice $invoice, Payment $payment): Collection
     {
         $invoice->loadMissing(['room.building', 'contract.contractTenants.tenant']);
@@ -628,6 +640,7 @@ class SePayWebhookController extends Controller
         return $tenantNotifications->push($adminNotification)->values();
     }
 
+    // Tạo thông báo quyết toán chuyển phòng thành công
     private function createTransferSettlementPaidNotifications(Collection $movements, string $amount, int $paymentStatus): Collection
     {
         $amountText = number_format(DecimalMoney::toIntegerAmount($amount), 0, ',', '.') . ' VND';
@@ -669,11 +682,13 @@ class SePayWebhookController extends Controller
         return $tenantNotifications->push($adminNotification)->values();
     }
 
+    // Phát các thông báo realtime
     private function broadcastNotifications(Collection $notifications): void
     {
         $notifications->each(fn (Notification $notification): mixed => event(new NotificationSent($notification)));
     }
 
+    // Tạo mã thanh toán tham chiếu
     private function makePaymentCode(): string
     {
         $prefix = 'PAY-' . now()->format('Y-m') . '-';

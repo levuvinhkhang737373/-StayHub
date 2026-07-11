@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 
 class SettingController extends Controller
 {
+    // Danh sách cấu hình hệ thống/tòa nhà
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -44,6 +45,7 @@ class SettingController extends Controller
         }
     }
 
+    // Tạo cấu hình mới
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -75,6 +77,7 @@ class SettingController extends Controller
         }
     }
 
+    // Xem chi tiết cấu hình
     public function show(Request $request, int $setting): JsonResponse
     {
         try {
@@ -99,6 +102,7 @@ class SettingController extends Controller
         }
     }
 
+    // Cập nhật cấu hình
     public function update(UpdateRequest $request, int $setting): JsonResponse
     {
         $validated = $request->validated();
@@ -141,6 +145,7 @@ class SettingController extends Controller
         }
     }
 
+    // Bật/tắt trạng thái công khai của cấu hình
     public function togglePublic(Request $request, int $setting): JsonResponse
     {
         try {
@@ -179,6 +184,7 @@ class SettingController extends Controller
         }
     }
 
+    // Xóa cấu hình
     public function destroy(Request $request, int $setting): JsonResponse
     {
         try {
@@ -213,6 +219,7 @@ class SettingController extends Controller
         }
     }
 
+    // Tạo cấu trúc dữ liệu cấu hình
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
@@ -232,21 +239,25 @@ class SettingController extends Controller
         return $payload;
     }
 
+    // Danh sách cột dữ liệu cần lấy của cấu hình
     private function columns(): array
     {
         return ['id', 'building_id', 'setting_label', 'setting_value', 'description', 'is_public', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của cấu hình trong danh sách
     private function listRelations(): array
     {
         return ['building:id,name,slug,status,manager_admin_id', 'creator:id,full_name'];
     }
 
+    // Các quan hệ liên kết chi tiết cấu hình
     private function detailRelations(): array
     {
         return ['building:id,name,slug,address,status,manager_admin_id', 'creator:id,full_name'];
     }
 
+    // Tạo câu lệnh truy vấn cấu hình
     private function querySettings(array $validated, Admin $admin): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -266,6 +277,7 @@ class SettingController extends Controller
             ->orderByDesc('id');
     }
 
+    // Truy vấn cấu hình trong phạm vi quản lý của admin
     private function accessibleQuery(Admin $admin): Builder
     {
         $query = Setting::query();
@@ -281,6 +293,7 @@ class SettingController extends Controller
         return $query->whereRaw('1 = 0');
     }
 
+    // Tìm kiếm cấu hình cụ thể được phép truy cập
     private function findAccessibleSetting(Admin $admin, int $setting, bool $lock = false): ?Setting
     {
         $query = $this->accessibleQuery($admin);
@@ -292,11 +305,13 @@ class SettingController extends Controller
         return $query->find($setting);
     }
 
+    // Kiểm tra quyền xem cấu hình của admin
     private function canViewSettings(Admin $admin): bool
     {
         return AdminScope::isSuperAdmin($admin) || AdminScope::isBuildingManager($admin);
     }
 
+    // Kiểm tra quyền thay đổi cấu hình tòa nhà của admin
     private function canMutateSettingForBuilding(Admin $admin, mixed $buildingId): bool
     {
         if (AdminScope::isSuperAdmin($admin)) {
@@ -310,6 +325,7 @@ class SettingController extends Controller
         return AdminScope::ensureBuildingAccess($admin, (int) $buildingId);
     }
 
+    // Định dạng dữ liệu cấu hình phân trang
     private function paginatedResource(\Illuminate\Contracts\Pagination\LengthAwarePaginator $paginator): array
     {
         return [

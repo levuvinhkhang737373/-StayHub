@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 class RegionController extends Controller
 {
+    // Danh sách các khu vực/chi nhánh quản lý
     public function index(IndexRequest $request): JsonResponse
     {
         try {
@@ -36,6 +37,7 @@ class RegionController extends Controller
         }
     }
 
+    // Tạo mới khu vực
     public function store(RegisterRequest $request): JsonResponse
     {
         try {
@@ -65,6 +67,7 @@ class RegionController extends Controller
         }
     }
 
+    // Xem chi tiết khu vực
     public function show(int $region): JsonResponse
     {
         try {
@@ -85,6 +88,7 @@ class RegionController extends Controller
         }
     }
 
+    // Cập nhật thông tin khu vực
     public function update(UpdateRequest $request, int $region): JsonResponse
     {
         try {
@@ -121,6 +125,7 @@ class RegionController extends Controller
         }
     }
 
+    // Cập nhật trạng thái hoạt động của khu vực
     public function updateStatus(StatusRequest $request, int $region): JsonResponse
     {
         try {
@@ -155,6 +160,7 @@ class RegionController extends Controller
         }
     }
 
+    // Xóa khu vực khỏi hệ thống
     public function destroy(Request $request, int $region): JsonResponse
     {
         try {
@@ -192,6 +198,7 @@ class RegionController extends Controller
         }
     }
 
+    // Tạo cấu trúc dữ liệu lưu khu vực
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [
@@ -211,31 +218,37 @@ class RegionController extends Controller
         return collect($payload)->filter(fn ($value): bool => $value !== null)->all();
     }
 
+    // Danh sách cột cần lấy của khu vực
     private function columns(): array
     {
         return ['id', 'parent_id', 'code', 'name', 'path', 'slug', 'description', 'is_active', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của khu vực trong danh sách
     private function listRelations(): array
     {
         return ['parent:id,name'];
     }
 
+    // Các quan hệ liên kết cần load sau khi tạo mới khu vực
     private function storeRelations(): array
     {
         return ['parent:id,name', 'children:id,parent_id,name'];
     }
 
+    // Các quan hệ liên kết chi tiết khu vực
     private function detailRelations(): array
     {
         return ['parent:id,name', 'children:id,parent_id,code,name,path,slug,is_active', 'buildings:id,region_id,name,slug,address,status'];
     }
 
+    // Các quan hệ cần đếm số lượng liên kết
     private function counts(): array
     {
         return ['children', 'buildings'];
     }
 
+    // Tạo truy vấn danh sách khu vực
     private function queryRegions(array $validated): Builder
     {
         return Region::query()
@@ -247,6 +260,7 @@ class RegionController extends Controller
             ->orderBy('name');
     }
 
+    // Tìm kiếm khu vực theo từ khóa
     private function searchRegions(string $keyword, array $validated): LengthAwarePaginator
     {
         $builder = Region::search($keyword);

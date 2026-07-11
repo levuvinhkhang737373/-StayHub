@@ -35,6 +35,7 @@ class PaymentHistoryController extends Controller
     private const DIRECTION_OUT = 'out';
     private const DIRECTION_ADJUSTMENT = 'adjustment';
 
+    // Danh sách lịch sử thanh toán toàn hệ thống
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -75,6 +76,7 @@ class PaymentHistoryController extends Controller
         }
     }
 
+    // Thu thập các bản ghi thanh toán từ nhiều nguồn
     private function collectRecords(array $validated, Admin $admin): Collection
     {
         $sourceType = $validated['source_type'] ?? null;
@@ -95,6 +97,7 @@ class PaymentHistoryController extends Controller
         return $records;
     }
 
+    // Lấy danh sách bản ghi thanh toán hóa đơn
     private function invoicePaymentRecords(array $validated, Admin $admin): Collection
     {
         $query = Payment::query()
@@ -116,6 +119,7 @@ class PaymentHistoryController extends Controller
             ->map(fn (Payment $payment): array => $this->invoicePaymentRecord($payment));
     }
 
+    // Lấy danh sách bản ghi giao dịch đặt cọc
     private function depositTransactionRecords(array $validated, Admin $admin): Collection
     {
         $query = ContractDepositTransaction::query()
@@ -143,6 +147,7 @@ class PaymentHistoryController extends Controller
             ->map(fn (ContractDepositTransaction $transaction): array => $this->depositTransactionRecord($transaction));
     }
 
+    // Lấy danh sách bản ghi chuyển phòng
     private function roomTransferRecords(array $validated, Admin $admin): Collection
     {
         $query = RoomMovement::query()
@@ -163,6 +168,7 @@ class PaymentHistoryController extends Controller
             ->flatMap(fn (RoomMovement $movement): Collection => $this->roomTransferMovementRecords($movement));
     }
 
+    // Áp dụng bộ lọc cho lịch sử thanh toán hóa đơn
     private function applyInvoicePaymentFilters(Builder $query, array $validated, Admin $admin): void
     {
         if (AdminScope::isBuildingManager($admin)) {
@@ -179,6 +185,7 @@ class PaymentHistoryController extends Controller
             ->when(isset($validated['date_to']), fn (Builder $q): Builder => $q->whereDate('payment_date', '<=', $validated['date_to']));
     }
 
+    // Áp dụng bộ lọc cho giao dịch đặt cọc
     private function applyDepositTransactionFilters(Builder $query, array $validated, Admin $admin): void
     {
         if (AdminScope::isBuildingManager($admin)) {
@@ -195,6 +202,7 @@ class PaymentHistoryController extends Controller
             ->when(isset($validated['date_to']), fn (Builder $q): Builder => $q->whereDate('transaction_date', '<=', $validated['date_to']));
     }
 
+    // Áp dụng bộ lọc cho giao dịch chuyển phòng
     private function applyRoomTransferFilters(Builder $query, array $validated, Admin $admin): void
     {
         if (AdminScope::isBuildingManager($admin)) {
@@ -207,6 +215,7 @@ class PaymentHistoryController extends Controller
             ->when(isset($validated['contract_id']), fn (Builder $q): Builder => $q->where('destination_contract_id', (int) $validated['contract_id']));
     }
 
+    // Tạo cấu trúc bản ghi thanh toán hóa đơn
     private function invoicePaymentRecord(Payment $payment): array
     {
         $invoice = $payment->invoice;
@@ -249,6 +258,7 @@ class PaymentHistoryController extends Controller
         ];
     }
 
+    // Tạo cấu trúc bản ghi giao dịch cọc
     private function depositTransactionRecord(ContractDepositTransaction $transaction): array
     {
         $contract = $transaction->contract;
@@ -293,6 +303,7 @@ class PaymentHistoryController extends Controller
         ];
     }
 
+    // Lấy chi tiết lịch sử chuyển phòng của phòng
     private function roomTransferMovementRecords(RoomMovement $movement): Collection
     {
         $references = collect($movement->settlement_payment_references ?? [])
@@ -351,6 +362,7 @@ class PaymentHistoryController extends Controller
         })->values();
     }
 
+    // Kiểm tra bản ghi có khớp bộ lọc chung hay không
     private function matchesCommonFilters(array $record, array $validated): bool
     {
         if (($validated['amount_direction'] ?? null) && $record['amount_direction'] !== $validated['amount_direction']) {
@@ -392,6 +404,7 @@ class PaymentHistoryController extends Controller
         return true;
     }
 
+    // Tổng hợp báo cáo doanh thu và giao dịch
     private function summary(Collection $records): array
     {
         $bySource = [
@@ -428,6 +441,7 @@ class PaymentHistoryController extends Controller
         ];
     }
 
+    // Phân trang kết quả lịch sử thanh toán
     private function paginate(Collection $records, int $perPage, int $page, string $path): LengthAwarePaginator
     {
         $perPage = max(1, min($perPage, 100));
@@ -439,6 +453,7 @@ class PaymentHistoryController extends Controller
         ]);
     }
 
+    // Nhóm trạng thái thanh toán hóa đơn
     private function paymentStatusGroup(int $status): string
     {
         return match ($status) {
@@ -448,6 +463,7 @@ class PaymentHistoryController extends Controller
         };
     }
 
+    // Nhóm trạng thái chuyển phòng
     private function roomTransferStatusGroup(int $status): string
     {
         return match ($status) {
@@ -457,6 +473,7 @@ class PaymentHistoryController extends Controller
         };
     }
 
+    // Xác định chiều giao dịch cọc (thu vào/hoàn trả)
     private function depositDirection(int $transactionType): string
     {
         return $transactionType === ContractDepositTransaction::TRANSACTION_TYPE_REFUND
@@ -464,6 +481,7 @@ class PaymentHistoryController extends Controller
             : self::DIRECTION_IN;
     }
 
+    // Lấy cấu trúc dữ liệu tòa nhà
     private function buildingPayload($building): ?array
     {
         if (! $building) {
@@ -477,6 +495,7 @@ class PaymentHistoryController extends Controller
         ];
     }
 
+    // Lấy cấu trúc dữ liệu phòng
     private function roomPayload($room): ?array
     {
         if (! $room) {
@@ -491,6 +510,7 @@ class PaymentHistoryController extends Controller
         ];
     }
 
+    // Lấy cấu trúc dữ liệu hợp đồng
     private function contractPayload($contract): ?array
     {
         if (! $contract) {
@@ -506,6 +526,7 @@ class PaymentHistoryController extends Controller
         ];
     }
 
+    // Lấy cấu trúc dữ liệu hóa đơn liên quan
     private function invoicePayload($invoice): ?array
     {
         if (! $invoice) {
@@ -526,6 +547,7 @@ class PaymentHistoryController extends Controller
         ];
     }
 
+    // Lấy thông tin khách thuê trong hợp đồng
     private function contractTenantsPayload($contract): array
     {
         if (! $contract || ! $contract->relationLoaded('contractTenants')) {
@@ -545,6 +567,7 @@ class PaymentHistoryController extends Controller
             ->all();
     }
 
+    // Tìm kiếm dữ liệu theo từ khóa
     private function searchText(array $record): string
     {
         $parts = [
@@ -568,6 +591,7 @@ class PaymentHistoryController extends Controller
         return mb_strtolower(collect($parts)->filter()->implode(' '));
     }
 
+    // Chuyển độ thời gian sự kiện sang Carbon instance
     private function eventCarbon(?string $eventDate): ?Carbon
     {
         if (! $eventDate) {
@@ -581,6 +605,7 @@ class PaymentHistoryController extends Controller
         }
     }
 
+    // Chuyển đổi đơn vị tiền tệ sang định dạng thập phân
     private function scaledToDecimal(int $scaled): string
     {
         $sign = $scaled < 0 ? '-' : '';

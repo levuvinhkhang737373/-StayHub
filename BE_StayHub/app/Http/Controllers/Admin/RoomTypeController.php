@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 class RoomTypeController extends Controller
 {
+    // Danh sách loại phòng của tòa nhà
     public function index(IndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -40,6 +41,7 @@ class RoomTypeController extends Controller
         }
     }
 
+    // Tạo mới loại phòng
     public function store(RegisterRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -71,6 +73,7 @@ class RoomTypeController extends Controller
         }
     }
 
+    // Xem chi tiết loại phòng
     public function show(Request $request, int $roomType): JsonResponse
     {
         try {
@@ -96,6 +99,7 @@ class RoomTypeController extends Controller
         }
     }
 
+    // Cập nhật thông tin loại phòng
     public function update(UpdateRequest $request, int $roomType): JsonResponse
     {
         $validated = $request->validated();
@@ -136,6 +140,7 @@ class RoomTypeController extends Controller
         }
     }
 
+    // Cập nhật trạng thái hoạt động của loại phòng
     public function updateStatus(StatusRequest $request, int $roomType): JsonResponse
     {
         $validated = $request->validated();
@@ -170,6 +175,7 @@ class RoomTypeController extends Controller
         }
     }
 
+    // Xóa loại phòng
     public function destroy(Request $request, int $roomType): JsonResponse
     {
         try {
@@ -204,6 +210,7 @@ class RoomTypeController extends Controller
         }
     }
 
+    // Tạo cấu trúc dữ liệu loại phòng
     private function payload(array $validated, ?int $createdBy = null, bool $isUpdate = false): array
     {
         $payload = [];
@@ -223,31 +230,37 @@ class RoomTypeController extends Controller
         return $payload;
     }
 
+    // Danh sách cột dữ liệu cần lấy của loại phòng
     private function columns(): array
     {
         return ['id', 'name', 'slug', 'description', 'status', 'created_by', 'created_at', 'updated_at'];
     }
 
+    // Các quan hệ liên kết của loại phòng trong danh sách
     private function listRelations(): array
     {
         return ['creator:id,full_name'];
     }
 
+    // Các quan hệ liên kết cần load sau khi tạo mới loại phòng
     private function storeRelations(): array
     {
         return ['creator:id,full_name'];
     }
 
+    // Các quan hệ liên kết chi tiết loại phòng
     private function detailRelations(): array
     {
         return ['creator:id,full_name', 'rooms:id,room_type_id,building_id,room_number,slug,base_price,max_occupants,current_occupants,status', 'rooms.building:id,name,slug'];
     }
 
+    // Đếm số lượng thực thể liên kết với loại phòng
     private function counts(): array
     {
         return ['rooms'];
     }
 
+    // Tạo câu lệnh truy vấn danh sách loại phòng
     private function queryRoomTypes(array $validated, Admin $admin): Builder
     {
         $keyword = trim($validated['keyword'] ?? '');
@@ -265,6 +278,7 @@ class RoomTypeController extends Controller
             ->orderByDesc('id');
     }
 
+    // Kiểm tra tên loại phòng đã tồn tại trong tòa nhà chưa
     private function roomTypeNameExists(string $name, ?int $ignoreId = null): bool
     {
         return RoomType::query()
@@ -273,6 +287,7 @@ class RoomTypeController extends Controller
             ->exists();
     }
 
+    // Định dạng dữ liệu loại phòng phân trang
     private function paginatedResource(\Illuminate\Contracts\Pagination\LengthAwarePaginator $paginator): array
     {
         return [
