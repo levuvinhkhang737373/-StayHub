@@ -18,6 +18,8 @@ use App\Models\RoomMovement;
 use App\Models\RoomService;
 use App\Models\RoomServicePrice;
 use App\Models\Tenant;
+use App\Services\RoomServiceLifecycleService;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -173,6 +175,10 @@ class ExecuteScheduledRoomTransfers extends Command
             $this->closeSourceContractRows($sourceContract, $activeRows, $oldBillingEndDate);
             $this->closeContractRoomServicePrices($sourceContract, $oldBillingEndDate);
 
+            if ($movingAll) {
+                app(RoomServiceLifecycleService::class)->deactivateAfterFullTransfer($sourceContract->room, $oldBillingEndDate);
+            }
+
             $sourceContract->refresh();
             $sourceContract->forceFill([
                 'status' => Contract::STATUS_LIQUIDATED,
@@ -247,8 +253,9 @@ class ExecuteScheduledRoomTransfers extends Command
 
     private function destinationValidationMessage(array $tenantIds, Room $toRoom): ?string
     {
-        if ((int) $toRoom->status !== Room::STATUS_ACTIVE) {
-            return 'Phòng đích đang không ở trạng thái cho thuê được.';
+        $stateError = OperationalStateGuard::destinationRoomBlockReason($toRoom);
+        if ($stateError !== null) {
+            return $stateError;
         }
 
         $destinationActiveContract = $this->activeDestinationContract($toRoom);
@@ -568,7 +575,7 @@ class ExecuteScheduledRoomTransfers extends Command
                 $query->whereNull('effective_to')
                     ->orWhereDate('effective_to', '>=', $effectiveFrom->toDateString());
             })
-            ->with('roomService:id,service_id')
+            ->with('roomService:id,service_id,is_active,ended_at')
             ->orderByRaw('contract_id IS NULL')
             ->orderByDesc('effective_from')
             ->get()
@@ -580,8 +587,15 @@ class ExecuteScheduledRoomTransfers extends Command
                 $targetRoomService = RoomService::query()->create([
                     'room_id' => $room->id,
                     'service_id' => (int) $sourcePrice->roomService?->service_id,
+                    'is_active' => true,
+                    'ended_at' => null,
                 ]);
                 $targetRoomServices->put((int) $sourcePrice->roomService?->service_id, $targetRoomService);
+            } elseif (! $targetRoomService->is_active) {
+                $targetRoomService->forceFill([
+                    'is_active' => true,
+                    'ended_at' => null,
+                ])->save();
             }
 
             RoomServicePrice::query()

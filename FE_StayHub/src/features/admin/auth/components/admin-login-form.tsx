@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Eye, LockKeyhole, ScanFace, UserRound, X } from 'lucide-react'
 import { loginAdmin, loginAdminWithFace } from '../services/admin-auth.service'
 import type { AdminLoginResult } from '../types/admin-auth.model'
+import { captureFaceImageFromVideo } from '../utils/face-capture'
 import { hasAdminLoginErrors, validateAdminLoginForm, type AdminLoginFormErrors } from '../validation/admin-login.validation'
 
 interface AdminLoginFormProps {
@@ -120,29 +121,7 @@ export function AdminLoginForm({ onLoginSuccess }: AdminLoginFormProps) {
       throw new Error('Camera chưa sẵn sàng, vui lòng chờ camera rõ nét rồi thử lại.')
     }
 
-    const maxCaptureSize = 640
-    const scale = Math.min(1, maxCaptureSize / Math.max(video.videoWidth, video.videoHeight))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(video.videoWidth * scale)
-    canvas.height = Math.round(video.videoHeight * scale)
-    const context = canvas.getContext('2d')
-
-    if (!context) {
-      throw new Error('Không thể xử lý ảnh từ camera.')
-    }
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Không thể chụp ảnh khuôn mặt.'))
-          return
-        }
-
-        resolve(blob)
-      }, 'image/jpeg', 0.86)
-    })
+    return captureFaceImageFromVideo(video)
   }
 
   async function captureFaceImages(): Promise<Blob[]> {

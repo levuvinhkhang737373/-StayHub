@@ -2,6 +2,10 @@ export interface RoomServicePriceServiceResource {
   id: number
   room_id: number
   service_id: number
+  is_active: boolean
+  ended_at: string | null
+  can_schedule_price: boolean
+  schedule_block_reason: string | null
   service_name: string | null
   service_slug: string | null
   charge_method: number | null
@@ -43,6 +47,13 @@ export interface RoomServicePriceRoomResource {
   contract_status: number | null
   contract_status_label: string | null
   contract_is_ended: boolean
+  latest_contract_id: number | null
+  latest_contract_code: string | null
+  latest_contract_status: number | null
+  latest_contract_status_label: string | null
+  latest_contract_start_date: string | null
+  latest_contract_end_date: string | null
+  latest_contract_actual_end_date: string | null
   services: RoomServicePriceServiceResource[]
 }
 

@@ -31,7 +31,19 @@ test('room service price modal keeps new price inputs empty for manual entry', (
 
   assert.match(source, /import \{ formatCurrency, formatMoneyInput, parseMoneyInput \}/)
   assert.doesNotMatch(source, /function formatMoneyInput\(value: string\)/)
-  assert.match(source, /setPriceInputs\(Object\.fromEntries\(room\.services\.map\(\(service\) => \[service\.id, ''\]\)\)\)/)
+  assert.match(source, /setPriceInputs\(Object\.fromEntries\(room\.services\.filter\(isServiceSchedulable\)\.map\(\(service\) => \[service\.id, ''\]\)\)\)/)
   assert.doesNotMatch(source, /setPriceInputs\(Object\.fromEntries\(room\.services\.map\(\(service\) => \[service\.id, formatMoneyInput/)
-  assert.match(source, /\.filter\(\(service\) => \(priceInputs\[service\.id\] \?\? ''\)\.trim\(\) !== ''\)/)
+  assert.match(source, /\.filter\(\(service\) => isServiceSchedulable\(service\) && \(priceInputs\[service\.id\] \?\? ''\)\.trim\(\) !== ''\)/)
+})
+
+test('room service price screen blocks scheduling inactive room services in UI', () => {
+  const source = readFileSync(screenUrl, 'utf8')
+
+  assert.match(source, /can_schedule_price/)
+  assert.match(source, /schedule_block_reason/)
+  assert.match(source, /latest_contract_code/)
+  assert.match(source, /Hợp đồng cũ/)
+  assert.match(source, /function isServiceSchedulable/)
+  assert.match(source, /disabled=\{!canEdit\}/)
+  assert.match(source, /Ngừng hoạt động/)
 })

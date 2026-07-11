@@ -72,6 +72,7 @@ class PaymentHistoryController extends Controller
                 'summary' => $summary,
             ], 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

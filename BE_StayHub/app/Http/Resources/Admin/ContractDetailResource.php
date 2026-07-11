@@ -33,7 +33,7 @@ class ContractDetailResource extends JsonResource
             'status' => $this->status,
             'status_label' => Contract::STATUS_LABELS[$this->status] ?? null,
             'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('roomServices')
-                ? $this->room->roomServices->filter(fn ($roomService) => $roomService->service)->map(fn ($roomService) => [
+                ? $this->room->roomServices->filter(fn ($roomService) => $roomService->service && (bool) $roomService->is_active)->map(fn ($roomService) => [
                     'room_service_id' => $roomService->id,
                     'id' => $roomService->service->id,
                     'name' => $roomService->service->name,

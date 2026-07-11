@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin\Meter;
 
 use App\Helpers\ApiResponse;
+use App\Models\MeterDevice;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -18,7 +19,7 @@ class StatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'integer', Rule::in([1, 2, 3, 4])],
+            'status' => ['required', 'integer', Rule::in(array_keys(MeterDevice::STATUS_LABELS))],
             'replaced_by_meter_id' => ['nullable', 'integer', 'exists:meter_devices,id'],
         ];
     }

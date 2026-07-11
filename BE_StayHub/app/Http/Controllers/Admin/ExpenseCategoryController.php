@@ -37,6 +37,7 @@ class ExpenseCategoryController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách danh mục chi phí', 200, ExpenseCategoryResource::collection($expenseCategories), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -65,6 +66,7 @@ class ExpenseCategoryController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -91,6 +93,7 @@ class ExpenseCategoryController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết danh mục chi phí', 200, new ExpenseCategoryDetailResource($expenseCategoryModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -126,6 +129,7 @@ class ExpenseCategoryController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -161,6 +165,7 @@ class ExpenseCategoryController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -196,6 +201,7 @@ class ExpenseCategoryController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

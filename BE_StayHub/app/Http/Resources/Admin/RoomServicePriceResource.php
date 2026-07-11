@@ -5,8 +5,10 @@ namespace App\Http\Resources\Admin;
 use App\Models\Contract;
 use App\Models\RoomServicePrice;
 use App\Models\Service;
+use App\Services\RoomServiceLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
 class RoomServicePriceResource extends JsonResource
 {
@@ -35,6 +37,12 @@ class RoomServicePriceResource extends JsonResource
         $targetScheduledPrice = $scheduledPrice ?: $scheduledContractPrice;
         $contract = $contractPrice?->contract ?? $this->selectedContract;
         $contractEnded = $contract ? $this->contractEnded($contract) : false;
+        [$canSchedulePrice, $scheduleBlockReason] = app(RoomServiceLifecycleService::class)
+            ->schedulability($this->resource, $contract, Carbon::parse($targetDate));
+        $isActive = (bool) $this->is_active;
+        if (! $isActive) {
+            $targetScheduledPrice = null;
+        }
         $displayPrice = $contractPrice ?: $effectivePrice;
         $service = $this->service;
 
@@ -42,6 +50,10 @@ class RoomServicePriceResource extends JsonResource
             'id' => $this->id,
             'room_id' => $this->room_id,
             'service_id' => $this->service_id,
+            'is_active' => $isActive,
+            'ended_at' => optional($this->ended_at)->toDateString(),
+            'can_schedule_price' => $canSchedulePrice,
+            'schedule_block_reason' => $scheduleBlockReason,
             'service_name' => $service?->name,
             'service_slug' => $service?->slug,
             'charge_method' => $service?->charge_method,
@@ -65,10 +77,10 @@ class RoomServicePriceResource extends JsonResource
             'contract_effective_to' => optional($contractPrice?->effective_to)->toDateString(),
             'effective_from' => optional($effectivePrice?->effective_from)->toDateString(),
             'effective_to' => optional($effectivePrice?->effective_to)->toDateString(),
-            'status_label' => $contractEnded ? 'Hết hiệu lực' : $this->statusLabel($effectivePrice),
-            'created_by' => $scheduledPrice?->created_by,
-            'creator_name' => $scheduledPrice?->relationLoaded('creator') ? $scheduledPrice?->creator?->full_name : null,
-            'created_at' => optional($scheduledPrice?->created_at)->toDateTimeString(),
+            'status_label' => $this->statusLabelForState($isActive, $contractEnded, $effectivePrice),
+            'created_by' => $isActive ? $scheduledPrice?->created_by : null,
+            'creator_name' => $isActive && $scheduledPrice?->relationLoaded('creator') ? $scheduledPrice?->creator?->full_name : null,
+            'created_at' => $isActive ? optional($scheduledPrice?->created_at)->toDateTimeString() : null,
         ];
     }
 
@@ -151,5 +163,14 @@ class RoomServicePriceResource extends JsonResource
         }
 
         return 'Đang hiệu lực';
+    }
+
+    private function statusLabelForState(bool $isActive, bool $contractEnded, ?RoomServicePrice $price): string
+    {
+        if (! $isActive) {
+            return 'Ngừng hoạt động';
+        }
+
+        return $contractEnded ? 'Hết hiệu lực' : $this->statusLabel($price);
     }
 }

@@ -42,6 +42,53 @@ class FaceProcessingTest(TestCase):
         with self.assertRaisesRegex(ValueError, "Cần ít nhất 2 khung hình"):
             ai_main.process_images([image()], require_liveness=True)
 
+
+    def test_register_mode_accepts_three_frames_with_enough_motion(self):
+        frames = [image(), image(), image()]
+        areas = [
+            {"x": 100, "y": 60, "w": 120, "h": 130},
+            {"x": 108, "y": 60, "w": 120, "h": 130},
+            {"x": 108, "y": 60, "w": 128, "h": 138},
+        ]
+
+        with (
+            patch.object(ai_main, "validate_image_quality", return_value=(120.0, 42.0)),
+            patch.object(ai_main, "extract_real_face", side_effect=[(area, 0.8) for area in areas]),
+            patch.object(ai_main, "extract_embedding", side_effect=[embedding(0.2), embedding(0.2), embedding(0.2)]),
+        ):
+            vector, processed_frames, max_distance, movement = ai_main.process_images(frames, require_liveness=True)
+
+        self.assertEqual(len(vector), 128)
+        self.assertEqual(len(processed_frames), 3)
+        self.assertEqual(max_distance, 0)
+        self.assertGreaterEqual(movement, ai_main.MIN_LIVENESS_MOVEMENT)
+
+    def test_register_mode_rejects_static_frames_without_motion(self):
+        frames = [image(), image(), image()]
+
+        with (
+            patch.object(ai_main, "validate_image_quality", return_value=(120.0, 42.0)),
+            patch.object(ai_main, "extract_real_face", return_value=(facial_area(), 0.8)),
+            patch.object(ai_main, "extract_embedding", side_effect=[embedding(0.2), embedding(0.2), embedding(0.2)]),
+        ):
+            with self.assertRaisesRegex(ValueError, "Chưa nhận đủ chuyển động"):
+                ai_main.process_images(frames, require_liveness=True)
+
+    def test_register_mode_rejects_different_faces_between_frames(self):
+        frames = [image(), image(), image()]
+
+        with (
+            patch.object(ai_main, "validate_image_quality", return_value=(120.0, 42.0)),
+            patch.object(ai_main, "extract_real_face", side_effect=[
+                (facial_area(), 0.8),
+                ({"x": 108, "y": 60, "w": 120, "h": 130}, 0.8),
+                ({"x": 108, "y": 60, "w": 128, "h": 138}, 0.8),
+            ]),
+            patch.object(ai_main, "extract_embedding", side_effect=[embedding(0.2), embedding(-0.2), embedding(0.2)]),
+        ):
+            with self.assertRaisesRegex(ValueError, "Các khung hình không cùng một khuôn mặt"):
+                ai_main.process_images(frames, require_liveness=True)
+
     def test_static_image_detection_is_still_enforced_in_fast_login(self):
         with (
             patch.object(ai_main, "validate_image_quality", return_value=(120.0, 42.0)),

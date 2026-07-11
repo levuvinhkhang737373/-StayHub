@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { CheckCircle, Lock, ScanFace, Trash2, User, X } from 'lucide-react'
 import { changeAdminPassword, deleteAdminFaceId, registerAdminFaceId, updateAdminProfile } from '../../features/admin/auth/services/admin-auth.service'
 import { useAdminSession } from '../../features/admin/auth/hooks/use-admin-session'
+import { captureFaceImageFromVideo, delayFaceCapture, FACE_REGISTRATION_STEPS } from '../../features/admin/auth/utils/face-capture'
 import { cn } from '../../shared/lib/utils/cn'
 import { resolveAssetUrl } from '../../shared/lib/utils/asset-url'
 import { validateChangePasswordForm, validateDeleteFaceIdPassword, validateProfileForm, type ChangePasswordErrors, type ChangePasswordForm, type ProfileFormErrors } from './account-settings.validation'
@@ -33,6 +34,7 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   const [isFaceSubmitting, setIsFaceSubmitting] = useState(false)
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [hasFaceRegistrationStarted, setHasFaceRegistrationStarted] = useState(false)
+  const [faceRegistrationStep, setFaceRegistrationStep] = useState(0)
   const [faceMessage, setFaceMessage] = useState<string | null>(null)
   const [faceError, setFaceError] = useState<string | null>(null)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -147,6 +149,7 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     stopCamera()
     setIsCameraOpen(false)
     setHasFaceRegistrationStarted(false)
+    setFaceRegistrationStep(0)
     setCurrentPassword('')
     resetPasswordForm()
     onClose()
@@ -160,36 +163,17 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       throw new Error('Camera chưa sẵn sàng, vui lòng chờ camera rõ nét rồi thử lại.')
     }
 
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const context = canvas.getContext('2d')
-
-    if (!context) {
-      throw new Error('Không thể xử lý ảnh từ camera.')
-    }
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Không thể chụp ảnh khuôn mặt.'))
-          return
-        }
-
-        resolve(blob)
-      }, 'image/jpeg', 0.96)
-    })
+    return captureFaceImageFromVideo(video)
   }
 
   async function captureFaceImages(): Promise<Blob[]> {
     const images: Blob[] = []
 
-    for (let index = 0; index < 3; index += 1) {
+    for (let index = 0; index < FACE_REGISTRATION_STEPS.length; index += 1) {
+      setFaceRegistrationStep(index)
       images.push(await captureFaceImage())
-      if (index < 2) {
-        await new Promise((resolve) => window.setTimeout(resolve, 500))
+      if (index < FACE_REGISTRATION_STEPS.length - 1) {
+        await delayFaceCapture()
       }
     }
 
@@ -199,30 +183,28 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   async function handleRegisterFaceId() {
     isFaceRegistrationOpenRef.current = true
     setHasFaceRegistrationStarted(true)
+    setFaceRegistrationStep(0)
     setIsFaceSubmitting(true)
     setFaceError(null)
     setFaceMessage(null)
 
-    while (isFaceRegistrationOpenRef.current) {
-      try {
-        const images = await captureFaceImages()
-        const response = await registerAdminFaceId(images)
-        isFaceRegistrationOpenRef.current = false
-        setFaceError(null)
-        setFaceMessage(null)
-        setIsCameraOpen(false)
-        saveSession(response.result)
-        setHasFaceRegistrationStarted(false)
-        setIsFaceSubmitting(false)
-        return
-      } catch (error) {
-        setFaceError(error instanceof Error ? error.message : 'Đăng ký FaceID thất bại, vui lòng thử lại.')
-        await new Promise((resolve) => window.setTimeout(resolve, 700))
-      }
+    try {
+      const images = await captureFaceImages()
+      if (!isFaceRegistrationOpenRef.current) return
+      const response = await registerAdminFaceId(images)
+      isFaceRegistrationOpenRef.current = false
+      setFaceError(null)
+      setFaceMessage(response.message || 'Đăng ký FaceID thành công.')
+      setIsCameraOpen(false)
+      saveSession(response.result)
+    } catch (error) {
+      setFaceError(error instanceof Error ? error.message : 'Chưa thể đăng ký FaceID. Vui lòng thử lại.')
+    } finally {
+      isFaceRegistrationOpenRef.current = false
+      setHasFaceRegistrationStarted(false)
+      setIsFaceSubmitting(false)
+      setFaceRegistrationStep(0)
     }
-
-    setHasFaceRegistrationStarted(false)
-    setIsFaceSubmitting(false)
   }
 
   async function handleDeleteFaceId() {
@@ -526,7 +508,7 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
                       {isCameraOpen && !isCameraReady ? <div className="absolute inset-1.5 flex items-center justify-center rounded-full bg-[#24170d]/70 px-6 text-center text-xs font-black text-[#fff4df]">Đang làm nét...</div> : null}
                     </div>
                     <h3 className="mb-4 text-lg font-black tracking-tight text-[#24170d]">{hasRegisteredFaceId ? 'FaceID đã được đăng ký' : 'Đăng ký khuôn mặt FaceID'}</h3>
-                    {!hasRegisteredFaceId && isCameraOpen ? <p className="mb-4 text-center text-sm font-semibold text-[#6f6254]">Nhìn thẳng camera rồi xoay nhẹ mặt khi quét. Hệ thống sẽ tự thử đến khi đăng ký thành công.</p> : null}
+                    {!hasRegisteredFaceId && isCameraOpen ? <p className="mb-4 text-center text-sm font-semibold text-[#6f6254]">{hasFaceRegistrationStarted ? FACE_REGISTRATION_STEPS[faceRegistrationStep]?.title : 'Nhìn thẳng camera rồi xoay nhẹ mặt khi quét. Nếu chưa đạt, bạn có thể thử lại ngay.'}</p> : null}
 
                     {!hasRegisteredFaceId && faceError ? <div className="mb-4 w-full rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{faceError}</div> : null}
                     {!hasRegisteredFaceId && faceMessage ? <div className="mb-4 w-full rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/10 px-4 py-3 text-sm font-bold text-[#0f5f59]">{faceMessage}</div> : null}
@@ -556,7 +538,7 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
                           </button>
                         ) : (
                           <button type="button" onClick={handleRegisterFaceId} disabled={hasFaceRegistrationStarted || !isCameraReady} className="flex cursor-pointer items-center gap-2 rounded-2xl bg-[#0f766e] px-8 py-3 font-bold text-white shadow-lg shadow-[#0f766e]/20 transition-colors hover:bg-[#0f5f59] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#0f766e]/20 disabled:cursor-not-allowed disabled:bg-[#c8bba6] disabled:text-[#7c6d5b]">
-                            <CheckCircle className="h-5 w-5" /> {hasFaceRegistrationStarted ? 'Đang tự quét đến khi đăng ký xong...' : isCameraReady ? 'Bắt đầu đăng ký FaceID' : 'Đang chuẩn bị camera...'}
+                            <CheckCircle className="h-5 w-5" /> {hasFaceRegistrationStarted ? `Đang quét bước ${faceRegistrationStep + 1}/${FACE_REGISTRATION_STEPS.length}...` : isCameraReady ? (faceError ? 'Thử lại đăng ký FaceID' : 'Bắt đầu đăng ký FaceID') : 'Đang chuẩn bị camera...'}
                           </button>
                         )}
                       </div>

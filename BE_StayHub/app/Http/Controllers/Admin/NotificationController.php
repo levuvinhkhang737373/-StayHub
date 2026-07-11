@@ -83,6 +83,7 @@ class NotificationController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -130,6 +131,7 @@ class NotificationController extends Controller
             return ApiResponse::responseJson(true, 'Tạo thông báo thành công', 201, new NotificationResource($notification), 201);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -156,6 +158,7 @@ class NotificationController extends Controller
             return ApiResponse::responseJson(true, 'Chi tiết thông báo', 200, new NotificationResource($notification), 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -210,6 +213,7 @@ class NotificationController extends Controller
             return ApiResponse::responseJson(true, 'Cập nhật thông báo thành công', 200, new NotificationResource($notification), 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -242,6 +246,7 @@ class NotificationController extends Controller
             return ApiResponse::responseJson(true, 'Xóa thông báo thành công', 200, null, 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -276,6 +281,7 @@ class NotificationController extends Controller
             return ApiResponse::responseJson(true, 'Đã đánh dấu đọc thông báo', 200, $readRecord, 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -311,6 +317,7 @@ class NotificationController extends Controller
             return ApiResponse::responseJson(true, 'Đã đánh dấu đọc toàn bộ thông báo', 200, null, 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }

@@ -7,6 +7,9 @@ use App\Models\Building;
 use App\Models\Region;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class AuthControllerTest extends TestCase
@@ -125,6 +128,90 @@ class AuthControllerTest extends TestCase
             'id' => $admin->id,
             'email' => 'profile_email_owner@stayhub.local',
         ]);
+    }
+
+    public function test_faceid_register_requires_at_least_two_images(): void
+    {
+        $admin = $this->createAdmin('face_register_min_images', Admin::ROLE_SUPER_ADMIN);
+
+        $response = $this->actingAs($admin, 'admin')->postJson('/api/v1/admin/face-id/register', [
+            'images' => [UploadedFile::fake()->image('face-1.jpg', 640, 480)],
+        ]);
+
+        $response->assertUnprocessable();
+    }
+
+    public function test_face_login_rejects_more_than_one_image(): void
+    {
+        $response = $this->postJson('/api/v1/admin/face-login', [
+            'images' => [
+                UploadedFile::fake()->image('face-1.jpg', 640, 480),
+                UploadedFile::fake()->image('face-2.jpg', 640, 480),
+            ],
+        ]);
+
+        $response->assertUnprocessable();
+    }
+
+    public function test_face_login_uses_clear_vietnamese_message_when_face_is_not_matched(): void
+    {
+        Http::fake([
+            config('services.ai_service.url').'/api/v1/extract*' => Http::response([
+                'embedding' => array_fill(0, 128, 0.2),
+            ], 200),
+            config('services.qdrant.url').'*' => Http::response(['result' => []], 200),
+        ]);
+
+        $response = $this->postJson('/api/v1/admin/face-login', [
+            'images' => [UploadedFile::fake()->image('face-1.jpg', 640, 480)],
+        ]);
+
+        $response
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Không nhận diện được khuôn mặt. Vui lòng thử lại hoặc đăng nhập bằng mật khẩu.');
+    }
+
+    public function test_faceid_register_does_not_expose_storage_or_vector_errors(): void
+    {
+        Storage::fake('s3');
+        Http::fake([
+            config('services.ai_service.url').'/api/v1/extract*' => Http::response([
+                'embedding' => array_fill(0, 128, 0.2),
+            ], 200),
+            config('services.qdrant.url').'*' => Http::response(['status' => ['error' => 'Qdrant unavailable']], 500),
+        ]);
+
+        $admin = $this->createAdmin('face_register_safe_error', Admin::ROLE_SUPER_ADMIN);
+
+        $response = $this->actingAs($admin, 'admin')->postJson('/api/v1/admin/face-id/register', [
+            'images' => [
+                UploadedFile::fake()->image('face-1.jpg', 640, 480),
+                UploadedFile::fake()->image('face-2.jpg', 640, 480),
+                UploadedFile::fake()->image('face-3.jpg', 640, 480),
+            ],
+        ]);
+
+        $response
+            ->assertStatus(500)
+            ->assertJsonPath('message', 'Chưa thể đăng ký FaceID. Vui lòng thử lại.');
+    }
+
+    public function test_face_login_does_not_expose_vector_search_errors(): void
+    {
+        Http::fake([
+            config('services.ai_service.url').'/api/v1/extract*' => Http::response([
+                'embedding' => array_fill(0, 128, 0.2),
+            ], 200),
+            config('services.qdrant.url').'*' => Http::response(['status' => ['error' => 'Qdrant unavailable']], 500),
+        ]);
+
+        $response = $this->postJson('/api/v1/admin/face-login', [
+            'images' => [UploadedFile::fake()->image('face-1.jpg', 640, 480)],
+        ]);
+
+        $response
+            ->assertStatus(500)
+            ->assertJsonPath('message', 'Không nhận diện được khuôn mặt. Vui lòng thử lại hoặc đăng nhập bằng mật khẩu.');
     }
 
     private function useRealBroadcasterForAuth(): void

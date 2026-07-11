@@ -48,6 +48,7 @@ class MaintenanceRequestController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -151,6 +152,7 @@ class MaintenanceRequestController extends Controller
             return ApiResponse::responseJson(true, 'Gửi yêu cầu sửa chữa thành công', 201, new MaintenanceRequestResource($maintenanceRequest), 201);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -178,6 +180,7 @@ class MaintenanceRequestController extends Controller
             return ApiResponse::responseJson(true, 'Chi tiết phiếu sửa chữa', 200, new MaintenanceRequestResource($maintenance), 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -260,6 +263,7 @@ class MaintenanceRequestController extends Controller
             return ApiResponse::responseJson(true, 'Gửi phản hồi thành công', 201, $feedback, 201);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }

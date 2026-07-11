@@ -20,6 +20,8 @@ use App\Models\Room;
 use App\Models\RoomService;
 use App\Models\RoomServicePrice;
 use App\Models\Service;
+use App\Services\RoomServiceLifecycleService;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -55,6 +57,7 @@ class RoomServicePriceController extends Controller
                 'total' => $rooms->total(),
             ], 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -79,6 +82,7 @@ class RoomServicePriceController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết giá dịch vụ phòng', 200, new RoomServicePriceRoomResource($roomModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -99,7 +103,7 @@ class RoomServicePriceController extends Controller
                 return ApiResponse::responseJson(false, 'Chỉ được lên lịch giá dịch vụ phòng cho tháng sau hoặc tương lai.', 422, null, 422);
             }
 
-            $roomModel = Room::query()->with('building:id,name')->find($room);
+            $roomModel = Room::query()->with('building:id,name,status')->find($room);
             if (! $roomModel) {
                 return ApiResponse::responseJson(false, 'Không tìm thấy phòng', 404, null, 404);
             }
@@ -109,6 +113,14 @@ class RoomServicePriceController extends Controller
             }
 
             $response = DB::transaction(function () use ($validated, $targetDate, $roomModel, $admin, $request): JsonResponse {
+                $roomModel->refresh();
+                $roomModel->load('building:id,name,status');
+                $stateError = OperationalStateGuard::roomServicePriceBlockReason($roomModel);
+
+                if ($stateError !== null) {
+                    return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                }
+
                 $ids = collect($validated['prices'])->pluck('room_service_id')->map(fn ($id): int => (int) $id)->all();
                 $roomServices = RoomService::query()
                     ->with(['service:id,name,slug,charge_method,unit_name,is_active'])
@@ -128,9 +140,6 @@ class RoomServicePriceController extends Controller
 
                 $updatedPrices = collect();
                 $activeContract = $this->activeContractForRoom($roomModel);
-                if ($activeContract && $this->contractEndsBeforePeriod($activeContract, $targetDate)) {
-                    return ApiResponse::responseJson(false, 'Kỳ áp dụng giá vượt quá ngày kết thúc hợp đồng hiện tại của phòng.', 422, null, 422);
-                }
 
                 foreach ($validated['prices'] as $item) {
                     $roomService = $roomServices->get((int) $item['room_service_id']);
@@ -139,8 +148,9 @@ class RoomServicePriceController extends Controller
                         return ApiResponse::responseJson(false, 'Hợp đồng áp dụng giá không thuộc phòng đang chọn.', 422, null, 422);
                     }
 
-                    if ($contract && $this->contractEndsBeforePeriod($contract, $targetDate)) {
-                        return ApiResponse::responseJson(false, 'Kỳ áp dụng giá vượt quá ngày kết thúc hợp đồng đang chọn.', 422, null, 422);
+                    $scheduleError = app(RoomServiceLifecycleService::class)->assertSchedulable($roomService, $contract, $targetDate, $contract !== null);
+                    if ($scheduleError !== null) {
+                        return ApiResponse::responseJson(false, $scheduleError, 422, null, 422);
                     }
 
                     $price = DecimalMoney::normalize($item['price']);
@@ -167,6 +177,7 @@ class RoomServicePriceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -179,6 +190,8 @@ class RoomServicePriceController extends Controller
         return AdminScope::applyBuildingScope(Room::query(), $admin)
             ->select(['id', 'building_id', 'room_type_id', 'room_number', 'floor', 'status'])
             ->with($this->roomRelations($targetDate))
+            ->where('status', Room::STATUS_ACTIVE)
+            ->whereHas('building', fn (Builder $query): Builder => $query->where('status', \App\Models\Building::STATUS_ACTIVE))
             ->whereHas('roomServices', fn (Builder $query): Builder => $this->nonUtilityServiceScope($query))
             ->when(isset($validated['building_id']), fn (Builder $query): Builder => $query->where('building_id', (int) $validated['building_id']))
             ->when(isset($validated['room_id']), fn (Builder $query): Builder => $query->whereKey((int) $validated['room_id']))
@@ -194,10 +207,10 @@ class RoomServicePriceController extends Controller
         $periodEnd = $targetDate->copy()->endOfMonth();
 
         return [
-            'building:id,name',
+            'building:id,name,status',
             'contracts:id,contract_code,room_id,status,start_date,end_date,actual_end_date',
             'roomServices' => fn ($query) => $this->nonUtilityServiceScope($query)
-                ->select(['id', 'room_id', 'service_id'])
+                ->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])
                 ->with([
                     'service:id,name,slug,charge_method,unit_name,is_active',
                     'prices' => fn ($priceQuery) => $priceQuery

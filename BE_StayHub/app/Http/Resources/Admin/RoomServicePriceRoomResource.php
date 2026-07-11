@@ -11,6 +11,7 @@ class RoomServicePriceRoomResource extends JsonResource
     public function toArray(Request $request): array
     {
         $contract = $this->activeContractForSelectedPeriod($request);
+        $latestContract = $contract ? null : $this->latestHistoricalContract();
 
         return [
             'id' => $this->id,
@@ -24,6 +25,13 @@ class RoomServicePriceRoomResource extends JsonResource
             'contract_status' => $contract?->status,
             'contract_status_label' => $contract ? (Contract::STATUS_LABELS[$contract->status] ?? null) : null,
             'contract_is_ended' => $contract ? $this->contractEnded($contract) : false,
+            'latest_contract_id' => $latestContract?->id,
+            'latest_contract_code' => $latestContract?->contract_code,
+            'latest_contract_status' => $latestContract?->status,
+            'latest_contract_status_label' => $latestContract ? (Contract::STATUS_LABELS[$latestContract->status] ?? null) : null,
+            'latest_contract_start_date' => optional($latestContract?->start_date)->toDateString(),
+            'latest_contract_end_date' => optional($latestContract?->end_date)->toDateString(),
+            'latest_contract_actual_end_date' => optional($latestContract?->actual_end_date)->toDateString(),
             'services' => $this->whenLoaded('roomServices', fn () => $this->roomServices
                 ->map(fn ($roomService): array => (new RoomServicePriceResource($roomService))
                     ->selectedContract($contract)
@@ -51,6 +59,21 @@ class RoomServicePriceRoomResource extends JsonResource
                 '%d-%s-%010d',
                 in_array((int) $contract->status, Contract::RESERVED_STATUSES, true) ? 1 : 0,
                 optional($contract->start_date)->toDateString() ?? '',
+                (int) $contract->id
+            ))
+            ->first();
+    }
+
+    private function latestHistoricalContract(): ?Contract
+    {
+        if (! $this->relationLoaded('contracts')) {
+            return null;
+        }
+
+        return $this->contracts
+            ->sortByDesc(fn (Contract $contract): string => sprintf(
+                '%s-%010d',
+                optional($contract->actual_end_date ?: $contract->end_date ?: $contract->start_date)->toDateString() ?? '',
                 (int) $contract->id
             ))
             ->first();

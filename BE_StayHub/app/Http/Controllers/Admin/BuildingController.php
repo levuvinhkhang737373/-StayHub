@@ -22,6 +22,7 @@ use App\Models\Setting;
 use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\Notification;
+use App\Support\BusinessRules\OperationalStateGuard;
 use App\Events\NotificationSent;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -55,6 +56,7 @@ class BuildingController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách tòa nhà', 200, BuildingResource::collection($buildings), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -92,6 +94,7 @@ class BuildingController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -118,6 +121,7 @@ class BuildingController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết tòa nhà', 200, new BuildingDetailResource($buildingModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -152,6 +156,12 @@ class BuildingController extends Controller
 
                 $this->loadBuildingDetail($buildingModel);
                 $oldData = $buildingModel->toArray();
+                $nextStatus = array_key_exists('status', $validated) ? (int) $validated['status'] : (int) $buildingModel->status;
+                $stateError = OperationalStateGuard::buildingStatusTransitionBlockReason($buildingModel, $nextStatus);
+
+                if ($stateError !== null) {
+                    return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                }
 
                 $buildingModel->fill($this->payload($validated, $admin, true))->save();
 
@@ -168,6 +178,7 @@ class BuildingController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -191,6 +202,12 @@ class BuildingController extends Controller
                 }
 
                 $oldData = $buildingModel->toArray();
+                $stateError = OperationalStateGuard::buildingStatusTransitionBlockReason($buildingModel, (int) $validated['status']);
+
+                if ($stateError !== null) {
+                    return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                }
+
                 $buildingModel->forceFill(['status' => $validated['status']])->save();
                 $this->loadBuildingDetail($buildingModel);
 
@@ -201,6 +218,7 @@ class BuildingController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -240,6 +258,7 @@ class BuildingController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -367,6 +386,7 @@ class BuildingController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::responseJson(false, $e->validator->errors()->first(), 422, $e->validator->errors(), 422);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -421,6 +441,7 @@ class BuildingController extends Controller
 
             return ApiResponse::responseJson(true, 'Lịch sử thay đổi đơn giá điện nước', 200, $data, 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

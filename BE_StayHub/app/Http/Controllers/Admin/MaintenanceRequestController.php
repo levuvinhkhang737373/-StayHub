@@ -75,6 +75,7 @@ class MaintenanceRequestController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách yêu cầu sửa chữa', 200, $this->paginatedResource($requests), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -103,6 +104,7 @@ class MaintenanceRequestController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết phiếu sửa chữa', 200, new MaintenanceRequestResource($maintenance), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -224,6 +226,7 @@ class MaintenanceRequestController extends Controller
 
             return ApiResponse::responseJson(true, 'Cập nhật trạng thái thành công', 200, new MaintenanceRequestResource($maintenance), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

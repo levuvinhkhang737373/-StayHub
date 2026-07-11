@@ -38,10 +38,10 @@ class ContractController extends Controller
                     'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                     'room.building:id,name,slug,manager_admin_id,status,address',
                     'room.building.servicePrices' => fn ($query) => $query->select(['id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'])->orderByDesc('effective_from')->orderByDesc('id'),
-                    'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+                    'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])->active()->orderBy('id'),
                     'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
                     'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->orderByDesc('effective_from')->orderByDesc('id'),
-                    'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
+                    'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id,is_active,ended_at'),
                     'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
@@ -53,6 +53,7 @@ class ContractController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách hợp đồng', 200, ContractResource::collection($contracts), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -76,10 +77,10 @@ class ContractController extends Controller
                     'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                     'room.building:id,name,slug,manager_admin_id,status,address',
                     'room.building.servicePrices' => fn ($query) => $query->select(['id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'])->orderByDesc('effective_from')->orderByDesc('id'),
-                    'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+                    'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])->active()->orderBy('id'),
                     'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
                     'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->orderByDesc('effective_from')->orderByDesc('id'),
-                    'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
+                    'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id,is_active,ended_at'),
                     'representativeTenant:id,full_name,phone,email',
                     'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                     'contractTenants.tenant:id,full_name,phone,email,identity_number',
@@ -95,6 +96,7 @@ class ContractController extends Controller
 
             return ApiResponse::responseJson(true, 'Thông tin hợp đồng', 200, new ContractResource($contract), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -198,10 +200,10 @@ class ContractController extends Controller
                 'room:id,building_id,room_number,slug,status,max_occupants,current_occupants',
                 'room.building:id,name,slug,manager_admin_id,status,address',
                 'room.building.servicePrices' => fn ($query) => $query->select(['id', 'service_id', 'building_id', 'price', 'effective_from', 'effective_to', 'status'])->orderByDesc('effective_from')->orderByDesc('id'),
-                'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+                'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])->active()->orderBy('id'),
                 'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
                 'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->orderByDesc('effective_from')->orderByDesc('id'),
-                'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
+                'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id,is_active,ended_at'),
                 'representativeTenant:id,full_name,phone,email',
                 'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying'])->orderBy('join_date'),
                 'contractTenants.tenant:id,full_name,phone,email,identity_number',
@@ -213,6 +215,7 @@ class ContractController extends Controller
             $firstError = collect($e->errors())->flatten()->first() ?? $e->getMessage();
             return ApiResponse::responseJson(false, $firstError, 422, $e->errors(), 422);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }

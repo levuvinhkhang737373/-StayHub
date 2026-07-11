@@ -18,6 +18,7 @@ use App\Models\MeterReading;
 use App\Models\Room;
 use App\Models\RoomMovement;
 use App\Models\ServicePrice;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -95,6 +96,7 @@ class MeterReadingController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -244,7 +246,7 @@ class MeterReadingController extends Controller
     {
         return MeterDevice::query()
             ->where('room_id', $room->id)
-            ->whereIn('status', [MeterDevice::STATUS_ACTIVE, MeterDevice::STATUS_INACTIVE])
+            ->where('status', MeterDevice::STATUS_ACTIVE)
             ->with('service')
             ->get()
             ->map(fn (MeterDevice $meter): array => $this->meterPayload($meter, $month, $year))
@@ -352,6 +354,7 @@ class MeterReadingController extends Controller
             );
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -410,6 +413,16 @@ class MeterReadingController extends Controller
             $month = $validated['billing_month'];
             $year = $validated['billing_year'];
             $currentReading = $validated['current_reading'];
+            $existingReading = MeterReading::query()
+                ->where('meter_device_id', $meter->id)
+                ->where('billing_month', $month)
+                ->where('billing_year', $year)
+                ->first();
+            $stateError = OperationalStateGuard::meterReadingBlockReason($meter, $existingReading);
+
+            if ($stateError !== null) {
+                return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+            }
 
             $currentYear = now()->year;
             $currentMonth = now()->month;
@@ -483,6 +496,7 @@ class MeterReadingController extends Controller
             return ApiResponse::responseJson(true, 'Chốt số đồng hồ thành công', 200, $reading, 200);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }

@@ -16,6 +16,7 @@ use App\Models\Admin;
 use App\Models\Contract;
 use App\Models\Tenant;
 use App\Models\Vehicle;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -44,6 +45,7 @@ class VehicleController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách phương tiện', 200, $this->paginatedResource($vehicles), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -76,6 +78,7 @@ class VehicleController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -102,6 +105,7 @@ class VehicleController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết phương tiện', 200, new VehicleDetailResource($vehicleModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -130,6 +134,12 @@ class VehicleController extends Controller
                 }
 
                 $oldData = $vehicleModel->toArray();
+                $stateError = OperationalStateGuard::vehicleMutationBlockReason($vehicleModel);
+
+                if ($stateError !== null) {
+                    return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                }
+
                 $vehicleModel->fill($this->payload($validated, true))->save();
 
                 AdminActivityLogger::write($admin, 'Cập nhật phương tiện', Vehicle::class, $vehicleModel->id, $oldData, $vehicleModel->fresh()->toArray(), $request);
@@ -141,6 +151,7 @@ class VehicleController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -165,6 +176,12 @@ class VehicleController extends Controller
                 }
 
                 $oldData = $vehicleModel->toArray();
+                $stateError = OperationalStateGuard::vehicleMutationBlockReason($vehicleModel);
+
+                if ($stateError !== null) {
+                    return ApiResponse::responseJson(false, $stateError, 422, null, 422);
+                }
+
                 $vehicleModel->forceFill(['is_active' => (bool) $validated['status']])->save();
 
                 AdminActivityLogger::write($admin, 'Cập nhật trạng thái phương tiện', Vehicle::class, $vehicleModel->id, $oldData, $vehicleModel->fresh()->toArray(), $request);
@@ -176,6 +193,7 @@ class VehicleController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -211,6 +229,7 @@ class VehicleController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }

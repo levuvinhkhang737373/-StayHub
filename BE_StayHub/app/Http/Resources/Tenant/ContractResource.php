@@ -45,7 +45,7 @@ class ContractResource extends JsonResource
             'status' => $this->status,
             'status_label' => Contract::STATUS_LABELS[$this->status] ?? null,
             'room_services' => $this->relationLoaded('room') && $this->room->relationLoaded('roomServices')
-                ? $this->room->roomServices->filter(fn ($roomService) => $roomService->service)->map(function ($roomService) {
+                ? $this->room->roomServices->filter(fn ($roomService) => $roomService->service && (bool) $roomService->is_active)->map(function ($roomService) {
                     $service = $roomService->service;
                     $pricePayload = $this->roomServicePricePayload($roomService);
                     $price = $pricePayload['price'];

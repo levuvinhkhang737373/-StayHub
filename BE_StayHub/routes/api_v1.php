@@ -161,8 +161,8 @@ Route::prefix('admin')->group(function (): void {
         Route::get('room-service-prices', [RoomServicePriceController::class, 'index']);
         Route::get('rooms/{room}/service-prices', [RoomServicePriceController::class, 'show']);
         Route::put('rooms/{room}/service-prices', [RoomServicePriceController::class, 'update']);
-        Route::apiResource('rooms', RoomController::class);
         Route::patch('rooms/{id}/status', [RoomController::class, 'updateStatus']);
+        Route::apiResource('rooms', RoomController::class);
         Route::get('room-movements', [RoomMovementController::class, 'index']);
         Route::patch('room-movements/{roomMovement}/transfer-date', [RoomMovementController::class, 'updateTransferDate']);
         Route::post('room-movements/{roomMovement}/settlement-cash-payment', [RoomMovementController::class, 'recordSettlementCashPayment']);

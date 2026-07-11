@@ -9,7 +9,9 @@ use App\Models\Service;
 use App\Models\RoomType;
 use App\Models\Room;
 use App\Models\MeterDevice;
+use App\Models\MeterReading;
 use App\Models\Contract;
+use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -189,5 +191,59 @@ class MeterReadingTest extends TestCase
         // and NOT 150 (the newly saved current_reading/initial_reading)
         $this->assertEquals(100.0, (float)$meterData['previous_reading']);
         $this->assertEquals(150.0, (float)$meterData['existing_reading']['current_reading']);
+    }
+
+    public function test_updating_historical_reading_does_not_rewind_meter_initial_reading(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-11 10:00:00'));
+
+        MeterReading::query()->create([
+            'meter_device_id' => $this->meterDevice->id,
+            'billing_month' => 8,
+            'billing_year' => 2026,
+            'previous_reading' => '100.00',
+            'current_reading' => '150.00',
+            'consumption' => '50.00',
+            'reading_date' => '2026-08-31',
+            'status' => MeterReading::STATUS_CONFIRMED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        MeterReading::query()->create([
+            'meter_device_id' => $this->meterDevice->id,
+            'billing_month' => 9,
+            'billing_year' => 2026,
+            'previous_reading' => '150.00',
+            'current_reading' => '210.00',
+            'consumption' => '60.00',
+            'reading_date' => '2026-09-30',
+            'status' => MeterReading::STATUS_CONFIRMED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->meterDevice->forceFill(['initial_reading' => '210.00'])->save();
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/meter-readings', [
+                'meter_device_id' => $this->meterDevice->id,
+                'billing_month' => 8,
+                'billing_year' => 2026,
+                'current_reading' => '220.00',
+                'reading_date' => '2026-08-31',
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+
+        $this->assertSame(210.0, (float) $this->meterDevice->fresh()->initial_reading);
+        $this->assertDatabaseHas('meter_readings', [
+            'meter_device_id' => $this->meterDevice->id,
+            'billing_month' => 8,
+            'billing_year' => 2026,
+            'current_reading' => '220.00',
+            'consumption' => '120.00',
+        ]);
+
+        Carbon::setTestNow();
     }
 }

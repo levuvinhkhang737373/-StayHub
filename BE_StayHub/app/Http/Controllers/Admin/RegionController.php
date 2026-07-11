@@ -33,6 +33,7 @@ class RegionController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách khu vực', 200, RegionResource::collection($regions), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -63,6 +64,8 @@ class RegionController extends Controller
             return $response;
         } catch (\Exception $e) {
 
+            \Illuminate\Support\Facades\Log::error($e);
+
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -83,6 +86,8 @@ class RegionController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết khu vực', 200, new RegionDetailResource($regionModel), 200);
         } catch (\Exception $e) {
+
+            \Illuminate\Support\Facades\Log::error($e);
 
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
@@ -121,6 +126,8 @@ class RegionController extends Controller
             return $response;
         } catch (\Exception $e) {
 
+            \Illuminate\Support\Facades\Log::error($e);
+
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -155,6 +162,8 @@ class RegionController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+
+            \Illuminate\Support\Facades\Log::error($e);
 
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
@@ -193,6 +202,8 @@ class RegionController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+
+            \Illuminate\Support\Facades\Log::error($e);
 
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }

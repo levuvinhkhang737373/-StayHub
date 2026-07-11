@@ -32,6 +32,7 @@ use App\Models\RoomServicePrice;
 use App\Models\Service;
 use App\Models\Tenant;
 use App\Models\Vehicle;
+use App\Support\BusinessRules\OperationalStateGuard;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -78,7 +79,8 @@ class ContractController extends Controller
             $rooms = Room::query()
                 ->with([
                     'roomServices' => function ($query) use ($targetDate): void {
-                        $query->select(['id', 'room_id', 'service_id'])
+                        $query->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])
+                            ->active()
                             ->with([
                                 'service:id,name,slug,charge_method,unit_name,is_required,is_active',
                                 'prices' => fn ($priceQuery) => $priceQuery
@@ -96,6 +98,7 @@ class ContractController extends Controller
                 ->select(['id', 'building_id', 'room_number', 'status', 'base_price', 'max_occupants', 'current_occupants'])
                 ->where('building_id', $buildingId)
                 ->where('status', Room::STATUS_ACTIVE)
+                ->whereHas('building', fn (Builder $query): Builder => $query->where('status', \App\Models\Building::STATUS_ACTIVE))
                 ->whereDoesntHave('contracts', function (Builder $query) use ($ignoreContractId): void {
                     $query->whereIn('status', Contract::RESERVED_STATUSES)
                         ->when($ignoreContractId > 0, fn (Builder $contractQuery): Builder => $contractQuery->whereKeyNot($ignoreContractId));
@@ -126,7 +129,7 @@ class ContractController extends Controller
                     'max_occupants' => $room->max_occupants,
                     'current_occupants' => $room->current_occupants,
                     'services' => $room->roomServices
-                        ->filter(fn (RoomService $roomService): bool => (bool) $roomService->service?->is_active)
+                        ->filter(fn (RoomService $roomService): bool => (bool) $roomService->is_active && (bool) $roomService->service?->is_active)
                         ->map(function (RoomService $roomService) use ($buildingServicePrices): array {
                             $roomPrice = $roomService->prices->first()?->price;
                             // Fallback to building-level service_prices for meter-based services
@@ -150,6 +153,7 @@ class ContractController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách phòng khả dụng', 200, $rooms, 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -178,6 +182,7 @@ class ContractController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách hợp đồng', 200, $this->paginatedResource($contracts), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -308,6 +313,7 @@ class ContractController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết hợp đồng', 200, new ContractDetailResource($contractModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -361,6 +367,7 @@ class ContractController extends Controller
 
             return ApiResponse::responseJson(true, 'Danh sách khách thuê có thể thêm vào hợp đồng', 200, $this->paginatedTenantOptions($tenants), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -461,6 +468,7 @@ class ContractController extends Controller
         } catch (HttpResponseException $e) {
             throw $e;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -693,6 +701,7 @@ class ContractController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -795,6 +804,7 @@ class ContractController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -850,6 +860,7 @@ class ContractController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -1015,6 +1026,7 @@ class ContractController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -1072,6 +1084,7 @@ class ContractController extends Controller
         } catch (HttpResponseException $e) {
             return $e->getResponse();
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -1525,12 +1538,10 @@ class ContractController extends Controller
             $this->throwResponse('Bạn không có quyền thao tác hợp đồng của tòa nhà này.', 403);
         }
 
-        if ((int) $room->status !== Room::STATUS_ACTIVE) {
-            $this->throwResponse('Chỉ có thể lập hợp đồng cho phòng đang hoạt động.', 422);
-        }
+        $stateError = OperationalStateGuard::roomRentableBlockReason($room);
 
-        if ($room->building && (int) $room->building->status !== \App\Models\Building::STATUS_ACTIVE) {
-            $this->throwResponse('Không thể lập hợp đồng vì tòa nhà đã ngừng hoạt động hoặc đang bảo trì.', 422);
+        if ($stateError !== null) {
+            $this->throwResponse($stateError, 422);
         }
     }
 
@@ -1758,10 +1769,16 @@ class ContractController extends Controller
                 continue;
             }
 
-            $roomService = RoomService::query()->firstOrCreate([
-                'room_id' => $room->id,
-                'service_id' => (int) $item['service_id'],
-            ]);
+            $roomService = RoomService::query()->updateOrCreate(
+                [
+                    'room_id' => $room->id,
+                    'service_id' => (int) $item['service_id'],
+                ],
+                [
+                    'is_active' => true,
+                    'ended_at' => null,
+                ]
+            );
 
             $this->upsertContractRoomServicePrice($roomService, $contract, $contractStart, $contractEnd, (string) $item['price'], $admin);
         }
@@ -2269,12 +2286,12 @@ class ContractController extends Controller
     {
         return [
             'room:id,building_id,room_type_id,room_number,slug,floor,area_m2,base_price,max_occupants,current_occupants,status,description,created_by,created_at,updated_at',
-            'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id'])->orderBy('id'),
+            'room.roomServices' => fn ($query) => $query->select(['id', 'room_id', 'service_id', 'is_active', 'ended_at'])->active()->orderBy('id'),
             'room.roomServices.service:id,name,slug,charge_method,unit_name,is_required,is_active',
             'room.roomServices.prices' => fn ($query) => $query->select(['id', 'room_service_id', 'contract_id', 'price', 'effective_from', 'effective_to'])->whereNull('contract_id')->orderByDesc('effective_from')->orderByDesc('id'),
             'room.building:id,name,slug,manager_admin_id,status,address,gender_policy',
             'room.roomType:id,name,slug,status',
-            'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id'),
+            'roomServicePrices' => fn ($query) => $query->select(['id', 'contract_id', 'room_service_id', 'price', 'effective_from', 'effective_to'])->with('roomService:id,service_id,is_active,ended_at'),
             'creator:id,username,full_name,email,phone,role,status',
             'representativeTenant:id,full_name,phone,email',
             'contractTenants' => fn ($query) => $query->select(['id', 'contract_id', 'tenant_id', 'join_date', 'leave_date', 'billing_start_date', 'billing_end_date', 'is_staying', 'created_by', 'created_at', 'updated_at'])->orderBy('join_date')->orderBy('id'),

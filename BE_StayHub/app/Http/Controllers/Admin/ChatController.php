@@ -139,6 +139,7 @@ class ChatController extends Controller
                 ],
             ], 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -175,6 +176,7 @@ class ChatController extends Controller
                 ],
             ], 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -239,6 +241,7 @@ class ChatController extends Controller
                 'conversation' => (new ChatConversationResource($message->conversation))->resolve(),
             ], 201);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }
@@ -267,6 +270,7 @@ class ChatController extends Controller
 
             return ApiResponse::responseJson(true, 'Đã đánh dấu đoạn chat là đã đọc', 200, (new ChatConversationResource($conversation))->resolve(), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
         }
     }

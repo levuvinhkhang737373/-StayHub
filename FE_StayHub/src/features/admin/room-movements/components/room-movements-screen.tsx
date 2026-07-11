@@ -650,12 +650,12 @@ function SettlementBadge({ movement }: { movement: AdminRoomMovementResource }) 
     return <span className="text-[12px] font-black text-[#6f6254]">Không phát sinh</span>
   }
 
-  const isPaid = remainingAmount <= 0
+  const isPaid = Number(movement.settlement_payment_status) === 2 || remainingAmount <= 0
 
   return (
     <div className="space-y-1 leading-none">
-      <p className={cn('text-[12px] font-black tabular-nums', isPaid ? 'text-[#0f5f59]' : 'text-[#8a4f18]')}>{formatCurrency(remainingAmount)}</p>
-      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#6f6254]">{movement.settlement_payment_status_label || (isPaid ? 'Đã thanh toán' : 'Chờ QR')}</p>
+      <p className={cn('text-[12px] font-black tabular-nums', isPaid ? 'text-[#0f5f59]' : 'text-rose-600')}>{formatCurrency(remainingAmount)}</p>
+      <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', isPaid ? 'text-[#0f5f59]' : 'text-rose-600')}>{movement.settlement_payment_status_label || (isPaid ? 'Đã thanh toán' : 'Chờ QR')}</p>
     </div>
   )
 }
@@ -675,6 +675,8 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
   const settlementBreakdown = useMemo(() => makeSettlementBreakdown(movement), [movement])
   const canCollectCash = canRecordCashSettlementPayment(movement, currentAdmin)
   const canReschedule = canUpdateTransferDate(movement)
+  const remainingAmount = Number(movement.settlement_remaining_amount ?? 0)
+  const isPaid = Number(movement.settlement_payment_status) === 2 || remainingAmount <= 0
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="room-movement-detail-title">
@@ -719,7 +721,14 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                     <DetailTile label="Ngày chuyển" value={formatDateTime(movement.movement_date)} />
                     <DetailTile label="Đã execute lúc" value={formatDateTime(movement.executed_at)} />
                     <DetailTile label="Người xử lý" value={movement.creator_name || '—'} />
-                    <DetailTile label="Thanh toán" value={movement.settlement_payment_status_label || '—'} />
+                    <DetailTile
+                      label="Thanh toán"
+                      value={
+                        <span className={isPaid ? 'text-[#0f5f59]' : 'text-rose-600'}>
+                          {movement.settlement_payment_status_label || '—'}
+                        </span>
+                      }
+                    />
                   </div>
                 </div>
 
@@ -807,7 +816,7 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
 
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <MiniMetric label="Đã thanh toán" value={movement.settlement_paid_amount} tone="success" />
-                      <MiniMetric label="Trạng thái" value={movement.settlement_payment_status_label || '—'} />
+                      <MiniMetric label="Trạng thái" value={movement.settlement_payment_status_label || '—'} tone={isPaid ? 'success' : 'danger'} />
                     </div>
 
                     {canCollectCash && (
@@ -910,6 +919,7 @@ function CashSettlementPaymentModal({ movement, note, errorMessage, isSubmitting
   const remainingAmount = movement.settlement_remaining_amount || '0.00'
   const depositRemaining = settlementDepositRemainingAmount(movement)
   const extraAmount = settlementExtraCashAmount(movement)
+  const isPaid = Number(movement.settlement_payment_status) === 2 || Number(remainingAmount) <= 0
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="cash-settlement-title">
@@ -936,7 +946,14 @@ function CashSettlementPaymentModal({ movement, note, errorMessage, isSubmitting
             <DetailTile label="Mã chuyển phòng" value={movement.transfer_code || '—'} />
             <DetailTile label="Khách thuê" value={movement.tenant?.full_name || movement.tenant?.username || `#${movement.tenant_id}`} />
             <DetailTile label="Phòng đến" value={roomLabel(movement.to_room, 'Phòng đến')} />
-            <DetailTile label="Trạng thái hiện tại" value={movement.settlement_payment_status_label || 'Chờ thanh toán'} />
+            <DetailTile
+              label="Trạng thái hiện tại"
+              value={
+                <span className={isPaid ? 'text-[#0f5f59]' : 'text-rose-600'}>
+                  {movement.settlement_payment_status_label || 'Chờ thanh toán'}
+                </span>
+              }
+            />
           </div>
 
           <section className="rounded-[1.5rem] border border-[#0f766e]/15 bg-[#0f766e]/8 p-4">

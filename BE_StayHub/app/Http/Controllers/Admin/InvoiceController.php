@@ -23,6 +23,7 @@ use App\Http\Requests\Admin\Invoice\RecordPaymentRequest;
 use App\Http\Requests\Admin\Invoice\ConfirmPaymentRequest;
 use App\Http\Requests\Admin\Invoice\CancelRequest;
 use App\Models\Admin;
+use App\Models\Building;
 use App\Models\Contract;
 use App\Models\ContractVehicle;
 use App\Models\Invoice;
@@ -31,11 +32,13 @@ use App\Models\MeterDevice;
 use App\Models\MeterReading;
 use App\Models\Notification;
 use App\Models\Payment;
+use App\Models\Room;
 use App\Models\RoomMovement;
 use App\Models\RoomService;
 use App\Models\RoomServicePrice;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Services\RoomServiceLifecycleService;
 use App\Services\Invoice\InvoiceDebtRolloverService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -92,6 +95,7 @@ class InvoiceController extends Controller
                 'stats' => $stats,
             ], 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -158,6 +162,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(true, 'Chi tiết hóa đơn', 200, new InvoiceDetailResource($invoiceModel), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -177,6 +182,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(true, 'Xem trước hóa đơn thành công', 200, new InvoicePreviewResource($draft), 200);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -240,6 +246,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -269,6 +276,14 @@ class InvoiceController extends Controller
         }
 
         $periodStart = Carbon::create((int) $validated['billing_year'], (int) $validated['billing_month'], 1)->startOfDay();
+        $currentMonth = now()->startOfMonth();
+        if (
+            $periodStart->greaterThanOrEqualTo($currentMonth)
+            && ((int) $contract->room->status !== Room::STATUS_ACTIVE
+                || (int) $contract->room->building?->status !== Building::STATUS_ACTIVE)
+        ) {
+            return ApiResponse::responseJson(false, 'Không thể lập hóa đơn kỳ mới cho phòng hoặc tòa nhà đang ngừng hoạt động/bảo trì.', 422, null, 422);
+        }
         $periodEnd = $periodStart->copy()->endOfMonth()->startOfDay();
         $dueDate = isset($validated['due_date'])
             ? Carbon::parse($validated['due_date'])->startOfDay()
@@ -464,6 +479,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(false, $e->getMessage(), $status, null, $status);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -549,6 +565,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -618,6 +635,7 @@ class InvoiceController extends Controller
 
             return $response;
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -690,6 +708,7 @@ class InvoiceController extends Controller
 
             return ApiResponse::responseJson(false, $e->getMessage(), $status, null, $status);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
         }
     }
@@ -747,13 +766,19 @@ class InvoiceController extends Controller
             if (! $isMetered) {
                 $roomService = RoomService::where('room_id', $contract->room_id)
                     ->where('service_id', $service->id)
+                    ->usableForPeriod($periodStart, $periodEnd)
                     ->first();
 
                 if (! $roomService) {
                     continue;
                 }
 
-                $resolvedAmount = $this->roomServicePriceForPeriod($roomService, $periodEnd, $contract);
+                if (! app(RoomServiceLifecycleService::class)->shouldChargeInPeriod($roomService, $periodStart, $periodEnd)) {
+                    continue;
+                }
+
+                $serviceCutoffDate = $this->serviceChargeEndDate($contract, $roomService, $periodEnd, $transferContext['contract_cutoff_date']);
+                $resolvedAmount = $this->roomServicePriceForPeriod($roomService, $serviceCutoffDate, $contract);
                 if ($resolvedAmount === null) {
                     $errors[] = "Phòng {$contract->room?->room_number} chưa có giá dịch vụ {$service->name} hiệu lực trong kỳ {$billingMonth}/{$billingYear}.";
 
@@ -810,13 +835,15 @@ class InvoiceController extends Controller
                 }
 
                 $fullAmount = DecimalMoney::multiply((string) $tenantCount, $unitPrice);
-                $proratedAmount = $this->calculateProratedAmount($fullAmount, $contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date'], $servicePeriodStart);
+                $serviceEndDate = $this->serviceChargeEndDate($contract, $roomService, $periodEnd, $transferContext['contract_cutoff_date']);
+                $serviceDescriptionEndDate = $this->serviceDescriptionEndDate($serviceEndDate, $periodEnd);
+                $proratedAmount = $this->calculateProratedAmount($fullAmount, $contract, $periodStart, $periodEnd, $serviceEndDate, $servicePeriodStart);
 
                 $items[] = [
                     'service_id' => $service->id,
                     'meter_reading_id' => null,
                     'item_type' => $this->serviceItemType($service),
-                    'description' => $this->descriptionWithTransferCutoff($service->name.' ('.$tenantCount.' người)', $transferContext['contract_cutoff_date']),
+                    'description' => $this->descriptionWithTransferCutoff($service->name.' ('.$tenantCount.' người)', $serviceDescriptionEndDate),
                     'quantity' => DecimalMoney::normalize((string) $tenantCount),
                     'unit_price' => $unitPrice,
                     'amount' => $proratedAmount,
@@ -826,13 +853,15 @@ class InvoiceController extends Controller
             }
 
             if (in_array((int) $service->charge_method, [Service::CHARGE_METHOD_BY_ROOM, Service::CHARGE_METHOD_FIXED], true)) {
-                $proratedAmount = $this->calculateProratedAmount($unitPrice, $contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date'], $servicePeriodStart);
+                $serviceEndDate = $this->serviceChargeEndDate($contract, $roomService, $periodEnd, $transferContext['contract_cutoff_date']);
+                $serviceDescriptionEndDate = $this->serviceDescriptionEndDate($serviceEndDate, $periodEnd);
+                $proratedAmount = $this->calculateProratedAmount($unitPrice, $contract, $periodStart, $periodEnd, $serviceEndDate, $servicePeriodStart);
 
                 $items[] = [
                     'service_id' => $service->id,
                     'meter_reading_id' => null,
                     'item_type' => $this->serviceItemType($service),
-                    'description' => $this->descriptionWithTransferCutoff($service->name, $transferContext['contract_cutoff_date']),
+                    'description' => $this->descriptionWithTransferCutoff($service->name, $serviceDescriptionEndDate),
                     'quantity' => '1.00',
                     'unit_price' => $unitPrice,
                     'amount' => $proratedAmount,
@@ -1006,6 +1035,32 @@ class InvoiceController extends Controller
     private function calculateRoomAmount(Contract $contract, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null, ?Carbon $servicePeriodStart = null): string
     {
         return $this->calculateProratedAmount($contract->room_price, $contract, $periodStart, $periodEnd, $cutoffDate, $servicePeriodStart);
+    }
+
+    private function serviceChargeEndDate(Contract $contract, RoomService $roomService, Carbon $periodEnd, ?Carbon $transferCutoffDate = null): Carbon
+    {
+        $chargeEnd = $periodEnd->copy()->startOfDay();
+        $contractEndDate = $contract->actual_end_date ?: $contract->end_date;
+
+        if ($contractEndDate && $contractEndDate->copy()->startOfDay()->lt($chargeEnd)) {
+            $chargeEnd = $contractEndDate->copy()->startOfDay();
+        }
+
+        if ($transferCutoffDate && $transferCutoffDate->copy()->startOfDay()->lt($chargeEnd)) {
+            $chargeEnd = $transferCutoffDate->copy()->startOfDay();
+        }
+
+        $serviceEndedAt = $roomService->ended_at?->copy()->startOfDay();
+        if ($serviceEndedAt && $serviceEndedAt->lt($chargeEnd)) {
+            $chargeEnd = $serviceEndedAt;
+        }
+
+        return $chargeEnd;
+    }
+
+    private function serviceDescriptionEndDate(Carbon $serviceEndDate, Carbon $periodEnd): ?Carbon
+    {
+        return $serviceEndDate->isSameDay($periodEnd) ? null : $serviceEndDate;
     }
 
     // Lấy thông tin bàn giao/chuyển phòng còn lại
