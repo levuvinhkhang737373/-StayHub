@@ -1,5 +1,5 @@
 import { apiRequest } from '../../../../shared/lib/api/api-client'
-import type { AdminRoomMovementFilters, AdminRoomMovementPaginator, AdminRoomMovementResource, AdminRoomMovementSettlementCashPaymentPayload, AdminRoomMovementSettlementCashPaymentResult, AdminUpdateRoomMovementTransferDatePayload, AdminUpdateRoomMovementTransferDateResult } from '../types/room-movement-api.model'
+import type { AdminCancelRoomMovementTransferPayload, AdminCancelRoomMovementTransferResult, AdminRoomMovementFilters, AdminRoomMovementPaginator, AdminRoomMovementResource, AdminRoomMovementSettlementCashPaymentPayload, AdminRoomMovementSettlementCashPaymentResult, AdminUpdateRoomMovementTransferDatePayload, AdminUpdateRoomMovementTransferDateResult } from '../types/room-movement-api.model'
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
   const query = new URLSearchParams()
@@ -30,6 +30,14 @@ export async function fetchAdminRoomMovementDetail(roomMovementId: number) {
 export async function updateAdminRoomMovementTransferDate(roomMovementId: number, payload: AdminUpdateRoomMovementTransferDatePayload) {
   return apiRequest<AdminUpdateRoomMovementTransferDateResult>({
     url: `admin/room-movements/${roomMovementId}/transfer-date`,
+    method: 'PATCH',
+    data: payload,
+  })
+}
+
+export async function cancelAdminRoomMovementTransfer(roomMovementId: number, payload: AdminCancelRoomMovementTransferPayload = {}) {
+  return apiRequest<AdminCancelRoomMovementTransferResult>({
+    url: `admin/room-movements/${roomMovementId}/cancel-transfer`,
     method: 'PATCH',
     data: payload,
   })

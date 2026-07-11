@@ -558,7 +558,7 @@ export function ContractsScreen() {
     if (!terminatingContract || isTerminating) return
 
     const depositBalance = Number(terminatingContract.deposit_balance || '0')
-    const deductionAmount = Number(terminateForm.deduction_amount || '0')
+    const deductionAmount = Number(parseMoneyInput(terminateForm.deduction_amount) || '0')
 
     if (!terminateForm.actual_end_date) {
       setErrorMessage('Vui lòng nhập ngày thanh lý hợp đồng.')
@@ -803,7 +803,7 @@ export function ContractsScreen() {
                       <td className="px-5 py-4">
                         <p className="text-xs font-black text-[#24170d]">{formatCurrency(contract.room_price)}</p>
                         <p className="mt-1 text-xs font-bold text-[#8b5e34]/70">Cọc {formatCurrency(contract.deposit_amount)}</p>
-                        {Number(contract.deposit_amount) > 0 && (
+                        {Number(contract.deposit_amount) > 0 && ![STATUS_LIQUIDATED, STATUS_EXPIRED, STATUS_CANCELLED].includes(Number(contract.status)) && (
                           <div className="mt-1.5 flex items-center">
                             <span
                               className={cn(

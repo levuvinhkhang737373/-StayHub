@@ -4,7 +4,7 @@ import { ConfirmModal } from '../../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../../shared/lib/hooks/use-confirm-modal'
 import { formatCurrency, formatDate, formatDateTime, formatMoneyText } from '../../../../../shared/lib/utils/format'
 import type { AdminContractResource } from '../../types/contract-api.model'
-import { getStatusLabel } from '../../utils/contract.helpers'
+import { getStatusLabel, STATUS_LIQUIDATED, STATUS_EXPIRED, STATUS_CANCELLED } from '../../utils/contract.helpers'
 import { canPayContractDeposit, canTransferContractRoom } from '../../utils/contract-actions.helpers'
 import { labelClass } from '../form/form-elements'
 import { ActionMenu, DetailTile } from '../ui/ui-elements'
@@ -426,7 +426,9 @@ export function ContractDetailModal({
                               : 'text-amber-600 font-black' // PENDING / others
                       }
                     >
-                      {contract.payment_status_label || (contract.is_deposit_paid ? 'Đã đóng cọc' : 'Chưa đóng cọc')}
+                      {[STATUS_LIQUIDATED, STATUS_EXPIRED, STATUS_CANCELLED].includes(Number(contract.status))
+                        ? '—'
+                        : (contract.payment_status_label || (contract.is_deposit_paid ? 'Đã đóng cọc' : 'Chưa đóng cọc'))}
                     </span>
                   }
                 />

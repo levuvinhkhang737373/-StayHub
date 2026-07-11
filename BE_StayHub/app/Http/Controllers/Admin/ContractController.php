@@ -781,7 +781,7 @@ class ContractController extends Controller
                 $this->createCheckoutMovements($contractModel, $activeTenantRows, $admin, $actualEndDate, $deductionCents, $refundCents, $note);
                 $this->closeActiveContractRows($contractModel, $actualEndDate->toDateString());
                 $this->closeContractRoomServicePrices($contractModel, $actualEndDate->toDateString());
-                $this->markRoomMaintenanceAfterTermination((int) $contractModel->room_id);
+                $this->refreshRoomOccupants((int) $contractModel->room_id);
 
                 Contract::withoutEvents(fn (): int => Contract::query()
                     ->whereKey($contractModel->id)
@@ -2039,16 +2039,7 @@ class ContractController extends Controller
         Room::query()->whereKey($roomId)->update(['current_occupants' => $occupants]);
     }
 
-    // Sau khi thanh lý, phòng chuyển sang bảo trì để dọn dẹp theo quy trình vận hành
-    private function markRoomMaintenanceAfterTermination(int $roomId): void
-    {
-        $this->refreshRoomOccupants($roomId);
 
-        Room::query()
-            ->whereKey($roomId)
-            ->where('current_occupants', 0)
-            ->update(['status' => Room::STATUS_MAINTENANCE]);
-    }
 
     // Kiểm tra khách thuê có bị trùng lịch ở hợp đồng khác không
     private function hasReservedTenantConflict(array $tenantIds, ?int $ignoreContractId): bool

@@ -49,6 +49,7 @@ class AdminActivityLogger
         'delete_vehicle' => 'Xóa phương tiện',
         'face_login_success' => 'Đăng nhập bằng nhận diện khuôn mặt thành công',
         'generate_and_issue_invoice' => 'Tạo và phát hành hóa đơn',
+        'cancel_room_transfer_schedule' => 'Hủy lịch chuyển phòng',
         'login_success' => 'Đăng nhập thành công',
         'logout' => 'Đăng xuất',
         'record_invoice_payment' => 'Ghi nhận thanh toán hóa đơn',

@@ -9,6 +9,7 @@ use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
 use App\Helpers\DecimalMoney;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\RoomMovement\CancelTransferRequest;
 use App\Http\Requests\Admin\RoomMovement\IndexRequest;
 use App\Http\Requests\Admin\RoomMovement\SettlementCashPaymentRequest;
 use App\Http\Requests\Admin\RoomMovement\UpdateTransferDateRequest;
@@ -117,6 +118,18 @@ class RoomMovementController extends Controller
                     return ['error' => ApiResponse::responseJson(false, 'Ngày chuyển mới phải khác ngày hiện tại của lịch chuyển', 422, null, 422)];
                 }
 
+                $today = now('Asia/Ho_Chi_Minh')->startOfDay();
+                if ($newDate->lt($today->copy()->addDay())) {
+                    return ['error' => ApiResponse::responseJson(false, 'Ngày chuyển phòng phải từ ngày tiếp theo trở đi. Nếu muốn chuyển sang phòng khác ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.', 422, null, 422)];
+                }
+
+                if ($movement->sourceContract && $movement->sourceContract->start_date) {
+                    $minAllowedDate = $movement->sourceContract->start_date->copy()->startOfDay()->addDay();
+                    if ($newDate->lt($minAllowedDate)) {
+                        return ['error' => ApiResponse::responseJson(false, 'Ngày chuyển phòng phải sau ngày bắt đầu hợp đồng hiện tại ít nhất 1 ngày. Nếu muốn chuyển sang phòng khác ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.', 422, null, 422)];
+                    }
+                }
+
                 $movements = $this->baseQuery($admin)
                     ->where('transfer_code', $movement->transfer_code)
                     ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
@@ -180,6 +193,128 @@ class RoomMovementController extends Controller
                 'execute_result' => $result['execute_result'] ?? null,
                 'executed_immediately' => $result['executed_immediately'] ?? false,
                 'blocked_immediately' => $result['blocked_immediately'] ?? false,
+            ], 200);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error($e);
+            return ApiResponse::responseJson(false, 'Server Error: '.$e->getMessage(), 500, null, 500);
+        }
+    }
+
+    // Hủy lịch chuyển phòng chưa thực thi
+    public function cancelTransfer(CancelTransferRequest $request, int $roomMovement): JsonResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $admin = $request->user('admin');
+
+            if (! $admin || ! $this->canViewRoomMovements($admin)) {
+                return ApiResponse::responseJson(false, 'Bạn không có quyền hủy lịch chuyển phòng', 403, null, 403);
+            }
+
+            $notifications = collect();
+
+            $result = DB::transaction(function () use ($validated, $admin, $request, $roomMovement, &$notifications): array {
+                $movement = $this->baseQuery($admin)
+                    ->whereKey($roomMovement)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $movement) {
+                    return ['error' => ApiResponse::responseJson(false, 'Không tìm thấy lịch chuyển phòng', 404, null, 404)];
+                }
+
+                if ((int) $movement->movement_type !== RoomMovement::MOVEMENT_TYPE_TRANSFER || blank($movement->transfer_code)) {
+                    return ['error' => ApiResponse::responseJson(false, 'Chỉ được hủy lịch chuyển phòng', 422, null, 422)];
+                }
+
+                if ((int) $movement->status === RoomMovement::STATUS_CANCELLED) {
+                    return ['error' => ApiResponse::responseJson(false, 'Lịch chuyển phòng đã được hủy trước đó', 422, null, 422)];
+                }
+
+                if (! in_array((int) $movement->status, [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED], true)) {
+                    return ['error' => ApiResponse::responseJson(false, 'Chỉ được hủy lịch chuyển phòng chưa thực thi', 422, null, 422)];
+                }
+
+                $movements = $this->baseQuery($admin)
+                    ->where('transfer_code', $movement->transfer_code)
+                    ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+                    ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED])
+                    ->lockForUpdate()
+                    ->get();
+
+                if ($movements->isEmpty()) {
+                    return ['error' => ApiResponse::responseJson(false, 'Không tìm thấy lịch chuyển phòng có thể hủy', 404, null, 404)];
+                }
+
+                $movementIds = $movements->pluck('id');
+                $note = trim((string) ($validated['note'] ?? ''));
+                $cancelledAt = now('Asia/Ho_Chi_Minh')->toDateTimeString();
+                $adminName = $admin->full_name ?: $admin->username;
+                $reason = filled($note)
+                    ? "Đã hủy bởi admin {$adminName}. Lý do: {$note}"
+                    : "Đã hủy bởi admin {$adminName}.";
+
+                $oldData = $movements->map(fn (RoomMovement $scheduledMovement): array => [
+                    'id' => $scheduledMovement->id,
+                    'status' => (int) $scheduledMovement->status,
+                    'failure_reason' => $scheduledMovement->failure_reason,
+                    'scheduled_payload' => $scheduledMovement->scheduled_payload,
+                ])->values()->all();
+
+                $movements->each(function (RoomMovement $scheduledMovement) use ($admin, $note, $cancelledAt, $reason): void {
+                    $payload = $scheduledMovement->scheduled_payload ?? [];
+                    $payload['cancelled_at'] = $cancelledAt;
+                    $payload['cancelled_by'] = $admin->id;
+
+                    if (filled($note)) {
+                        $payload['cancel_note'] = $note;
+                    } else {
+                        unset($payload['cancel_note']);
+                    }
+
+                    $scheduledMovement->forceFill([
+                        'status' => RoomMovement::STATUS_CANCELLED,
+                        'failure_reason' => $reason,
+                        'scheduled_payload' => $payload,
+                    ])->save();
+                });
+
+                $freshMovements = $this->baseQuery($admin)
+                    ->whereKey($movementIds)
+                    ->orderBy('id')
+                    ->get();
+
+                AdminActivityLogger::write($admin, 'Hủy lịch chuyển phòng', RoomMovement::class, $movement->id, [
+                    'transfer_code' => $movement->transfer_code,
+                    'movements' => $oldData,
+                ], [
+                    'transfer_code' => $movement->transfer_code,
+                    'status' => RoomMovement::STATUS_CANCELLED,
+                    'note' => $note ?: null,
+                    'cancelled_at' => $cancelledAt,
+                    'movement_ids' => $movementIds->values()->all(),
+                ], $request);
+
+                $notifications = $this->createTransferCancelledNotifications($freshMovements, $admin, $note ?: null);
+
+                return [
+                    'movement' => $freshMovements->firstWhere('id', $movement->id) ?: $freshMovements->first(),
+                    'movements' => $freshMovements,
+                    'transfer_code' => $movement->transfer_code,
+                ];
+            });
+
+            if (isset($result['error'])) {
+                return $result['error'];
+            }
+
+            $this->broadcastNotifications($notifications);
+
+            return ApiResponse::responseJson(true, 'Hủy lịch chuyển phòng thành công', 200, [
+                'transfer_code' => $result['transfer_code'],
+                'movement' => new RoomMovementResource($result['movement']),
+                'movements' => RoomMovementResource::collection($result['movements'])->resolve(),
             ], 200);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error($e);
@@ -546,6 +681,50 @@ class RoomMovementController extends Controller
             'action_url' => $firstMovement ? '/admin/room-movements?movement_id=' . $firstMovement->id : '/admin/room-movements',
             'building_id' => $room?->building_id,
             'room_id' => $room?->id,
+            'target_admin_id' => null,
+            'published_at' => now(),
+            'status' => Notification::STATUS_SENT,
+            'created_by' => $admin->id,
+        ]);
+
+        return $tenantNotifications->push($adminNotification)->values();
+    }
+
+    // Tạo thông báo realtime khi hủy lịch chuyển phòng
+    private function createTransferCancelledNotifications(EloquentCollection $movements, Admin $admin, ?string $note): Collection
+    {
+        $firstMovement = $movements->first();
+        $transferCode = (string) $firstMovement?->transfer_code;
+        $fromRoom = $firstMovement?->fromRoom?->room_number ?? 'phòng cũ';
+        $toRoom = $firstMovement?->toRoom?->room_number ?? 'phòng mới';
+        $movementDateText = $firstMovement?->movement_date?->format('d/m/Y') ?? 'chưa rõ';
+        $noteText = filled($note) ? " Lý do: {$note}" : '';
+        $adminName = $admin->full_name ?: $admin->username;
+
+        $tenantNotifications = $movements
+            ->unique('tenant_id')
+            ->map(fn (RoomMovement $movement): Notification => Notification::query()->create([
+                'title' => 'Lịch chuyển phòng đã bị hủy',
+                'content' => "Lịch chuyển phòng {$transferCode} từ {$fromRoom} sang {$toRoom} ngày {$movementDateText} đã bị hủy.{$noteText}",
+                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                'target_type' => Notification::TARGET_TYPE_TENANT,
+                'action_url' => '/admin/room-movements?movement_id=' . $movement->id,
+                'building_id' => $movement->toRoom?->building_id ?? $movement->fromRoom?->building_id,
+                'room_id' => $movement->to_room_id ?? $movement->from_room_id,
+                'tenant_id' => $movement->tenant_id,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => $admin->id,
+            ]));
+
+        $adminNotification = Notification::query()->create([
+            'title' => 'Admin đã hủy lịch chuyển phòng',
+            'content' => "Admin {$adminName} đã hủy lịch chuyển phòng {$transferCode} từ {$fromRoom} sang {$toRoom} ngày {$movementDateText}.{$noteText}",
+            'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+            'target_type' => Notification::TARGET_TYPE_ADMIN,
+            'action_url' => $firstMovement ? '/admin/room-movements?movement_id=' . $firstMovement->id : '/admin/room-movements',
+            'building_id' => $firstMovement?->toRoom?->building_id ?? $firstMovement?->fromRoom?->building_id,
+            'room_id' => $firstMovement?->to_room_id ?? $firstMovement?->from_room_id,
             'target_admin_id' => null,
             'published_at' => now(),
             'status' => Notification::STATUS_SENT,

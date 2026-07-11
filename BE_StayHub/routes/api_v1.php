@@ -165,6 +165,7 @@ Route::prefix('admin')->group(function (): void {
         Route::apiResource('rooms', RoomController::class);
         Route::get('room-movements', [RoomMovementController::class, 'index']);
         Route::patch('room-movements/{roomMovement}/transfer-date', [RoomMovementController::class, 'updateTransferDate']);
+        Route::patch('room-movements/{roomMovement}/cancel-transfer', [RoomMovementController::class, 'cancelTransfer']);
         Route::post('room-movements/{roomMovement}/settlement-cash-payment', [RoomMovementController::class, 'recordSettlementCashPayment']);
         Route::get('room-movements/{roomMovement}', [RoomMovementController::class, 'show']);
         Route::post('room-transfers/tenant', [RoomController::class, 'transferTenant']);

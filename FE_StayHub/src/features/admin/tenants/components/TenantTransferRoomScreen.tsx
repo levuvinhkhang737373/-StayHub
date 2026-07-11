@@ -444,8 +444,21 @@ export function TenantTransferRoomScreen() {
         return fetchAdminContractDetail(currentContractId)
           .then((contractResponse) => {
             if (!isMounted) return
-            setCurrentContract(contractResponse.result ?? null)
+            const loadedContract = contractResponse.result ?? null
+            setCurrentContract(loadedContract)
             setSelectedTenantIds((current) => (current.length > 0 ? current : [parsedTenantId]))
+
+            if (loadedContract?.start_date) {
+              const contractStartDate = parseDateInput(loadedContract.start_date)
+              if (contractStartDate) {
+                const dayAfterStart = addDays(contractStartDate, 1)
+                const tomorrow = addDays(new Date(), 1)
+                const targetDate = dayAfterStart > tomorrow ? dayAfterStart : tomorrow
+                setMovementDate(dateToInputString(targetDate))
+              }
+            } else {
+              setMovementDate(dateToInputString(addDays(new Date(), 1)))
+            }
           })
           .catch((error) => {
             if (!isMounted) return
@@ -586,8 +599,20 @@ export function TenantTransferRoomScreen() {
       : requiredNewDeposit
   const settlementDueAmount = selectedRoom ? depositDueAmount + extraChargeAmount : 0
   const effectiveMovementDate = movementDate
-  const today = useMemo(() => todayDateString(), [])
-  const minimumMovementDate = useMemo(() => parseDateInput(today), [today])
+  const minimumMovementDate = useMemo(() => {
+    const tomorrow = addDays(new Date(), 1)
+    tomorrow.setHours(0, 0, 0, 0)
+
+    if (currentContract?.start_date) {
+      const contractStartDate = parseDateInput(currentContract.start_date)
+      if (contractStartDate) {
+        const dayAfterStart = addDays(contractStartDate, 1)
+        dayAfterStart.setHours(0, 0, 0, 0)
+        return dayAfterStart > tomorrow ? dayAfterStart : tomorrow
+      }
+    }
+    return tomorrow
+  }, [currentContract?.start_date])
   const vehicleBillingPreview = useMemo(
     () => buildVehicleBillingPreview(currentContract, selectedTenantIds, effectiveMovementDate),
     [currentContract, selectedTenantIds, effectiveMovementDate],
@@ -778,6 +803,20 @@ export function TenantTransferRoomScreen() {
       })
       setSubmitError('Tiền cọc yêu cầu phòng mới phải lớn hơn tiền phòng mới.')
       return
+    }
+
+    const selectedMovementDate = parseDateInput(effectiveMovementDate)
+    if (selectedMovementDate) {
+      selectedMovementDate.setHours(0, 0, 0, 0)
+      const minDate = new Date(minimumMovementDate)
+      minDate.setHours(0, 0, 0, 0)
+      if (selectedMovementDate < minDate) {
+        setFieldErrors({
+          movement_date: ['Ngày chuyển phòng phải từ ngày tiếp theo trở đi. Nếu muốn chuyển sang phòng khác ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.'],
+        })
+        setSubmitError('Ngày chuyển phòng phải từ ngày tiếp theo trở đi. Nếu muốn chuyển sang phòng khác ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.')
+        return
+      }
     }
 
     const payload: TransferTenantPayload = {
@@ -1224,6 +1263,9 @@ export function TenantTransferRoomScreen() {
                     placeholder="Chọn ngày chuyển"
                     className={cn(inputClass, fieldErrors.movement_date && 'border-rose-300 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-200')}
                   />
+                  <p className="mt-1.5 text-xs font-semibold text-[#8b5e34]/70 leading-relaxed">
+                    * Lịch chuyển phòng chỉ được lên lịch từ ngày tiếp theo trở đi. Nếu muốn chuyển ngay lập tức, vui lòng thực hiện <strong className="text-[#a65f16]">thanh lý hợp đồng</strong>.
+                  </p>
                 </Field>
 
                 <Field label="Cọc yêu cầu phòng mới" error={fieldErrors.new_deposit_amount}>

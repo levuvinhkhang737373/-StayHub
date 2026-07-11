@@ -823,7 +823,7 @@ class ContractControllerTest extends TestCase
         $this->assertDatabaseHas('rooms', [
             'id' => $this->room->id,
             'current_occupants' => 0,
-            'status' => Room::STATUS_MAINTENANCE,
+            'status' => Room::STATUS_ACTIVE,
         ]);
     }
 

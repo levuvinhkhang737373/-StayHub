@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowRightLeft, CalendarDays, CalendarPlus2, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowRightLeft, CalendarDays, CalendarPlus2, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, HandCoins, History, Loader2, ReceiptText, Search, Sparkles, Trash2, X } from 'lucide-react'
+import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
+import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import { cn } from '../../../../shared/lib/utils/cn'
-import { formatCurrency, formatDateTime } from '../../../../shared/lib/utils/format'
+import { formatCurrency, formatDate, formatDateTime } from '../../../../shared/lib/utils/format'
 import { AdminSelect } from '../../shared/components/AdminSelect'
 import { getVisibleErrorMessage, getVisibleFilterErrorMessage } from '../../shared/utils/error-message'
 import { isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
 import type { AdminProfile } from '../../auth/types/admin-auth.model'
 import { fetchAdminRooms, fetchBuilding } from '../../rooms/services/rooms.service'
 import type { AdminRoomResource, BuildingResource } from '../../rooms/types/rooms.model'
-import { fetchAdminRoomMovementDetail, fetchAdminRoomMovements, recordAdminRoomMovementSettlementCashPayment, updateAdminRoomMovementTransferDate } from '../services/room-movements.service'
+import { cancelAdminRoomMovementTransfer, fetchAdminRoomMovementDetail, fetchAdminRoomMovements, recordAdminRoomMovementSettlementCashPayment, updateAdminRoomMovementTransferDate } from '../services/room-movements.service'
 import type { AdminRoomMovementPaginationMeta, AdminRoomMovementResource } from '../types/room-movement-api.model'
-import { canUpdateTransferDate, toDateInputValue } from '../utils/transfer-date.helpers'
+import { canCancelTransferSchedule, canUpdateTransferDate, toDateInputValue } from '../utils/transfer-date.helpers'
 
 const MOVEMENT_TRANSFER = 2
 const MOVEMENT_CHECKOUT = 1
@@ -54,6 +56,7 @@ export function RoomMovementsScreen() {
   const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
   const currentAdmin = session?.admin ?? null
+  const { confirmState, isConfirmLoading, setIsConfirmLoading, showConfirm, closeConfirm } = useConfirmModal()
 
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -107,6 +110,7 @@ export function RoomMovementsScreen() {
   const [isTransferDateSubmitting, setIsTransferDateSubmitting] = useState(false)
   const [transferDateErrorMessage, setTransferDateErrorMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [detailErrorMessage, setDetailErrorMessage] = useState<string | null>(null)
   const currentPage = pageState.key === deepLinkFilterKey ? pageState.page : 1
 
@@ -358,6 +362,42 @@ export function RoomMovementsScreen() {
     }
   }
 
+  function openCancelTransferSchedule(movement: AdminRoomMovementResource) {
+    if (!canCancelTransferSchedule(movement)) return
+
+    const transferCode = movement.transfer_code || `#${movement.id}`
+
+    showConfirm({
+      title: 'Hủy lịch chuyển phòng',
+      message: `Bạn có chắc muốn hủy toàn bộ lịch chuyển phòng ${transferCode}? Khách thuê sẽ nhận thông báo realtime và lịch này sẽ không được cron thực hiện.`,
+      confirmLabel: 'Hủy lịch',
+      cancelLabel: 'Giữ lịch',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          setIsConfirmLoading(true)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+
+          const response = await cancelAdminRoomMovementTransfer(movement.id)
+          const freshMovement = response.result?.movement
+
+          if (freshMovement) {
+            setSelectedMovement(freshMovement)
+          }
+
+          setSuccessMessage(`Đã hủy lịch chuyển phòng ${transferCode}. Tenant đã được gửi realtime notification.`)
+          await loadMovements()
+        } catch (error) {
+          setErrorMessage(getVisibleErrorMessage(error, 'Không thể hủy lịch chuyển phòng.'))
+        } finally {
+          setIsConfirmLoading(false)
+          closeConfirm()
+        }
+      },
+    })
+  }
+
   async function submitCashPayment() {
     if (!cashPaymentMovement) return
 
@@ -437,6 +477,7 @@ export function RoomMovementsScreen() {
         </section>
 
         <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/92 shadow-xl shadow-[#6b3f1d]/8 backdrop-blur-md">
+          {successMessage && <div className="m-5 rounded-2xl border border-[#0f766e]/20 bg-[#0f766e]/10 p-4 text-sm font-black text-[#0f5f59]">{successMessage}</div>}
           {errorMessage && <div className="m-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{errorMessage}</div>}
 
           <div className="overflow-x-auto custom-scrollbar">
@@ -514,6 +555,11 @@ export function RoomMovementsScreen() {
                             <CalendarPlus2 className="h-4.5 w-4.5 transition group-hover/date:rotate-6" />
                           </button>
                         )}
+                        {canCancelTransferSchedule(movement) && (
+                          <button type="button" onClick={() => openCancelTransferSchedule(movement)} className="group/cancel inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Hủy lịch chuyển" aria-label="Hủy lịch chuyển phòng">
+                            <Trash2 className="h-4.5 w-4.5 transition group-hover/cancel:-rotate-6" />
+                          </button>
+                        )}
                         <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
                           <Eye className="h-4.5 w-4.5" />
                         </button>
@@ -572,7 +618,7 @@ export function RoomMovementsScreen() {
       </section>
 
       {isDetailOpen && selectedMovement && (
-        <DetailModal movement={selectedMovement} currentAdmin={currentAdmin} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} onOpenCashPayment={openCashPayment} onOpenTransferDate={openTransferDateEditor} />
+        <DetailModal movement={selectedMovement} currentAdmin={currentAdmin} isLoading={isDetailLoading} errorMessage={detailErrorMessage} onClose={closeDetail} onOpenCashPayment={openCashPayment} onOpenTransferDate={openTransferDateEditor} onOpenCancelTransfer={openCancelTransferSchedule} />
       )}
 
       {transferDateMovement && (
@@ -600,6 +646,8 @@ export function RoomMovementsScreen() {
           onConfirm={() => void submitCashPayment()}
         />
       )}
+
+      <ConfirmModal {...confirmState} onCancel={closeConfirm} isLoading={isConfirmLoading} />
     </>
   )
 }
@@ -719,7 +767,7 @@ function DetailModal({ movement, currentAdmin, isLoading, errorMessage, onClose,
                     <DetailTile label="Mã chuyển" value={movement.transfer_code || '—'} />
                     <DetailTile label="Trạng thái" value={<StatusBadge movement={movement} />} />
                     <DetailTile label="Ngày chuyển" value={formatDateTime(movement.movement_date)} />
-                    <DetailTile label="Đã execute lúc" value={formatDateTime(movement.executed_at)} />
+                    <DetailTile label="Đã thực hiện lúc" value={formatDateTime(movement.executed_at)} />
                     <DetailTile label="Người xử lý" value={movement.creator_name || '—'} />
                     <DetailTile
                       label="Thanh toán"
@@ -871,8 +919,8 @@ function TransferDateModal({ movement, movementDate, note, errorMessage, isSubmi
           <section className="relative overflow-hidden rounded-[1.75rem] border border-[#3d2a18]/10 bg-white/70 p-4 shadow-sm">
             <div className="pointer-events-none absolute inset-y-4 left-1/2 hidden w-px bg-gradient-to-b from-transparent via-[#f3c56b]/55 to-transparent sm:block" />
             <div className="grid gap-4 sm:grid-cols-2">
-              <DatePreviewCard label="Ngày hiện tại" value={currentDate || '—'} tone="muted" icon={<Clock3 className="h-4 w-4" />} />
-              <DatePreviewCard label="Ngày mới" value={movementDate || 'Chưa chọn'} tone={hasChanged ? 'active' : 'muted'} icon={<CalendarPlus2 className="h-4 w-4" />} />
+              <DatePreviewCard label="Ngày hiện tại" value={currentDate ? formatDate(currentDate) : '—'} tone="muted" icon={<Clock3 className="h-4 w-4" />} />
+              <DatePreviewCard label="Ngày mới" value={movementDate ? formatDate(movementDate) : 'Chưa chọn'} tone={hasChanged ? 'active' : 'muted'} icon={<CalendarPlus2 className="h-4 w-4" />} />
             </div>
           </section>
 

@@ -25,6 +25,16 @@ export interface AdminUpdateRoomMovementTransferDateResult {
   movements: AdminRoomMovementResource[]
 }
 
+export interface AdminCancelRoomMovementTransferPayload {
+  note?: string
+}
+
+export interface AdminCancelRoomMovementTransferResult {
+  transfer_code?: string | null
+  movement: AdminRoomMovementResource
+  movements: AdminRoomMovementResource[]
+}
+
 export interface AdminRoomMovementSettlementCashPaymentPayload {
   note?: string
 }

@@ -583,6 +583,18 @@ class RoomController extends Controller
             throw ValidationException::withMessages(['to_room_id' => 'Bạn không có quyền chuyển khách thuê giữa các tòa nhà này.']);
         }
 
+        $today = now('Asia/Ho_Chi_Minh')->startOfDay();
+        if ($movementDate->lt($today->copy()->addDay())) {
+            throw ValidationException::withMessages(['movement_date' => 'Ngày chuyển phòng phải từ ngày tiếp theo trở đi. Nếu muốn chuyển sang phòng khác ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.']);
+        }
+
+        if ($sourceContract->start_date) {
+            $minAllowedDate = $sourceContract->start_date->copy()->startOfDay()->addDay();
+            if ($movementDate->lt($minAllowedDate)) {
+                throw ValidationException::withMessages(['movement_date' => 'Ngày chuyển phòng phải sau ngày bắt đầu hợp đồng hiện tại ít nhất 1 ngày. Nếu muốn chuyển sang phòng khác ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.']);
+            }
+        }
+
         $message = $this->destinationValidationMessage($tenantIds, $toRoom);
         if ($message !== null) {
             throw ValidationException::withMessages(['to_room_id' => $message]);

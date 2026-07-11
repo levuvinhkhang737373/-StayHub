@@ -70,10 +70,10 @@ class TranferSingleTenantRequest extends FormRequest
                 return;
             }
 
-            $minimumDate = now('Asia/Ho_Chi_Minh')->startOfDay();
+            $minimumDate = now('Asia/Ho_Chi_Minh')->startOfDay()->addDay();
 
             if ($movementDate->lt($minimumDate)) {
-                $validator->errors()->add('movement_date', 'Ngày chuyển phòng không được nhỏ hơn ngày hiện tại.');
+                $validator->errors()->add('movement_date', 'Ngày chuyển phòng phải từ ngày tiếp theo trở đi. Nếu muốn chuyển sang phòng khác ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.');
             }
         });
     }

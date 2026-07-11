@@ -60,6 +60,7 @@ export function TerminateContractModal({
   const deductionAmount = Math.max(0, moneyNumber(form.deduction_amount))
   const refundAmount = Math.max(depositBalance - deductionAmount, 0)
   const isOverDeducted = deductionAmount > depositBalance
+  const netDeposit = depositBalance - deductionAmount
   const minDate = contract.start_date ? toDate(contract.start_date) : undefined
   const maxDate = new Date()
 
@@ -154,9 +155,20 @@ export function TerminateContractModal({
             <LedgerRow icon={<Banknote className="h-4 w-4" />} label="Số dư cọc" value={formatCurrency(moneyString(depositBalance))} />
             <LedgerRow icon={<AlertTriangle className="h-4 w-4" />} label="Cấn trừ/hư hỏng/nợ" value={`-${formatCurrency(moneyString(Math.min(deductionAmount, depositBalance)))}`} tone="danger" />
             <LedgerRow icon={<BadgeCheck className="h-4 w-4" />} label="Hoàn lại" value={formatCurrency(moneyString(refundAmount))} tone="success" />
-            <div className="rounded-2xl border border-[#0f766e]/15 bg-[#0f766e]/8 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0f5f59]/70">Số dư cọc sau thanh lý</p>
-              <p className="mt-1 text-3xl font-black text-[#0f5f59] tabular-nums">0 VNĐ</p>
+            <div className={cn(
+              "rounded-2xl border p-4 transition-colors duration-200",
+              netDeposit >= 0 
+                ? "border-[#0f766e]/15 bg-[#0f766e]/8" 
+                : "border-rose-600/15 bg-rose-600/8"
+            )}>
+              <p className={cn(
+                "text-[10px] font-black uppercase tracking-[0.18em]",
+                netDeposit >= 0 ? "text-[#0f5f59]/70" : "text-rose-600/70"
+              )}>Số dư cọc sau thanh lý</p>
+              <p className={cn(
+                "mt-1 text-3xl font-black tabular-nums",
+                netDeposit >= 0 ? "text-[#0f5f59]" : "text-rose-600"
+              )}>{formatCurrency(moneyString(netDeposit))}</p>
             </div>
           </aside>
         </div>
