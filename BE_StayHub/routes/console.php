@@ -24,7 +24,7 @@ Schedule::command('contracts:cancel-expired-deposits')
 
 // Nhắc hóa đơn chưa thanh toán
 Schedule::command('invoices:send-debt-reminders')
-    ->monthlyOn(7, '07:00')
+    ->monthlyOn(5, '07:00')
     ->timezone('Asia/Ho_Chi_Minh')
     ->withoutOverlapping();
 

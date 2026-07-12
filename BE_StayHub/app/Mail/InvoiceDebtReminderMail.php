@@ -39,7 +39,7 @@ class InvoiceDebtReminderMail extends Mailable implements ShouldBeEncrypted, Sho
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Nhắc thanh toán tiền phòng '.$this->invoice->invoice_code,
+            subject: '[StayHub] Nhắc nhỏ: Hạn thanh toán hóa đơn '.$this->invoice->invoice_code,
         );
     }
 

@@ -181,7 +181,7 @@ class SendInvoiceDebtReminders extends Command
 
             $notification = Notification::query()->create([
                 'title' => 'Nhắc thanh toán tiền phòng',
-                'content' => 'Phòng '.($invoice->room?->room_number ?? 'chưa rõ')." còn {$amountText} cần thanh toán cho hóa đơn {$invoice->invoice_code} tháng {$billingPeriod}.",
+                'content' => 'Chào bạn, phòng '.($invoice->room?->room_number ?? 'chưa rõ')." còn {$amountText} cần thanh toán cho hóa đơn {$invoice->invoice_code} tháng {$billingPeriod}. Bạn vui lòng thanh toán đúng hạn nhé. Cảm ơn bạn! 😊",
                 'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
                 'target_type' => Notification::TARGET_TYPE_ROOM,
                 'building_id' => $invoice->room?->building_id,

@@ -13,13 +13,13 @@
                     <tr>
                         <td style="background:#24170d;padding:28px;color:#fff4df;">
                             <div style="font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#f3c56b;">StayHub Billing</div>
-                            <h1 style="margin:10px 0 0;font-size:26px;line-height:1.25;font-weight:800;">Nhắc thanh toán tiền phòng tháng {{ $billingPeriod }}</h1>
+                            <h1 style="margin:10px 0 0;font-size:26px;line-height:1.25;font-weight:800;">Nhắc nhỏ: Thanh toán hóa đơn tháng {{ $billingPeriod }}</h1>
                         </td>
                     </tr>
                     <tr>
                         <td style="padding:28px;">
-                            <p style="margin:0 0 16px;font-size:16px;line-height:1.7;font-weight:700;">Xin chào {{ $tenant->full_name ?: $tenant->username }},</p>
-                            <p style="margin:0 0 22px;font-size:15px;line-height:1.7;color:#5f4b38;">StayHub ghi nhận hóa đơn tiền phòng của bạn vẫn còn số tiền cần thanh toán. Vui lòng kiểm tra và hoàn tất thanh toán trong thời gian sớm nhất.</p>
+                            <p style="margin:0 0 16px;font-size:16px;line-height:1.7;font-weight:700;">Xin chào {{ $tenant->full_name ?: $tenant->username }} thân mến,</p>
+                            <p style="margin:0 0 22px;font-size:15px;line-height:1.7;color:#5f4b38;">Hôm nay là hạn thanh toán hóa đơn của phòng bạn. Nhờ bạn kiểm tra thông tin chi tiết bên dưới và sắp xếp hoàn tất thanh toán đúng hạn giúp tụi mình nhé. Cảm ơn bạn rất nhiều! 😊</p>
 
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 10px;">
                                 <tr>
