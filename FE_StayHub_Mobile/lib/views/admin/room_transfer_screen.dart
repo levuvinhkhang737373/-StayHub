@@ -178,10 +178,25 @@ class _RoomTransferScreenState extends State<RoomTransferScreen> {
 
   Future<void> _selectDate(BuildContext context) async {
     final initialDate = DateTime.tryParse(_movementDateController.text) ?? DateTime.now();
+    
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    DateTime minDate = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+    
+    if (_activeContract?.startDate != null) {
+      final contractStart = DateTime.tryParse(_activeContract!.startDate);
+      if (contractStart != null) {
+        final dayAfterStart = contractStart.add(const Duration(days: 1));
+        final cleanDayAfterStart = DateTime(dayAfterStart.year, dayAfterStart.month, dayAfterStart.day);
+        if (cleanDayAfterStart.isAfter(minDate)) {
+          minDate = cleanDayAfterStart;
+        }
+      }
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: initialDate,
-      firstDate: DateTime.now(),
+      initialDate: initialDate.isBefore(minDate) ? minDate : initialDate,
+      firstDate: minDate,
       lastDate: DateTime(2030),
     );
     if (picked != null) {
@@ -194,6 +209,36 @@ class _RoomTransferScreenState extends State<RoomTransferScreen> {
   Future<void> _handleSubmit() async {
     if (_activeContract == null) return;
     if (!_formKey.currentState!.validate()) return;
+
+    final selectedDateStr = _movementDateController.text.trim();
+    final selectedDate = DateTime.tryParse(selectedDateStr);
+    if (selectedDate != null) {
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final minDateOnly = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+      
+      DateTime targetMinDate = minDateOnly;
+      if (_activeContract?.startDate != null) {
+        final contractStart = DateTime.tryParse(_activeContract!.startDate);
+        if (contractStart != null) {
+          final dayAfterStart = contractStart.add(const Duration(days: 1));
+          final cleanDayAfterStart = DateTime(dayAfterStart.year, dayAfterStart.month, dayAfterStart.day);
+          if (cleanDayAfterStart.isAfter(targetMinDate)) {
+            targetMinDate = cleanDayAfterStart;
+          }
+        }
+      }
+      
+      final selectedDateOnly = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+      if (selectedDateOnly.isBefore(targetMinDate)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ngày chuyển phòng phải từ ngày tiếp theo trở đi. Nếu muốn chuyển ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+    }
 
     final selectedTenantIds = _contractTenants
         .where((t) => t['is_selected'] == true)
@@ -954,6 +999,15 @@ class _RoomTransferScreenState extends State<RoomTransferScreen> {
                       readOnly: true,
                       decoration: _inputDecoration(labelText: 'Ngày chuyển phòng', prefixIcon: Icons.calendar_today),
                       onTap: () => _selectDate(context),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      '* Lịch chuyển phòng chỉ được lên lịch từ ngày tiếp theo trở đi. Nếu muốn chuyển ngay lập tức, vui lòng thực hiện thanh lý hợp đồng.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF8B5E34),
+                      ),
                     ),
                   ],
                 ),
