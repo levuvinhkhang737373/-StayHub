@@ -611,7 +611,7 @@ export function ContractsScreen() {
   const removeContract = (contract: AdminContractResource) => {
     showConfirm({
       title: 'Xóa hợp đồng',
-      message: `Bạn có chắc chắn muốn xóa hợp đồng ${contract.contract_code}? Chỉ hợp đồng nháp hoặc đã hủy và chưa phát sinh dữ liệu liên quan mới có thể xóa.`,
+      message: `Bạn có chắc chắn muốn xóa hợp đồng ${contract.contract_code}? Chỉ hợp đồng chưa đóng cọc, chưa được ký hoặc đã hủy và chưa phát sinh dữ liệu liên quan mới có thể xóa.`,
       confirmLabel: 'Xóa',
       onConfirm: async () => {
         try {

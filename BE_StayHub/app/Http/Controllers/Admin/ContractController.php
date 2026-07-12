@@ -845,8 +845,12 @@ class ContractController extends Controller
                     $this->throwResponse('Không tìm thấy hợp đồng', 404);
                 }
 
-                if (! in_array((int) $contractModel->status, [Contract::STATUS_CANCELLED], true)) {
-                    $this->throwResponse('Chỉ có thể xóa hợp đồng đã hủy.', 422);
+                $isCancelled = (int) $contractModel->status === Contract::STATUS_CANCELLED;
+                $isNotDeposited = (int) $contractModel->deposit_transactions_count === 0;
+                $isNotSigned = $contractModel->tenant_signed_at === null;
+
+                if (! ($isCancelled || $isNotDeposited || $isNotSigned)) {
+                    $this->throwResponse('Chỉ có thể xóa hợp đồng đã hủy, chưa đóng cọc hoặc chưa được ký.', 422);
                 }
 
                 if ($this->hasDeleteBlockingData($contractModel)) {
