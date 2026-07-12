@@ -86,6 +86,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
     const isSuperAdmin = isSuperAdminRole(session?.admin.role);
     const [regions, setRegions] = useState<AdminRegionResource[]>([]);
     const [managers, setManagers] = useState<AdminManagerResource[]>([]);
+    const [initialManagerId, setInitialManagerId] = useState<number | null>(null);
     const [services, setServices] = useState<AdminServiceResource[]>([]);
     const [settingCatalog, setSettingCatalog] = useState<AdminSettingResource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -196,10 +197,28 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
             .filter((region) => (!region.parent_id || !activeRegionIds.has(region.parent_id)) && filteredRegionIds.has(region.id))
             .sort((first, second) => first.sort_order - second.sort_order || first.name.localeCompare(second.name));
     }, [activeRegions, filteredRegionIds]);
-    const managerOptions = useMemo(() => [
-        { value: "", label: "Chưa phân công", tone: "warning" as const },
-        ...managers.map((manager) => ({ value: manager.id, label: manager.full_name, description: manager.phone || manager.username, tone: "default" as const })),
-    ], [managers]);
+    const managerOptions = useMemo(() => {
+        const filteredManagers = managers.filter((manager) => {
+            // Check if manager is already assigned to a building
+            const isAssigned = typeof manager.managed_buildings_count === "number" && manager.managed_buildings_count > 0;
+            // Check if manager is currently selected in form
+            const isCurrentlySelected = form.manager_admin_id && Number(form.manager_admin_id) === manager.id;
+            // Check if manager was the initial manager of the building
+            const isInitialManager = initialManagerId && initialManagerId === manager.id;
+
+            return !isAssigned || isCurrentlySelected || isInitialManager;
+        });
+
+        return [
+            { value: "", label: "Chưa phân công", tone: "warning" as const },
+            ...filteredManagers.map((manager) => ({
+                value: manager.id,
+                label: manager.full_name,
+                description: manager.phone || manager.username,
+                tone: "default" as const
+            })),
+        ];
+    }, [managers, form.manager_admin_id, initialManagerId]);
     const visibleExistingImages = useMemo(() => existingImages.filter((image) => !deleteImageIds.includes(image.id)), [deleteImageIds, existingImages]);
 
     useEffect(() => {
@@ -223,6 +242,9 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 setSettingCatalog(getResourceList(settingsResponse.result));
 
                 const building = buildingResponse?.result;
+                if (building?.manager_admin_id) {
+                    setInitialManagerId(building.manager_admin_id);
+                }
                 const nextImages = building?.images || [];
                 setExistingImages(nextImages as BuildingImage[]);
                 setPrimaryImageId(building?.primary_image?.id || nextImages.find((image) => image.is_primary)?.id || null);

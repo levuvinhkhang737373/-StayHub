@@ -31,6 +31,16 @@ class UpdateRequest extends FormRequest
                 'nullable',
                 'integer',
                 Rule::exists('admins', 'id')->where('role', Admin::ROLE_BUILDING_MANAGER)->where('status', Admin::STATUS_ACTIVE),
+                function (string $attribute, mixed $value, \Closure $fail) use ($buildingId) {
+                    if ($value) {
+                        $alreadyManages = Building::where('manager_admin_id', $value)
+                            ->where('id', '!=', $buildingId)
+                            ->exists();
+                        if ($alreadyManages) {
+                            $fail('Quản lý này đã được phân công quản lý tòa nhà khác.');
+                        }
+                    }
+                },
             ],
             'name' => ['sometimes', 'required', 'string', 'max:150'],
             'address' => ['nullable', 'string', 'max:500'],
