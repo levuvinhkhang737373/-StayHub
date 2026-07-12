@@ -1341,4 +1341,113 @@ class ContractControllerTest extends TestCase
             'effective_to' => '2026-12-01 00:00:00',
         ]);
     }
+
+    public function test_delete_contract_successfully_when_cancelled()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-TO-DELETE-1',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_CANCELLED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->deleteJson("/api/v1/admin/contracts/{$contract->id}");
+
+        $response->assertStatus(200);
+        $this->assertDatabaseMissing('contracts', ['id' => $contract->id]);
+    }
+
+    public function test_delete_contract_successfully_when_not_deposited()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-TO-DELETE-2',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'tenant_signed_at' => now(), // signed but not deposited yet
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->deleteJson("/api/v1/admin/contracts/{$contract->id}");
+
+        $response->assertStatus(200);
+        $this->assertDatabaseMissing('contracts', ['id' => $contract->id]);
+    }
+
+    public function test_delete_contract_successfully_when_not_signed()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-TO-DELETE-3',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_PENDING_SIGN,
+            'tenant_signed_at' => null, // not signed
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        // Create a deposit transaction to verify that hasDeleteBlockingData will block deletion
+        $contract->depositTransactions()->create([
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => '4000000.00',
+            'transaction_date' => '2026-06-01',
+            'payment_method' => 1,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        // Deleting should fail since it has deposit transactions (blocking data)
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->deleteJson("/api/v1/admin/contracts/{$contract->id}");
+
+        $response->assertStatus(422);
+
+        // Delete the transaction, now it should be deletable since it has no deposit transactions and is not signed
+        $contract->depositTransactions()->delete();
+
+        $response2 = $this->actingAs($this->superAdmin, 'admin')
+            ->deleteJson("/api/v1/admin/contracts/{$contract->id}");
+
+        $response2->assertStatus(200);
+        $this->assertDatabaseMissing('contracts', ['id' => $contract->id]);
+    }
+
+    public function test_delete_contract_fails_when_active_signed_and_deposited()
+    {
+        $contract = Contract::create([
+            'contract_code' => 'HD-TO-DELETE-4',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-12-01',
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'tenant_signed_at' => now(), // signed
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $contract->depositTransactions()->create([
+            'transaction_type' => ContractDepositTransaction::TRANSACTION_TYPE_COLLECT,
+            'amount' => '4000000.00',
+            'transaction_date' => '2026-06-01',
+            'payment_method' => 1,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->deleteJson("/api/v1/admin/contracts/{$contract->id}");
+
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('contracts', ['id' => $contract->id]);
+    }
 }

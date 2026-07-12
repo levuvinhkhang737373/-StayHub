@@ -697,6 +697,15 @@ export function CreateContractScreen() {
     )
   }
 
+  const suggestedDepositAmount = (() => {
+    const priceVal = Number(parseMoneyInput(form.room_price || ''))
+    if (priceVal > 0) {
+      return priceVal + 500000
+    }
+    return 3500000
+  })()
+  const depositPlaceholder = formatMoneyInput(String(suggestedDepositAmount))
+
   return (
     <section className="space-y-5 text-[#24170d]">
       <section className="overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#24170d] shadow-2xl shadow-[#6b3f1d]/18">
@@ -805,7 +814,7 @@ export function CreateContractScreen() {
                   className={cn(inputClass, errors.deposit_amount && inputErrorClass)}
                   value={form.deposit_amount}
                   onChange={(event) => updateForm('deposit_amount', formatMoneyInput(event.target.value))}
-                  placeholder="3.500.000"
+                  placeholder={depositPlaceholder}
                 />
               </Field>
               {!isEditMode && !isRenewMode && Number(parseMoneyInput(form.deposit_amount)) > 0 && (

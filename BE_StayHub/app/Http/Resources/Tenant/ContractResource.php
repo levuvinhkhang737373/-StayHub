@@ -142,9 +142,13 @@ class ContractResource extends JsonResource
             'contract_files' => $this->contractFiles(),
             'representative_tenant_id' => $this->representative_tenant_id,
             'representative_tenant' => $this->representativeTenantPayload(),
-            'tenant_name' => $this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()
-                ? ($this->contractTenants->first()->tenant?->full_name ?? '')
-                : null,
+            'tenant_name' => $this->representative_tenant_id
+                ? ($this->relationLoaded('contractTenants') && $this->contractTenants->firstWhere('tenant_id', $this->representative_tenant_id)
+                    ? ($this->contractTenants->firstWhere('tenant_id', $this->representative_tenant_id)->tenant?->full_name ?? '')
+                    : ($this->representativeTenant?->full_name ?? ''))
+                : ($this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()
+                    ? ($this->contractTenants->first()->tenant?->full_name ?? '')
+                    : null),
             'tenant_signed_at' => optional($this->tenant_signed_at)->toDateTimeString(),
             'tenant_signature_url' => $this->tenant_signature_url ? ImageHelper::urlFromDisk($this->tenant_signature_url, 'public') : null,
             'created_at' => optional($this->created_at)->toDateTimeString(),
@@ -167,26 +171,32 @@ class ContractResource extends JsonResource
 
     private function representativeTenantPayload(): ?array
     {
-        if ($this->relationLoaded('representativeTenant') && $this->representativeTenant) {
-            return [
-                'id' => $this->representativeTenant->id,
-                'full_name' => $this->representativeTenant->full_name,
-                'phone' => $this->representativeTenant->phone,
-                'email' => $this->representativeTenant->email,
-                'identity_number' => $this->representativeTenant->identity_number,
-            ];
+        $repTenant = null;
+
+        if ($this->representative_tenant_id) {
+            if ($this->relationLoaded('contractTenants')) {
+                $ct = $this->contractTenants->firstWhere('tenant_id', $this->representative_tenant_id);
+                if ($ct) {
+                    $repTenant = $ct->tenant;
+                }
+            }
+            if (!$repTenant) {
+                $repTenant = $this->representativeTenant;
+            }
         }
 
-        if ($this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()) {
-            $tenant = $this->contractTenants->first()->tenant;
+        if (!$repTenant && $this->relationLoaded('contractTenants') && $this->contractTenants->isNotEmpty()) {
+            $repTenant = $this->contractTenants->first()->tenant;
+        }
 
-            return $tenant ? [
-                'id' => $tenant->id,
-                'full_name' => $tenant->full_name,
-                'phone' => $tenant->phone,
-                'email' => $tenant->email,
-                'identity_number' => $tenant->identity_number,
-            ] : null;
+        if ($repTenant) {
+            return [
+                'id' => $repTenant->id,
+                'full_name' => $repTenant->full_name,
+                'phone' => $repTenant->phone,
+                'email' => $repTenant->email,
+                'identity_number' => $repTenant->identity_number,
+            ];
         }
 
         return null;

@@ -9,6 +9,7 @@ use App\Models\ContractTenant;
 use App\Models\Region;
 use App\Models\Room;
 use App\Models\RoomType;
+use App\Models\RoomMovement;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -211,6 +212,113 @@ class TenantGenderPolicyTest extends TestCase
         $this->assertContains($contractOnlyTenant->id, $buildingTenantIds);
         $this->assertNotContains($pendingTenant->id, $buildingTenantIds);
         $this->assertNotContains($unassignedTenant->id, $buildingTenantIds);
+    }
+
+    public function test_transfer_tenant_picker_excludes_tenants_with_active_room_transfers(): void
+    {
+        $building = $this->createBuilding('transfer-picker-exclude-building', Building::GENDER_POLICY_MIXED);
+        $room1 = $this->createRoom($building, 'TPE101', 1);
+        $room2 = $this->createRoom($building, 'TPE102', 1);
+        $room3 = $this->createRoom($building, 'TPE103', 1);
+        $room4 = $this->createRoom($building, 'TPE104', 1);
+        $room5 = $this->createRoom($building, 'TPE105', 1);
+        $destRoom = $this->createRoom($building, 'TPE201', 1);
+        
+        $tenantNoTransfer = $this->createTenant('no_transfer', Tenant::GENDER_MALE, $building);
+        $tenantPendingTransfer = $this->createTenant('pending_transfer', Tenant::GENDER_MALE, $building);
+        $tenantBlockedTransfer = $this->createTenant('blocked_transfer', Tenant::GENDER_MALE, $building);
+        $tenantCancelledTransfer = $this->createTenant('cancelled_transfer', Tenant::GENDER_MALE, $building);
+        $tenantExecutedTransfer = $this->createTenant('executed_transfer', Tenant::GENDER_MALE, $building);
+
+        $c1 = $this->createActiveContract($room1, $tenantNoTransfer);
+        $c2 = $this->createActiveContract($room2, $tenantPendingTransfer);
+        $c3 = $this->createActiveContract($room3, $tenantBlockedTransfer);
+        $c4 = $this->createActiveContract($room4, $tenantCancelledTransfer);
+        $c5 = $this->createActiveContract($room5, $tenantExecutedTransfer);
+
+        $defaults = [
+            'old_room_final_amount' => '0.00',
+            'transfer_fee' => '0.00',
+            'deposit_transfer_amount' => '0.00',
+            'deposit_refund_amount' => '0.00',
+            'deduction_amount' => '0.00',
+            'manual_refund_amount' => '0.00',
+            'deposit_due_amount' => '0.00',
+            'extra_charge_amount' => '0.00',
+            'settlement_due_amount' => '0.00',
+            'settlement_paid_amount' => '0.00',
+            'settlement_payment_status' => RoomMovement::SETTLEMENT_PAYMENT_STATUS_PAID,
+        ];
+
+        // Pending transfer
+        RoomMovement::create(array_merge($defaults, [
+            'transfer_code' => 'TR-PENDING',
+            'tenant_id' => $tenantPendingTransfer->id,
+            'contract_id' => $c2->id,
+            'source_contract_id' => $c2->id,
+            'from_room_id' => $room2->id,
+            'to_room_id' => $destRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_PENDING,
+            'movement_date' => now()->addDays(5)->toDateTimeString(),
+            'created_by' => $this->admin->id,
+        ]));
+
+        // Blocked transfer
+        RoomMovement::create(array_merge($defaults, [
+            'transfer_code' => 'TR-BLOCKED',
+            'tenant_id' => $tenantBlockedTransfer->id,
+            'contract_id' => $c3->id,
+            'source_contract_id' => $c3->id,
+            'from_room_id' => $room3->id,
+            'to_room_id' => $destRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_BLOCKED,
+            'movement_date' => now()->addDays(5)->toDateTimeString(),
+            'created_by' => $this->admin->id,
+        ]));
+
+        // Cancelled transfer
+        RoomMovement::create(array_merge($defaults, [
+            'transfer_code' => 'TR-CANCELLED',
+            'tenant_id' => $tenantCancelledTransfer->id,
+            'contract_id' => $c4->id,
+            'source_contract_id' => $c4->id,
+            'from_room_id' => $room4->id,
+            'to_room_id' => $destRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_CANCELLED,
+            'movement_date' => now()->addDays(5)->toDateTimeString(),
+            'created_by' => $this->admin->id,
+        ]));
+
+        // Executed transfer
+        RoomMovement::create(array_merge($defaults, [
+            'transfer_code' => 'TR-EXECUTED',
+            'tenant_id' => $tenantExecutedTransfer->id,
+            'contract_id' => $c5->id,
+            'source_contract_id' => $c5->id,
+            'from_room_id' => $room5->id,
+            'to_room_id' => $destRoom->id,
+            'movement_type' => RoomMovement::MOVEMENT_TYPE_TRANSFER,
+            'status' => RoomMovement::STATUS_EXECUTED,
+            'movement_date' => now()->subDays(5)->toDateTimeString(),
+            'created_by' => $this->admin->id,
+        ]));
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->getJson('/api/v1/admin/tenants?status='.Tenant::STATUS_RENTING.'&with_active_current_room=1&per_page=100');
+
+        $response->assertStatus(200);
+
+        $tenantIds = collect($response->json('result.data'))->pluck('id')->all();
+        
+        $this->assertContains($tenantNoTransfer->id, $tenantIds);
+        $this->assertContains($tenantCancelledTransfer->id, $tenantIds);
+        $this->assertContains($tenantExecutedTransfer->id, $tenantIds);
+        
+        $this->assertNotContains($tenantPendingTransfer->id, $tenantIds);
+        $this->assertNotContains($tenantBlockedTransfer->id, $tenantIds);
     }
 
     public function test_contract_create_renew_and_activate_reject_staying_tenant_with_invalid_gender(): void

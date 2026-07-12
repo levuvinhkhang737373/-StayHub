@@ -17,6 +17,7 @@ use App\Mail\SendTenantPasswordEmail;
 use App\Models\Admin;
 use App\Models\Building;
 use App\Models\Contract;
+use App\Models\RoomMovement;
 use App\Models\Tenant;
 use App\Support\BusinessRules\OperationalStateGuard;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -488,7 +489,10 @@ class TenantController extends Controller
             ->whereNull('leave_date')
             ->whereHas('contract', fn (Builder $contractQuery): Builder => $contractQuery
                 ->where('status', Contract::STATUS_ACTIVE)
-                ->whereHas('room')));
+                ->whereHas('room')))
+            ->whereDoesntHave('roomMovements', fn (Builder $roomMovementQuery): Builder => $roomMovementQuery
+                ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+                ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED]));
     }
 
     // Lọc khách thuê đang ở tại tòa nhà cụ thể
