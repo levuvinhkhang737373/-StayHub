@@ -453,7 +453,6 @@ class RoomController extends Controller
         $toRoom = Room::query()->with('building')->lockForUpdate()->find((int) $validated['to_room_id']);
 
         $this->assertScheduleIsAllowed($admin, $tenantIds, $sourceContract, $fromRoom, $toRoom, $movementDate);
-        $this->assertNewDepositExceedsDestinationRoomPrice($validated, $toRoom);
         $this->assertNoPendingTransfers($tenantIds);
         $this->assertNoPendingTransferForSourceContract((int) $sourceContract->id);
 
@@ -644,25 +643,6 @@ class RoomController extends Controller
         }
     }
 
-    private function assertNewDepositExceedsDestinationRoomPrice(array $validated, Room $toRoom): void
-    {
-        $movementDate = isset($validated['movement_date']) ? Carbon::parse($validated['movement_date']) : null;
-        if ($toRoom->has_pending_contract_or_transfer || $this->activeDestinationContract($toRoom, $movementDate)) {
-            return;
-        }
-
-        if (! array_key_exists('new_deposit_amount', $validated)) {
-            return;
-        }
-
-        $newDepositAmount = DecimalMoney::normalize($validated['new_deposit_amount']);
-
-        if (DecimalMoney::compare($newDepositAmount, $toRoom->base_price) <= 0) {
-            throw ValidationException::withMessages([
-                'new_deposit_amount' => 'Tiền cọc yêu cầu phòng mới phải lớn hơn tiền phòng mới.',
-            ]);
-        }
-    }
 
     // Đảm bảo hợp đồng gốc không có giao dịch chuyển phòng chờ xử lý
     private function assertNoPendingTransferForSourceContract(int $sourceContractId): void

@@ -244,7 +244,7 @@ class RoomMovementControllerTest extends TestCase
         $this->assertDatabaseCount('contracts', 1);
     }
 
-    public function test_transfer_tenant_requires_new_deposit_greater_than_destination_room_price(): void
+    public function test_transfer_tenant_allows_new_deposit_less_than_or_equal_to_destination_room_price(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Asia/Ho_Chi_Minh'));
 
@@ -272,10 +272,9 @@ class RoomMovementControllerTest extends TestCase
             'new_deposit_amount' => 1000,
         ]);
 
-        $response->assertStatus(422)
-            ->assertJsonPath('message', 'Tiền cọc yêu cầu phòng mới phải lớn hơn tiền phòng mới.');
+        $response->assertStatus(201);
 
-        $this->assertDatabaseCount('room_movements', 0);
+        $this->assertDatabaseCount('room_movements', 1);
     }
 
     public function test_room_movement_index_filters_and_scopes_by_managed_building(): void

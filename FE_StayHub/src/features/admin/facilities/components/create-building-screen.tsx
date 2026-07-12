@@ -254,7 +254,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                     // Ensure dien/nuoc are in service_prices
                     const existingServiceIds = new Set(mappedForm.service_prices.map(p => Number(p.service_id)));
                     const missingRequiredServices = nextServices.filter(s => isRequiredService(s) && !existingServiceIds.has(s.id));
-                    
+
                     if (missingRequiredServices.length > 0) {
                         const newPrices = missingRequiredServices.map(s => ({
                             service_id: String(s.id),
@@ -275,10 +275,10 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
 
     useEffect(() => {
         if (!services.length) return;
-        
+
         const existingServiceIds = new Set(form.service_prices.map(p => Number(p.service_id)));
         const missingRequiredServices = services.filter(s => isRequiredService(s) && !existingServiceIds.has(s.id));
-        
+
         if (missingRequiredServices.length > 0) {
             const newPrices = missingRequiredServices.map(s => ({
                 service_id: String(s.id),
@@ -288,7 +288,7 @@ export function CreateBuildingScreen({ buildingId }: { buildingId?: number }) {
                 effective_to: "",
                 status: 1
             }));
-            
+
             setForm(current => ({
                 ...current,
                 service_prices: [...current.service_prices, ...newPrices]
@@ -689,13 +689,12 @@ function RegionTreePicker({
                                 onToggleRegion(region.id);
                             }
                         }}
-                        className={`flex min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-sm transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 ${
-                            isSelected 
-                                ? "border-[#f3c56b]/35 bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12" 
+                        className={`flex min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-sm transition focus:outline-none focus:ring-4 focus:ring-[#f3c56b]/20 ${isSelected
+                                ? "border-[#f3c56b]/35 bg-[#24170d] text-[#fff4df] shadow-lg shadow-[#24170d]/12"
                                 : isSelectable
-                                    ? "border-[#3d2a18]/10 bg-[#fffaf1]/80 text-[#6f6254] hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]" 
+                                    ? "border-[#3d2a18]/10 bg-[#fffaf1]/80 text-[#6f6254] hover:border-[#f3c56b]/45 hover:bg-[#f3c56b]/15 hover:text-[#24170d]"
                                     : "border-[#3d2a18]/10 bg-[#fffaf1]/30 text-gray-400 hover:bg-[#efe2cf]/30 cursor-pointer"
-                        }`}
+                            }`}
                         style={{ paddingLeft: 12 + depth * 16 }}
                         aria-pressed={isSelected}
                     >
