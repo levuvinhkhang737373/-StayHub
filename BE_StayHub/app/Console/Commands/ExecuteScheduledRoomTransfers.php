@@ -433,6 +433,7 @@ class ExecuteScheduledRoomTransfers extends Command
             'note' => $payload['note'],
             'created_by' => $admin->id,
             'parent_contract_id' => $sourceContract->parent_contract_id ?: $sourceContract->id,
+            'representative_tenant_id' => (int) $movingRows->first()->tenant_id,
         ]);
     }
 

@@ -913,7 +913,8 @@ class _TenantContractDetailScreenState extends State<TenantContractDetailScreen>
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      bottomNavigationBar: contract.status == Contract.STATUS_DRAFT
+      bottomNavigationBar: contract.status == Contract.STATUS_DRAFT &&
+              contract.representativeTenantId == tenant?.id
           ? SafeArea(
               child: Container(
                 padding: const EdgeInsets.symmetric(
