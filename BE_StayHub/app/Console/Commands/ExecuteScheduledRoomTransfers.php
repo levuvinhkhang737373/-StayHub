@@ -206,7 +206,7 @@ class ExecuteScheduledRoomTransfers extends Command
                 $groupDestinationRooms[$code] = $toRoom;
 
                 $groupTenantIds = $groupMovements->pluck('tenant_id')->map(fn ($id): int => (int) $id)->unique()->values()->all();
-                $validationMessage = $this->destinationValidationMessage($groupTenantIds, $toRoom);
+                $validationMessage = $this->destinationValidationMessage($groupTenantIds, $toRoom, $movementDate);
                 if ($validationMessage !== null) {
                     return $this->blockTransfer($allMovements, $validationMessage);
                 }
@@ -243,7 +243,7 @@ class ExecuteScheduledRoomTransfers extends Command
                 $groupMovingRows = $activeRows->whereIn('tenant_id', $groupTenantIds)->values();
                 $groupPayload = $groupMovements->first()->scheduled_payload ?: [];
 
-                $destinationActiveContract = $this->activeDestinationContract($toRoom);
+                $destinationActiveContract = $this->activeDestinationContract($toRoom, $movementDate);
                 $destinationContract = $destinationActiveContract ?: $this->createDestinationContract($sourceContract, $toRoom, $groupMovingRows, $movementDate, $groupPayload, $admin);
                 
                 $this->attachRowsToDestinationContract($destinationContract, $groupMovingRows, $movementDate, $admin);
@@ -370,14 +370,14 @@ class ExecuteScheduledRoomTransfers extends Command
         return $contract && (int) $contract->status === Contract::STATUS_ACTIVE ? $contract : null;
     }
 
-    private function destinationValidationMessage(array $tenantIds, Room $toRoom): ?string
+    private function destinationValidationMessage(array $tenantIds, Room $toRoom, ?Carbon $movementDate = null): ?string
     {
         $stateError = OperationalStateGuard::destinationRoomBlockReason($toRoom);
         if ($stateError !== null) {
             return $stateError;
         }
 
-        $destinationActiveContract = $this->activeDestinationContract($toRoom);
+        $destinationActiveContract = $this->activeDestinationContract($toRoom, $movementDate);
         $currentOccupants = $destinationActiveContract
             ? $this->activeTenantCount($destinationActiveContract->id)
             : (int) $toRoom->current_occupants;
@@ -396,14 +396,25 @@ class ExecuteScheduledRoomTransfers extends Command
         return null;
     }
 
-    private function activeDestinationContract(Room $toRoom): ?Contract
+    private function activeDestinationContract(Room $toRoom, ?Carbon $movementDate = null): ?Contract
     {
-        return Contract::query()
+        $query = Contract::query()
             ->with(['room.building', 'contractTenants.tenant', 'contractVehicles.vehicle', 'depositTransactions'])
-            ->where('room_id', $toRoom->id)
-            ->where('status', Contract::STATUS_ACTIVE)
-            ->lockForUpdate()
-            ->first();
+            ->where('room_id', $toRoom->id);
+
+        if ($movementDate !== null) {
+            $query->where(function ($q) use ($movementDate): void {
+                $q->where('status', Contract::STATUS_ACTIVE)
+                    ->orWhere(function ($sub) use ($movementDate): void {
+                        $sub->where('status', Contract::STATUS_PENDING_SIGN)
+                            ->whereDate('start_date', $movementDate->toDateString());
+                    });
+            });
+        } else {
+            $query->where('status', Contract::STATUS_ACTIVE);
+        }
+
+        return $query->lockForUpdate()->first();
     }
 
     private function createDestinationContract(Contract $sourceContract, Room $toRoom, EloquentCollection $movingRows, Carbon $movementDate, array $payload, Admin $admin): Contract

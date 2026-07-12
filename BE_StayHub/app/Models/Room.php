@@ -59,6 +59,8 @@ class Room extends Model
 
     protected $fillable = ['building_id', 'room_type_id', 'room_number', 'slug', 'floor', 'area_m2', 'base_price', 'max_occupants', 'current_occupants', 'status', 'description', 'created_by'];
 
+    protected $appends = ['has_pending_contract_or_transfer'];
+
     protected function casts(): array
     {
         return ['floor' => 'integer', 'area_m2' => 'decimal:2', 'base_price' => 'decimal:2', 'max_occupants' => 'integer', 'current_occupants' => 'integer', 'status' => 'integer'];
@@ -167,4 +169,20 @@ class Room extends Model
     {
         return $this->hasMany(ChatConversation::class);
     }
+
+    public function getHasPendingContractOrTransferAttribute(): bool
+    {
+        $hasPendingContract = $this->contracts()
+            ->where('status', Contract::STATUS_PENDING_SIGN)
+            ->exists();
+
+        if ($hasPendingContract) {
+            return true;
+        }
+
+        return $this->incomingMovements()
+            ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED])
+            ->exists();
+    }
 }
+

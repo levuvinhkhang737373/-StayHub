@@ -413,13 +413,18 @@ class ContractResource extends JsonResource
             return null;
         }
 
-        return RoomMovement::query()
+        $query = RoomMovement::query()
             ->where('destination_contract_id', $this->id)
             ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
             ->where('status', RoomMovement::STATUS_EXECUTED)
-            ->whereColumn('settlement_paid_amount', '<', 'settlement_due_amount')
-            ->orderByDesc('id')
-            ->first();
+            ->whereColumn('settlement_paid_amount', '<', 'settlement_due_amount');
+
+        $tenantId = auth('tenant')->id();
+        if ($tenantId) {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        return $query->orderByDesc('id')->first();
     }
 
 }

@@ -578,7 +578,7 @@ export function TenantTransferRoomScreen() {
   const damageAmount = moneyNumber(depositDeductionAmount)
   const transferFeeAmount = moneyNumber(transferFee)
   const transferChargesAmount = damageAmount + transferFeeAmount
-  const destinationRoomHasContract = Boolean(selectedRoom && selectedRoom.current_occupants > 0)
+  const destinationRoomHasContract = Boolean(selectedRoom && (selectedRoom.current_occupants > 0 || selectedRoom.has_pending_contract_or_transfer))
   const movingAllTenants = contractTenants.length > 0 && selectedTenantIds.length >= contractTenants.length
   const usesOldDepositSettlement = Boolean(selectedRoom && movingAllTenants)
   const availableAfterCosts = usesOldDepositSettlement ? Math.max(0, oldDepositBalance - transferChargesAmount) : oldDepositBalance
@@ -748,7 +748,7 @@ export function TenantTransferRoomScreen() {
     setSelectedRoom(room)
     setFieldErrors({})
     setSubmitError(null)
-    if (room.current_occupants > 0) {
+    if (room.current_occupants > 0 || room.has_pending_contract_or_transfer) {
       setNewDepositAmount('0')
     } else {
       setNewDepositAmount(formatMoneyInput(String(Math.max(0, Number(room.base_price ?? 0)))))
@@ -1536,10 +1536,10 @@ function TransferResultPanel({ tenant, contract, result, selectedTenantCards, se
   const movementCount = result.movements?.length || 1
   const titleText = result.executed_immediately ? 'Đã chuyển phòng trong ngày' : result.blocked_immediately ? 'Lịch chuyển phòng đang bị chặn' : 'Đã lên lịch chuyển phòng'
   const descriptionText = result.executed_immediately
-    ? `${tenant.full_name || tenant.username} đã được chuyển phòng ngay vì ngày chuyển là hôm nay. Mã chuyển này vẫn dùng cho QR settlement và lịch sử room movement.`
+    ? `${tenant.full_name || tenant.username} đã được chuyển phòng ngay vì ngày chuyển là hôm nay.`
     : result.blocked_immediately
       ? `${tenant.full_name || tenant.username} đã được tạo lịch hôm nay nhưng chưa thể xử lý. Kiểm tra lý do bị chặn trong lịch sử room movement.`
-      : `${tenant.full_name || tenant.username} đã được gắn lịch chuyển phòng. Mã chuyển này sẽ được dùng cho QR settlement và lịch sử room movement.`
+      : `${tenant.full_name || tenant.username} đã được gắn lịch chuyển phòng.`
 
   return (
     <section className="space-y-6 text-[#24170d] sm:space-y-8">
