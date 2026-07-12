@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Car, FileText, RefreshCw, UserPlus, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BadgeCheck, Car, FileText, RefreshCw, UserPlus, X } from 'lucide-react'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { canManageContractsRole, isSuperAdminRole, useAdminSession } from '../../auth/hooks/use-admin-session'
@@ -916,7 +916,9 @@ export function CreateContractScreen() {
                       <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/65">Giá mặc định phòng</p>
                       <p className="mt-1 text-sm font-black tabular-nums text-[#6f6254]">{displayPrice(service.default_price || service.price)} đ</p>
                     </div>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#24170d] text-[#f3c56b]">→</div>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#24170d] text-[#f3c56b]">
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
                     <div>
                       <p className="text-[9px] font-black uppercase tracking-widest text-[#8b5e34]/65">Giá hợp đồng</p>
                       <p className="mt-1 text-sm font-black tabular-nums text-[#24170d]">{service.price || '0'} đ</p>
