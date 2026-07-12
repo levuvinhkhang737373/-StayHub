@@ -583,7 +583,7 @@ export function TenantTransferRoomScreen() {
   const usesOldDepositSettlement = Boolean(selectedRoom && movingAllTenants)
   const availableAfterCosts = usesOldDepositSettlement ? Math.max(0, oldDepositBalance - transferChargesAmount) : oldDepositBalance
   const extraChargeAmount = usesOldDepositSettlement ? Math.max(0, transferChargesAmount - oldDepositBalance) : transferChargesAmount
-  const requiredNewDeposit = !selectedRoom || destinationRoomHasContract ? 0 : moneyNumber(newDepositAmount || selectedRoom.base_price)
+  const requiredNewDeposit = !selectedRoom || destinationRoomHasContract ? 0 : moneyNumber(newDepositAmount)
   const depositAppliedToNewRoom = !selectedRoom || destinationRoomHasContract || !usesOldDepositSettlement ? 0 : Math.min(availableAfterCosts, requiredNewDeposit)
   const manualRefundAmount = !selectedRoom
     ? 0
@@ -748,11 +748,7 @@ export function TenantTransferRoomScreen() {
     setSelectedRoom(room)
     setFieldErrors({})
     setSubmitError(null)
-    if (room.current_occupants > 0 || room.has_pending_contract_or_transfer) {
-      setNewDepositAmount('0')
-    } else {
-      setNewDepositAmount(formatMoneyInput(String(Math.max(0, Number(room.base_price ?? 0)))))
-    }
+    setNewDepositAmount('')
     setCurrentStep(2)
   }
 
