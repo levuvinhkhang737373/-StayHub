@@ -127,6 +127,10 @@ class ContractController extends Controller
                 return ApiResponse::responseJson(false, 'Hợp đồng này không ở trạng thái chờ ký hoặc không thuộc về bạn.', 400, null, 400);
             }
 
+            if ($contract->representative_tenant_id !== null && (int) $contract->representative_tenant_id !== (int) $tenant->id) {
+                return ApiResponse::responseJson(false, 'Chỉ người đại diện hợp đồng mới có quyền ký hợp đồng này.', 403, null, 403);
+            }
+
             $validated = $request->validated();
 
             DB::transaction(function () use ($tenant, $contract, $validated, $request): void {

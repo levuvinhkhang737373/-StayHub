@@ -595,7 +595,7 @@ class RoomController extends Controller
             }
         }
 
-        $message = $this->destinationValidationMessage($tenantIds, $toRoom);
+        $message = $this->destinationValidationMessage($tenantIds, $toRoom, $movementDate);
         if ($message !== null) {
             throw ValidationException::withMessages(['to_room_id' => $message]);
         }
@@ -606,14 +606,14 @@ class RoomController extends Controller
     }
 
     // Tạo thông báo lỗi xác thực cho phòng đến
-    private function destinationValidationMessage(array $tenantIds, Room $toRoom): ?string
+    private function destinationValidationMessage(array $tenantIds, Room $toRoom, ?Carbon $movementDate = null): ?string
     {
         $stateError = OperationalStateGuard::destinationRoomBlockReason($toRoom);
         if ($stateError !== null) {
             return $stateError;
         }
 
-        $destinationActiveContract = $this->activeDestinationContract($toRoom);
+        $destinationActiveContract = $this->activeDestinationContract($toRoom, $movementDate);
         $currentOccupants = $destinationActiveContract ? $this->activeTenantCount($destinationActiveContract->id) : (int) $toRoom->current_occupants;
 
         if ((int) $toRoom->max_occupants > 0 && $currentOccupants + count($tenantIds) > (int) $toRoom->max_occupants) {
@@ -644,10 +644,10 @@ class RoomController extends Controller
         }
     }
 
-    // Kiểm tra tiền cọc mới có đủ cho giá phòng đến hay không
     private function assertNewDepositExceedsDestinationRoomPrice(array $validated, Room $toRoom): void
     {
-        if ($this->activeDestinationContract($toRoom)) {
+        $movementDate = isset($validated['movement_date']) ? Carbon::parse($validated['movement_date']) : null;
+        if ($toRoom->has_pending_contract_or_transfer || $this->activeDestinationContract($toRoom, $movementDate)) {
             return;
         }
 
@@ -764,14 +764,25 @@ class RoomController extends Controller
     }
 
     // Lấy hợp đồng đang hiệu lực của phòng đến
-    private function activeDestinationContract(Room $toRoom): ?Contract
+    private function activeDestinationContract(Room $toRoom, ?Carbon $movementDate = null): ?Contract
     {
-        return Contract::query()
+        $query = Contract::query()
             ->with(['room.building', 'contractTenants.tenant', 'contractVehicles.vehicle', 'depositTransactions'])
-            ->where('room_id', $toRoom->id)
-            ->where('status', Contract::STATUS_ACTIVE)
-            ->lockForUpdate()
-            ->first();
+            ->where('room_id', $toRoom->id);
+
+        if ($movementDate !== null) {
+            $query->where(function ($q) use ($movementDate): void {
+                $q->where('status', Contract::STATUS_ACTIVE)
+                    ->orWhere(function ($sub) use ($movementDate): void {
+                        $sub->where('status', Contract::STATUS_PENDING_SIGN)
+                            ->whereDate('start_date', $movementDate->toDateString());
+                    });
+            });
+        } else {
+            $query->where('status', Contract::STATUS_ACTIVE);
+        }
+
+        return $query->lockForUpdate()->first();
     }
 
     // Đếm số lượng khách thuê đang hoạt động trong phòng

@@ -13,6 +13,7 @@ export interface AdminRoomResource {
   created_at: string
   updated_at: string
   floor: number
+  has_pending_contract_or_transfer?: boolean
   building: {               
     id: number
     name: string
