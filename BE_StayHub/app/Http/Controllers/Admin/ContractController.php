@@ -6,6 +6,7 @@ use App\Events\NotificationSent;
 use App\Helpers\AdminActivityLogger;
 use App\Helpers\AdminScope;
 use App\Helpers\ApiResponse;
+use App\Helpers\DecimalMoney;
 use App\Helpers\DepositRefundExpenseHelper;
 use App\Helpers\ImageHelper;
 use App\Http\Controllers\Controller;
@@ -1915,7 +1916,7 @@ class ContractController extends Controller
                 'created_by' => $admin->id,
             ]);
 
-            DepositRefundExpenseHelper::createRefundExpense(
+            $expense = DepositRefundExpenseHelper::createRefundExpense(
                 contract: $contract,
                 amount: $this->centsToDecimal($refundCents),
                 date: $transactionDate,
@@ -1923,6 +1924,22 @@ class ContractController extends Controller
                 reason: 'Thanh lý hợp đồng',
                 createdBy: $admin->id,
             );
+
+            $formattedAmount = number_format(DecimalMoney::toIntegerAmount($expense->amount), 0, ',', '.') . ' VNĐ';
+            $notification = Notification::query()->create([
+                'title' => 'Phiếu chi hoàn cọc được tự động tạo',
+                'content' => "Hệ thống đã tự động tạo phiếu chi hoàn cọc {$expense->expense_code} trị giá {$formattedAmount} cho hợp đồng {$contract->contract_code} (phòng {$contract->room?->room_number}) sau khi thanh lý.",
+                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                'target_type' => Notification::TARGET_TYPE_ADMIN,
+                'action_url' => '/admin/expenses?keyword=' . urlencode((string) $expense->expense_code),
+                'building_id' => $contract->room?->building_id,
+                'room_id' => $contract->room_id,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => $admin->id,
+            ]);
+
+            DB::afterCommit(fn () => broadcast(new NotificationSent($notification)));
         }
     }
 

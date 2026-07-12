@@ -654,7 +654,7 @@ class ExecuteScheduledRoomTransfers extends Command
                 'created_by' => $admin->id,
             ]);
 
-            DepositRefundExpenseHelper::createRefundExpense(
+            $expense = DepositRefundExpenseHelper::createRefundExpense(
                 contract: $sourceContract,
                 amount: $settlement['manual_refund_amount'],
                 date: $movementDate->toDateString(),
@@ -662,6 +662,27 @@ class ExecuteScheduledRoomTransfers extends Command
                 reason: 'Hoàn cọc dư khi chuyển phòng',
                 createdBy: $admin->id,
             );
+
+            // Create notification for Admin
+            $destinationContract->loadMissing('room');
+            $oldRoomNumber = $sourceContract->room?->room_number ?? 'không rõ';
+            $newRoomNumber = $destinationContract->room?->room_number ?? 'không rõ';
+            $formattedAmount = number_format(DecimalMoney::toIntegerAmount($expense->amount), 0, ',', '.') . ' VNĐ';
+
+            $notification = Notification::query()->create([
+                'title' => 'Phiếu chi hoàn cọc được tự động tạo',
+                'content' => "Hệ thống đã tự động tạo phiếu chi hoàn cọc {$expense->expense_code} trị giá {$formattedAmount} cho hợp đồng {$sourceContract->contract_code} sau khi chuyển phòng từ {$oldRoomNumber} sang {$newRoomNumber}.",
+                'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
+                'target_type' => Notification::TARGET_TYPE_ADMIN,
+                'action_url' => '/admin/expenses?keyword=' . urlencode((string) $expense->expense_code),
+                'building_id' => $sourceContract->room?->building_id,
+                'room_id' => $sourceContract->room_id,
+                'published_at' => now(),
+                'status' => Notification::STATUS_SENT,
+                'created_by' => $admin->id,
+            ]);
+
+            DB::afterCommit(fn (): mixed => event(new NotificationSent($notification)));
         }
 
         $destinationContract->refresh()->updatePaymentStatus();

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
+import { useCallback, useEffect, useMemo, useState, Fragment, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ConfirmModal } from '../../../../shared/components/ConfirmModal'
 import { useConfirmModal } from '../../../../shared/lib/hooks/use-confirm-modal'
 import type { ReactNode } from 'react'
@@ -114,11 +115,27 @@ export function ExpensesScreen() {
   const isSuperAdmin = useMemo(() => isSuperAdminRole(session?.admin?.role), [session?.admin?.role])
   const managedBuildingId = session?.admin?.managed_buildings?.[0]?.id
 
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  const initialParamsRef = useRef({
+    expenseId: searchParams.get('id'),
+    expenseCode: searchParams.get('keyword'),
+  })
+  const paramsConsumedRef = useRef(false)
+
+  useEffect(() => {
+    const params = initialParamsRef.current
+    if (params.expenseId || params.expenseCode) {
+      navigate('/admin/expenses', { replace: true })
+    }
+  }, [navigate])
+
   const [expenses, setExpenses] = useState<AdminExpenseResource[]>([])
   const [buildings, setBuildings] = useState<AdminBuildingResource[]>([])
   const [rooms, setRooms] = useState<AdminRoomResource[]>([])
   const [categories, setCategories] = useState<AdminExpenseCategoryResource[]>([])
-  const [keyword, setKeyword] = useState('')
+  const [keyword, setKeyword] = useState(initialParamsRef.current.expenseCode || '')
   const [selectedBuildingId, setSelectedBuildingId] = useState(isSuperAdmin ? '' : managedBuildingId ? String(managedBuildingId) : '')
   const [selectedRoomId, setSelectedRoomId] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
@@ -303,6 +320,27 @@ export function ExpensesScreen() {
       if (!roomStillVisible) setSelectedRoomId('')
     }
   }, [selectedBuildingId, selectedRoomId, visibleRooms])
+
+  useEffect(() => {
+    if (paramsConsumedRef.current) return
+    const expenseId = initialParamsRef.current.expenseId
+    if (expenseId) {
+      paramsConsumedRef.current = true
+      void viewExpense({ id: Number(expenseId) } as any)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (paramsConsumedRef.current) return
+    const expenseCode = initialParamsRef.current.expenseCode
+    if (!isLoading && expenseCode && expenses.length > 0) {
+      paramsConsumedRef.current = true
+      const found = expenses.find((exp) => exp.expense_code === expenseCode)
+      if (found) {
+        void viewExpense(found)
+      }
+    }
+  }, [isLoading, expenses])
 
   const updateForm = <K extends keyof ExpenseFormValues>(key: K, value: ExpenseFormValues[K]) => {
     setForm((current) => {
