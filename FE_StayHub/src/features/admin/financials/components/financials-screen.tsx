@@ -496,46 +496,77 @@ export function FinancialsScreen() {
             </section>
 
             {/* 7. Breakdowns */}
-            <div className={cn(
-              "grid gap-6",
-              buildingId === '' ? "lg:grid-cols-4" : "lg:grid-cols-3"
-            )}>
-              <BreakdownCard
-                title="Cơ Cấu Công Nợ"
-                subtitle="Phân bổ công nợ theo nguồn phát sinh"
-                items={reportData.debt_breakdown || []}
-                total={reportData.summary.debt || 0}
-                barColor="bg-amber-600"
-              />
+            {buildingId === '' ? (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
+                {/* Column 1: Doanh Thu */}
+                <BreakdownCard
+                  className="h-full"
+                  title="Cơ Cấu Doanh Thu"
+                  subtitle="Phân bổ doanh thu theo dịch vụ"
+                  items={reportData.revenue_breakdown}
+                  total={reportData.summary.collected_revenue || 0}
+                  barColor="bg-[#f3c56b]"
+                />
 
-              {/* Doanh thu breakdown */}
-              <BreakdownCard
-                title="Cơ Cấu Doanh Thu"
-                subtitle="Phân bổ doanh thu theo dịch vụ"
-                items={reportData.revenue_breakdown}
-                total={reportData.summary.collected_revenue || 0}
-                barColor="bg-[#f3c56b]"
-              />
+                {/* Column 2: Stack of Công Nợ and Chi Phí */}
+                <div className="flex flex-col gap-6 lg:h-0 lg:min-h-full h-auto">
+                  <BreakdownCard
+                    title="Cơ Cấu Công Nợ"
+                    subtitle="Phân bổ công nợ theo nguồn phát sinh"
+                    items={reportData.debt_breakdown || []}
+                    total={reportData.summary.debt || 0}
+                    barColor="bg-amber-600"
+                  />
+                  <BreakdownCard
+                    className="flex-1"
+                    title="Cơ Cấu Chi Phí"
+                    subtitle="Phân bổ chi phí theo danh mục"
+                    items={reportData.expense_breakdown}
+                    total={reportData.summary.expenses}
+                    barColor="bg-[#0f766e]"
+                  />
+                </div>
 
-              {/* Chi phí breakdown */}
-              <BreakdownCard
-                title="Cơ Cấu Chi Phí"
-                subtitle="Phân bổ chi phí theo danh mục"
-                items={reportData.expense_breakdown}
-                total={reportData.summary.expenses}
-                barColor="bg-[#0f766e]"
-              />
-
-              {/* Xếp hạng doanh thu tòa nhà */}
-              {buildingId === '' && (
+                {/* Column 3: Hiệu Suất Tòa Nhà */}
                 <TopBuildingsCard
+                  className="lg:h-0 lg:min-h-full h-auto"
                   title="Hiệu Suất Tòa Nhà"
                   subtitle="Xếp hạng doanh thu theo tòa nhà"
                   items={reportData.top_buildings}
                   total={reportData.summary.revenue}
                 />
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2 lg:items-stretch">
+                <BreakdownCard
+                  className="h-full"
+                  title="Cơ Cấu Doanh Thu"
+                  subtitle="Phân bổ doanh thu theo dịch vụ"
+                  items={reportData.revenue_breakdown}
+                  total={reportData.summary.collected_revenue || 0}
+                  barColor="bg-[#f3c56b]"
+                />
+
+                {/* Column 2: Stack of Công Nợ and Chi Phí when single building is selected */}
+                <div className="flex flex-col gap-6 h-full">
+                  <BreakdownCard
+                    title="Cơ Cấu Công Nợ"
+                    subtitle="Phân bổ công nợ theo nguồn phát sinh"
+                    items={reportData.debt_breakdown || []}
+                    total={reportData.summary.debt || 0}
+                    barColor="bg-amber-600"
+                  />
+                  <BreakdownCard
+                    className="flex-1"
+                    title="Cơ Cấu Chi Phí"
+                    subtitle="Phân bổ chi phí theo danh mục"
+                    items={reportData.expense_breakdown}
+                    total={reportData.summary.expenses}
+                    barColor="bg-[#0f766e]"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )
       )}
@@ -882,44 +913,47 @@ interface BreakdownCardProps {
   items: FinancialBreakdownItem[]
   total: number
   barColor: string
+  className?: string
 }
 
-function BreakdownCard({ title, subtitle, items, total, barColor }: BreakdownCardProps) {
+function BreakdownCard({ title, subtitle, items, total, barColor, className }: BreakdownCardProps) {
   return (
-    <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white/80 p-5 shadow-xl shadow-[#6b3f1d]/6 backdrop-blur">
+    <section className={cn("rounded-[2rem] border border-[#3d2a18]/10 bg-white/80 p-5 shadow-xl shadow-[#6b3f1d]/6 backdrop-blur flex flex-col", className)}>
       <div className="mb-4">
         <h2 className="text-base font-black tracking-tight text-[#24170d]">{title}</h2>
         <p className="text-xs font-bold text-[#8b5e34]/80 mt-0.5">{subtitle}</p>
       </div>
 
       {!items.length ? (
-        <div className="py-14 text-center rounded-2xl border border-dashed border-[#3d2a18]/10 bg-[#fffaf1]/30">
+        <div className="py-14 text-center rounded-2xl border border-dashed border-[#3d2a18]/10 bg-[#fffaf1]/30 flex-grow flex flex-col justify-center">
           <PieChart className="h-8 w-8 mx-auto text-[#8b5e34]/50 mb-2" />
           <p className="text-xs font-bold text-[#8b5e34]">Không ghi nhận phát sinh</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {items.map((item, idx) => (
-            <div key={idx} className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-[#24170d]">{item.label}</span>
-                <div className="space-x-2 text-right">
-                  <span className="text-[#6f6254]">{item.percentage}%</span>
-                  <span className="text-[#24170d] font-black">{formatCurrency(item.amount)}</span>
+        <div className="space-y-4 flex-grow flex flex-col min-h-0">
+          <div className="space-y-4 flex-1 min-h-0">
+            {items.map((item, idx) => (
+              <div key={idx} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-[#24170d]">{item.label}</span>
+                  <div className="space-x-2 text-right">
+                    <span className="text-[#6f6254]">{item.percentage}%</span>
+                    <span className="text-[#24170d] font-black">{formatCurrency(item.amount)}</span>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="h-2 w-full rounded-full bg-[#3d2a18]/5 overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full", barColor)}
+                    style={{ width: `${item.percentage}%` }}
+                  />
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Progress bar */}
-              <div className="h-2 w-full rounded-full bg-[#3d2a18]/5 overflow-hidden">
-                <div
-                  className={cn("h-full rounded-full", barColor)}
-                  style={{ width: `${item.percentage}%` }}
-                />
-              </div>
-            </div>
-          ))}
-
-          <div className="border-t border-[#3d2a18]/10 pt-3 flex items-center justify-between font-black text-xs">
+          <div className="border-t border-[#3d2a18]/10 pt-3 flex items-center justify-between font-black text-xs mt-auto">
             <span className="text-[#8b5e34]">TỔNG CỘNG</span>
             <span className="text-[#24170d] text-sm">{formatCurrency(total)}</span>
           </div>
@@ -935,54 +969,57 @@ interface TopBuildingsCardProps {
   subtitle: string
   items?: { id: number; name: string; revenue: number; debt?: number; expected_revenue?: number; percentage: number; expected_percentage?: number }[]
   total: number
+  className?: string
 }
 
-function TopBuildingsCard({ title, subtitle, items = [], total }: TopBuildingsCardProps) {
+function TopBuildingsCard({ title, subtitle, items = [], total, className }: TopBuildingsCardProps) {
   return (
-    <section className="rounded-[2rem] border border-[#3d2a18]/10 bg-white/80 p-5 shadow-xl shadow-[#6b3f1d]/6 backdrop-blur">
+    <section className={cn("rounded-[2rem] border border-[#3d2a18]/10 bg-white/80 p-5 shadow-xl shadow-[#6b3f1d]/6 backdrop-blur flex flex-col", className)}>
       <div className="mb-4">
         <h2 className="text-base font-black tracking-tight text-[#24170d]">{title}</h2>
         <p className="text-xs font-bold text-[#8b5e34]/80 mt-0.5">{subtitle}</p>
       </div>
 
       {!items.length ? (
-        <div className="py-14 text-center rounded-2xl border border-dashed border-[#3d2a18]/10 bg-[#fffaf1]/30">
+        <div className="py-14 text-center rounded-2xl border border-dashed border-[#3d2a18]/10 bg-[#fffaf1]/30 flex-grow flex flex-col justify-center">
           <Building2 className="h-8 w-8 mx-auto text-[#8b5e34]/50 mb-2" />
           <p className="text-xs font-bold text-[#8b5e34]">Không có dữ liệu tòa nhà</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {items.map((item, idx) => (
-            <div key={idx} className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-[#24170d] flex items-center gap-1.5 font-bold">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#8b5e34]/10 text-[10px] font-black text-[#8b5e34]">
-                    {idx + 1}
+        <div className="space-y-4 flex-grow flex flex-col min-h-0">
+          <div className="space-y-4 overflow-y-auto custom-scrollbar pr-1.5 flex-1 min-h-0">
+            {items.map((item, idx) => (
+              <div key={idx} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-[#24170d] flex items-center gap-1.5 font-bold">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#8b5e34]/10 text-[10px] font-black text-[#8b5e34]">
+                      {idx + 1}
+                    </span>
+                    {item.name}
                   </span>
-                  {item.name}
-                </span>
-                <div className="space-x-2 text-right">
-                  <span className="text-[#6f6254]">{item.expected_percentage ?? item.percentage}%</span>
-                  <span className="text-[#24170d] font-black">{formatCurrency(item.expected_revenue || item.revenue)}</span>
+                  <div className="space-x-2 text-right">
+                    <span className="text-[#6f6254]">{item.expected_percentage ?? item.percentage}%</span>
+                    <span className="text-[#24170d] font-black">{formatCurrency(item.expected_revenue || item.revenue)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pl-6 text-[10px] font-bold text-[#8b5e34]/75">
+                  <span>Đã thu: {formatCurrency(item.revenue)}</span>
+                  <span>Công nợ: {formatCurrency(item.debt || 0)}</span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="h-2 w-full rounded-full bg-[#3d2a18]/5 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#8b5e34] to-[#f3c56b]"
+                    style={{ width: `${item.expected_percentage ?? item.percentage}%` }}
+                  />
                 </div>
               </div>
+            ))}
+          </div>
 
-              <div className="flex items-center justify-between pl-6 text-[10px] font-bold text-[#8b5e34]/75">
-                <span>Đã thu: {formatCurrency(item.revenue)}</span>
-                <span>Công nợ: {formatCurrency(item.debt || 0)}</span>
-              </div>
-
-              {/* Progress bar */}
-              <div className="h-2 w-full rounded-full bg-[#3d2a18]/5 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#8b5e34] to-[#f3c56b]"
-                  style={{ width: `${item.expected_percentage ?? item.percentage}%` }}
-                />
-              </div>
-            </div>
-          ))}
-
-          <div className="border-t border-[#3d2a18]/10 pt-3 flex items-center justify-between font-black text-xs">
+          <div className="border-t border-[#3d2a18]/10 pt-3 flex items-center justify-between font-black text-xs mt-auto">
             <span className="text-[#8b5e34]">TỔNG CỘNG GHI NHẬN</span>
             <span className="text-[#24170d] text-sm">{formatCurrency(total)}</span>
           </div>

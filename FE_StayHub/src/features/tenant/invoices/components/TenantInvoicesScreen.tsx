@@ -591,8 +591,8 @@ export function TenantInvoicesScreen() {
                   <h4 className="text-sm font-extrabold text-[#24170d] mb-2 uppercase tracking-wide">
                     Chi tiết các khoản tiền
                   </h4>
-                  <div className="overflow-hidden rounded-2xl border border-[#3d2a18]/10 bg-white text-xs">
-                    <table className="w-full text-left border-collapse">
+                  <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-[#3d2a18]/10 bg-white text-xs">
+                    <table className="w-full min-w-[580px] text-left border-collapse">
                       <thead>
                         <tr className="bg-[#3d2a18]/5 text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34] border-b border-[#3d2a18]/10">
                           <th className="p-3">Khoản mục</th>

@@ -600,7 +600,10 @@ export function AdminChatScreen() {
   return (
     <section className="flex h-full min-h-0 overflow-hidden rounded-[2rem] border border-[#3d2a18]/10 bg-[#fffaf1]/85 shadow-2xl shadow-[#6b3f1d]/10 backdrop-blur-xl">
       <div className="grid h-full min-h-0 w-full grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col border-b border-[#3d2a18]/10 bg-[#24170d] text-[#fffaf1] lg:h-full lg:border-b-0 lg:border-r">
+        <aside className={cn(
+          "flex min-h-0 flex-col border-b border-[#3d2a18]/10 bg-[#24170d] text-[#fffaf1] lg:h-full lg:border-b-0 lg:border-r",
+          activeConversation ? "hidden lg:flex" : "flex"
+        )}>
           <div className="shrink-0 space-y-4 p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -699,11 +702,25 @@ export function AdminChatScreen() {
           </div>
         </aside>
 
-        <main className="flex min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(243,197,107,0.24),transparent_32%),linear-gradient(180deg,#fffaf1,#f4efe6)] lg:h-full">
+        <main className={cn(
+          "flex min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(243,197,107,0.24),transparent_32%),linear-gradient(180deg,#fffaf1,#f4efe6)] lg:h-full",
+          activeConversation ? "flex" : "hidden lg:flex"
+        )}>
           {activeConversation ? (
             <>
               <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#3d2a18]/10 bg-white/55 p-5 backdrop-blur-md">
                 <div className="flex min-w-0 items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTenantConversation(null)
+                      setActiveDirectConversation(null)
+                    }}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-white/65 text-[#8b5e34] transition hover:bg-[#f3c56b]/10 hover:text-[#24170d] lg:hidden"
+                    aria-label="Quay lại danh sách chat"
+                  >
+                    <ChevronLeft className="h-5 w-5 stroke-[2.5]" />
+                  </button>
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#24170d] text-sm font-black text-[#f3c56b]">
                     {isDirectConversation(activeConversation)
                       ? (Number(activeConversation.super_admin_id) === Number(adminId)

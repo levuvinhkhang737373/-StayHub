@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { ChevronLeft, ChevronRight, Clock3, Eye, History, Network, Search, ShieldCheck, UserRound, X } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, Clock3, Eye, History, Network, Search, ShieldCheck, UserRound, X } from 'lucide-react'
 import { cn } from '../../../../shared/lib/utils/cn'
 import { formatDateTime } from '../../../../shared/lib/utils/format'
 import { AdminDateInput } from '../../../../shared/components/AdminDateInput'
@@ -507,7 +507,9 @@ function ChangeSummaryCard({ item }: { item: AdminActivityLogChangeItem }) {
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5e34]/65">{item.label}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch">
         <ValuePill label="Trước" value={item.old_value} tone="old" />
-        <div className="hidden items-center justify-center text-[#8b5e34] sm:flex">→</div>
+        <div className="hidden items-center justify-center sm:flex">
+          <ArrowRight className="h-5 w-5 text-[#8b5e34]" />
+        </div>
         <ValuePill label="Sau" value={item.new_value} tone="new" />
       </div>
     </article>
