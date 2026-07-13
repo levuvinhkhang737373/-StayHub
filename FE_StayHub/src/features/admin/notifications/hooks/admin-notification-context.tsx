@@ -182,9 +182,10 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
     if (!adminId || !echo) return
 
     const isSuperAdmin = isSuperAdminRole(session?.admin?.role)
-    const channel = echo.private('admin-maintenance')
+    const maintenanceChannel = echo.private('admin-maintenance')
+    const paymentsChannel = echo.private('admin-payments')
 
-    channel.listen('.MaintenanceRequestCreated', (event: any) => {
+    maintenanceChannel.listen('.MaintenanceRequestCreated', (event: any) => {
       console.log('WS: Received MaintenanceRequestCreated', event)
       const request = event.request
       if (request) {
@@ -205,22 +206,22 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
-    channel.listen('.MaintenanceRequestAssigned', (event: any) => {
+    maintenanceChannel.listen('.MaintenanceRequestAssigned', (event: any) => {
       console.log('WS: Received MaintenanceRequestAssigned', event)
       window.dispatchEvent(new CustomEvent('maintenance-created'))
     })
 
-    channel.listen('.MaintenanceRequestProcessing', (event: any) => {
+    maintenanceChannel.listen('.MaintenanceRequestProcessing', (event: any) => {
       console.log('WS: Received MaintenanceRequestProcessing', event)
       window.dispatchEvent(new CustomEvent('maintenance-created'))
     })
 
-    channel.listen('.MaintenanceRequestCompleted', (event: any) => {
+    maintenanceChannel.listen('.MaintenanceRequestCompleted', (event: any) => {
       console.log('WS: Received MaintenanceRequestCompleted', event)
       window.dispatchEvent(new CustomEvent('maintenance-created'))
     })
 
-    channel.listen('.MaintenanceFeedbackCreated', (event: any) => {
+    maintenanceChannel.listen('.MaintenanceFeedbackCreated', (event: any) => {
       console.log('WS: Received MaintenanceFeedbackCreated', event)
       const feedback = event.feedback
       if (feedback) {
@@ -241,7 +242,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
-    channel.listen('.ContractDepositPaid', (event: any) => {
+    paymentsChannel.listen('.ContractDepositPaid', (event: any) => {
       console.log('WS: Received ContractDepositPaid', event)
       const contract = event.contract
       if (contract) {
@@ -250,7 +251,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
-    channel.listen('.InvoicePaid', (event: any) => {
+    paymentsChannel.listen('.InvoicePaid', (event: any) => {
       console.log('WS: Received InvoicePaid', event)
       const invoice = event.invoice
       if (invoice) {
@@ -259,7 +260,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       }
     })
 
-    channel.listen('.InvoiceReissued', (event: any) => {
+    paymentsChannel.listen('.InvoiceReissued', (event: any) => {
       console.log('WS: Received InvoiceReissued', event)
       const invoice = event.invoice
       if (invoice) {
@@ -331,14 +332,14 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
     })
 
     return () => {
-      channel.stopListening('.MaintenanceRequestCreated')
-      channel.stopListening('.MaintenanceRequestAssigned')
-      channel.stopListening('.MaintenanceRequestProcessing')
-      channel.stopListening('.MaintenanceRequestCompleted')
-      channel.stopListening('.MaintenanceFeedbackCreated')
-      channel.stopListening('.ContractDepositPaid')
-      channel.stopListening('.InvoicePaid')
-      channel.stopListening('.InvoiceReissued')
+      maintenanceChannel.stopListening('.MaintenanceRequestCreated')
+      maintenanceChannel.stopListening('.MaintenanceRequestAssigned')
+      maintenanceChannel.stopListening('.MaintenanceRequestProcessing')
+      maintenanceChannel.stopListening('.MaintenanceRequestCompleted')
+      maintenanceChannel.stopListening('.MaintenanceFeedbackCreated')
+      paymentsChannel.stopListening('.ContractDepositPaid')
+      paymentsChannel.stopListening('.InvoicePaid')
+      paymentsChannel.stopListening('.InvoiceReissued')
       buildingChannels.forEach((bc) => {
         bc.channel.stopListening('.ContractExpired')
         bc.channel.stopListening('.NotificationSent')

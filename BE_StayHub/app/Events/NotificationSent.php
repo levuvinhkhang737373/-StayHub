@@ -38,7 +38,7 @@ class NotificationSent implements ShouldBroadcast
             return $channels;
         }
 
-        if ($this->notification->notification_type !== Notification::NOTIFICATION_TYPE_CHAT) {
+        if ($this->notification->notification_type === Notification::NOTIFICATION_TYPE_MAINTENANCE) {
             $channels[] = new PrivateChannel('admin-maintenance');
         }
 

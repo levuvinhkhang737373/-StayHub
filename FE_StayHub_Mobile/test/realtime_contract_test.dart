@@ -14,6 +14,8 @@ void main() {
       () {
         final channelNames = [
           StayHubRealtimeContract.adminMaintenanceChannel,
+          StayHubRealtimeContract.adminPaymentsChannel,
+          StayHubRealtimeContract.adminSuperChannel,
           StayHubRealtimeContract.adminBuildingChannel(1),
           StayHubRealtimeContract.tenantChannel(59),
           StayHubRealtimeContract.chatAdminChannel(12),
@@ -57,6 +59,54 @@ void main() {
       }
     });
 
+    test('admin maintenance and payment realtime channels stay separated', () {
+      expect(
+        StayHubRealtimeContract.adminMaintenanceEvents,
+        isNot(
+          anyOf(
+            contains('ContractDepositPaid'),
+            contains('InvoicePaid'),
+            contains('InvoiceReissued'),
+          ),
+        ),
+      );
+      expect(
+        StayHubRealtimeContract.adminPaymentEvents,
+        containsAll(['ContractDepositPaid', 'InvoicePaid', 'InvoiceReissued']),
+      );
+
+      final serviceFile = File(
+        '${mobileRoot.path}/lib/services/websocket_service.dart',
+      );
+      final serviceSource = serviceFile.readAsStringSync();
+      expect(
+        serviceSource,
+        contains('void subscribeToAdminPayments()'),
+        reason:
+            'Payment realtime must be registered independently from maintenance realtime.',
+      );
+      final maintenanceMethod = RegExp(
+        r'void subscribeToAdminMaintenance\([\s\S]*?\n  }\n\n  void subscribeToAdminPayments',
+      ).firstMatch(serviceSource)?.group(0);
+      expect(maintenanceMethod, isNotNull);
+      expect(
+        maintenanceMethod,
+        isNot(contains('_subscribeToAdminPaymentsChannel')),
+        reason:
+            'subscribeToAdminMaintenance must not silently subscribe to admin-payments.',
+      );
+      expect(
+        serviceSource,
+        contains('void subscribeToAdminSuperNotifications()'),
+      );
+      expect(
+        serviceSource,
+        contains("channel.bind('NotificationSent')"),
+        reason:
+            'Admin scoped notifications must move through admin-super/admin-building instead of admin-maintenance.',
+      );
+    });
+
     test('covers backend broadcast event names used by mobile', () {
       final eventsDir = Directory('${backendRoot.path}/app/Events');
       expect(eventsDir.existsSync(), isTrue);
@@ -64,7 +114,7 @@ void main() {
 
       final mobileEvents = {
         ...StayHubRealtimeContract.adminMaintenanceEvents,
-        ...StayHubRealtimeContract.adminMaintenanceBillingEvents,
+        ...StayHubRealtimeContract.adminPaymentEvents,
         ...StayHubRealtimeContract.tenantEvents,
         ...StayHubRealtimeContract.chatEvents,
         ...StayHubRealtimeContract.adminBuildingEvents,
@@ -97,7 +147,7 @@ void main() {
 
       final supportedMobileEvents = {
         ...StayHubRealtimeContract.adminMaintenanceEvents,
-        ...StayHubRealtimeContract.adminMaintenanceBillingEvents,
+        ...StayHubRealtimeContract.adminPaymentEvents,
         ...StayHubRealtimeContract.tenantEvents,
         ...StayHubRealtimeContract.chatEvents,
         ...StayHubRealtimeContract.adminBuildingEvents,

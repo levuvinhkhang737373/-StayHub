@@ -27,7 +27,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   StreamSubscription? _debugSubscription;
   StreamSubscription? _wsAdminEventsSubscription;
 
-
   @override
   void initState() {
     super.initState();
@@ -65,6 +64,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
 
         _subscribeAdminBuildingContractExpirations(wsService);
+        if (currentAdmin?.role == 2) {
+          wsService.subscribeToAdminSuperNotifications();
+        }
       }
 
       // Lắng nghe thông điệp debug để hiện SnackBar lên màn hình (chỉ hiển thị khi có lỗi)
@@ -91,6 +93,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       });
 
+      wsService.subscribeToAdminPayments();
+
       // Lắng nghe sự kiện đóng tiền cọc thành công thời gian thực
       _wsAdminEventsSubscription = wsService.notificationsStream.listen((
         event,
@@ -110,8 +114,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               final buildingId = contract['building_id'];
               if (!isSuperAdmin && buildingId != null) {
                 final facilityCtrl = context.read<FacilityController>();
-                final isManaged = facilityCtrl.buildings.any((b) => b.id == buildingId);
-                if (!isManaged) return; // Not managing this building, ignore the event
+                final isManaged = facilityCtrl.buildings.any(
+                  (b) => b.id == buildingId,
+                );
+                if (!isManaged)
+                  return; // Not managing this building, ignore the event
               }
             }
             // Làm mới các chỉ số vận hành và hợp đồng của admin
@@ -300,8 +307,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final authController = context.watch<AuthController>();
@@ -312,8 +317,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final notificationController = context.watch<NotificationController>();
 
     final admin = authController.currentAdmin;
-
-
 
     int notificationCount = notificationController.unreadCount;
 
@@ -530,7 +533,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 '/admin/room-transfer',
                               ),
                             ),
-
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -598,8 +600,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
 
     final chatController = context.watch<ChatController>();
-    final int unreadChatCount = chatController.tenantConversations.fold(0, (sum, item) => sum + item.unreadCountForAdmin(admin?.id)) +
-        chatController.directConversations.fold(0, (sum, item) => sum + item.unreadCountForAdmin(admin?.id));
+    final int unreadChatCount =
+        chatController.tenantConversations.fold(
+          0,
+          (sum, item) => sum + item.unreadCountForAdmin(admin?.id),
+        ) +
+        chatController.directConversations.fold(
+          0,
+          (sum, item) => sum + item.unreadCountForAdmin(admin?.id),
+        );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F6F0),
@@ -615,13 +624,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           backgroundColor: Colors.redAccent,
                           textColor: Colors.white,
                           child: IconButton(
-                            icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
-                            onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
+                            icon: const Icon(
+                              Icons.notifications_none_rounded,
+                              color: Colors.white,
+                            ),
+                            onPressed: () => Navigator.pushNamed(
+                              context,
+                              '/admin/customer-notifications',
+                            ),
                           ),
                         )
                       : IconButton(
-                          icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
-                          onPressed: () => Navigator.pushNamed(context, '/admin/customer-notifications'),
+                          icon: const Icon(
+                            Icons.notifications_none_rounded,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            '/admin/customer-notifications',
+                          ),
                         ),
                 ),
               ],

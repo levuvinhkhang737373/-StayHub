@@ -6,6 +6,7 @@ use App\Models\Admin;
 use App\Models\Building;
 use App\Models\Notification;
 use App\Models\Region;
+use App\Models\Tenant;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -86,7 +87,27 @@ class NotificationControllerTest extends TestCase
         ]);
 
         $this->assertSame(['private-admin-super'], $this->broadcastChannelNames($globalNotification));
-        $this->assertSame(['private-admin-building.'.$building->id], $this->broadcastChannelNames($buildingNotification));
+        $this->assertSame(['private-admin-super', 'private-admin-building.'.$building->id], $this->broadcastChannelNames($buildingNotification));
+    }
+
+    public function test_non_maintenance_tenant_notifications_do_not_broadcast_on_admin_maintenance_channel(): void
+    {
+        $superAdmin = $this->createAdmin('notification_non_maintenance_super', Admin::ROLE_SUPER_ADMIN);
+        $tenant = $this->createTenant('notification_non_maintenance_tenant', $superAdmin);
+
+        $invoiceNotification = $this->createNotification($superAdmin, [
+            'notification_type' => Notification::NOTIFICATION_TYPE_INVOICE,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
+            'tenant_id' => $tenant->id,
+        ]);
+        $maintenanceNotification = $this->createNotification($superAdmin, [
+            'notification_type' => Notification::NOTIFICATION_TYPE_MAINTENANCE,
+            'target_type' => Notification::TARGET_TYPE_TENANT,
+            'tenant_id' => $tenant->id,
+        ]);
+
+        $this->assertNotContains('private-admin-maintenance', $this->broadcastChannelNames($invoiceNotification));
+        $this->assertContains('private-admin-maintenance', $this->broadcastChannelNames($maintenanceNotification));
     }
 
     private function createAdmin(string $username, int $role): Admin
@@ -115,6 +136,23 @@ class NotificationControllerTest extends TestCase
             'created_by' => $manager->id,
             'status' => Building::STATUS_ACTIVE,
             'gender_policy' => Building::GENDER_POLICY_MIXED,
+        ]);
+    }
+
+    private function createTenant(string $username, Admin $creator): Tenant
+    {
+        return Tenant::query()->create([
+            'created_by' => $creator->id,
+            'full_name' => str($username)->replace('_', ' ')->title()->toString(),
+            'gender' => Tenant::GENDER_MALE,
+            'date_of_birth' => '2000-01-01',
+            'phone' => '08'.str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT),
+            'email' => $username.'@stayhub.local',
+            'username' => $username,
+            'password' => bcrypt('password'),
+            'status' => Tenant::STATUS_RENTING,
+            'identity_type' => Tenant::IDENTITY_TYPE_CCCD,
+            'identity_number' => '079'.str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT),
         ]);
     }
 

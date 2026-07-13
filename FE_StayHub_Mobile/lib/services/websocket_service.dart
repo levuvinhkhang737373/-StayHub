@@ -27,6 +27,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
   // Registered subscription callbacks for reconnection/lazy connection
   VoidCallback? _onAdminMaintenanceCallback;
+  bool _hasAdminPaymentSubscription = false;
+  bool _hasAdminSuperNotificationSubscription = false;
   Function(Map<String, dynamic>)? _onTenantNotificationCallback;
   final Map<String, Function(Map<String, dynamic>)> _onChatMessageCallbacks =
       {};
@@ -62,6 +64,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get _hasActiveSubscriptions =>
       _onAdminMaintenanceCallback != null ||
+      _hasAdminPaymentSubscription ||
+      _hasAdminSuperNotificationSubscription ||
       _tenantId != null ||
       _adminChatId != null ||
       _tenantChatId != null ||
@@ -102,6 +106,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       );
     } else {
       _onAdminMaintenanceCallback = null;
+      _hasAdminPaymentSubscription = false;
+      _hasAdminSuperNotificationSubscription = false;
       _onContractExpiredCallback = null;
       _adminBuildingIds.clear();
       _adminChatId = null;
@@ -113,6 +119,7 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
           (channelName) =>
               channelName == StayHubRealtimeContract.adminMaintenanceChannel ||
               channelName == StayHubRealtimeContract.adminPaymentsChannel ||
+              channelName == StayHubRealtimeContract.adminSuperChannel ||
               channelName.startsWith(
                 StayHubRealtimeContract.adminBuildingChannelPrefix,
               ) ||
@@ -364,7 +371,26 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     _onAdminMaintenanceCallback = onMaintenanceCreated;
     if (_isConnected) {
       _subscribeToAdminMaintenanceChannel();
+    } else {
+      _ensureConnected();
+    }
+  }
+
+  void subscribeToAdminPayments() {
+    startAdminSession();
+    _hasAdminPaymentSubscription = true;
+    if (_isConnected) {
       _subscribeToAdminPaymentsChannel();
+    } else {
+      _ensureConnected();
+    }
+  }
+
+  void subscribeToAdminSuperNotifications() {
+    startAdminSession();
+    _hasAdminSuperNotificationSubscription = true;
+    if (_isConnected) {
+      _subscribeToAdminSuperChannel();
     } else {
       _ensureConnected();
     }
@@ -503,7 +529,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       final depositSubscription = channel.bind('ContractDepositPaid').listen((
         event,
       ) {
-        debugPrint('WS Event: ContractDepositPaid (Admin Payments) -> ${event.data}');
+        debugPrint(
+          'WS Event: ContractDepositPaid (Admin Payments) -> ${event.data}',
+        );
         Map<String, dynamic>? parsedData;
         try {
           final rawData = event.data;
@@ -557,7 +585,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       final adminInvoiceReissuedSubscription = channel
           .bind('InvoiceReissued')
           .listen((event) {
-            debugPrint('WS Event: InvoiceReissued (Admin Payments) -> ${event.data}');
+            debugPrint(
+              'WS Event: InvoiceReissued (Admin Payments) -> ${event.data}',
+            );
             try {
               final rawData = event.data;
               if (rawData != null) {
@@ -575,7 +605,9 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
                 });
               }
             } catch (e) {
-              debugPrint('WS Error handling InvoiceReissued (Admin Payments): $e');
+              debugPrint(
+                'WS Error handling InvoiceReissued (Admin Payments): $e',
+              );
             }
           });
       subscriptions.add(adminInvoiceReissuedSubscription);
@@ -811,7 +843,12 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
   void _triggerPendingSubscriptions() {
     if (_onAdminMaintenanceCallback != null) {
       _subscribeToAdminMaintenanceChannel();
+    }
+    if (_hasAdminPaymentSubscription) {
       _subscribeToAdminPaymentsChannel();
+    }
+    if (_hasAdminSuperNotificationSubscription) {
+      _subscribeToAdminSuperChannel();
     }
     if (_tenantId != null) {
       _subscribeToTenantChannel(_tenantId!);
@@ -821,6 +858,42 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     }
     for (final buildingId in _adminBuildingIds) {
       _subscribeToAdminBuildingChannel(buildingId);
+    }
+  }
+
+  Future<void> _subscribeToAdminSuperChannel() async {
+    if (_client == null || !_isConnected) return;
+
+    const channelName = StayHubRealtimeContract.adminSuperChannel;
+    if (_activeChannels.containsKey(channelName)) return;
+
+    try {
+      final channel = _client!.privateChannel(
+        _privateChannelName(channelName),
+        authorizationDelegate: DioPrivateChannelAuthorizationDelegate(
+          onAuthFailed: (exception, trace) {
+            debugPrint('WS Auth failed for channel $channelName: $exception');
+            unawaited(_handleChannelAuthFailed(channelName, exception));
+          },
+        ),
+      );
+      _activeChannels[channelName] = channel;
+
+      final subscription = channel.bind('NotificationSent').listen((event) {
+        final decoded = _decodeEventData(event.data);
+        _addNotificationEvent({
+          'type': 'admin_notification_sent',
+          'data': decoded?['notification'] ?? decoded ?? event.data,
+        });
+      });
+
+      _eventSubscriptions[channelName] = subscription;
+      channel.subscribe();
+      debugPrint(
+        'WS: Subscribed to private channel $channelName successfully!',
+      );
+    } catch (e) {
+      debugPrint('WS Subscription Error ($channelName): $e');
     }
   }
 
@@ -871,18 +944,35 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
       );
       _activeChannels[channelName] = channel;
 
-      final subscription = channel.bind('ContractExpired').listen((event) {
-        final decoded = _decodeEventData(event.data);
-        if (decoded != null) {
-          final contract = decoded['contract'] is Map
-              ? Map<String, dynamic>.from(decoded['contract'] as Map)
-              : decoded;
-          _onContractExpiredCallback?.call(contract);
-          _addNotificationEvent({'type': 'contract_expired', 'data': contract});
-        }
-      });
+      final subscriptions = <StreamSubscription>[];
 
-      _eventSubscriptions[channelName] = subscription;
+      subscriptions.add(
+        channel.bind('ContractExpired').listen((event) {
+          final decoded = _decodeEventData(event.data);
+          if (decoded != null) {
+            final contract = decoded['contract'] is Map
+                ? Map<String, dynamic>.from(decoded['contract'] as Map)
+                : decoded;
+            _onContractExpiredCallback?.call(contract);
+            _addNotificationEvent({
+              'type': 'contract_expired',
+              'data': contract,
+            });
+          }
+        }),
+      );
+
+      subscriptions.add(
+        channel.bind('NotificationSent').listen((event) {
+          final decoded = _decodeEventData(event.data);
+          _addNotificationEvent({
+            'type': 'admin_notification_sent',
+            'data': decoded?['notification'] ?? decoded ?? event.data,
+          });
+        }),
+      );
+
+      _eventSubscriptions[channelName] = subscriptions;
       channel.subscribe();
       debugPrint(
         'WS: Subscribed to private channel $channelName successfully!',
@@ -1120,6 +1210,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
     _cancelReconnectTimer();
 
     _onAdminMaintenanceCallback = null;
+    _hasAdminPaymentSubscription = false;
+    _hasAdminSuperNotificationSubscription = false;
     _onTenantNotificationCallback = null;
     _onChatMessageCallbacks.clear();
     _onChatReadCallbacks.clear();
@@ -1213,6 +1305,8 @@ class WebSocketService extends ChangeNotifier with WidgetsBindingObserver {
 
       final bool hasActiveSubscriptions =
           _onAdminMaintenanceCallback != null ||
+          _hasAdminPaymentSubscription ||
+          _hasAdminSuperNotificationSubscription ||
           _tenantId != null ||
           _adminChatId != null ||
           _tenantChatId != null ||

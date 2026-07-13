@@ -26,6 +26,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<InvoiceController>().fetchInvoices(isAdmin: true);
+      context.read<WebSocketService>().subscribeToAdminPayments();
       _socketSub = context.read<WebSocketService>().notificationsStream.listen((event) {
         final type = event['type'];
         if (type == 'admin_invoice_paid' || type == 'admin_invoice_reissued') {

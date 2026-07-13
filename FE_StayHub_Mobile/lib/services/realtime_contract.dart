@@ -4,6 +4,7 @@ class StayHubRealtimeContract {
 
   static const String adminMaintenanceChannel = 'admin-maintenance';
   static const String adminPaymentsChannel = 'admin-payments';
+  static const String adminSuperChannel = 'admin-super';
   static const String adminBuildingChannelPrefix = 'admin-building.';
   static const String tenantChannelPrefix = 'tenant.';
   static const String chatAdminChannelPrefix = 'chat.admin.';
@@ -13,6 +14,7 @@ class StayHubRealtimeContract {
   static const List<String> backendPrivateChannelPatterns = [
     adminMaintenanceChannel,
     adminPaymentsChannel,
+    adminSuperChannel,
     'admin-building.{buildingId}',
     'tenant.{id}',
     'chat.conversation.{conversationId}',
@@ -43,11 +45,10 @@ class StayHubRealtimeContract {
     ...tenantMaintenanceEvents,
   ];
 
-  static const List<String> adminMaintenanceBillingEvents = [
+  static const List<String> adminPaymentEvents = [
     'ContractDepositPaid',
     'InvoicePaid',
     'InvoiceReissued',
-    'NotificationSent',
   ];
 
   static const List<String> chatEvents = [
@@ -56,9 +57,7 @@ class StayHubRealtimeContract {
     'NotificationSent',
   ];
 
-  static const List<String> adminBuildingEvents = [
-    'ContractExpired',
-  ];
+  static const List<String> adminBuildingEvents = ['ContractExpired'];
 
   static const List<String> intentionallyUnsupportedPublicEvents = [
     'BulkInvoiceGenerated',
@@ -78,7 +77,8 @@ class StayHubRealtimeContract {
   static String adminBuildingChannel(int buildingId) =>
       '$adminBuildingChannelPrefix$buildingId';
 
-  static String chatAdminChannel(int adminId) => '$chatAdminChannelPrefix$adminId';
+  static String chatAdminChannel(int adminId) =>
+      '$chatAdminChannelPrefix$adminId';
 
   static String chatTenantChannel(int tenantId) =>
       '$chatTenantChannelPrefix$tenantId';
