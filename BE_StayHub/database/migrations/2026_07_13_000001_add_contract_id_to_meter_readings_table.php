@@ -29,6 +29,10 @@ return new class extends Migration
         $indexes = collect(Schema::getIndexes('meter_readings'))->pluck('name');
 
         Schema::table('meter_readings', function (Blueprint $table) use ($indexes): void {
+            if (! $indexes->contains('meter_readings_meter_device_id_index')) {
+                $table->index('meter_device_id', 'meter_readings_meter_device_id_index');
+            }
+
             if ($indexes->contains('meter_readings_meter_device_id_billing_year_billing_month_unique')) {
                 $table->dropUnique('meter_readings_meter_device_id_billing_year_billing_month_unique');
             }
@@ -62,6 +66,10 @@ return new class extends Migration
 
             if (! $indexes->contains('meter_readings_meter_device_id_billing_year_billing_month_unique')) {
                 $table->unique(['meter_device_id', 'billing_year', 'billing_month'], 'meter_readings_meter_device_id_billing_year_billing_month_unique');
+            }
+
+            if ($indexes->contains('meter_readings_meter_device_id_index')) {
+                $table->dropIndex('meter_readings_meter_device_id_index');
             }
         });
 
