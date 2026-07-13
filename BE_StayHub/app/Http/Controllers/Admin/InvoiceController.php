@@ -413,7 +413,14 @@ class InvoiceController extends Controller
                     }
                 }
 
-                $affectedInvoiceIds = $affectedInvoiceIds->merge($this->futureDebtInvoiceIds($invoiceModel));
+                $newItems = $invoiceModel->items()->get();
+                $newTotalAmount = $this->calculateItemsTotal($newItems->map(fn (InvoiceItem $item): array => [
+                    'amount' => (string) $item->amount,
+                ])->all());
+
+                if (DecimalMoney::compare($newTotalAmount, $oldData['total_amount']) !== 0) {
+                    $affectedInvoiceIds = $affectedInvoiceIds->merge($this->futureDebtInvoiceIds($invoiceModel));
+                }
 
                 $affectedInvoices = Invoice::query()
                     ->whereIn('id', $affectedInvoiceIds->unique()->values()->all())

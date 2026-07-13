@@ -493,7 +493,6 @@ export function RoomMovementsScreen() {
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Quyết toán</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Hợp đồng</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Người xử lý</th>
-                  <th scope="col" className={cn(tableHeadCellClass, 'text-center')}>Hủy lịch</th>
                   <th scope="col" className={cn(tableHeadCellClass, 'pr-4 text-right')}>Thao tác</th>
                 </tr>
               </thead>
@@ -549,15 +548,6 @@ export function RoomMovementsScreen() {
                         {movement.creator_name || '—'}
                       </p>
                     </td>
-                    <td className={cn(tableBodyCellClass, 'text-center')}>
-                      {canCancelTransferSchedule(movement) ? (
-                        <button type="button" onClick={() => openCancelTransferSchedule(movement)} className="group/cancel inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Hủy lịch chuyển" aria-label="Hủy lịch chuyển phòng">
-                          <Trash2 className="h-4.5 w-4.5 transition group-hover/cancel:-rotate-6" />
-                        </button>
-                      ) : (
-                        <span className="inline-flex h-9 items-center justify-center rounded-xl border border-[#3d2a18]/8 bg-[#fffaf1] px-3 text-[11px] font-black text-[#8b5e34]/55">—</span>
-                      )}
-                    </td>
                     <td className={cn(tableBodyCellClass, 'pr-4 text-right')}>
                       <div className="flex items-center justify-end gap-2">
                         {canUpdateTransferDate(movement) && (
@@ -568,6 +558,11 @@ export function RoomMovementsScreen() {
                         <button type="button" onClick={() => void openDetail(movement)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#3d2a18]/10 bg-[#fffaf1] text-[#8b5e34] shadow-sm transition hover:border-[#0f766e]/25 hover:bg-[#0f766e]/10 hover:text-[#0f5f59] focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10 active:scale-95" title="Xem chi tiết" aria-label="Xem chi tiết lịch sử phòng và cọc">
                           <Eye className="h-4.5 w-4.5" />
                         </button>
+                        {canCancelTransferSchedule(movement) && (
+                          <button type="button" onClick={() => openCancelTransferSchedule(movement)} className="group/cancel inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 focus:outline-none focus:ring-4 focus:ring-rose-100 active:scale-95" title="Hủy lịch chuyển" aria-label="Hủy lịch chuyển phòng">
+                            <Trash2 className="h-4.5 w-4.5 transition group-hover/cancel:-rotate-6" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
