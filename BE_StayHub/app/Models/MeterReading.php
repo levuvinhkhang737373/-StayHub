@@ -22,16 +22,21 @@ class MeterReading extends Model
         self::STATUS_INVOICED => 'Đã lập hóa đơn',
     ];
 
-    protected $fillable = ['meter_device_id', 'billing_month', 'billing_year', 'previous_reading', 'current_reading', 'consumption', 'reading_date', 'status', 'image_path', 'note', 'created_by'];
+    protected $fillable = ['meter_device_id', 'contract_id', 'billing_month', 'billing_year', 'previous_reading', 'current_reading', 'consumption', 'reading_date', 'status', 'image_path', 'note', 'created_by'];
 
     protected function casts(): array
     {
-        return ['billing_month' => 'integer', 'billing_year' => 'integer', 'previous_reading' => 'decimal:2', 'current_reading' => 'decimal:2', 'consumption' => 'decimal:2', 'reading_date' => 'date', 'status' => 'integer'];
+        return ['contract_id' => 'integer', 'billing_month' => 'integer', 'billing_year' => 'integer', 'previous_reading' => 'decimal:2', 'current_reading' => 'decimal:2', 'consumption' => 'decimal:2', 'reading_date' => 'date', 'status' => 'integer'];
     }
 
     public function meterDevice(): BelongsTo
     {
         return $this->belongsTo(MeterDevice::class);
+    }
+
+    public function contract(): BelongsTo
+    {
+        return $this->belongsTo(Contract::class);
     }
 
     public function creator(): BelongsTo

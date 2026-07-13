@@ -1,5 +1,6 @@
 export interface ExistingMeterReading {
   id: number
+  contract_id?: number | null
   current_reading: number
   consumption: number
   reading_date: string | null
@@ -50,6 +51,7 @@ export interface MeterReadingsInitResponse {
 
 export interface SaveMeterReadingPayload {
   meter_device_id: number
+  contract_id?: number | null
   billing_month: number
   billing_year: number
   current_reading: number

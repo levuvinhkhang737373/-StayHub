@@ -428,6 +428,7 @@ class MeterReadingController extends ChangeNotifier {
 
   Future<bool> saveMeterReading({
     required int meterDeviceId,
+    int? contractId,
     required int month,
     required int year,
     required double currentReading,
@@ -440,6 +441,7 @@ class MeterReadingController extends ChangeNotifier {
         '/admin/meter-readings',
         data: {
           'meter_device_id': meterDeviceId,
+          if (contractId != null) 'contract_id': contractId,
           'billing_month': month,
           'billing_year': year,
           'current_reading': currentReading,

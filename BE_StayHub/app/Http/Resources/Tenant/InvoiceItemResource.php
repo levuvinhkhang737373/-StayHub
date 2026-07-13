@@ -24,6 +24,7 @@ class InvoiceItemResource extends JsonResource
             'meter_reading_id' => $this->meter_reading_id,
             'meter_reading' => $this->whenLoaded('meterReading', fn (): ?array => $this->meterReading ? [
                 'id' => $this->meterReading->id,
+                'contract_id' => $this->meterReading->contract_id,
                 'previous_reading' => $this->meterReading->previous_reading,
                 'current_reading' => $this->meterReading->current_reading,
                 'consumption' => $this->meterReading->consumption,

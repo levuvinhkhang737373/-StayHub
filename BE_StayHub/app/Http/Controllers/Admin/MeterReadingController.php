@@ -227,7 +227,7 @@ class MeterReadingController extends Controller
             'cutoff_reason' => $transferContext
                 ? 'Hợp đồng cũ sẽ được quyết toán trước khi chuyển phòng. Chốt điện/nước đến ngày trước ngày chuyển để lập hóa đơn cuối kỳ.'
                 : null,
-            'meters' => $this->metersForRoom($room, $month, $year),
+            'meters' => $this->metersForRoom($room, $month, $year, $contract, $transferContext['utility_cutoff_date'] ?? null),
         ];
     }
 
@@ -242,39 +242,24 @@ class MeterReadingController extends Controller
     }
 
     // Danh sách công tơ điện nước trong phòng
-    private function metersForRoom(Room $room, int $month, int $year): array
+    private function metersForRoom(Room $room, int $month, int $year, ?Contract $contract = null, ?string $targetDate = null): array
     {
         return MeterDevice::query()
             ->where('room_id', $room->id)
             ->where('status', MeterDevice::STATUS_ACTIVE)
             ->with('service')
             ->get()
-            ->map(fn (MeterDevice $meter): array => $this->meterPayload($meter, $month, $year))
+            ->map(fn (MeterDevice $meter): array => $this->meterPayload($meter, $month, $year, $contract, $targetDate))
             ->values()
             ->all();
     }
 
     // Định dạng cấu trúc dữ liệu công tơ
-    private function meterPayload(MeterDevice $meter, int $month, int $year): array
+    private function meterPayload(MeterDevice $meter, int $month, int $year, ?Contract $contract = null, ?string $targetDate = null): array
     {
-        $existingReading = MeterReading::query()
-            ->where('meter_device_id', $meter->id)
-            ->where('billing_month', $month)
-            ->where('billing_year', $year)
-            ->first();
-
-        $previousReadingRecord = MeterReading::query()
-            ->where('meter_device_id', $meter->id)
-            ->where(function ($query) use ($year, $month) {
-                $query->where('billing_year', '<', $year)
-                    ->orWhere(function ($q) use ($year, $month) {
-                        $q->where('billing_year', $year)
-                            ->where('billing_month', '<', $month);
-                    });
-            })
-            ->orderByDesc('billing_year')
-            ->orderByDesc('billing_month')
-            ->first();
+        $existingReading = $this->periodReadingForContract($meter, $month, $year, $contract?->id);
+        $readingDate = Carbon::parse($targetDate ?: Carbon::create($year, $month, 1)->endOfMonth()->toDateString())->startOfDay();
+        $previousReadingRecord = $this->previousReadingRecord($meter, $readingDate, $existingReading?->id);
 
         $previousReading = $existingReading
             ? (float) $existingReading->previous_reading
@@ -296,6 +281,7 @@ class MeterReadingController extends Controller
     {
         return [
             'id' => $reading->id,
+            'contract_id' => $reading->contract_id,
             'current_reading' => (float) $reading->current_reading,
             'consumption' => (float) $reading->consumption,
             'reading_date' => $reading->reading_date ? $reading->reading_date->format('Y-m-d') : null,
@@ -413,11 +399,14 @@ class MeterReadingController extends Controller
             $month = $validated['billing_month'];
             $year = $validated['billing_year'];
             $currentReading = $validated['current_reading'];
-            $existingReading = MeterReading::query()
-                ->where('meter_device_id', $meter->id)
-                ->where('billing_month', $month)
-                ->where('billing_year', $year)
-                ->first();
+            $contract = $this->resolveContractForMeterReading($meter, $validated);
+
+            if ($contract && (int) $contract->room_id !== (int) $meter->room_id) {
+                return ApiResponse::responseJson(false, 'Hợp đồng không thuộc phòng của đồng hồ này.', 422, null, 422);
+            }
+
+            $contractId = $contract?->id;
+            $existingReading = $this->periodReadingForContract($meter, $month, $year, $contractId, false);
             $stateError = OperationalStateGuard::meterReadingBlockReason($meter, $existingReading);
 
             if ($stateError !== null) {
@@ -430,19 +419,8 @@ class MeterReadingController extends Controller
                 return ApiResponse::responseJson(false, 'Không thể chốt chỉ số cho tháng cũ.', 422, null, 422);
             }
 
-            // Find previous reading (latest before this target month/year)
-            $previousReadingRecord = MeterReading::query()
-                ->where('meter_device_id', $meter->id)
-                ->where(function ($query) use ($year, $month) {
-                    $query->where('billing_year', '<', $year)
-                        ->orWhere(function ($q) use ($year, $month) {
-                            $q->where('billing_year', $year)
-                                ->where('billing_month', '<', $month);
-                        });
-                })
-                ->orderByDesc('billing_year')
-                ->orderByDesc('billing_month')
-                ->first();
+            $readingDate = Carbon::parse($validated['reading_date'])->startOfDay();
+            $previousReadingRecord = $this->previousReadingRecord($meter, $readingDate, $existingReading?->id);
 
             $previousReading = $previousReadingRecord
                 ? (float)$previousReadingRecord->current_reading
@@ -460,19 +438,9 @@ class MeterReadingController extends Controller
 
             $consumption = $currentReading - $previousReading;
 
-            $hasNewerReading = MeterReading::query()
-                ->where('meter_device_id', $meter->id)
-                ->where(function (Builder $query) use ($year, $month): void {
-                    $query->where('billing_year', '>', $year)
-                        ->orWhere(function (Builder $query) use ($year, $month): void {
-                            $query->where('billing_year', $year)
-                                ->where('billing_month', '>', $month);
-                        });
-                })
-                ->exists();
-
-            $reading = DB::transaction(function () use ($validated, $previousReading, $consumption, $admin, $request, $meter, $hasNewerReading) {
+            $reading = DB::transaction(function () use ($validated, $previousReading, $consumption, $admin, $request, $meter, $contractId, $existingReading) {
                 $readingData = [
+                    'contract_id' => $contractId,
                     'previous_reading' => $previousReading,
                     'current_reading' => $validated['current_reading'],
                     'consumption' => $consumption,
@@ -486,20 +454,14 @@ class MeterReadingController extends Controller
                     $readingData['image_path'] = $validated['image_path'];
                 }
 
-                $record = MeterReading::query()->updateOrCreate(
-                    [
-                        'meter_device_id' => $validated['meter_device_id'],
-                        'billing_month' => $validated['billing_month'],
-                        'billing_year' => $validated['billing_year'],
-                    ],
-                    $readingData
-                );
+                $record = $existingReading ?: new MeterReading([
+                    'meter_device_id' => $validated['meter_device_id'],
+                    'billing_month' => $validated['billing_month'],
+                    'billing_year' => $validated['billing_year'],
+                ]);
 
-                if (! $hasNewerReading) {
-                    $meter->update([
-                        'initial_reading' => $validated['current_reading'],
-                    ]);
-                }
+                $record->forceFill($readingData)->save();
+                $this->syncMeterDeviceInitialReading((int) $meter->id);
 
                 AdminActivityLogger::write($admin, 'Lưu chỉ số điện nước', MeterReading::class, $record->id, null, $record->toArray(), $request);
 
@@ -511,6 +473,144 @@ class MeterReadingController extends Controller
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error($e);
             return ApiResponse::responseJson(false, 'Server Error: ' . $e->getMessage(), 500, null, 500);
+        }
+    }
+
+    // Lấy số chốt trong kỳ, ưu tiên bản ghi đúng hợp đồng và fallback dữ liệu cũ chưa có hợp đồng
+    private function periodReadingForContract(MeterDevice $meter, int $month, int $year, ?int $contractId, bool $allowLegacyFallback = true): ?MeterReading
+    {
+        $baseQuery = MeterReading::query()
+            ->where('meter_device_id', $meter->id)
+            ->where('billing_month', $month)
+            ->where('billing_year', $year);
+
+        if ($contractId !== null) {
+            $contractReading = (clone $baseQuery)
+                ->where('contract_id', $contractId)
+                ->orderByDesc('reading_date')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($contractReading) {
+                return $contractReading;
+            }
+
+            if (! $allowLegacyFallback) {
+                return null;
+            }
+
+            return (clone $baseQuery)
+                ->whereNull('contract_id')
+                ->orderByDesc('reading_date')
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        if (! $allowLegacyFallback) {
+            return $baseQuery
+                ->whereNull('contract_id')
+                ->orderByDesc('reading_date')
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        return $baseQuery
+            ->orderByRaw('contract_id IS NOT NULL')
+            ->orderByDesc('reading_date')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    // Lấy bản ghi ngay trước thời điểm chốt hiện tại theo thứ tự thời gian thực tế
+    private function previousReadingRecord(MeterDevice $meter, Carbon $readingDate, ?int $excludeReadingId = null): ?MeterReading
+    {
+        return MeterReading::query()
+            ->where('meter_device_id', $meter->id)
+            ->when($excludeReadingId !== null, fn (Builder $query): Builder => $query->whereKeyNot($excludeReadingId))
+            ->where(function (Builder $query) use ($readingDate, $excludeReadingId): void {
+                $query->whereDate('reading_date', '<', $readingDate->toDateString())
+                    ->when($excludeReadingId === null, function (Builder $query) use ($readingDate): void {
+                        $query->orWhereDate('reading_date', $readingDate->toDateString());
+                    })
+                    ->when($excludeReadingId !== null, function (Builder $query) use ($readingDate, $excludeReadingId): void {
+                        $query->orWhere(function (Builder $sameDateQuery) use ($readingDate, $excludeReadingId): void {
+                            $sameDateQuery->whereDate('reading_date', $readingDate->toDateString())
+                                ->where('id', '<', $excludeReadingId);
+                        });
+                    });
+            })
+            ->orderByDesc('reading_date')
+            ->orderByDesc('billing_year')
+            ->orderByDesc('billing_month')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    // Xác định hợp đồng tương ứng với bản ghi chỉ số điện nước
+    private function resolveContractForMeterReading(MeterDevice $meter, array $validated): ?Contract
+    {
+        if (! empty($validated['contract_id'])) {
+            return Contract::query()->find((int) $validated['contract_id']);
+        }
+
+        $activeContract = Contract::query()
+            ->where('room_id', $meter->room_id)
+            ->where('status', Contract::STATUS_ACTIVE)
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($activeContract) {
+            return $activeContract;
+        }
+
+        $readingDate = Carbon::parse($validated['reading_date'])->startOfDay();
+        $transferMovement = RoomMovement::query()
+            ->with('sourceContract')
+            ->where('from_room_id', $meter->room_id)
+            ->where('movement_type', RoomMovement::MOVEMENT_TYPE_TRANSFER)
+            ->whereIn('status', [RoomMovement::STATUS_PENDING, RoomMovement::STATUS_BLOCKED, RoomMovement::STATUS_EXECUTED])
+            ->whereDate('movement_date', $readingDate->copy()->addDay()->toDateString())
+            ->orderByDesc('id')
+            ->first();
+
+        if ($transferMovement?->sourceContract) {
+            return $transferMovement->sourceContract;
+        }
+
+        return Contract::query()
+            ->where('room_id', $meter->room_id)
+            ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_LIQUIDATED])
+            ->whereDate('start_date', '<=', $readingDate->toDateString())
+            ->where(function (Builder $query) use ($readingDate): void {
+                $query->whereDate('actual_end_date', '>=', $readingDate->toDateString())
+                    ->orWhere(function (Builder $endDateQuery) use ($readingDate): void {
+                        $endDateQuery->whereNull('actual_end_date')
+                            ->where(function (Builder $query) use ($readingDate): void {
+                                $query->whereNull('end_date')
+                                    ->orWhereDate('end_date', '>=', $readingDate->toDateString());
+                            });
+                    });
+            })
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    // Đồng bộ chỉ số đầu công tơ theo bản ghi mới nhất thật sự
+    private function syncMeterDeviceInitialReading(int $meterDeviceId): void
+    {
+        $latestReading = MeterReading::query()
+            ->where('meter_device_id', $meterDeviceId)
+            ->orderByDesc('reading_date')
+            ->orderByDesc('billing_year')
+            ->orderByDesc('billing_month')
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($latestReading) {
+            MeterDevice::query()->whereKey($meterDeviceId)->update(['initial_reading' => $latestReading->current_reading]);
         }
     }
 

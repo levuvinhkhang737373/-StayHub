@@ -1224,6 +1224,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
         final elecVal = double.parse(_elecController.text);
         final elecOk = await ctrl.saveMeterReading(
           meterDeviceId: _elecMeter!.id,
+          contractId: widget.room.contractId,
           month: widget.month,
           year: widget.year,
           currentReading: elecVal,
@@ -1238,6 +1239,7 @@ class _ReadingDialogState extends State<_ReadingDialog> {
         final waterVal = double.parse(_waterController.text);
         final waterOk = await ctrl.saveMeterReading(
           meterDeviceId: _waterMeter!.id,
+          contractId: widget.room.contractId,
           month: widget.month,
           year: widget.year,
           currentReading: waterVal,

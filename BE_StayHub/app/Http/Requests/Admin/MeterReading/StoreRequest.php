@@ -18,6 +18,7 @@ class StoreRequest extends FormRequest
     {
         return [
             'meter_device_id' => ['required', 'integer', 'exists:meter_devices,id'],
+            'contract_id' => ['nullable', 'integer', 'exists:contracts,id'],
             'billing_month' => ['required', 'integer', 'min:1', 'max:12'],
             'billing_year' => ['required', 'integer', 'min:2020', 'max:2100'],
             'current_reading' => ['required', 'numeric', 'min:0'],
@@ -33,6 +34,8 @@ class StoreRequest extends FormRequest
             'meter_device_id.required' => 'Vui lòng chọn đồng hồ.',
             'meter_device_id.integer' => 'Đồng hồ không hợp lệ.',
             'meter_device_id.exists' => 'Đồng hồ không tồn tại.',
+            'contract_id.integer' => 'Hợp đồng không hợp lệ.',
+            'contract_id.exists' => 'Hợp đồng không tồn tại.',
             'billing_month.required' => 'Vui lòng chọn tháng chốt.',
             'billing_month.integer' => 'Tháng chốt không hợp lệ.',
             'billing_month.min' => 'Tháng chốt không hợp lệ.',

@@ -30,3 +30,15 @@ test('utility price api errors stay visible inside price popup', () => {
   assert.doesNotMatch(savePricesSource, /catch \(e\) \{\s*setErrorMessage\(getVisibleErrorMessage\(e, 'Không thể cập nhật đơn giá dịch vụ\.'\)\)/)
   assert.match(source, /priceFormErrors\.general &&/)
 })
+
+test('meter reading save payload includes active room contract id', () => {
+  const saveReadingsStart = source.indexOf('const handleSaveReadings = async () => {')
+  assert.notEqual(saveReadingsStart, -1)
+
+  const saveReadingsEnd = source.indexOf('\n  const handleOpenPriceHistoryModal', saveReadingsStart)
+  assert.notEqual(saveReadingsEnd, -1)
+
+  const saveReadingsSource = source.slice(saveReadingsStart, saveReadingsEnd)
+
+  assert.match(saveReadingsSource, /contract_id: activeRoom\.contract_id \?\? undefined/)
+})

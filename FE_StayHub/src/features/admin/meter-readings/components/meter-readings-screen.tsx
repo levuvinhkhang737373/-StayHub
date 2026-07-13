@@ -646,6 +646,7 @@ export function MeterReadingsScreen() {
       if (elecMeter && elecMeter.curr.trim() !== '') {
         await saveMeterReading({
           meter_device_id: elecMeter.id,
+          contract_id: activeRoom.contract_id ?? undefined,
           billing_month: selectedMonth,
           billing_year: selectedYear,
           current_reading: Number(elecMeter.curr),
@@ -658,6 +659,7 @@ export function MeterReadingsScreen() {
       if (waterMeter && waterMeter.curr.trim() !== '') {
         await saveMeterReading({
           meter_device_id: waterMeter.id,
+          contract_id: activeRoom.contract_id ?? undefined,
           billing_month: selectedMonth,
           billing_year: selectedYear,
           current_reading: Number(waterMeter.curr),

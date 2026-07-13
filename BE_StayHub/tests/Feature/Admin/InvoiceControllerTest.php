@@ -236,6 +236,160 @@ class InvoiceControllerTest extends TestCase
         Event::assertNotDispatched(\App\Events\InvoiceIssued::class);
     }
 
+    public function test_invoice_uses_contract_specific_meter_reading_when_multiple_contracts_share_period(): void
+    {
+        Event::fake();
+        $this->electricityService->update(['is_active' => true]);
+        $this->waterService->update(['is_active' => false]);
+
+        $oldContract = Contract::create([
+            'contract_code' => 'HD-METER-INVOICE-OLD',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $this->tenant->id,
+            'start_date' => '2026-01-01',
+            'actual_end_date' => '2026-07-14',
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_LIQUIDATED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $newContract = Contract::create([
+            'contract_code' => 'HD-METER-INVOICE-NEW',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $this->tenant->id,
+            'start_date' => '2026-07-15',
+            'end_date' => '2026-12-31',
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $newContract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-07-15',
+            'billing_start_date' => '2026-07-15',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $electricDevice = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricityService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => '100.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        $oldReading = MeterReading::create([
+            'meter_device_id' => $electricDevice->id,
+            'contract_id' => $oldContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+            'previous_reading' => '100.00',
+            'current_reading' => '150.00',
+            'consumption' => '50.00',
+            'reading_date' => '2026-07-14',
+            'status' => MeterReading::STATUS_CONFIRMED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $newReading = MeterReading::create([
+            'meter_device_id' => $electricDevice->id,
+            'contract_id' => $newContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+            'previous_reading' => '150.00',
+            'current_reading' => '210.00',
+            'consumption' => '60.00',
+            'reading_date' => '2026-07-31',
+            'status' => MeterReading::STATUS_CONFIRMED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $oldPreview = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/preview', [
+            'contract_id' => $oldContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ]);
+
+        $oldPreview->assertOk();
+        $oldElectricItem = collect($oldPreview->json('result.items'))->firstWhere('item_type', InvoiceItem::ITEM_TYPE_ELECTRIC);
+        $this->assertSame($oldReading->id, $oldElectricItem['meter_reading_id']);
+        $this->assertSame('50.00', $oldElectricItem['quantity']);
+
+        $newPreview = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/preview', [
+            'contract_id' => $newContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ]);
+
+        $newPreview->assertOk();
+        $newElectricItem = collect($newPreview->json('result.items'))->firstWhere('item_type', InvoiceItem::ITEM_TYPE_ELECTRIC);
+        $this->assertSame($newReading->id, $newElectricItem['meter_reading_id']);
+        $this->assertSame('60.00', $newElectricItem['quantity']);
+    }
+
+    public function test_invoice_falls_back_to_legacy_meter_reading_without_contract_id(): void
+    {
+        $this->electricityService->update(['is_active' => true]);
+        $this->waterService->update(['is_active' => false]);
+
+        $contract = Contract::create([
+            'contract_code' => 'HD-LEGACY-METER-READING',
+            'room_id' => $this->room->id,
+            'representative_tenant_id' => $this->tenant->id,
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-12-31',
+            'room_price' => '3000000.00',
+            'deposit_amount' => '0.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $this->tenant->id,
+            'join_date' => '2026-07-01',
+            'is_staying' => true,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $electricDevice = MeterDevice::create([
+            'room_id' => $this->room->id,
+            'service_id' => $this->electricityService->id,
+            'meter_type' => MeterDevice::METER_TYPE_ELECTRIC,
+            'initial_reading' => '100.00',
+            'status' => MeterDevice::STATUS_ACTIVE,
+        ]);
+
+        $legacyReading = MeterReading::create([
+            'meter_device_id' => $electricDevice->id,
+            'contract_id' => null,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+            'previous_reading' => '100.00',
+            'current_reading' => '150.00',
+            'consumption' => '50.00',
+            'reading_date' => '2026-07-31',
+            'status' => MeterReading::STATUS_CONFIRMED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $preview = $this->actingAs($this->superAdmin, 'admin')->postJson('/api/v1/admin/invoices/preview', [
+            'contract_id' => $contract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+        ]);
+
+        $preview->assertOk();
+        $electricItem = collect($preview->json('result.items'))->firstWhere('item_type', InvoiceItem::ITEM_TYPE_ELECTRIC);
+        $this->assertSame($legacyReading->id, $electricItem['meter_reading_id']);
+        $this->assertSame('50.00', $electricItem['quantity']);
+    }
+
     public function test_admin_invoice_preview_rejects_existing_invoice_period(): void
     {
         $contract = Contract::create([

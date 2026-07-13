@@ -136,6 +136,7 @@ class InvoicePreviewResource extends JsonResource
         return [
             'id' => $meterReading->id,
             'meter_device_id' => $meterReading->meter_device_id,
+            'contract_id' => $meterReading->contract_id,
             'previous_reading' => $meterReading->previous_reading,
             'current_reading' => $meterReading->current_reading,
             'consumption' => $meterReading->consumption,

@@ -196,7 +196,7 @@ class InvoiceController extends Controller
             'contract:id,contract_code,room_id',
             'items' => fn ($query) => $query->orderBy('id'),
             'items.service:id,name,slug,charge_method,unit_name',
-            'items.meterReading:id,meter_device_id,previous_reading,current_reading,consumption,reading_date,image_path',
+            'items.meterReading:id,meter_device_id,contract_id,previous_reading,current_reading,consumption,reading_date,image_path',
             'payments' => fn ($query) => $query->orderByDesc('payment_date')->orderByDesc('id'),
             'debtRolloversOut.targetInvoice:id,invoice_code,status',
         ];

@@ -746,7 +746,17 @@ class InvoiceController extends Controller
             ->all();
 
         $meterDevices = MeterDevice::query()
-            ->with(['service', 'readings' => fn ($query) => $query->where('billing_month', $billingMonth)->where('billing_year', $billingYear)])
+            ->with(['service', 'readings' => function ($query) use ($billingMonth, $billingYear, $contract): void {
+                $query->where('billing_month', $billingMonth)
+                    ->where('billing_year', $billingYear)
+                    ->where(function (Builder $query) use ($contract): void {
+                        $query->where('contract_id', $contract->id)
+                            ->orWhereNull('contract_id');
+                    })
+                    ->orderByRaw('contract_id IS NULL')
+                    ->orderByDesc('reading_date')
+                    ->orderByDesc('id');
+            }])
             ->where('room_id', $contract->room_id)
             ->whereIn('service_id', $meterServiceIds)
             ->where('status', MeterDevice::STATUS_ACTIVE)
@@ -1695,7 +1705,7 @@ class InvoiceController extends Controller
 
         foreach ($correctedReadings->groupBy('meter_device_id') as $meterDeviceId => $readingsForDevice) {
             $earliestReading = $readingsForDevice
-                ->sortBy(fn (MeterReading $reading): int => ((int) $reading->billing_year * 100) + (int) $reading->billing_month)
+                ->sortBy(fn (MeterReading $reading): string => $this->meterReadingChronologyKey($reading))
                 ->first();
 
             if (! $earliestReading) {
@@ -1705,14 +1715,16 @@ class InvoiceController extends Controller
             $deviceReadings = MeterReading::query()
                 ->where('meter_device_id', (int) $meterDeviceId)
                 ->where(function (Builder $query) use ($earliestReading): void {
-                    $query->where('billing_year', '>', $earliestReading->billing_year)
-                        ->orWhere(function (Builder $sameYearQuery) use ($earliestReading): void {
-                            $sameYearQuery->where('billing_year', $earliestReading->billing_year)
-                                ->where('billing_month', '>=', $earliestReading->billing_month);
+                    $query->whereDate('reading_date', '>', $earliestReading->reading_date)
+                        ->orWhere(function (Builder $sameDateQuery) use ($earliestReading): void {
+                            $sameDateQuery->whereDate('reading_date', $earliestReading->reading_date)
+                                ->where('id', '>=', $earliestReading->id);
                         });
                 })
+                ->orderBy('reading_date')
                 ->orderBy('billing_year')
                 ->orderBy('billing_month')
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
 
@@ -1802,14 +1814,26 @@ class InvoiceController extends Controller
     {
         $latestReading = MeterReading::query()
             ->where('meter_device_id', $meterDeviceId)
+            ->orderByDesc('reading_date')
             ->orderByDesc('billing_year')
             ->orderByDesc('billing_month')
+            ->orderByDesc('id')
             ->lockForUpdate()
             ->first();
 
         if ($latestReading) {
             MeterDevice::query()->whereKey($meterDeviceId)->update(['initial_reading' => $latestReading->current_reading]);
         }
+    }
+
+    // Khóa sắp xếp số đọc theo thời gian thực tế để không lẫn các hợp đồng cùng tháng
+    private function meterReadingChronologyKey(MeterReading $reading): string
+    {
+        $readingDate = $reading->reading_date instanceof Carbon
+            ? $reading->reading_date->format('Y-m-d')
+            : (string) $reading->reading_date;
+
+        return sprintf('%s-%04d-%02d-%010d', $readingDate, (int) $reading->billing_year, (int) $reading->billing_month, (int) $reading->id);
     }
 
     // Lấy danh sách ID hóa đơn nợ trong tương lai
@@ -2216,7 +2240,7 @@ class InvoiceController extends Controller
             'updater:id,full_name',
             'items' => fn ($query) => $query->orderBy('id'),
             'items.service:id,name,slug,charge_method,unit_name',
-            'items.meterReading:id,meter_device_id,previous_reading,current_reading,consumption,reading_date,image_path',
+            'items.meterReading:id,meter_device_id,contract_id,previous_reading,current_reading,consumption,reading_date,image_path',
             'payments' => fn ($query) => $query->orderByDesc('payment_date')->orderByDesc('id'),
             'payments.collector:id,full_name',
             'debtRolloversOut.targetInvoice:id,invoice_code,status',

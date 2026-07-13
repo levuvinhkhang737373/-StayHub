@@ -123,6 +123,17 @@ class MeterReadingTest extends TestCase
         $year = now()->year;
         $month = now()->month;
 
+        $contract = Contract::create([
+            'contract_code' => 'HD-AUTO-CONTRACT',
+            'room_id' => $this->room->id,
+            'start_date' => now()->startOfMonth()->toDateString(),
+            'end_date' => now()->addMonths(6)->toDateString(),
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
         $payload = [
             'meter_device_id' => $this->meterDevice->id,
             'billing_month' => $month,
@@ -139,6 +150,124 @@ class MeterReadingTest extends TestCase
         $response->assertJsonPath('message', 'Chốt số đồng hồ thành công');
 
         $this->assertEquals(150, (float)$this->meterDevice->fresh()->initial_reading);
+        $this->assertDatabaseHas('meter_readings', [
+            'meter_device_id' => $this->meterDevice->id,
+            'contract_id' => $contract->id,
+            'billing_month' => $month,
+            'billing_year' => $year,
+            'current_reading' => '150.00',
+        ]);
+    }
+
+    public function test_can_save_same_meter_period_for_different_contracts_without_overwriting(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-20 10:00:00'));
+
+        $oldContract = Contract::create([
+            'contract_code' => 'HD-METER-OLD',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-01-01',
+            'actual_end_date' => '2026-07-14',
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_LIQUIDATED,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $newContract = Contract::create([
+            'contract_code' => 'HD-METER-NEW',
+            'room_id' => $this->room->id,
+            'start_date' => '2026-07-15',
+            'end_date' => '2026-12-31',
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/meter-readings', [
+                'meter_device_id' => $this->meterDevice->id,
+                'contract_id' => $oldContract->id,
+                'billing_month' => 7,
+                'billing_year' => 2026,
+                'current_reading' => '150.00',
+                'reading_date' => '2026-07-14',
+            ])
+            ->assertStatus(200);
+
+        $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/meter-readings', [
+                'meter_device_id' => $this->meterDevice->id,
+                'contract_id' => $newContract->id,
+                'billing_month' => 7,
+                'billing_year' => 2026,
+                'current_reading' => '210.00',
+                'reading_date' => '2026-07-31',
+            ])
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('meter_readings', [
+            'meter_device_id' => $this->meterDevice->id,
+            'contract_id' => $oldContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+            'previous_reading' => '100.00',
+            'current_reading' => '150.00',
+            'consumption' => '50.00',
+        ]);
+        $this->assertDatabaseHas('meter_readings', [
+            'meter_device_id' => $this->meterDevice->id,
+            'contract_id' => $newContract->id,
+            'billing_month' => 7,
+            'billing_year' => 2026,
+            'previous_reading' => '150.00',
+            'current_reading' => '210.00',
+            'consumption' => '60.00',
+        ]);
+        $this->assertSame(2, MeterReading::query()->where('meter_device_id', $this->meterDevice->id)->where('billing_month', 7)->where('billing_year', 2026)->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_rejects_meter_reading_contract_from_another_room(): void
+    {
+        $otherRoom = Room::create([
+            'building_id' => $this->building->id,
+            'room_type_id' => $this->room->room_type_id,
+            'room_number' => '102',
+            'slug' => '102',
+            'floor' => 1,
+            'base_price' => '3500000.00',
+            'max_occupants' => 5,
+            'current_occupants' => 0,
+            'status' => Room::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $otherContract = Contract::create([
+            'contract_code' => 'HD-WRONG-ROOM',
+            'room_id' => $otherRoom->id,
+            'start_date' => now()->startOfMonth()->toDateString(),
+            'end_date' => now()->addMonths(6)->toDateString(),
+            'room_price' => '3500000.00',
+            'deposit_amount' => '4000000.00',
+            'status' => Contract::STATUS_ACTIVE,
+            'created_by' => $this->superAdmin->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin, 'admin')
+            ->postJson('/api/v1/admin/meter-readings', [
+                'meter_device_id' => $this->meterDevice->id,
+                'contract_id' => $otherContract->id,
+                'billing_month' => now()->month,
+                'billing_year' => now()->year,
+                'current_reading' => '150.00',
+                'reading_date' => now()->toDateString(),
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('status', false);
     }
 
     public function test_saved_meter_reading_returns_correct_previous_reading_in_init(): void
