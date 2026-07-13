@@ -76,9 +76,7 @@ export function TerminateContractModal({
           </button>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-[#f3c56b]/30 bg-[#f3c56b]/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#f3c56b]">
-                <ClipboardCheck className="h-3.5 w-3.5" /> Settlement ledger
-              </p>
+
               <h2 className="mt-3 text-2xl font-black tracking-tight">Thanh lý hợp đồng</h2>
               <p className="mt-1 text-sm font-bold text-[#fff4df]/70">
                 {contract.contract_code} · Phòng {contract.room_number || contract.room_id} · {formatDate(contract.start_date)} → {formatDate(contract.end_date)}
@@ -157,8 +155,8 @@ export function TerminateContractModal({
             <LedgerRow icon={<BadgeCheck className="h-4 w-4" />} label="Hoàn lại" value={formatCurrency(moneyString(refundAmount))} tone="success" />
             <div className={cn(
               "rounded-2xl border p-4 transition-colors duration-200",
-              netDeposit >= 0 
-                ? "border-[#0f766e]/15 bg-[#0f766e]/8" 
+              netDeposit >= 0
+                ? "border-[#0f766e]/15 bg-[#0f766e]/8"
                 : "border-rose-600/15 bg-rose-600/8"
             )}>
               <p className={cn(
