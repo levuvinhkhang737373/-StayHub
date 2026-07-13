@@ -52,6 +52,11 @@ class NotificationController extends Controller
             $joinDate = $pivotRelation?->join_date ?? $activeContract?->start_date ?? null;
             $joinDate = $joinDate ? \Illuminate\Support\Carbon::parse($joinDate)->startOfDay() : null;
 
+            $contractCreatedAt = $activeContract?->created_at ? \Illuminate\Support\Carbon::parse($activeContract->created_at)->startOfDay() : null;
+            if ($joinDate && $contractCreatedAt && $joinDate->greaterThan($contractCreatedAt)) {
+                $joinDate = $contractCreatedAt;
+            }
+
             $tenantCreatedAt = \Illuminate\Support\Carbon::parse($tenant->created_at)->startOfDay();
             $dateLimit = $joinDate && $joinDate->greaterThan($tenantCreatedAt) ? $joinDate : $tenantCreatedAt;
 

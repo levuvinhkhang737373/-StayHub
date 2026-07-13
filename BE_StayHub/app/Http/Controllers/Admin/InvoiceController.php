@@ -1735,8 +1735,15 @@ class InvoiceController extends Controller
                     }
                 }
 
-                $deviceReading->forceFill($readingData)->save();
-                $affectedInvoiceIds = $affectedInvoiceIds->merge($this->syncInvoiceItemsForMeterReading($deviceReading));
+                $isChanged = DecimalMoney::compare($readingData['previous_reading'], $deviceReading->previous_reading) !== 0
+                    || DecimalMoney::compare($readingData['current_reading'], $deviceReading->current_reading) !== 0
+                    || (isset($readingData['reading_date']) && $readingData['reading_date'] !== ($deviceReading->reading_date instanceof \Carbon\Carbon ? $deviceReading->reading_date->toDateString() : $deviceReading->reading_date))
+                    || (isset($readingData['note']) && $readingData['note'] !== $deviceReading->note);
+
+                if ($isChanged) {
+                    $deviceReading->forceFill($readingData)->save();
+                    $affectedInvoiceIds = $affectedInvoiceIds->merge($this->syncInvoiceItemsForMeterReading($deviceReading));
+                }
                 $previousReading = $currentReading;
             }
 

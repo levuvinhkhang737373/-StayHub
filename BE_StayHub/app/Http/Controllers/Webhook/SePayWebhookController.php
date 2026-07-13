@@ -656,7 +656,7 @@ class SePayWebhookController extends Controller
                 'content' => "Hệ thống đã ghi nhận {$amountText} cho mã chuyển phòng {$movement->transfer_code}. Trạng thái: {$statusLabel}.",
                 'notification_type' => Notification::NOTIFICATION_TYPE_SYSTEM,
                 'target_type' => Notification::TARGET_TYPE_TENANT,
-                'action_url' => '/admin/room-movements?movement_id=' . $movement->id,
+                'action_url' => '/tenant/dashboard',
                 'building_id' => $movement->toRoom?->building_id,
                 'room_id' => $movement->to_room_id,
                 'tenant_id' => $movement->tenant_id,
