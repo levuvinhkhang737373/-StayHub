@@ -31,6 +31,8 @@ type MeterFormState = {
   id: number
   prev: number
   curr: string
+  latest: number
+  hasExistingReading: boolean
   price: number
   unit: string
   code: string
@@ -77,6 +79,8 @@ function buildMeterFormState(args: {
   id: number
   prev: number
   curr: string
+  latest?: number
+  hasExistingReading?: boolean
   price: number
   unit: string
   code: string
@@ -87,6 +91,8 @@ function buildMeterFormState(args: {
     id: args.id,
     prev: args.prev,
     curr: args.curr,
+    latest: args.latest ?? args.prev,
+    hasExistingReading: args.hasExistingReading ?? false,
     price: args.price,
     unit: args.unit,
     code: args.code,
@@ -472,42 +478,48 @@ export function MeterReadingsScreen() {
     const waterDevice = room.meters.find(m => m.meter_type === 2)
 
     if (electricDevice) {
+      const existingReading = electricDevice.existing_reading
       setElecMeter(buildMeterFormState({
         id: electricDevice.id,
         prev: electricDevice.previous_reading,
-        curr: electricDevice.existing_reading ? String(electricDevice.existing_reading.current_reading) : '',
+        curr: '',
+        latest: existingReading?.current_reading ?? electricDevice.previous_reading,
+        hasExistingReading: Boolean(existingReading),
         price: rates.electric,
         unit: rates.electricUnit,
         code: electricDevice.meter_code || `#${electricDevice.id}`,
-        imagePath: electricDevice.existing_reading?.image_path,
-        imageUrl: electricDevice.existing_reading?.image_url,
+        imagePath: existingReading?.image_path,
+        imageUrl: existingReading?.image_url,
       }))
-      if (electricDevice.existing_reading && electricDevice.existing_reading.note) {
-        setNote(electricDevice.existing_reading.note)
+      if (existingReading && existingReading.note) {
+        setNote(existingReading.note)
       }
-      if (electricDevice.existing_reading && electricDevice.existing_reading.reading_date) {
-        setReadingDate(electricDevice.existing_reading.reading_date)
+      if (existingReading && existingReading.reading_date) {
+        setReadingDate(existingReading.reading_date)
       }
     } else {
       setElecMeter(null)
     }
 
     if (waterDevice) {
+      const existingReading = waterDevice.existing_reading
       setWaterMeter(buildMeterFormState({
         id: waterDevice.id,
         prev: waterDevice.previous_reading,
-        curr: waterDevice.existing_reading ? String(waterDevice.existing_reading.current_reading) : '',
+        curr: '',
+        latest: existingReading?.current_reading ?? waterDevice.previous_reading,
+        hasExistingReading: Boolean(existingReading),
         price: rates.water,
         unit: rates.waterUnit,
         code: waterDevice.meter_code || `#${waterDevice.id}`,
-        imagePath: waterDevice.existing_reading?.image_path,
-        imageUrl: waterDevice.existing_reading?.image_url,
+        imagePath: existingReading?.image_path,
+        imageUrl: existingReading?.image_url,
       }))
-      if (waterDevice.existing_reading && waterDevice.existing_reading.note) {
-        setNote(waterDevice.existing_reading.note)
+      if (existingReading && existingReading.note) {
+        setNote(existingReading.note)
       }
-      if (waterDevice.existing_reading && waterDevice.existing_reading.reading_date) {
-        setReadingDate(waterDevice.existing_reading.reading_date)
+      if (existingReading && existingReading.reading_date) {
+        setReadingDate(existingReading.reading_date)
       }
     } else {
       setWaterMeter(null)
@@ -907,7 +919,10 @@ export function MeterReadingsScreen() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Chỉ số cũ</label>
-            <input type="text" readOnly className={cn(inputClass, 'bg-[#efe2cf]/45 opacity-75')} value={meter.prev} />
+            <input type="text" readOnly className={cn(inputClass, 'bg-[#efe2cf]/45 opacity-75')} value={meter.latest} />
+            {meter.hasExistingReading && meter.latest !== meter.prev && (
+              <p className="mt-1.5 px-1 text-[10px] font-bold text-[#8b5e34]/70">Mốc tính tiền kỳ này: {meter.prev}</p>
+            )}
           </div>
           <div>
             <label className={labelClass}>Chỉ số mới</label>
