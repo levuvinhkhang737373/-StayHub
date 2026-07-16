@@ -50,11 +50,12 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
             throw new RuntimeException('Dữ liệu SHOWCASE26 đã tồn tại nhưng không hoàn chỉnh; seeder không thể tiếp tục an toàn.');
         }
 
-        DB::transaction(function (): void {
+        $regionIds = $this->resolveRequiredRegions();
+
+        DB::transaction(function () use ($regionIds): void {
             $password = Hash::make(self::PASSWORD);
             [$ownerId, $managerIds] = $this->seedAdmins($password);
-            $regionId = $this->seedRegion($ownerId);
-            $buildingIds = $this->seedBuildings($ownerId, $managerIds, $regionId);
+            $buildingIds = $this->seedBuildings($ownerId, $managerIds, $regionIds);
             $roomTypeId = $this->seedRoomType($ownerId);
             $rooms = $this->seedRooms($managerIds, $buildingIds, $roomTypeId);
             $tenantIds = $this->seedTenants($managerIds, $buildingIds, $password);
@@ -142,39 +143,34 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
         return [$ownerId, $managerIds];
     }
 
-    private function seedRegion(int $ownerId): int
+    private function resolveRequiredRegions(): array
     {
-        DB::table('regions')->insertOrIgnore([
-            'parent_id' => null,
-            'code' => 'SHOWCASE26-HCM',
-            'name' => 'Khu ký túc xá SHOWCASE26 TP.HCM',
-            'path' => '/showcase26-hcm',
-            'slug' => 'showcase26-hcm',
-            'description' => 'Khu vực riêng cho dữ liệu demo tài chính SHOWCASE26.',
-            'is_active' => true,
-            'created_by' => $ownerId,
-            ...$this->timestamps(),
-        ]);
+        $requiredCodes = array_values(array_unique(LargeFinancialDemoDataset::BUILDING_REGION_CODES));
+        $regionIds = DB::table('regions')
+            ->whereIn('code', $requiredCodes)
+            ->where('is_active', true)
+            ->pluck('id', 'code')
+            ->map(fn (int $id): int => $id)
+            ->all();
+        $missingCodes = array_values(array_diff($requiredCodes, array_keys($regionIds)));
 
-        $regionId = (int) DB::table('regions')
-            ->where('code', 'SHOWCASE26-HCM')
-            ->value('id');
-
-        if ($regionId === 0) {
-            throw new RuntimeException('Không thể tạo khu vực SHOWCASE26.');
+        if ($missingCodes !== []) {
+            throw new RuntimeException(
+                'Thiếu khu vực đang hoạt động cho SHOWCASE26: '.implode(', ', $missingCodes).'.',
+            );
         }
 
-        return $regionId;
+        return $regionIds;
     }
 
-    private function seedBuildings(int $ownerId, array $managerIds, int $regionId): array
+    private function seedBuildings(int $ownerId, array $managerIds, array $regionIds): array
     {
         $rows = [];
 
         foreach ($this->dataset->buildings() as $index => $building) {
             $number = $index + 1;
             $rows[] = [
-                'region_id' => $regionId,
+                'region_id' => $regionIds[$building['region_code']],
                 'manager_admin_id' => $managerIds[$number],
                 'name' => $building['name'],
                 'slug' => sprintf('showcase26-b%02d', $number),
@@ -1102,7 +1098,6 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
 
         return [
             'admins' => count($this->literalNamespaceKeys('admins', 'username', 'showcase26_')),
-            'regions' => DB::table('regions')->where('code', 'SHOWCASE26-HCM')->count(),
             'room_types' => DB::table('room_types')->where('slug', 'showcase26-ky-tuc-xa-20-nguoi')->count(),
             'buildings' => count($this->literalNamespaceKeys('buildings', 'slug', 'showcase26-')),
             'rooms' => count($this->literalNamespaceKeys('rooms', 'slug', 'showcase26-')),
@@ -1140,7 +1135,6 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
     {
         $expectedCounts = [
             'admins' => 13,
-            'regions' => 1,
             'room_types' => 1,
             'buildings' => 12,
             'rooms' => 120,
@@ -1164,6 +1158,38 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
         }
 
         $this->assertExactNaturalKeys();
+
+        $expectedBuildings = collect($this->dataset->buildings())
+            ->mapWithKeys(fn (array $building, int $index): array => [sprintf('showcase26-b%02d', $index + 1) => [
+                'region_code' => $building['region_code'],
+                'manager_username' => sprintf('showcase26_manager_b%02d', $index + 1),
+            ]]);
+        $actualBuildings = DB::table('buildings')
+            ->join('regions', 'regions.id', '=', 'buildings.region_id')
+            ->join('admins', 'admins.id', '=', 'buildings.manager_admin_id')
+            ->whereIn('buildings.slug', $this->naturalKeys()['buildings'])
+            ->get([
+                'buildings.slug',
+                'regions.code as region_code',
+                'admins.username as manager_username',
+                'admins.role as manager_role',
+                'admins.status as manager_status',
+            ])
+            ->keyBy('slug');
+
+        if ($actualBuildings->count() !== LargeFinancialDemoDataset::BUILDING_COUNT
+            || $actualBuildings->contains(function (object $building, string $slug) use ($expectedBuildings): bool {
+                $expected = $expectedBuildings->get($slug);
+
+                return $expected === null
+                    || $building->region_code !== $expected['region_code']
+                    || $building->manager_username !== $expected['manager_username']
+                    || (int) $building->manager_role !== Admin::ROLE_BUILDING_MANAGER
+                    || (int) $building->manager_status !== Admin::STATUS_ACTIVE;
+            })
+            || $actualBuildings->pluck('manager_username')->unique()->count() !== LargeFinancialDemoDataset::BUILDING_COUNT) {
+            throw new RuntimeException('Phân bổ khu vực hoặc quản lý tòa nhà SHOWCASE26 không hợp lệ.');
+        }
 
         $contracts = DB::table('contracts')
             ->whereIn('contract_code', $this->naturalKeys()['contracts'])

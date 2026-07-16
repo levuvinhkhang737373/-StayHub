@@ -14,21 +14,36 @@ final class LargeFinancialDemoDataset
 
     public const TENANTS_PER_ROOM = 20;
 
+    public const BUILDING_REGION_CODES = [
+        'HCM',
+        'HCM-SG',
+        'HCM',
+        'HCM',
+        'HCM',
+        'HCM',
+        'HCM-TD',
+        'HCM',
+        'HCM',
+        'HCM',
+        'HCM',
+        'HCM',
+    ];
+
     public function buildings(): array
     {
         return [
-            $this->building('Ký túc xá Hoa Phượng Đỏ', '12 Nguyễn Văn Bảo, Phường Hạnh Thông, TP.HCM', 'Nguyễn Minh Quân', 1),
-            $this->building('Ký túc xá Bến Nghé', '45 Nguyễn Siêu, Phường Sài Gòn, TP.HCM', 'Trần Thu Hà', 2),
-            $this->building('Ký túc xá Gia Định', '88 Phan Đăng Lưu, Phường Gia Định, TP.HCM', 'Lê Hoàng Nam', 1),
-            $this->building('Ký túc xá Thủ Thiêm', '30 Trần Não, Phường An Khánh, TP.HCM', 'Phạm Ngọc Anh', 2),
-            $this->building('Ký túc xá Bình Quới', '156 Bình Quới, Phường Bình Quới, TP.HCM', 'Võ Đức Thành', 1),
-            $this->building('Ký túc xá Tân Cảng', '22 Điện Biên Phủ, Phường Thạnh Mỹ Tây, TP.HCM', 'Đặng Bích Ngọc', 2),
-            $this->building('Ký túc xá Hoàng Sa', '274 Hoàng Sa, Phường Tân Định, TP.HCM', 'Bùi Quốc Huy', 1),
-            $this->building('Ký túc xá Trường Sa', '319 Trường Sa, Phường Cầu Kiệu, TP.HCM', 'Đỗ Thanh Mai', 2),
-            $this->building('Ký túc xá Phú Nhuận', '51 Hoa Lan, Phường Cầu Kiệu, TP.HCM', 'Hồ Minh Khôi', 1),
-            $this->building('Ký túc xá Chợ Lớn', '108 Châu Văn Liêm, Phường Chợ Lớn, TP.HCM', 'Ngô Thùy Dương', 2),
-            $this->building('Ký túc xá An Đông', '63 An Dương Vương, Phường An Đông, TP.HCM', 'Dương Anh Tuấn', 1),
-            $this->building('Ký túc xá Văn Thánh', '17 Điện Biên Phủ, Phường Thạnh Mỹ Tây, TP.HCM', 'Mai Kim Oanh', 2),
+            $this->building('Ký túc xá Hoa Phượng Đỏ', '12 Nguyễn Văn Bảo, Phường Hạnh Thông, TP.HCM', 'Nguyễn Minh Quân', 1, 1),
+            $this->building('Ký túc xá Bến Nghé', '45 Nguyễn Siêu, Phường Sài Gòn, TP.HCM', 'Trần Thu Hà', 2, 2),
+            $this->building('Ký túc xá Gia Định', '88 Phan Đăng Lưu, Phường Gia Định, TP.HCM', 'Lê Hoàng Nam', 1, 3),
+            $this->building('Ký túc xá Thủ Thiêm', '30 Trần Não, Phường An Khánh, TP.HCM', 'Phạm Ngọc Anh', 2, 4),
+            $this->building('Ký túc xá Bình Quới', '156 Bình Quới, Phường Bình Quới, TP.HCM', 'Võ Đức Thành', 1, 5),
+            $this->building('Ký túc xá Tân Cảng', '22 Điện Biên Phủ, Phường Thạnh Mỹ Tây, TP.HCM', 'Đặng Bích Ngọc', 2, 6),
+            $this->building('Ký túc xá Hoàng Sa', '274 Hoàng Sa, Phường Tân Định, TP.HCM', 'Bùi Quốc Huy', 1, 7),
+            $this->building('Ký túc xá Trường Sa', '319 Trường Sa, Phường Cầu Kiệu, TP.HCM', 'Đỗ Thanh Mai', 2, 8),
+            $this->building('Ký túc xá Phú Nhuận', '51 Hoa Lan, Phường Cầu Kiệu, TP.HCM', 'Hồ Minh Khôi', 1, 9),
+            $this->building('Ký túc xá Chợ Lớn', '108 Châu Văn Liêm, Phường Chợ Lớn, TP.HCM', 'Ngô Thùy Dương', 2, 10),
+            $this->building('Ký túc xá An Đông', '63 An Dương Vương, Phường An Đông, TP.HCM', 'Dương Anh Tuấn', 1, 11),
+            $this->building('Ký túc xá Văn Thánh', '17 Điện Biên Phủ, Phường Thạnh Mỹ Tây, TP.HCM', 'Mai Kim Oanh', 2, 12),
         ];
     }
 
@@ -131,11 +146,17 @@ final class LargeFinancialDemoDataset
         };
     }
 
-    private function building(string $name, string $address, string $managerName, int $managerGender): array
-    {
+    private function building(
+        string $name,
+        string $address,
+        string $managerName,
+        int $managerGender,
+        int $buildingNumber,
+    ): array {
         return [
             'name' => $name,
             'address' => $address,
+            'region_code' => self::BUILDING_REGION_CODES[$buildingNumber - 1],
             'manager' => [
                 'full_name' => $managerName,
                 'gender' => $managerGender,

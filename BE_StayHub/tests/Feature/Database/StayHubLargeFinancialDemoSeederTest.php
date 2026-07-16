@@ -16,6 +16,7 @@ use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\Tenant;
 use Carbon\CarbonImmutable;
+use Database\Seeders\StayHubLargeFinancialDemoRollbackSeeder;
 use Database\Seeders\StayHubLargeFinancialDemoSeeder;
 use Database\Seeders\Support\LargeFinancialDemoDataset;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,6 +28,56 @@ use Tests\TestCase;
 class StayHubLargeFinancialDemoSeederTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seedExistingRegionCatalog();
+    }
+
+    public function test_rollback_removes_only_showcase_data_and_preserves_shared_catalogs(): void
+    {
+        $legacyRegionSnapshot = DB::table('regions')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all();
+        $canonicalServiceSnapshot = DB::table('services')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all();
+
+        $this->seed(StayHubLargeFinancialDemoSeeder::class);
+        $this->seed(StayHubLargeFinancialDemoRollbackSeeder::class);
+
+        $this->assertSame(0, DB::table('admins')->whereIn('username', $this->expectedShowcaseAdminUsernames())->count());
+        $this->assertSame(0, DB::table('buildings')->whereIn('slug', $this->expectedShowcaseBuildingSlugs())->count());
+        $this->assertSame(0, DB::table('tenants')->whereIn('username', $this->expectedShowcaseTenantUsernames())->count());
+        $this->assertSame(0, DB::table('contracts')->whereIn('contract_code', $this->expectedShowcaseContractCodes())->count());
+        $this->assertSame(0, DB::table('invoices')->whereIn('invoice_code', $this->expectedShowcaseInvoiceCodes())->count());
+        $this->assertSame(0, DB::table('regions')->where('code', 'SHOWCASE26-HCM')->count());
+        $this->assertSame($legacyRegionSnapshot, DB::table('regions')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all());
+        $this->assertSame($canonicalServiceSnapshot, DB::table('services')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all());
+
+        $this->seed(StayHubLargeFinancialDemoRollbackSeeder::class);
+        $this->assertSame(0, DB::table('buildings')->whereIn('slug', $this->expectedShowcaseBuildingSlugs())->count());
+    }
+
+    public function test_seed_reuses_existing_regions_and_assigns_one_distinct_manager_per_building(): void
+    {
+        $regionSnapshot = DB::table('regions')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all();
+
+        $this->seed(StayHubLargeFinancialDemoSeeder::class);
+
+        $rows = DB::table('buildings')
+            ->join('regions', 'regions.id', '=', 'buildings.region_id')
+            ->join('admins', 'admins.id', '=', 'buildings.manager_admin_id')
+            ->whereIn('buildings.slug', $this->expectedShowcaseBuildingSlugs())
+            ->orderBy('buildings.slug')
+            ->get(['buildings.slug', 'regions.code as region_code', 'admins.username as manager_username', 'admins.role', 'admins.status']);
+
+        $this->assertCount(12, $rows);
+        $this->assertSame(['HCM', 'HCM-SG', 'HCM', 'HCM', 'HCM', 'HCM', 'HCM-TD', 'HCM', 'HCM', 'HCM', 'HCM', 'HCM'], $rows->pluck('region_code')->all());
+        $this->assertSame($this->expectedShowcaseManagerUsernames(), $rows->pluck('manager_username')->all());
+        $this->assertCount(12, $rows->pluck('manager_username')->unique());
+        $this->assertTrue($rows->every(fn (object $row): bool => (int) $row->role === Admin::ROLE_BUILDING_MANAGER && (int) $row->status === Admin::STATUS_ACTIVE));
+        $this->assertSame(0, DB::table('regions')->where('code', 'SHOWCASE26-HCM')->count());
+        $this->assertSame($regionSnapshot, DB::table('regions')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all());
+    }
 
     public function test_seeder_is_idempotent_and_does_not_change_existing_showcase_or_legacy_rows(): void
     {
@@ -214,7 +265,7 @@ class StayHubLargeFinancialDemoSeederTest extends TestCase
         $invoiceIds = DB::table('invoices')->whereIn('contract_id', $contractIds)->pluck('id');
 
         $this->assertExactKeys($adminUsernames, DB::table('admins')->whereIn('username', $adminUsernames), 'username');
-        $this->assertExactKeys($buildingSlugs, DB::table('buildings')->where('region_id', DB::table('regions')->where('code', 'SHOWCASE26-HCM')->value('id')), 'slug');
+        $this->assertExactKeys($buildingSlugs, DB::table('buildings')->whereIn('slug', $buildingSlugs), 'slug');
         $this->assertExactKeys($roomSlugs, DB::table('rooms')->whereIn('building_id', $buildingIds), 'slug');
         $this->assertExactKeys($tenantUsernames, DB::table('tenants')->whereIn('building_id', $buildingIds), 'username');
         $this->assertExactKeys($contractCodes, DB::table('contracts')->whereIn('room_id', $roomIds), 'contract_code');
@@ -1348,6 +1399,94 @@ class StayHubLargeFinancialDemoSeederTest extends TestCase
         }
 
         return $scenarios;
+    }
+
+    private function seedExistingRegionCatalog(): void
+    {
+        $now = CarbonImmutable::parse('2024-01-01 00:00:00');
+        $rows = [
+            ['code' => 'HCM', 'name' => 'Thành phố Hồ Chí Minh', 'slug' => 'thanh-pho-ho-chi-minh'],
+            ['code' => 'HCM-SG', 'name' => 'Phường Sài Gòn', 'slug' => 'phuong-sai-gon'],
+            ['code' => 'HCM-TD', 'name' => 'Phường Tân Định', 'slug' => 'phuong-tan-dinh'],
+        ];
+
+        foreach ($rows as $row) {
+            DB::table('regions')->insert([
+                'parent_id' => null,
+                'code' => $row['code'],
+                'name' => $row['name'],
+                'path' => $row['name'],
+                'slug' => $row['slug'],
+                'description' => 'Khu vực có sẵn dùng trong kiểm thử.',
+                'is_active' => true,
+                'created_by' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+    }
+
+    private function expectedShowcaseAdminUsernames(): array
+    {
+        return ['showcase26_owner', ...$this->expectedShowcaseManagerUsernames()];
+    }
+
+    private function expectedShowcaseManagerUsernames(): array
+    {
+        return array_map(fn (int $number): string => sprintf('showcase26_manager_b%02d', $number), range(1, 12));
+    }
+
+    private function expectedShowcaseBuildingSlugs(): array
+    {
+        return array_map(fn (int $number): string => sprintf('showcase26-b%02d', $number), range(1, 12));
+    }
+
+    private function expectedShowcaseTenantUsernames(): array
+    {
+        $dataset = new LargeFinancialDemoDataset;
+        $usernames = [];
+
+        foreach (range(1, 12) as $buildingNumber) {
+            foreach (range(1, 10) as $roomPosition) {
+                $roomNumber = $dataset->roomNumber($buildingNumber, $roomPosition);
+                foreach (range(1, 20) as $tenantPosition) {
+                    $usernames[] = $dataset->tenantUsername($buildingNumber, $roomNumber, $tenantPosition);
+                }
+            }
+        }
+
+        return $usernames;
+    }
+
+    private function expectedShowcaseContractCodes(): array
+    {
+        $dataset = new LargeFinancialDemoDataset;
+        $codes = [];
+
+        foreach (range(1, 12) as $buildingNumber) {
+            foreach (range(1, 10) as $roomPosition) {
+                $codes[] = sprintf('SHOWCASE26-HD-B%02d-P%d', $buildingNumber, $dataset->roomNumber($buildingNumber, $roomPosition));
+            }
+        }
+
+        return $codes;
+    }
+
+    private function expectedShowcaseInvoiceCodes(): array
+    {
+        $dataset = new LargeFinancialDemoDataset;
+        $codes = [];
+
+        foreach (range(1, 12) as $buildingNumber) {
+            foreach (range(1, 10) as $roomPosition) {
+                $roomNumber = $dataset->roomNumber($buildingNumber, $roomPosition);
+                foreach ($dataset->periods() as $period) {
+                    $codes[] = sprintf('SHOWCASE26-HDD-B%02d-P%d-%s', $buildingNumber, $roomNumber, $period->format('Ym'));
+                }
+            }
+        }
+
+        return $codes;
     }
 
     private function assertExactKeys(array $expected, $query, string $column): void
