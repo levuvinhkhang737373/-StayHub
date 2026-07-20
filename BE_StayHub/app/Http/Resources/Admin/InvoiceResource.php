@@ -3,6 +3,8 @@
 namespace App\Http\Resources\Admin;
 
 use App\Models\Invoice;
+use App\Helpers\VietQRHelper;
+use App\Helpers\DecimalMoney;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -48,6 +50,7 @@ class InvoiceResource extends JsonResource
             'updated_by' => $this->updated_by,
             'creator_name' => $this->whenLoaded('creator', fn (): ?string => $this->creator?->full_name),
             'updater_name' => $this->whenLoaded('updater', fn (): ?string => $this->updater?->full_name),
+            'payment_qr_url' => $this->paymentQrUrl(),
             'items_count' => $this->whenCounted('items'),
             'payments_count' => $this->whenCounted('payments'),
             'created_at' => optional($this->created_at)->toDateTimeString(),
@@ -83,5 +86,22 @@ class InvoiceResource extends JsonResource
         }
 
         return \App\Helpers\DecimalMoney::maxZero(\App\Helpers\DecimalMoney::subtract($this->remaining_amount, $rolledOverInfo['rolled_over_amount']));
+    }
+
+    private function paymentQrUrl(): ?string
+    {
+        if ($this->rolledOverInfo() !== null) {
+            return null;
+        }
+
+        if ((int) $this->status === Invoice::STATUS_PAID || (int) $this->status === Invoice::STATUS_CANCELLED) {
+            return null;
+        }
+
+        if (! DecimalMoney::isPositive($this->remaining_amount)) {
+            return null;
+        }
+
+        return VietQRHelper::generateLink(null, null, null, (string) $this->remaining_amount, $this->invoice_code);
     }
 }
