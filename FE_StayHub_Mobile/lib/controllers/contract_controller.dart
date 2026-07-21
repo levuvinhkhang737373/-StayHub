@@ -94,6 +94,7 @@ class ContractController extends ChangeNotifier {
       if (role == 'admin') {
         final response = await _apiService.get<List<Contract>>(
           '/admin/contracts',
+          queryParameters: {'per_page': 100},
           fromJsonT: (json) {
             final dataList = json['data'] as List<dynamic>;
             return dataList
