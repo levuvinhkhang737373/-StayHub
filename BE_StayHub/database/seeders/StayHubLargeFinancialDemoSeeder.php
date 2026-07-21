@@ -1079,6 +1079,10 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
             return 'none';
         }
 
+        if ($this->isReusableScaffold($counts)) {
+            return 'none';
+        }
+
         try {
             $this->assertCompleteNamespaceIsValid($counts);
 
@@ -1086,6 +1090,47 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
         } catch (RuntimeException) {
             return 'partial';
         }
+    }
+
+    private function isReusableScaffold(array $counts): bool
+    {
+        $allowedCounts = array_fill_keys(array_keys($counts), 0);
+        $allowedCounts['admins'] = 13;
+        $allowedCounts['services'] = count($this->expectedNamespacedServiceSlugs());
+
+        if ($counts !== $allowedCounts) {
+            return false;
+        }
+
+        $keys = $this->naturalKeys();
+        $actualUsernames = $this->literalNamespaceKeys('admins', 'username', 'showcase26_');
+        sort($actualUsernames);
+        $expectedUsernames = $keys['admins'];
+        sort($expectedUsernames);
+
+        if ($actualUsernames !== $expectedUsernames) {
+            return false;
+        }
+
+        $admins = DB::table('admins')
+            ->whereIn('username', $expectedUsernames)
+            ->get(['username', 'role', 'status']);
+
+        if ($admins->count() !== 13
+            || $admins->contains(fn (object $admin): bool => (int) $admin->status !== Admin::STATUS_ACTIVE)
+            || $admins->contains(fn (object $admin): bool => (int) $admin->role !== ($admin->username === 'showcase26_owner'
+                ? Admin::ROLE_SUPER_ADMIN
+                : Admin::ROLE_BUILDING_MANAGER))
+        ) {
+            return false;
+        }
+
+        $actualServices = $this->literalNamespaceKeys('services', 'slug', 'showcase26-');
+        $expectedServices = $this->expectedNamespacedServiceSlugs();
+        sort($actualServices);
+        sort($expectedServices);
+
+        return $actualServices === $expectedServices;
     }
 
     private function namespaceCounts(): array
@@ -1171,6 +1216,7 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
             ->get([
                 'buildings.slug',
                 'regions.code as region_code',
+                'regions.is_active as region_is_active',
                 'admins.username as manager_username',
                 'admins.role as manager_role',
                 'admins.status as manager_status',
@@ -1183,6 +1229,7 @@ class StayHubLargeFinancialDemoSeeder extends Seeder
 
                 return $expected === null
                     || $building->region_code !== $expected['region_code']
+                    || ! (bool) $building->region_is_active
                     || $building->manager_username !== $expected['manager_username']
                     || (int) $building->manager_role !== Admin::ROLE_BUILDING_MANAGER
                     || (int) $building->manager_status !== Admin::STATUS_ACTIVE;

@@ -143,6 +143,7 @@ return [
             \App\Models\Region::class => [
                 'searchableAttributes' => ['code', 'name', 'path', 'slug'],
                 'filterableAttributes' => ['is_active', 'parent_id', 'created_by'],
+                'sortableAttributes' => ['created_at', 'updated_at', 'id'],
                 'rankingRules' => ['exactness', 'words', 'typo', 'proximity', 'attribute', 'sort'],
             ],
             \App\Models\Building::class => [

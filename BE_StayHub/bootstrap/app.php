@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureTenantGuard;
+use App\Console\Commands\SetupMeilisearch;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
@@ -18,6 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
+    ->withCommands([
+        SetupMeilisearch::class,
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
         $middleware->statefulApi();

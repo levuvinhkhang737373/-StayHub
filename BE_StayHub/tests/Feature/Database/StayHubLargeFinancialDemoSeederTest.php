@@ -36,25 +36,282 @@ class StayHubLargeFinancialDemoSeederTest extends TestCase
         $this->seedExistingRegionCatalog();
     }
 
-    public function test_rollback_removes_only_showcase_data_and_preserves_shared_catalogs(): void
+    public function test_rollback_preserves_admins_chats_regions_and_services_then_allows_a_clean_reseed(): void
     {
-        $legacyRegionSnapshot = DB::table('regions')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all();
-        $canonicalServiceSnapshot = DB::table('services')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all();
+        $legacyRegionId = DB::table('regions')->insertGetId([
+            'parent_id' => null,
+            'code' => 'SHOWCASE26-HCM',
+            'name' => 'Khu vực cũ phải được giữ nguyên',
+            'path' => 'Khu vực cũ phải được giữ nguyên',
+            'slug' => 'showcase26-hcm-existing-region',
+            'description' => 'Bản ghi có sẵn, rollback không được xóa.',
+            'is_active' => true,
+            'created_by' => null,
+            'created_at' => CarbonImmutable::parse('2024-01-01 00:00:00'),
+            'updated_at' => CarbonImmutable::parse('2024-01-01 00:00:00'),
+        ]);
 
         $this->seed(StayHubLargeFinancialDemoSeeder::class);
+
+        $adminSnapshot = DB::table('admins')
+            ->whereIn('username', $this->expectedShowcaseAdminUsernames())
+            ->orderBy('username')
+            ->get()
+            ->map(fn (object $row): array => (array) $row)
+            ->all();
+        $adminIds = collect($adminSnapshot)->pluck('id', 'username');
+        $regionSnapshot = (array) DB::table('regions')->find($legacyRegionId);
+        $serviceSnapshot = DB::table('services')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all();
+        $conversationId = DB::table('chat_conversations')->insertGetId([
+            'conversation_type' => 2,
+            'building_id' => null,
+            'room_id' => null,
+            'tenant_id' => null,
+            'manager_admin_id' => $adminIds['showcase26_manager_b01'],
+            'super_admin_id' => $adminIds['showcase26_owner'],
+            'last_message_id' => null,
+            'last_message_at' => CarbonImmutable::parse('2026-07-16 10:00:00'),
+            'tenant_unread_count' => 0,
+            'admin_unread_count' => 1,
+            'tenant_last_read_at' => null,
+            'admin_last_read_at' => null,
+            'status' => 1,
+            'created_at' => CarbonImmutable::parse('2026-07-16 10:00:00'),
+            'updated_at' => CarbonImmutable::parse('2026-07-16 10:00:00'),
+        ]);
+        $messageId = DB::table('chat_messages')->insertGetId([
+            'conversation_id' => $conversationId,
+            'sender_type' => Admin::class,
+            'sender_id' => $adminIds['showcase26_owner'],
+            'sender_role' => Admin::ROLE_SUPER_ADMIN,
+            'body' => 'Trao đổi thật phát sinh sau khi seed.',
+            'queued_at' => null,
+            'sent_at' => CarbonImmutable::parse('2026-07-16 10:00:00'),
+            'read_at' => null,
+            'created_at' => CarbonImmutable::parse('2026-07-16 10:00:00'),
+            'updated_at' => CarbonImmutable::parse('2026-07-16 10:00:00'),
+        ]);
+        DB::table('chat_conversations')->where('id', $conversationId)->update(['last_message_id' => $messageId]);
+        $conversationSnapshot = (array) DB::table('chat_conversations')->find($conversationId);
+        $messageSnapshot = (array) DB::table('chat_messages')->find($messageId);
+
         $this->seed(StayHubLargeFinancialDemoRollbackSeeder::class);
 
-        $this->assertSame(0, DB::table('admins')->whereIn('username', $this->expectedShowcaseAdminUsernames())->count());
+        $this->assertSame($adminSnapshot, DB::table('admins')
+            ->whereIn('username', $this->expectedShowcaseAdminUsernames())
+            ->orderBy('username')
+            ->get()
+            ->map(fn (object $row): array => (array) $row)
+            ->all());
         $this->assertSame(0, DB::table('buildings')->whereIn('slug', $this->expectedShowcaseBuildingSlugs())->count());
         $this->assertSame(0, DB::table('tenants')->whereIn('username', $this->expectedShowcaseTenantUsernames())->count());
         $this->assertSame(0, DB::table('contracts')->whereIn('contract_code', $this->expectedShowcaseContractCodes())->count());
         $this->assertSame(0, DB::table('invoices')->whereIn('invoice_code', $this->expectedShowcaseInvoiceCodes())->count());
-        $this->assertSame(0, DB::table('regions')->where('code', 'SHOWCASE26-HCM')->count());
-        $this->assertSame($legacyRegionSnapshot, DB::table('regions')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all());
-        $this->assertSame($canonicalServiceSnapshot, DB::table('services')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all());
+        $this->assertSame($regionSnapshot, (array) DB::table('regions')->find($legacyRegionId));
+        $this->assertSame($serviceSnapshot, DB::table('services')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all());
+        $this->assertSame($conversationSnapshot, (array) DB::table('chat_conversations')->find($conversationId));
+        $this->assertSame($messageSnapshot, (array) DB::table('chat_messages')->find($messageId));
 
         $this->seed(StayHubLargeFinancialDemoRollbackSeeder::class);
         $this->assertSame(0, DB::table('buildings')->whereIn('slug', $this->expectedShowcaseBuildingSlugs())->count());
+
+        $this->seed(StayHubLargeFinancialDemoSeeder::class);
+
+        $this->assertSame(12, DB::table('buildings')->whereIn('slug', $this->expectedShowcaseBuildingSlugs())->count());
+        $this->assertSame(2400, DB::table('tenants')->whereIn('username', $this->expectedShowcaseTenantUsernames())->count());
+        $this->assertSame(2160, DB::table('invoices')->whereIn('invoice_code', $this->expectedShowcaseInvoiceCodes())->count());
+        $this->assertSame($adminIds->sortKeys()->all(), DB::table('admins')
+            ->whereIn('username', $this->expectedShowcaseAdminUsernames())
+            ->pluck('id', 'username')
+            ->sortKeys()
+            ->all());
+        $this->assertSame($conversationSnapshot, (array) DB::table('chat_conversations')->find($conversationId));
+        $this->assertSame($messageSnapshot, (array) DB::table('chat_messages')->find($messageId));
+    }
+
+    public function test_rollback_refuses_external_vehicle_dependency_and_keeps_the_demo_graph_atomic(): void
+    {
+        $this->seed(StayHubLargeFinancialDemoSeeder::class);
+
+        $tenantId = DB::table('tenants')->where('username', 'showcase26_b01_p101_t01')->value('id');
+        $vehicleId = DB::table('vehicles')->insertGetId([
+            'tenant_id' => $tenantId,
+            'vehicle_type' => 1,
+            'license_plate' => '59-X1 26001',
+            'brand' => 'Honda',
+            'color' => 'Đen',
+            'is_active' => true,
+            'created_at' => CarbonImmutable::parse('2026-07-16 11:00:00'),
+            'updated_at' => CarbonImmutable::parse('2026-07-16 11:00:00'),
+        ]);
+        $before = $this->showcaseSnapshot();
+
+        $exception = null;
+
+        try {
+            $this->seed(StayHubLargeFinancialDemoRollbackSeeder::class);
+        } catch (RuntimeException $runtimeException) {
+            $exception = $runtimeException;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertStringContainsString('phương tiện', $exception->getMessage());
+        $this->assertSame($before, $this->showcaseSnapshot());
+        $this->assertSame($tenantId, DB::table('vehicles')->where('id', $vehicleId)->value('tenant_id'));
+    }
+
+    public function test_rollback_refuses_an_extra_invoice_item_and_keeps_the_demo_graph_atomic(): void
+    {
+        $this->seed(StayHubLargeFinancialDemoSeeder::class);
+
+        $invoiceId = DB::table('invoices')
+            ->where('invoice_code', 'SHOWCASE26-HDD-B01-P101-202501')
+            ->value('id');
+        $extraItemId = DB::table('invoice_items')->insertGetId([
+            'invoice_id' => $invoiceId,
+            'service_id' => null,
+            'meter_reading_id' => null,
+            'item_type' => InvoiceItem::ITEM_TYPE_SURCHARGE,
+            'description' => 'Khoản phát sinh thật sau khi seed.',
+            'quantity' => 1,
+            'unit_price' => 50_000,
+            'amount' => 50_000,
+            'created_at' => CarbonImmutable::parse('2026-07-16 11:30:00'),
+            'updated_at' => CarbonImmutable::parse('2026-07-16 11:30:00'),
+        ]);
+        $before = $this->showcaseSnapshot();
+
+        $exception = null;
+
+        try {
+            $this->seed(StayHubLargeFinancialDemoRollbackSeeder::class);
+        } catch (RuntimeException $runtimeException) {
+            $exception = $runtimeException;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertStringContainsString('không còn nguyên vẹn', $exception->getMessage());
+        $this->assertSame($before, $this->showcaseSnapshot());
+        $this->assertSame($invoiceId, DB::table('invoice_items')->where('id', $extraItemId)->value('invoice_id'));
+    }
+
+    public function test_rollback_refuses_external_nullable_references_to_seeded_financial_roots_atomically(): void
+    {
+        $this->seed(StayHubLargeFinancialDemoSeeder::class);
+
+        $externalBuilding = (array) DB::table('buildings')->where('slug', 'showcase26-b01')->first();
+        unset($externalBuilding['id']);
+        $externalBuilding['name'] = 'Tòa nhà ngoài dữ liệu demo';
+        $externalBuilding['slug'] = 'external-financial-building';
+        $externalBuildingId = DB::table('buildings')->insertGetId($externalBuilding);
+
+        $externalRoomType = (array) DB::table('room_types')->where('slug', 'showcase26-ky-tuc-xa-20-nguoi')->first();
+        unset($externalRoomType['id']);
+        $externalRoomType['name'] = 'Loại phòng ngoài dữ liệu demo';
+        $externalRoomType['slug'] = 'external-financial-room-type';
+        $externalRoomTypeId = DB::table('room_types')->insertGetId($externalRoomType);
+
+        $externalRoom = (array) DB::table('rooms')->where('slug', 'showcase26-b01-p101')->first();
+        unset($externalRoom['id']);
+        $externalRoom['building_id'] = $externalBuildingId;
+        $externalRoom['room_type_id'] = $externalRoomTypeId;
+        $externalRoom['room_number'] = 'EXT-101';
+        $externalRoom['slug'] = 'external-financial-room';
+        $externalRoomId = DB::table('rooms')->insertGetId($externalRoom);
+
+        $seededContract = DB::table('contracts')->where('contract_code', 'SHOWCASE26-HD-B01-P101')->first();
+        $externalContract = (array) $seededContract;
+        unset($externalContract['id']);
+        $externalContract['contract_code'] = 'EXTERNAL-FINANCIAL-CONTRACT';
+        $externalContract['room_id'] = $externalRoomId;
+        $externalContract['parent_contract_id'] = null;
+        $externalContract['renew_from_contract_id'] = null;
+        $externalContract['representative_tenant_id'] = null;
+        $externalContractId = DB::table('contracts')->insertGetId($externalContract);
+
+        $externalInvoice = (array) DB::table('invoices')
+            ->where('invoice_code', 'SHOWCASE26-HDD-B01-P101-202501')
+            ->first();
+        unset($externalInvoice['id']);
+        $externalInvoice['invoice_code'] = 'EXTERNAL-FINANCIAL-INVOICE';
+        $externalInvoice['contract_id'] = $externalContractId;
+        $externalInvoice['room_id'] = $externalRoomId;
+        $externalInvoiceId = DB::table('invoices')->insertGetId($externalInvoice);
+
+        $seededReadingId = DB::table('meter_readings')
+            ->join('meter_devices', 'meter_devices.id', '=', 'meter_readings.meter_device_id')
+            ->where('meter_devices.meter_code', 'SHOWCASE26-DIEN-B01-P101')
+            ->where('meter_readings.billing_year', 2025)
+            ->where('meter_readings.billing_month', 1)
+            ->value('meter_readings.id');
+        $externalItemId = DB::table('invoice_items')->insertGetId([
+            'invoice_id' => $externalInvoiceId,
+            'service_id' => null,
+            'meter_reading_id' => $seededReadingId,
+            'item_type' => InvoiceItem::ITEM_TYPE_SURCHARGE,
+            'description' => 'Hạng mục ngoài demo tham chiếu chỉ số demo.',
+            'quantity' => 1,
+            'unit_price' => 50_000,
+            'amount' => 50_000,
+            'created_at' => '2026-07-16 13:00:00',
+            'updated_at' => '2026-07-16 13:00:00',
+        ]);
+        $reminderId = DB::table('invoice_reminder_logs')->insertGetId([
+            'invoice_id' => $externalInvoiceId,
+            'contract_id' => $seededContract->id,
+            'room_id' => $seededContract->room_id,
+            'notification_id' => null,
+            'reminder_date' => '2026-07-16',
+            'tenant_count' => 20,
+            'mail_queued_count' => 20,
+            'status' => 1,
+            'error_message' => null,
+            'created_at' => '2026-07-16 13:00:00',
+            'updated_at' => '2026-07-16 13:00:00',
+        ]);
+
+        $exception = null;
+
+        try {
+            $this->seed(StayHubLargeFinancialDemoRollbackSeeder::class);
+        } catch (RuntimeException $runtimeException) {
+            $exception = $runtimeException;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertStringContainsString('hạng mục hóa đơn', $exception->getMessage());
+        $this->assertSame(12, DB::table('buildings')->whereIn('slug', $this->expectedShowcaseBuildingSlugs())->count());
+        $this->assertSame(2160, DB::table('invoices')->whereIn('invoice_code', $this->expectedShowcaseInvoiceCodes())->count());
+        $this->assertSame($seededReadingId, DB::table('invoice_items')->where('id', $externalItemId)->value('meter_reading_id'));
+        $this->assertSame($seededContract->id, DB::table('invoice_reminder_logs')->where('id', $reminderId)->value('contract_id'));
+        $this->assertSame($seededContract->room_id, DB::table('invoice_reminder_logs')->where('id', $reminderId)->value('room_id'));
+    }
+
+    public function test_rollback_removes_only_the_exact_legacy_generated_region_provenance(): void
+    {
+        $this->seed(StayHubLargeFinancialDemoSeeder::class);
+
+        $ownerId = DB::table('admins')->where('username', 'showcase26_owner')->value('id');
+        $legacyGeneratedRegionId = DB::table('regions')->insertGetId([
+            'parent_id' => null,
+            'code' => 'SHOWCASE26-HCM',
+            'name' => 'Tên đã bị chỉnh sửa sau khi seed',
+            'path' => '/showcase26-hcm',
+            'slug' => 'slug-da-bi-chinh-sua',
+            'description' => 'Khu vực riêng cho dữ liệu demo tài chính SHOWCASE26.',
+            'is_active' => true,
+            'created_by' => $ownerId,
+            'created_at' => CarbonImmutable::parse('2026-07-16 00:00:00'),
+            'updated_at' => CarbonImmutable::parse('2026-07-16 12:00:00'),
+        ]);
+        DB::table('buildings')
+            ->whereIn('slug', $this->expectedShowcaseBuildingSlugs())
+            ->update(['region_id' => $legacyGeneratedRegionId]);
+
+        $this->seed(StayHubLargeFinancialDemoRollbackSeeder::class);
+
+        $this->assertNull(DB::table('regions')->find($legacyGeneratedRegionId));
+        $this->assertSame(3, DB::table('regions')->count());
     }
 
     public function test_seed_reuses_existing_regions_and_assigns_one_distinct_manager_per_building(): void
@@ -77,6 +334,25 @@ class StayHubLargeFinancialDemoSeederTest extends TestCase
         $this->assertTrue($rows->every(fn (object $row): bool => (int) $row->role === Admin::ROLE_BUILDING_MANAGER && (int) $row->status === Admin::STATUS_ACTIVE));
         $this->assertSame(0, DB::table('regions')->where('code', 'SHOWCASE26-HCM')->count());
         $this->assertSame($regionSnapshot, DB::table('regions')->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all());
+    }
+
+    public function test_complete_namespace_verifier_rejects_an_inactive_assigned_region_read_only(): void
+    {
+        $this->seed(StayHubLargeFinancialDemoSeeder::class);
+        DB::table('regions')->where('code', 'HCM')->update(['is_active' => false]);
+
+        $exception = null;
+
+        try {
+            $this->seed(StayHubLargeFinancialDemoSeeder::class);
+        } catch (RuntimeException $runtimeException) {
+            $exception = $runtimeException;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertStringContainsString('Dữ liệu SHOWCASE26 đã tồn tại', $exception->getMessage());
+        $this->assertFalse((bool) DB::table('regions')->where('code', 'HCM')->value('is_active'));
+        $this->assertSame(12, DB::table('buildings')->whereIn('slug', $this->expectedShowcaseBuildingSlugs())->count());
     }
 
     public function test_seeder_is_idempotent_and_does_not_change_existing_showcase_or_legacy_rows(): void
