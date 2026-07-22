@@ -43,12 +43,14 @@ FACE_ERROR_MESSAGES = {
 }
 
 
+# Class Exception tùy chỉnh để xử lý và quy đổi mã lỗi xác thực khuôn mặt ra thông báo tiếng Việt
 class FaceValidationError(ValueError):
     def __init__(self, code):
         self.code = code
         super().__init__(FACE_ERROR_MESSAGES[code])
 
 
+# Quản lý vòng đời (lifespan) của ứng dụng FastAPI khi khởi động và tắt service
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
@@ -57,6 +59,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="StayHub AI Service", version="5.0", lifespan=lifespan)
 
 
+# Đọc dữ liệu từ file upload và chuyển đổi thành ảnh OpenCV (numpy array BGR)
 def load_image_from_upload(upload_file: UploadFile):
     contents = upload_file.file.read()
     nparr = np.frombuffer(contents, np.uint8)
@@ -67,6 +70,7 @@ def load_image_from_upload(upload_file: UploadFile):
     return image
 
 
+# Kiểm tra chất lượng ảnh: độ sáng (brightness) và độ sắc nét/độ mờ (blur score)
 def validate_image_quality(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     brightness = float(np.mean(gray))
@@ -82,6 +86,7 @@ def validate_image_quality(image):
     return round(brightness, 2), round(blur_score, 2)
 
 
+# Tính diện tích (width * height) của khung khuôn mặt phát hiện được
 def detection_area(detection):
     facial_area = detection.get("facial_area") or {}
     width = int(facial_area.get("w") or 0)
@@ -90,6 +95,7 @@ def detection_area(detection):
     return width * height
 
 
+# Trích xuất khuôn mặt chính, kiểm tra kích thước tối thiểu, chống 2 mặt trong 1 ảnh và kiểm tra giả mạo (anti-spoofing)
 def extract_real_face(image, anti_spoofing=True):
     detections = DeepFace.extract_faces(
         img_path=image,
@@ -136,6 +142,7 @@ def extract_real_face(image, anti_spoofing=True):
     return facial_area, round(float(antispoof_score or 1), 4)
 
 
+# Trích xuất vectơ đặc trưng (embedding) đại diện cho khuôn mặt sử dụng DeepFace.represent
 def extract_embedding(image):
     result = DeepFace.represent(
         img_path=image,
@@ -150,6 +157,7 @@ def extract_embedding(image):
     return np.array(result[0]["embedding"], dtype=np.float32)
 
 
+# Tính khoảng cách Cosine giữa 2 vectơ embedding để đo độ tương đồng giữa 2 khuôn mặt
 def cosine_distance(first, second):
     denominator = np.linalg.norm(first) * np.linalg.norm(second)
     if denominator == 0:
@@ -158,6 +166,7 @@ def cosine_distance(first, second):
     return float(1 - np.dot(first, second) / denominator)
 
 
+# Tính tọa độ tâm chuẩn hóa (center_x, center_y) và tỷ lệ diện tích (scale) của khuôn mặt để theo dõi chuyển động
 def face_motion(facial_area, image):
     image_height, image_width = image.shape[:2]
     x = float(facial_area.get("x") or 0)
@@ -171,6 +180,7 @@ def face_motion(facial_area, image):
     return center_x, center_y, scale
 
 
+# Kiểm tra tính sống (liveness) dựa trên sự di chuyển và thay đổi khoảng cách/kích thước khuôn mặt giữa các frame
 def validate_liveness(motions):
     if len(motions) < 2:
         return 0
@@ -189,6 +199,7 @@ def validate_liveness(motions):
     return round(float(movement), 4)
 
 
+# Dịch thông báo lỗi tiếng Anh mặc định của DeepFace/OpenCV sang tiếng Việt cho người dùng
 def translate_face_error(message):
     lower_message = message.lower()
 
@@ -204,6 +215,7 @@ def translate_face_error(message):
     return message
 
 
+# Quy trình xử lý danh sách ảnh: kiểm tra chất lượng, liveness, anti-spoofing và tính embedding trung bình
 def process_images(images, require_liveness=False):
     if len(images) < 1:
         raise FaceValidationError("camera_required")
@@ -240,11 +252,13 @@ def process_images(images, require_liveness=False):
     return [float(value) for value in average_embedding], frames, round(float(max_distance), 4), movement
 
 
+# API Check health cho AI service
 @app.get("/health")
 def health():
     return {"status": True, "service": "stayhub-ai", "face_model": FACE_MODEL}
 
 
+# API Endpoint nhận ảnh và trích xuất vectơ embedding khuôn mặt
 @app.post("/api/v1/extract")
 def extract_face(
     files: list[UploadFile] = File(None),
