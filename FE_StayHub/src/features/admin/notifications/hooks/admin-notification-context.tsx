@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -23,7 +23,7 @@ interface AdminNotificationContextValue {
   unreadCount: number
   isDrawerOpen: boolean
   setIsDrawerOpen: (open: boolean) => void
-  addNotification: (notif: Omit<ReceivedNotification, 'id' | 'read' | 'createdAt'>) => void
+  addNotification: (notif: Omit<ReceivedNotification, 'id' | 'read' | 'createdAt'> & { id?: string }) => void
   markAsRead: (id: string) => void
   markAllAsRead: () => void
   clearAll: () => void
@@ -40,6 +40,7 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
   const [toasts, setToasts] = useState<ReceivedNotification[]>([])
 
   const adminId = session?.admin?.id
+  const processedNotifIdsRef = useRef<Set<string>>(new Set())
 
   const mapApiNotifications = useCallback((list: AdminNotificationResource[]) => {
     return list.reduce<ReceivedNotification[]>((acc, item) => {
@@ -123,31 +124,38 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
     }
   }, [adminId])
 
-  const addNotification = useCallback((notif: Omit<ReceivedNotification, 'id' | 'read' | 'createdAt'>) => {
+  const addNotification = useCallback((notif: Omit<ReceivedNotification, 'id' | 'read' | 'createdAt'> & { id?: string }) => {
+    const newNotifId = notif.id || `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
     const newNotif: ReceivedNotification = {
       ...notif,
-      id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+      id: newNotifId,
       read: false,
       createdAt: new Date().toISOString(),
     }
 
-    // Play chime sound
-    playChimeSound()
-
-    // Add toast notification
+    // Play chime sound & add toast only if not duplicate
     setToasts((prev) => {
+      if (prev.some((t) => t.id === newNotifId || (t.title === notif.title && t.description === notif.description))) {
+        return prev
+      }
       if (notif.type === 'chat') {
         const filtered = prev.filter((t) => !(t.type === 'chat' && t.link === notif.link))
         return [...filtered, newNotif]
       }
       return [...prev, newNotif]
     })
+
+    playChimeSound()
+
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== newNotif.id))
     }, 6000)
 
-    // Prepend and cap at 50 notifications to prevent localStorage bloat
+    // Prepend and cap at 500 notifications to prevent localStorage bloat
     setNotifications((prev) => {
+      if (prev.some((n) => n.id === newNotifId)) {
+        return prev
+      }
       let updated: ReceivedNotification[]
       if (notif.type === 'chat') {
         const existingIdx = prev.findIndex((n) => n.type === 'chat' && n.link === notif.link)
@@ -299,9 +307,22 @@ export function AdminNotificationProvider({ children }: { children: ReactNode })
       if (!notification || Number(notification.target_type) !== 5) return
       if (notification.target_admin_id && Number(notification.target_admin_id) !== Number(adminId)) return
 
+      // Deduplicate notifications received via multiple channels (e.g. admin-super and admin-building.{id})
+      if (notification.id) {
+        const notifKey = String(notification.id)
+        if (processedNotifIdsRef.current.has(notifKey)) {
+          return
+        }
+        processedNotifIdsRef.current.add(notifKey)
+        setTimeout(() => {
+          processedNotifIdsRef.current.delete(notifKey)
+        }, 30000)
+      }
+
       window.dispatchEvent(new CustomEvent('notification-refresh', { detail: notification }))
 
       addNotification({
+        id: notification.id ? String(notification.id) : undefined,
         title: notification.title,
         description: notification.content,
         link: resolveNotificationActionPath(notification) || undefined,

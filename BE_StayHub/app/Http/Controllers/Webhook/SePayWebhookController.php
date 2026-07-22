@@ -69,7 +69,6 @@ class SePayWebhookController extends Controller
                 return ApiResponse::responseJson(true, 'Giao dịch đã được xử lý.', 0, ['status' => 'ignored'], 200);
             }
 
-            // Ưu tiên so khớp mã hóa đơn INV-* trước để không lẫn với luồng thu cọc hợp đồng HD-*.
             $invoiceCode = $this->extractInvoiceCode($content);
             if ($invoiceCode) {
                 $invoice = Invoice::query()

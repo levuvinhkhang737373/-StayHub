@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { AlertTriangle, BadgeCheck, Banknote, Calculator, ClipboardCheck, ReceiptText, X } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, Banknote, Calculator, ReceiptText, X } from 'lucide-react'
 import { AdminDateInput } from '../../../../../shared/components/AdminDateInput'
 import { cn } from '../../../../../shared/lib/utils/cn'
 import { formatCurrency, formatDate, formatMoneyInput } from '../../../../../shared/lib/utils/format'
