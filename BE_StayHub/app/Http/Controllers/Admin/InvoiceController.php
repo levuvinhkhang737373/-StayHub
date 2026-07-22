@@ -186,7 +186,7 @@ class InvoiceController extends Controller
         }
     }
 
-    // Phát hành hóa đơn cho phòng
+    // Phát hành hóa đơn cho phòng - 1
     public function generate(GenerateRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -715,7 +715,7 @@ class InvoiceController extends Controller
         }
     }
 
-    // Tạo các khoản mục hóa đơn tự động (tiền phòng, dịch vụ cố định, xe)
+    // Tạo các khoản mục hóa đơn (tiền phòng, dịch vụ cố định, xe)
     private function buildAutomaticItems(Contract $contract, Carbon $periodStart, Carbon $periodEnd, bool $lockDebt = false): array
     {
         $items = [];
@@ -727,6 +727,7 @@ class InvoiceController extends Controller
         $remainingTransferContext = $this->remainingTransferContext($contract, $periodStart, $periodEnd);
         $servicePeriodStart = $remainingTransferContext['service_period_start'];
 
+        // Tính tiền phòng
         $roomAmount = $this->calculateRoomAmount($contract, $periodStart, $periodEnd, $transferContext['contract_cutoff_date'], $servicePeriodStart);
         $items[] = [
             'service_id' => null,
@@ -802,6 +803,7 @@ class InvoiceController extends Controller
 
             $unitPrice = DecimalMoney::normalize($priceAmount);
 
+            // Tính tiền điện & tiền nước (theo chỉ số đồng hồ)
             if ((int) $service->charge_method === Service::CHARGE_METHOD_BY_METER) {
                 $meterDevice = $meterDevices->get($service->id);
                 $reading = $meterDevice?->readings?->first();
@@ -837,6 +839,7 @@ class InvoiceController extends Controller
                 continue;
             }
 
+            // Tính tiền dịch vụ theo số người (rác, an ninh...)
             if ((int) $service->charge_method === Service::CHARGE_METHOD_BY_PERSON) {
                 $tenantCount = $contract->contractTenants
                     ->filter(fn ($contractTenant): bool => (bool) $contractTenant->is_staying)
@@ -864,6 +867,7 @@ class InvoiceController extends Controller
                 continue;
             }
 
+            // Tính tiền dịch vụ cố định theo phòng (wifi, quản lý...)
             if (in_array((int) $service->charge_method, [Service::CHARGE_METHOD_BY_ROOM, Service::CHARGE_METHOD_FIXED], true)) {
                 $serviceEndDate = $this->serviceChargeEndDate($contract, $roomService, $periodEnd, $transferContext['contract_cutoff_date']);
                 $serviceDescriptionEndDate = $this->serviceDescriptionEndDate($serviceEndDate, $periodEnd);
@@ -881,6 +885,7 @@ class InvoiceController extends Controller
             }
         }
 
+        // Tính tiền gửi xe
         $vehicleServiceId = $prices
             ->first(fn (ServicePrice $price): bool => (int) $price->service?->charge_method === Service::CHARGE_METHOD_BY_VEHICLE)
             ?->service_id;
@@ -952,6 +957,7 @@ class InvoiceController extends Controller
             ];
         }
 
+        // Tính tiền nợ cũ các kỳ trước
         $previousDebtRollovers = $this->previousDebtRollovers($contract, $billingYear, $billingMonth, null, $lockDebt);
         $previousDebtAmount = $this->debtRolloverService->previousDebtAmount($previousDebtRollovers);
         if (DecimalMoney::isPositive($previousDebtAmount)) {
@@ -1007,7 +1013,7 @@ class InvoiceController extends Controller
         return DecimalMoney::prorateByDays($amount, $actualDays, $totalDays);
     }
 
-    // Tính tiền xe theo số ngày sử dụng thực tế
+    // Tính tiền xe theo số ngày sử dụng thực tế 
     private function calculateVehicleProratedAmount(ContractVehicle $contractVehicle, Carbon $periodStart, Carbon $periodEnd, ?Carbon $cutoffDate = null): string
     {
         $vehicleBillingStart = $contractVehicle->billing_start_date ?: $contractVehicle->started_at;
@@ -1049,6 +1055,7 @@ class InvoiceController extends Controller
         return $this->calculateProratedAmount($contract->room_price, $contract, $periodStart, $periodEnd, $cutoffDate, $servicePeriodStart);
     }
 
+    // Xác định ngày kết thúc tính phí của dịch vụ trong kỳ
     private function serviceChargeEndDate(Contract $contract, RoomService $roomService, Carbon $periodEnd, ?Carbon $transferCutoffDate = null): Carbon
     {
         $chargeEnd = $periodEnd->copy()->startOfDay();
@@ -1070,6 +1077,7 @@ class InvoiceController extends Controller
         return $chargeEnd;
     }
 
+    // Xác định ngày kết thúc hiển thị trong mô tả khoản mục dịch vụ
     private function serviceDescriptionEndDate(Carbon $serviceEndDate, Carbon $periodEnd): ?Carbon
     {
         return $serviceEndDate->isSameDay($periodEnd) ? null : $serviceEndDate;
